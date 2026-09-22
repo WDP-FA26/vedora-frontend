@@ -172,9 +172,9 @@ importers:
       '@mux/ts':
         specifier: ^15.2.0
         version: 15.2.0
-      '@teispace/next-themes':
-        specifier: ^3.0.2
-        version: 3.0.2(next@16.3.5(@babel/core@7.29.7(supports-color@7.2.0))(@types/node@20.19.43)(babel-plugin-react-compiler@1.0.0)(react-dom@19.2.8(react@19.2.8))(react@19.2.8))(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
+      '@wrksz/themes':
+        specifier: ^2.0.2
+        version: 2.0.2(next@16.3.5(@babel/core@7.29.7(supports-color@7.2.0))(@types/node@20.19.43)(babel-plugin-react-compiler@1.0.0)(react-dom@19.2.8(react@19.2.8))(react@19.2.8))(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(typescript@5.9.3)
       class-variance-authority:
         specifier: ^0.7.1
         version: 0.7.1
@@ -1117,17 +1117,6 @@ packages:
   '@tailwindcss/postcss@4.3.3':
     resolution: {integrity: sha512-JTSZZGQi1AyKirbLN3azmjVzef92tcX7h+iSqPdaeStyFpGpDlKvvpxeOE8njhbUanbRwr3z8DyzhICWnMtQeg==}
 
-  '@teispace/next-themes@3.0.2':
-    resolution: {integrity: sha512-60ha/eiWuW+DVI9fkUAFK6tTrnwAvviTrHp7h7ivQMYnQrwi/HDDbXgV3HK8HqMoyW6JxyxrKryG6l1X4uh74w==}
-    engines: {node: '>=20.9.0'}
-    peerDependencies:
-      next: '>=13.0.0'
-      react: '>=18.0.0'
-      react-dom: '>=18.0.0'
-    peerDependenciesMeta:
-      next:
-        optional: true
-
   '@ts-morph/common@0.27.0':
     resolution: {integrity: sha512-Wf29UqxWDpc+i61k3oIOzcUfQt79PIT9y/MWfAGlrkjg6lBC1hwDECLXPVJAhWjiGbfBCxZd65F/LIZF3+jeJQ==}
 
@@ -1335,6 +1324,17 @@ packages:
     resolution: {integrity: sha512-nAB74NfSNKknqQ1RrYj6uz8FcXEomu/MATJZxh/x+BArzN2U3JbOYC0APYzUIGhVY3m5hRxA8VPNdPBoG8txlA==}
     cpu: [x64]
     os: [win32]
+
+  '@wrksz/themes@2.0.2':
+    resolution: {integrity: sha512-Us7orFtKm+TiTdAZyxUQgpW7yika0+IK4Ao2jN2fJskRVF4kZQhsnFXPCz/yp8kR1ku0bhBfOhic43Dh3xOldw==}
+    peerDependencies:
+      next: '>=16.0.0'
+      react: ^18.0.0 || ^19.0.0
+      react-dom: ^18.0.0 || ^19.0.0
+      typescript: '>=5.9'
+    peerDependenciesMeta:
+      next:
+        optional: true
 
   accepts@2.0.0:
     resolution: {integrity: sha512-5cvg6CtKwfgdmVqY1WIiXKc3Q1bkRqGLi+2W/6ao+6Y7gu/RCwRuAhGEzh5B4KlszSuTLgZYuqFqo5bImjNKng==}
@@ -4342,13 +4342,6 @@ snapshots:
       postcss: 8.5.28
       tailwindcss: 4.3.3
 
-  '@teispace/next-themes@3.0.2(next@16.3.5(@babel/core@7.29.7(supports-color@7.2.0))(@types/node@20.19.43)(babel-plugin-react-compiler@1.0.0)(react-dom@19.2.8(react@19.2.8))(react@19.2.8))(react-dom@19.2.8(react@19.2.8))(react@19.2.8)':
-    dependencies:
-      react: 19.2.8
-      react-dom: 19.2.8(react@19.2.8)
-    optionalDependencies:
-      next: 16.3.5(@babel/core@7.29.7(supports-color@7.2.0))(@types/node@20.19.43)(babel-plugin-react-compiler@1.0.0)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
-
   '@ts-morph/common@0.27.0':
     dependencies:
       fast-glob: 3.3.3
@@ -4540,6 +4533,14 @@ snapshots:
 
   '@unrs/resolver-binding-win32-x64-msvc@1.12.2':
     optional: true
+
+  '@wrksz/themes@2.0.2(next@16.3.5(@babel/core@7.29.7(supports-color@7.2.0))(@types/node@20.19.43)(babel-plugin-react-compiler@1.0.0)(react-dom@19.2.8(react@19.2.8))(react@19.2.8))(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(typescript@5.9.3)':
+    dependencies:
+      react: 19.2.8
+      react-dom: 19.2.8(react@19.2.8)
+      typescript: 5.9.3
+    optionalDependencies:
+      next: 16.3.5(@babel/core@7.29.7(supports-color@7.2.0))(@types/node@20.19.43)(babel-plugin-react-compiler@1.0.0)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
 
   accepts@2.0.0:
     dependencies:
