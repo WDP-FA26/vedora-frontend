@@ -1,7 +1,7 @@
 "use client"
 
 import { Moon, Sun } from "lucide-react"
-import { useTheme } from "@teispace/next-themes"
+import { useTheme } from "@wrksz/themes/client"
 
 import { Button } from "@/components/ui/button"
 

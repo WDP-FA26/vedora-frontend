@@ -1,8 +1,8 @@
 "use client"
 
-import { ThemeProvider as NextThemesProvider } from "@teispace/next-themes"
-import type { ThemeProviderProps } from "@teispace/next-themes"
+import { ThemeProvider as WrkszThemeProvider } from "@wrksz/themes/next"
+import type { ThemeProviderProps } from "@wrksz/themes/next"
 
 export function ThemeProvider({ children, ...props }: ThemeProviderProps) {
-  return <NextThemesProvider {...props}>{children}</NextThemesProvider>
+  return <WrkszThemeProvider {...props}>{children}</WrkszThemeProvider>
 }
