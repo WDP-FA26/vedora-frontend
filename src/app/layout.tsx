@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { getTheme, getThemeScript } from "@teispace/next-themes/server";
 import { ThemeProvider } from "@/components/theme-provider";
+import { SWRProvider } from "@/components/swr-provider";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -41,7 +42,7 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
           initialTheme={initialTheme ?? undefined}
           noScript
         >
-          {children}
+          <SWRProvider>{children}</SWRProvider>
         </ThemeProvider>
       </body>
     </html>
