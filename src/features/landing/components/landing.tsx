@@ -6,6 +6,7 @@ import Link from "next/link"
 import {
   ArrowDownIcon,
   ArrowRightIcon,
+  PaletteIcon,
   Volume2Icon,
   VolumeXIcon,
 } from "lucide-react"
@@ -16,6 +17,12 @@ import Lenis from "lenis"
 import "lenis/dist/lenis.css"
 
 import { Button } from "@/components/ui/button"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+import { ThemeMenuGroup } from "@/components/theme-switcher"
 import { Wordmark } from "@/features/shared/components/wordmark"
 import {
   bodyBenefits,
@@ -366,6 +373,18 @@ export function Landing() {
         <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-3 sm:px-8">
           <Wordmark href="/" />
           <div className="flex items-center gap-2">
+            <DropdownMenu>
+              <DropdownMenuTrigger
+                render={<Button variant="action" size="icon-lg" shape="pill" />}
+                aria-label="Giao diện"
+                title="Giao diện"
+              >
+                <PaletteIcon aria-hidden />
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-44">
+                <ThemeMenuGroup />
+              </DropdownMenuContent>
+            </DropdownMenu>
             <Button
               variant="action"
               size="icon-lg"
