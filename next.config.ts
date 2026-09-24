@@ -44,6 +44,8 @@ const securityHeaders = [
 
 const nextConfig: NextConfig = {
   reactCompiler: true,
+  // Agent rules live in the workspace CLAUDE.md (../CLAUDE.md), not here.
+  agentRules: false,
   poweredByHeader: false,
   async headers() {
     return [{ source: "/(.*)", headers: securityHeaders }];
