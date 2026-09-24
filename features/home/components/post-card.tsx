@@ -88,20 +88,23 @@ export function PostCard({ post }: { post: Post }) {
 }
 
 function VideoMedia({ post }: { post: VideoPost }) {
-  if (post.video.status) return <PostVideo post={post} />
+  const { video, author } = post
+  if (video.source === "mux") {
+    return <PostVideo postId={post.id} author={author} video={video} />
+  }
   return (
     <MediaPlaceholder
-      tone={post.video.tone}
-      label={`${post.video.caption} của ${post.author.name}`}
+      tone={video.tone}
+      label={`${video.caption} của ${author.name}`}
       icon={ClapperboardIcon}
       className="mt-4 aspect-video rounded-2xl border border-border"
     >
       <span className="absolute top-3 left-3 inline-flex items-center gap-1.5 rounded-full bg-card/90 px-2.5 py-1 text-xs font-semibold text-foreground shadow-[0_1px_2px_oklch(0_0_0/0.08)]">
         <ClapperboardIcon aria-hidden className="size-3.5 text-primary" />
-        {post.video.caption}
+        {video.caption}
       </span>
       <Button
-        aria-label={`Phát video, ${post.video.duration}`}
+        aria-label={`Phát video, ${video.duration}`}
         variant="raised"
         size="icon-fab"
         shape="pill"
@@ -111,7 +114,7 @@ function VideoMedia({ post }: { post: VideoPost }) {
       </Button>
       <span className="absolute bottom-3 left-3 inline-flex items-center gap-1 rounded-md bg-black/70 px-1.5 py-0.5 text-xs font-semibold text-white tabular-nums">
         <TimerIcon aria-hidden className="size-3.5" />
-        {post.video.duration}
+        {video.duration}
       </span>
     </MediaPlaceholder>
   )

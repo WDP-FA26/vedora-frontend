@@ -7,6 +7,13 @@ import type { LucideIcon } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
+  Item,
+  ItemContent,
+  ItemDescription,
+  ItemMedia,
+  ItemTitle,
+} from "@/components/ui/item"
+import {
   Dialog,
   DialogContent,
   DialogDescription,
@@ -99,18 +106,21 @@ function TypeOption({
   onSelect?: () => void
 }) {
   return (
-    <button
-      type="button"
-      onClick={onSelect}
-      disabled={!onSelect}
-      className="group flex flex-col items-start gap-2 rounded-2xl border border-border p-4 text-left transition-colors outline-none hover:border-primary/60 hover:bg-muted/60 focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:border-border disabled:hover:bg-transparent"
+    <Item
+      variant="outline"
+      render={<button type="button" onClick={onSelect} disabled={!onSelect} />}
+      className="items-start rounded-2xl p-4 text-left enabled:hover:bg-muted/60 disabled:cursor-not-allowed disabled:opacity-60"
     >
-      <span className="flex w-full items-center justify-between gap-2">
+      <ItemMedia variant="icon">
         <Icon aria-hidden className="size-6 text-primary" strokeWidth={1.75} />
-        {badge && <Badge variant="secondary">{badge}</Badge>}
-      </span>
-      <span className="font-bold">{title}</span>
-      <span className="text-sm text-muted-foreground">{description}</span>
-    </button>
+      </ItemMedia>
+      <ItemContent>
+        <ItemTitle>
+          {title}
+          {badge && <Badge variant="secondary">{badge}</Badge>}
+        </ItemTitle>
+        <ItemDescription>{description}</ItemDescription>
+      </ItemContent>
+    </Item>
   )
 }

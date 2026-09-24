@@ -1,6 +1,8 @@
 "use client"
 
-import { useId, useRef, useState } from "react"
+import { useRef } from "react"
+import { Controller, useForm, useWatch } from "react-hook-form"
+import { zodResolver } from "@hookform/resolvers/zod"
 import {
   CalendarClockIcon,
   ClapperboardIcon,
@@ -14,6 +16,7 @@ import {
 import { cn } from "cn"
 
 import { Button } from "@/components/ui/button"
+import { Field, FieldError, FieldLabel } from "@/components/ui/field"
 import { Progress } from "@/components/ui/progress"
 import {
   Tooltip,
@@ -23,12 +26,14 @@ import {
 import { AuthorAvatar } from "@/features/shared/components/author-avatar"
 import { useAuth } from "@/features/auth/hooks/use-auth"
 import { useUpsertFeedPost } from "@/features/posts/hooks/use-feed-posts"
+import { VideoPreview } from "@/features/posts/components/video-preview"
 import { useVideoUpload } from "@/features/posts/hooks/use-video-upload"
+import { ApiError, createPost } from "@/features/posts/lib/posts-api"
 import {
-  ApiError,
   MAX_POST_LENGTH,
-  createPost,
-} from "@/features/posts/lib/posts-api"
+  postFormSchema,
+  type PostFormValues,
+} from "@/features/posts/schemas"
 
 const VIDEO_TOOL = "Tải video lên"
 
@@ -41,6 +46,18 @@ const tools = [
   { label: "Thêm biểu tượng cảm xúc", icon: SmileIcon, desktopOnly: true },
 ]
 
+function submitErrorMessage(error: unknown) {
+  if (error instanceof ApiError) {
+    switch (error.code) {
+      case "MEDIA_UNAVAILABLE":
+        return "Video này không dùng được nữa. Hãy tải lại video khác."
+      case "EMPTY_POST":
+        return "Viết vài dòng hoặc thêm video."
+    }
+  }
+  return "Không đăng được bài. Thử lại nhé."
+}
+
 export function Composer({
   className,
   autoFocus,
@@ -51,78 +68,79 @@ export function Composer({
   /** Called after the post was created on the API. */
   onPosted?: () => void
 }) {
-  const [text, setText] = useState("")
-  const [submitting, setSubmitting] = useState(false)
-  const [error, setError] = useState<string | null>(null)
   const { author, accessToken } = useAuth()
-  const { upload, start, remove, release } = useVideoUpload()
   const upsertFeedPost = useUpsertFeedPost()
   const fileInput = useRef<HTMLInputElement>(null)
-  const inputId = useId()
 
-  const remaining = MAX_POST_LENGTH - text.length
-  const empty = text.trim().length === 0
+  const form = useForm<PostFormValues>({
+    resolver: zodResolver(postFormSchema),
+    defaultValues: { body: "", mediaId: undefined },
+  })
+  const { isSubmitting, errors } = form.formState
+  const [body, mediaId] = useWatch({ control: form.control, name: ["body", "mediaId"] })
+
+  const { upload, start, remove, release } = useVideoUpload({
+    onUploaded: (id) => form.setValue("mediaId", id),
+    onCleared: () => form.setValue("mediaId", undefined),
+  })
+
+  const remaining = MAX_POST_LENGTH - body.length
   const uploading = upload.status === "uploading"
-  const hasVideo = upload.status === "uploaded"
   const canSubmit =
-    (!empty || hasVideo) && remaining >= 0 && !uploading && !submitting
+    (body.trim() !== "" || mediaId !== undefined) &&
+    remaining >= 0 &&
+    !uploading &&
+    !isSubmitting
 
-  async function submit() {
-    if (!canSubmit || !accessToken) return
-    setSubmitting(true)
-    setError(null)
+  async function onSubmit(values: PostFormValues) {
+    if (!accessToken) return
     try {
       const post = await createPost(accessToken, {
-        body: text.trim() || undefined,
-        mediaIds: hasVideo ? [upload.mediaId] : undefined,
+        body: values.body.trim() || undefined,
+        mediaIds: values.mediaId ? [values.mediaId] : undefined,
       })
       release()
-      setText("")
+      form.reset()
       await upsertFeedPost(post)
       onPosted?.()
-    } catch (cause) {
-      setError(
-        cause instanceof ApiError && cause.status < 500
-          ? cause.message
-          : "Không đăng được bài. Thử lại nhé."
-      )
-    } finally {
-      setSubmitting(false)
+    } catch (error) {
+      form.setError("root", { message: submitErrorMessage(error) })
     }
   }
 
   return (
     <form
+      noValidate
+      onSubmit={form.handleSubmit(onSubmit)}
       className={cn("flex gap-3 border-b border-border px-4 py-4 sm:px-5", className)}
-      onSubmit={(event) => {
-        event.preventDefault()
-        void submit()
-      }}
     >
       {author && <AuthorAvatar author={author} size="lg" className="mt-0.5" />}
       <div className="min-w-0 flex-1">
-        <label htmlFor={inputId} className="sr-only">
-          Bài viết mới
-        </label>
-        <textarea
-          id={inputId}
-          autoFocus={autoFocus}
-          value={text}
-          onChange={(event) => setText(event.target.value)}
-          rows={2}
-          placeholder="Chia sẻ công thức, câu chuyện mùa vụ hoặc video nấu ăn…"
-          className="field-sizing-content block max-h-80 min-h-14 w-full resize-none bg-transparent py-2 text-[1.0625rem] leading-relaxed outline-none placeholder:text-muted-foreground"
+        <Controller
+          name="body"
+          control={form.control}
+          render={({ field, fieldState }) => (
+            <Field data-invalid={fieldState.invalid}>
+              <FieldLabel htmlFor={field.name} className="sr-only">
+                Bài viết mới
+              </FieldLabel>
+              <textarea
+                {...field}
+                id={field.name}
+                autoFocus={autoFocus}
+                aria-invalid={fieldState.invalid}
+                rows={2}
+                placeholder="Chia sẻ công thức, câu chuyện mùa vụ hoặc video nấu ăn…"
+                className="field-sizing-content block max-h-80 min-h-14 w-full resize-none bg-transparent py-2 text-[1.0625rem] leading-relaxed outline-none placeholder:text-muted-foreground"
+              />
+              {fieldState.invalid && <FieldError errors={[fieldState.error]} />}
+            </Field>
+          )}
         />
 
         {(upload.status === "uploading" || upload.status === "uploaded") && (
-          <div className="relative mb-3 overflow-hidden rounded-2xl border border-border bg-black">
-            <video
-              src={upload.previewUrl}
-              muted
-              playsInline
-              controls={hasVideo}
-              className="max-h-72 w-full object-contain"
-            />
+          <div className="relative mb-3 overflow-hidden rounded-2xl border border-border">
+            <VideoPreview src={upload.previewUrl} label="Xem trước video" />
             <Button
               type="button"
               variant="raised"
@@ -149,11 +167,10 @@ export function Composer({
           </div>
         )}
 
-        {(error || upload.status === "error") && (
-          <p role="alert" className="mb-2 text-sm font-medium text-destructive">
-            {error ?? (upload.status === "error" ? upload.message : null)}
-          </p>
+        {upload.status === "error" && (
+          <FieldError className="mb-2">{upload.message}</FieldError>
         )}
+        {errors.root && <FieldError className="mb-2" errors={[errors.root]} />}
 
         <p className="flex items-center gap-1.5 border-b border-border pb-3 text-xs font-semibold text-primary">
           <GlobeIcon aria-hidden className="size-3.5" />
@@ -184,7 +201,10 @@ export function Composer({
                       shape="pill"
                       className={cn(desktopOnly && "max-sm:hidden")}
                       disabled={
-                        label === VIDEO_TOOL && (uploading || hasVideo || submitting)
+                        label === VIDEO_TOOL &&
+                        (upload.status === "uploading" ||
+                          upload.status === "uploaded" ||
+                          isSubmitting)
                       }
                       onClick={
                         label === VIDEO_TOOL
@@ -202,7 +222,7 @@ export function Composer({
             ))}
           </div>
           <div className="flex items-center gap-3">
-            {!empty && (
+            {body.length > 0 && (
               <span
                 aria-live="polite"
                 className={cn(
@@ -216,7 +236,7 @@ export function Composer({
               </span>
             )}
             <Button type="submit" disabled={!canSubmit} size="pill" shape="pill">
-              {submitting ? "Đang đăng…" : "Đăng"}
+              {isSubmitting ? "Đang đăng…" : "Đăng"}
             </Button>
           </div>
         </div>

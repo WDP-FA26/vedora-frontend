@@ -10,6 +10,8 @@ const apiOrigin = new URL(process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4
 // thumbnails and storyboards (image.mux.com), and Mux Data beacons (litix.io).
 const mux = "https://*.mux.com";
 const muxData = "https://*.litix.io";
+// Mux Player loads Google's Cast SDK in Chrome to offer Chromecast.
+const castSdk = "https://www.gstatic.com";
 
 /**
  * No nonces: they would force every route to render per request, and the
@@ -18,7 +20,7 @@ const muxData = "https://*.litix.io";
  */
 const csp = [
   "default-src 'self'",
-  `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ""}${toolbar("https://vercel.live")}`,
+  `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ""} ${castSdk}${toolbar("https://vercel.live")}`,
   `style-src 'self' 'unsafe-inline'${toolbar("https://vercel.live")}`,
   `img-src 'self' blob: data: ${mux}${toolbar("https://vercel.live", "https://vercel.com")}`,
   `font-src 'self'${toolbar("https://vercel.live", "https://assets.vercel.com")}`,

@@ -15,19 +15,28 @@ type PostBase = {
   bookmarked?: boolean
 }
 
+/** Illustrative fixture video, drawn as a placeholder. */
+export type PlaceholderVideo = {
+  source: "placeholder"
+  duration: string
+  caption: string
+  tone: PlaceholderTone
+}
+
+/** A video hosted on Mux, from a vedora-api post. */
+export type MuxVideo = {
+  source: "mux"
+  /** "processing" until Mux finishes encoding; only the author sees it. */
+  status: "processing" | "ready" | "failed"
+  playbackId: string | null
+  /** Mux aspect ratio, e.g. "16:9". */
+  aspectRatio: string | null
+  duration: string
+}
+
 export type VideoPost = PostBase & {
   kind: "video"
-  video: {
-    duration: string
-    caption: string
-    tone: PlaceholderTone
-    /** Mux playback ID; fixtures without one render a placeholder. */
-    playbackId?: string
-    /** Mux aspect ratio, e.g. "16:9". */
-    aspectRatio?: string
-    /** Posts from the API: "processing" until Mux finishes encoding. */
-    status?: "processing" | "ready" | "failed"
-  }
+  video: PlaceholderVideo | MuxVideo
 }
 
 export type TextPost = PostBase & {

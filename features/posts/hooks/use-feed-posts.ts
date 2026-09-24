@@ -1,19 +1,18 @@
 "use client"
 
-import { useEffect } from "react"
 import useSWR, { useSWRConfig } from "swr"
 
 import { useAuth } from "@/features/auth/hooks/use-auth"
-import { authedFetcher } from "@/features/posts/lib/posts-api"
+import { fetchPost, fetchPostPage } from "@/features/posts/lib/posts-api"
 import { POSTS_KEY, postKey } from "@/features/posts/posts-cache"
-import type { ApiPost, PostPage } from "@/features/posts/types"
+import type { ApiPost, PostPage } from "@/features/posts/schemas"
 
 /** First page of published posts from vedora-api. */
 export function useFeedPosts() {
   const { accessToken } = useAuth()
-  const { data, error, isLoading } = useSWR<PostPage>(
-    accessToken ? [POSTS_KEY, accessToken] : null,
-    authedFetcher
+  const { data, error, isLoading } = useSWR(
+    accessToken ? ([POSTS_KEY, accessToken] as const) : null,
+    fetchPostPage
   )
   return { posts: data?.items ?? [], error, isLoading }
 }
@@ -24,9 +23,9 @@ export function useUpsertFeedPost() {
   const { mutate } = useSWRConfig()
 
   return (post: ApiPost) =>
-    mutate<PostPage>(
+    mutate(
       [POSTS_KEY, accessToken],
-      (page) => {
+      (page: PostPage | undefined): PostPage => {
         const items = page?.items ?? []
         return {
           nextCursor: page?.nextCursor ?? null,
@@ -47,16 +46,11 @@ export function useUpsertFeedPost() {
 export function useProcessingPost(id: string) {
   const { accessToken } = useAuth()
   const upsert = useUpsertFeedPost()
-  const { data } = useSWR<ApiPost>(
-    accessToken ? [postKey(id), accessToken] : null,
-    authedFetcher,
-    {
-      refreshInterval: (latest) =>
-        !latest || latest.status === "PROCESSING" ? 3000 : 0,
-    }
-  )
 
-  useEffect(() => {
-    if (data && data.status !== "PROCESSING") void upsert(data)
-  }, [data, upsert])
+  useSWR(accessToken ? ([postKey(id), accessToken] as const) : null, fetchPost, {
+    refreshInterval: (latest) => (latest?.status === "PROCESSING" ? 3000 : 0),
+    onSuccess: (post) => {
+      if (post.status !== "PROCESSING") void upsert(post)
+    },
+  })
 }

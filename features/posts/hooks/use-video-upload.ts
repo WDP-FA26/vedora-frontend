@@ -5,10 +5,14 @@ import { UpChunk } from "@mux/upchunk"
 
 import { useAuth } from "@/features/auth/hooks/use-auth"
 import {
-  MAX_VIDEO_DURATION_SEC,
+  ApiError,
   discardMedia,
   requestVideoUpload,
 } from "@/features/posts/lib/posts-api"
+import {
+  MAX_VIDEO_DURATION_SEC,
+  type VideoUploadTarget,
+} from "@/features/posts/schemas"
 
 export type VideoUpload =
   | { status: "idle" }
@@ -16,120 +20,149 @@ export type VideoUpload =
   | { status: "uploaded"; previewUrl: string; mediaId: string }
   | { status: "error"; message: string }
 
-function readDuration(file: File): Promise<number> {
+/** The upload in flight, with what's needed to cancel it. */
+type ActiveUpload = {
+  token: string
+  previewUrl: string
+  mediaId: string | null
+  task: UpChunk | null
+}
+
+/**
+ * The file's length from its metadata, or `null` when the browser can't tell:
+ * `duration` is NaN for undecodable files and +Infinity for streams such as
+ * browser-recorded WebM. The API enforces the limit either way.
+ */
+function readDuration(file: File): Promise<number | null> {
   return new Promise((resolve) => {
     const video = document.createElement("video")
     const url = URL.createObjectURL(file)
+    const done = (duration: number | null) => {
+      URL.revokeObjectURL(url)
+      resolve(duration)
+    }
     video.preload = "metadata"
-    video.onloadedmetadata = () => {
-      URL.revokeObjectURL(url)
-      // Browser-recorded WebM reports Infinity until fully read: unknown.
-      resolve(Number.isFinite(video.duration) ? video.duration : 0)
-    }
-    // Unknown lengths still upload; the API rejects videos that are too long.
-    video.onerror = () => {
-      URL.revokeObjectURL(url)
-      resolve(0)
-    }
+    video.onloadedmetadata = () =>
+      done(Number.isFinite(video.duration) ? video.duration : null)
+    video.onerror = () => done(null)
     video.src = url
   })
 }
 
 /**
- * Sends one video straight to Mux: asks vedora-api for a direct-upload URL,
- * then streams the file in chunks with UpChunk. `mediaId` goes into
- * `POST /posts` once `status` is "uploaded". Unmounting before `release()`
- * (e.g. closing the composer) cancels the upload and discards the media.
+ * Sends one video straight to Mux: vedora-api issues a direct-upload URL and
+ * UpChunk streams the file to it in resumable chunks. `onUploaded` receives
+ * the media ID for `POST /posts`. Unmounting (closing the composer) cancels
+ * an unposted upload and discards its media.
  */
-export function useVideoUpload() {
+export function useVideoUpload({
+  onUploaded,
+  onCleared,
+}: {
+  onUploaded: (mediaId: string) => void
+  onCleared: () => void
+}) {
   const { accessToken } = useAuth()
   const [upload, setUpload] = useState<VideoUpload>({ status: "idle" })
-  const chunker = useRef<UpChunk | null>(null)
-  const mediaId = useRef<string | null>(null)
-  const previewUrl = useRef<string | null>(null)
-  const tokenRef = useRef(accessToken)
+  const active = useRef<ActiveUpload | null>(null)
 
-  useEffect(() => {
-    tokenRef.current = accessToken
-  }, [accessToken])
-
-  function cleanup(discard: boolean) {
-    chunker.current?.abort()
-    chunker.current = null
-    if (previewUrl.current) URL.revokeObjectURL(previewUrl.current)
-    previewUrl.current = null
-    if (discard && mediaId.current && tokenRef.current) {
-      void discardMedia(tokenRef.current, mediaId.current).catch(() => {})
+  function cancel({ discard }: { discard: boolean }) {
+    const current = active.current
+    active.current = null
+    if (!current) return
+    current.task?.abort()
+    URL.revokeObjectURL(current.previewUrl)
+    if (discard && current.mediaId) {
+      discardMedia(current.token, current.mediaId).catch(() => {
+        // Unposted uploads are also deleted by the API after 24 hours.
+      })
     }
-    mediaId.current = null
   }
 
-  useEffect(() => () => cleanup(true), [])
+  useEffect(() => () => cancel({ discard: true }), [])
+
+  function fail(message: string) {
+    cancel({ discard: true })
+    onCleared()
+    setUpload({ status: "error", message })
+  }
 
   async function start(file: File) {
-    cleanup(true)
+    cancel({ discard: true })
+    onCleared()
     if (!accessToken) return
     if (!file.type.startsWith("video/")) {
-      setUpload({ status: "error", message: "Hãy chọn một tệp video." })
+      fail("Hãy chọn một tệp video.")
       return
     }
     const duration = await readDuration(file)
-    if (duration > MAX_VIDEO_DURATION_SEC) {
-      setUpload({
-        status: "error",
-        message: `Video dài tối đa ${MAX_VIDEO_DURATION_SEC / 60} phút.`,
-      })
+    if (duration !== null && duration > MAX_VIDEO_DURATION_SEC) {
+      fail(`Video dài tối đa ${MAX_VIDEO_DURATION_SEC / 60} phút.`)
       return
     }
 
-    const url = URL.createObjectURL(file)
-    previewUrl.current = url
-    setUpload({ status: "uploading", previewUrl: url, progress: 0 })
-
-    try {
-      const { media, uploadUrl } = await requestVideoUpload(accessToken)
-      // Removed or replaced while the URL was being issued.
-      if (previewUrl.current !== url) {
-        void discardMedia(accessToken, media.id).catch(() => {})
-        return
-      }
-      mediaId.current = media.id
-
-      const task = UpChunk.createUpload({ endpoint: uploadUrl, file, chunkSize: 5120 })
-      chunker.current = task
-      task.on("progress", (event: CustomEvent<number>) => {
-        setUpload({ status: "uploading", previewUrl: url, progress: event.detail })
-      })
-      task.on("success", () => {
-        chunker.current = null
-        setUpload({ status: "uploaded", previewUrl: url, mediaId: media.id })
-      })
-      task.on("error", () => {
-        cleanup(true)
-        setUpload({ status: "error", message: "Tải video lên thất bại. Thử lại nhé." })
-      })
-    } catch (error) {
-      cleanup(false)
-      setUpload({
-        status: "error",
-        message:
-          error instanceof Error && "status" in error && error.status === 429
-            ? "Bạn có quá nhiều video chưa đăng. Hãy đăng hoặc xoá bớt."
-            : "Không bắt đầu tải lên được. Thử lại nhé.",
-      })
+    const attempt: ActiveUpload = {
+      token: accessToken,
+      previewUrl: URL.createObjectURL(file),
+      mediaId: null,
+      task: null,
     }
+    active.current = attempt
+    setUpload({ status: "uploading", previewUrl: attempt.previewUrl, progress: 0 })
+
+    let target: VideoUploadTarget
+    try {
+      target = await requestVideoUpload(accessToken)
+    } catch (error) {
+      fail(
+        error instanceof ApiError && error.code === "UPLOAD_LIMIT_REACHED"
+          ? "Bạn có quá nhiều video chưa đăng. Hãy đăng hoặc bỏ bớt."
+          : "Không bắt đầu tải lên được. Thử lại nhé."
+      )
+      return
+    }
+    // Removed or replaced while the URL was being issued; already cleaned up.
+    if (active.current !== attempt) {
+      discardMedia(accessToken, target.media.id).catch(() => {})
+      return
+    }
+    attempt.mediaId = target.media.id
+
+    const task = UpChunk.createUpload({
+      endpoint: target.uploadUrl,
+      file,
+      chunkSize: 5120,
+    })
+    attempt.task = task
+    task.on("progress", (event: CustomEvent<number>) => {
+      setUpload({
+        status: "uploading",
+        previewUrl: attempt.previewUrl,
+        progress: event.detail,
+      })
+    })
+    task.on("success", () => {
+      attempt.task = null
+      setUpload({
+        status: "uploaded",
+        previewUrl: attempt.previewUrl,
+        mediaId: target.media.id,
+      })
+      onUploaded(target.media.id)
+    })
+    task.on("error", () => fail("Tải video lên thất bại. Thử lại nhé."))
   }
 
   /** Drops the video from the composer and deletes it on the API. */
   function remove() {
-    cleanup(true)
+    cancel({ discard: true })
+    onCleared()
     setUpload({ status: "idle" })
   }
 
-  /** Call after the post was created: the media now belongs to the post. */
+  /** After the post was created: the media belongs to it now, keep it. */
   function release() {
-    mediaId.current = null
-    cleanup(false)
+    cancel({ discard: false })
     setUpload({ status: "idle" })
   }
 

@@ -4,22 +4,30 @@ import MuxPlayer from "@mux/mux-player-react/lazy"
 import { ClapperboardIcon, TriangleAlertIcon } from "lucide-react"
 
 import { Spinner } from "@/components/ui/spinner"
-import { MediaPlaceholder } from "@/features/shared/components/media-placeholder"
+import type { MuxVideo } from "@/features/home/types"
 import { useProcessingPost } from "@/features/posts/hooks/use-feed-posts"
-import type { VideoPost } from "@/features/home/types"
+import { MediaPlaceholder } from "@/features/shared/components/media-placeholder"
+import type { Author } from "@/features/shared/types"
 
-/** A post's Mux video, or its processing/failed state. */
-export function PostVideo({ post }: { post: VideoPost }) {
-  const { video } = post
-  const label = `Video của ${post.author.name}`
+/** A post's Mux video with Mux Player, or its processing/failed state. */
+export function PostVideo({
+  postId,
+  author,
+  video,
+}: {
+  postId: string
+  author: Author
+  video: MuxVideo
+}) {
+  const label = `Video của ${author.name}`
 
   if (video.status === "processing") {
-    return <ProcessingVideo post={post} label={label} />
+    return <ProcessingVideo postId={postId} author={author} label={label} />
   }
   if (video.status === "failed" || !video.playbackId) {
     return (
       <MediaPlaceholder
-        tone={video.tone}
+        tone={author.tone}
         label={label}
         icon={TriangleAlertIcon}
         className="mt-4 aspect-video rounded-2xl border border-border"
@@ -32,29 +40,32 @@ export function PostVideo({ post }: { post: VideoPost }) {
   }
 
   return (
-    <div className="mt-4 overflow-hidden rounded-2xl border border-border bg-black">
-      <MuxPlayer
-        playbackId={video.playbackId}
-        streamType="on-demand"
-        accentColor="oklch(0.508 0.118 165.612)"
-        title={label}
-        metadata={{ video_title: label }}
-        style={{
-          aspectRatio: video.aspectRatio?.replace(":", " / ") ?? "16 / 9",
-          maxHeight: "32rem",
-          width: "100%",
-        }}
-      />
-    </div>
+    <MuxPlayer
+      playbackId={video.playbackId}
+      streamType="on-demand"
+      accentColor="var(--primary)"
+      title={label}
+      metadata={{ video_title: label }}
+      className="mt-4 block max-h-[32rem] w-full overflow-hidden rounded-2xl border border-border"
+      style={{ aspectRatio: video.aspectRatio?.replace(":", " / ") ?? "16 / 9" }}
+    />
   )
 }
 
-function ProcessingVideo({ post, label }: { post: VideoPost; label: string }) {
-  useProcessingPost(post.id)
+function ProcessingVideo({
+  postId,
+  author,
+  label,
+}: {
+  postId: string
+  author: Author
+  label: string
+}) {
+  useProcessingPost(postId)
 
   return (
     <MediaPlaceholder
-      tone={post.video.tone}
+      tone={author.tone}
       label={label}
       icon={ClapperboardIcon}
       className="mt-4 aspect-video rounded-2xl border border-border"
