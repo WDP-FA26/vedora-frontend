@@ -30,6 +30,7 @@ export const adminNavSections: AdminNavSection[] = [
       { href: "/admin", label: "Tổng quan", icon: HouseIcon },
       { href: "/admin/notifications", label: "Thông báo", icon: BellIcon },
       { href: "/admin/insights", label: "Thống kê", icon: ChartColumnIcon },
+      { href: "/admin/tools", label: "Tất cả công cụ", icon: MenuIcon },
     ],
   },
   {
@@ -45,10 +46,6 @@ export const adminNavSections: AdminNavSection[] = [
       { href: "/admin/content", label: "Bài đăng", icon: FileTextIcon },
       { href: "/admin/reports", label: "Kiểm duyệt", icon: ShieldAlertIcon },
     ],
-  },
-  {
-    label: "Khác",
-    items: [{ href: "/admin/tools", label: "Tất cả công cụ", icon: MenuIcon }],
   },
 ]
 

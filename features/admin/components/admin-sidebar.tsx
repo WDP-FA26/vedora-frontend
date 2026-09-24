@@ -53,14 +53,14 @@ export function AdminSidebar() {
       </SidebarHeader>
 
       <SidebarContent>
-        {adminNavSections.map(({ label, items }) => (
-          <SidebarGroup key={label}>
-            <SidebarGroupLabel render={<h2 />}>{label}</SidebarGroupLabel>
-            <SidebarGroupContent>
+        <SidebarGroup>
+          {adminNavSections.map(({ label, items }) => (
+            <SidebarGroupContent key={label}>
+              <SidebarGroupLabel render={<h2 />}>{label}</SidebarGroupLabel>
               <NavMenu items={items} label={label} />
             </SidebarGroupContent>
-          </SidebarGroup>
-        ))}
+          ))}
+        </SidebarGroup>
       </SidebarContent>
 
       <SidebarFooter>
