@@ -44,10 +44,3 @@ export const authors = {
     tone: "grain",
   },
 } satisfies Record<string, Author>
-
-export const currentUser: Author = {
-  name: "Elena Rostova",
-  handle: "elena_vegan",
-  initials: "ER",
-  tone: "sage",
-}

@@ -4,7 +4,7 @@ import { cn } from "cn"
 
 /** Text wordmark, or just the round mark when `compact`. */
 export function Wordmark({
-  href = "/app",
+  href = "/home",
   compact,
   className,
 }: {

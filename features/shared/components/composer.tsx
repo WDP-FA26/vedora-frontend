@@ -19,7 +19,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip"
 import { AuthorAvatar } from "@/features/shared/components/author-avatar"
-import { currentUser } from "@/features/shared/data/users"
+import { useAuth } from "@/features/auth/hooks/use-auth"
 
 const MAX_LENGTH = 280
 
@@ -43,6 +43,7 @@ export function Composer({
   onPosted?: () => void
 }) {
   const [text, setText] = useState("")
+  const { author } = useAuth()
   const inputId = useId()
   const remaining = MAX_LENGTH - text.length
   const empty = text.trim().length === 0
@@ -57,7 +58,7 @@ export function Composer({
         onPosted?.()
       }}
     >
-      <AuthorAvatar author={currentUser} size="lg" className="mt-0.5" />
+      {author && <AuthorAvatar author={author} size="lg" className="mt-0.5" />}
       <div className="min-w-0 flex-1">
         <label htmlFor={inputId} className="sr-only">
           Bài viết mới

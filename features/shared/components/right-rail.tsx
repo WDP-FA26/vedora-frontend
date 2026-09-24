@@ -173,7 +173,7 @@ function UpgradePanel() {
         size="pill-sm"
         shape="pill"
         className="mt-4"
-        render={<Link href="/app/upgrade" />}
+        render={<Link href="/home/upgrade" />}
         nativeButton={false}
       >
         Nâng cấp ngay

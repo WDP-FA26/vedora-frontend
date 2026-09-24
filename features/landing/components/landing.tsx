@@ -431,7 +431,7 @@ export function Landing() {
             <Button
               size="pill-sm"
               shape="pill"
-              render={<Link href="/app" />}
+              render={<Link href="/home" />}
               nativeButton={false}
             >
               Vào Vedora
@@ -700,7 +700,7 @@ export function Landing() {
                   size="pill"
                   shape="pill"
                   className="h-12 px-7 text-base"
-                  render={<Link href="/app" />}
+                  render={<Link href="/home" />}
                   nativeButton={false}
                 >
                   Khám phá Vedora

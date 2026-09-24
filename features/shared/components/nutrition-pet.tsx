@@ -120,7 +120,7 @@ export function NutritionPet() {
 
   return (
     <Link
-      href="/app/nutrition-chat"
+      href="/home/nutrition-chat"
       aria-label="Mở Trợ lý dinh dưỡng (kéo để di chuyển)"
       draggable={false}
       style={{ translate: `${offset.x}px ${offset.y}px` }}

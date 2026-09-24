@@ -17,7 +17,8 @@ import { ThemeMenuGroup } from "@/components/theme-switcher"
 import { PetMenuGroup } from "./nutrition-pet"
 import { AuthorAvatar } from "@/features/shared/components/author-avatar"
 import { ComposeDialog } from "@/features/shared/components/compose-dialog"
-import { currentUser } from "@/features/shared/data/users"
+import { useAuth } from "@/features/auth/hooks/use-auth"
+import { useLogout } from "@/features/auth/hooks/use-logout"
 import { navItems } from "@/features/shared/data/nav-items"
 import { Wordmark } from "./wordmark"
 
@@ -116,19 +117,23 @@ export function NavLinks({
 }
 
 function AccountMenu() {
+  const { author } = useAuth()
+  const { logout, pending } = useLogout()
+  if (!author) return null
+
   return (
     <DropdownMenu>
       <DropdownMenuTrigger
         render={<Button variant="ghost" size="account" shape="pill" />}
-        aria-label={`Menu tài khoản của ${currentUser.name}`}
+        aria-label={`Menu tài khoản của ${author.name}`}
       >
-        <AuthorAvatar author={currentUser} size="lg" />
+        <AuthorAvatar author={author} size="lg" />
         <span className="min-w-0 flex-1 leading-tight max-xl:hidden">
           <span className="block truncate text-sm font-bold">
-            {currentUser.name}
+            {author.name}
           </span>
           <span className="block truncate text-xs text-muted-foreground">
-            @{currentUser.handle}
+            @{author.handle}
           </span>
         </span>
         <EllipsisIcon aria-hidden className="size-4 text-muted-foreground max-xl:hidden" />
@@ -138,13 +143,13 @@ function AccountMenu() {
         <DropdownMenuSeparator />
         <PetMenuGroup />
         <DropdownMenuSeparator />
-        <DropdownMenuItem render={<Link href="/app/settings" />}>
+        <DropdownMenuItem render={<Link href="/home/settings" />}>
           <SettingsIcon aria-hidden />
           Cài đặt
         </DropdownMenuItem>
-        <DropdownMenuItem>
+        <DropdownMenuItem onClick={logout} disabled={pending}>
           <LogOutIcon aria-hidden />
-          Đăng xuất @{currentUser.handle}
+          Đăng xuất @{author.handle}
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
