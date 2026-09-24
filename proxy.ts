@@ -10,7 +10,8 @@ import {
   writeTokenCookies,
 } from "@/features/auth/lib/tokens"
 
-const PROTECTED_PREFIXES = ["/home", "/admin"]
+// TODO: guard "/admin" again once it has real admin tools.
+const PROTECTED_PREFIXES = ["/home"]
 const GUEST_ONLY_PATHS = ["/login", "/register", "/verify-email"]
 
 const matchesAny = (pathname: string, prefixes: string[]) =>
