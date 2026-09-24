@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server"
 
-import { rotateRefreshToken, type RefreshResult } from "@/features/auth/lib/api"
+import { rotateRefreshToken } from "@/features/auth/lib/api"
 import { safeRedirectPath } from "@/features/auth/lib/redirect"
 import {
   ACCESS_TOKEN_COOKIE,
@@ -13,58 +13,59 @@ import {
 const PROTECTED_PREFIXES = ["/home", "/admin"]
 const GUEST_ONLY_PATHS = ["/login", "/register"]
 
-const matches = (pathname: string, prefix: string) =>
-  pathname === prefix || pathname.startsWith(`${prefix}/`)
+const matchesAny = (pathname: string, prefixes: string[]) =>
+  prefixes.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`))
 
 /**
- * Token rotation. Server Components can't write cookies, so the access token
- * is refreshed here, before rendering: when it is missing or about to expire
- * and a refresh token exists, the pair is rotated and the new cookies are
- * written both to the response (for the browser) and to the forwarded request
- * (so `cookies()` in this same render already sees them).
- *
- * The redirects below are a UX shortcut only. `requireAuth()` and each Server
- * Action / Route Handler still check the session themselves.
+ * 1. Rotate the token pair when the access token is missing or about to
+ *    expire. Server Components can't write cookies, so it happens here,
+ *    before rendering.
+ * 2. Redirect guests away from protected pages and signed-in users away from
+ *    /login and /register. This is a UX shortcut only: `requireAuth()` and
+ *    each Server Action / Route Handler still check the session themselves.
  */
 export async function proxy(request: NextRequest) {
-  const { pathname, search } = request.nextUrl
-  let accessToken = request.cookies.get(ACCESS_TOKEN_COOKIE)?.value
-  const refreshToken = request.cookies.get(REFRESH_TOKEN_COOKIE)?.value
+  const refresh = await refreshSession(request)
+  const signedIn = Boolean(request.cookies.get(ACCESS_TOKEN_COOKIE)?.value)
 
-  let refresh: RefreshResult | undefined
-  if (refreshToken && !isAccessTokenFresh(accessToken)) {
-    refresh = await rotateRefreshToken(refreshToken)
-    if (refresh.kind === "rotated") {
-      accessToken = refresh.tokens.accessToken
-      request.cookies.set(ACCESS_TOKEN_COOKIE, refresh.tokens.accessToken)
-      request.cookies.set(REFRESH_TOKEN_COOKIE, refresh.tokens.refreshToken)
-    } else if (refresh.kind === "rejected") {
-      accessToken = undefined
-      request.cookies.delete([ACCESS_TOKEN_COOKIE, REFRESH_TOKEN_COOKIE])
-    }
-  }
-
-  const signedIn = Boolean(accessToken)
-  let response: NextResponse
-
-  if (!signedIn && PROTECTED_PREFIXES.some((p) => matches(pathname, p))) {
-    const loginUrl = new URL("/login", request.url)
-    loginUrl.searchParams.set("next", `${pathname}${search}`)
-    response = NextResponse.redirect(loginUrl)
-  } else if (signedIn && GUEST_ONLY_PATHS.some((p) => matches(pathname, p))) {
-    const next = safeRedirectPath(request.nextUrl.searchParams.get("next"))
-    response = NextResponse.redirect(new URL(next, request.url))
-  } else if (refresh) {
-    // `request.cookies` writes go through to `request.headers`.
-    response = NextResponse.next({ request: { headers: request.headers } })
-  } else {
-    response = NextResponse.next()
-  }
+  // Forwarding `request.headers` passes the updated cookies on to this render.
+  const response =
+    redirectFor(request, signedIn) ?? NextResponse.next({ request: { headers: request.headers } })
 
   if (refresh?.kind === "rotated") writeTokenCookies(response.cookies, refresh.tokens)
   if (refresh?.kind === "rejected") clearTokenCookies(response.cookies)
-
   return response
+}
+
+/** Rotates if needed and mirrors the result onto `request.cookies`. */
+async function refreshSession(request: NextRequest) {
+  const accessToken = request.cookies.get(ACCESS_TOKEN_COOKIE)?.value
+  const refreshToken = request.cookies.get(REFRESH_TOKEN_COOKIE)?.value
+  if (!refreshToken || isAccessTokenFresh(accessToken)) return
+
+  const result = await rotateRefreshToken(refreshToken)
+  if (result.kind === "rotated") {
+    request.cookies.set(ACCESS_TOKEN_COOKIE, result.tokens.accessToken)
+    request.cookies.set(REFRESH_TOKEN_COOKIE, result.tokens.refreshToken)
+  } else if (result.kind === "rejected") {
+    request.cookies.delete([ACCESS_TOKEN_COOKIE, REFRESH_TOKEN_COOKIE])
+  }
+  // "failed" (network/5xx) keeps the cookies so the next request retries.
+  return result
+}
+
+function redirectFor(request: NextRequest, signedIn: boolean) {
+  const { pathname, search, searchParams } = request.nextUrl
+
+  if (!signedIn && matchesAny(pathname, PROTECTED_PREFIXES)) {
+    const loginUrl = new URL("/login", request.url)
+    loginUrl.searchParams.set("next", `${pathname}${search}`)
+    return NextResponse.redirect(loginUrl)
+  }
+  if (signedIn && matchesAny(pathname, GUEST_ONLY_PATHS)) {
+    const next = safeRedirectPath(searchParams.get("next"))
+    return NextResponse.redirect(new URL(next, request.url))
+  }
 }
 
 export const config = {
