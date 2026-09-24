@@ -9,8 +9,8 @@ export type PetPreference = { pet: PetChoice; offset: PetOffset }
 
 export const PET_COOKIE = "vedora-pet"
 export const PET_OFFSET_COOKIE = "vedora-pet-offset"
-export const DEFAULT_PET: PetChoice = "sprout"
-export const NO_OFFSET: PetOffset = { x: 0, y: 0 }
+const DEFAULT_PET: PetChoice = "sprout"
+const NO_OFFSET: PetOffset = { x: 0, y: 0 }
 
 export function isPetChoice(value: unknown): value is PetChoice {
   return pets.some((pet) => pet.value === value)

@@ -8,7 +8,7 @@ import {
   type LucideIcon,
 } from "lucide-react"
 
-export type NavItem = {
+type NavItem = {
   href: string
   label: string
   icon: LucideIcon

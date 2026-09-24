@@ -20,7 +20,7 @@ const HEART_LEVEL = 1
 // Pentatonic bell for each stage the cloud settles into.
 const CHIMES = [587.33, 659.25, 739.99, 880.0, 987.77]
 
-export type SoundFrame = {
+type SoundFrame = {
   /** Story position, 0–4. */
   progress: number
   /** Scroll speed, 0–1. */
