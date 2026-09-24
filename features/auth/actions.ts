@@ -4,6 +4,11 @@ import { cookies } from "next/headers"
 import { redirect } from "next/navigation"
 
 import { postJson } from "@/features/auth/lib/api"
+import {
+  clearPendingEmail,
+  getPendingEmail,
+  setPendingEmail,
+} from "@/features/auth/lib/pending-verification"
 import { safeRedirectPath } from "@/features/auth/lib/redirect"
 import {
   REFRESH_TOKEN_COOKIE,
@@ -14,21 +19,26 @@ import {
   loginSchema,
   registerSchema,
   toFullName,
+  verifyEmailSchema,
   type FormErrors,
   type LoginValues,
   type RegisterValues,
+  type VerifyEmailValues,
 } from "@/features/auth/schemas"
 
 const UNREACHABLE = "Không kết nối được máy chủ. Vui lòng thử lại sau."
 const INVALID = "Thông tin chưa hợp lệ. Vui lòng kiểm tra lại."
+const VERIFICATION_EXPIRED = "Phiên xác minh đã hết hạn. Vui lòng đăng nhập lại."
 
-/** Signs in through the API and stores the token pair. Returns the failed response, if any. */
-async function authenticate(path: string, body: unknown) {
-  const response = await postJson(path, body).catch(() => null)
-  if (!response?.ok) return response ?? "unreachable"
+/** Keeps `?next=` when moving between the auth pages. */
+function withNext(path: string, next?: string) {
+  return next ? `${path}?next=${encodeURIComponent(next)}` : path
+}
 
-  writeTokenCookies(await cookies(), await response.json())
-  return null
+/** Remembers where the code went, then asks for it. */
+async function redirectToVerification(email: string, next?: string): Promise<never> {
+  await setPendingEmail(email)
+  redirect(withNext("/verify-email", next))
 }
 
 export async function login(
@@ -38,10 +48,16 @@ export async function login(
   const parsed = loginSchema.safeParse(values)
   if (!parsed.success) return { root: INVALID }
 
-  const failure = await authenticate("/auth/login", parsed.data)
-  if (failure === "unreachable") return { root: UNREACHABLE }
-  if (failure) return { root: "Tên đăng nhập hoặc mật khẩu không đúng." }
+  const response = await postJson("/auth/login", parsed.data).catch(() => null)
+  if (!response) return { root: UNREACHABLE }
+  if (response.status === 403) {
+    // Right password, unverified email: the API has just sent a code.
+    const { code, email } = await response.json()
+    if (code === "EMAIL_NOT_VERIFIED") return redirectToVerification(email, next)
+  }
+  if (!response.ok) return { root: "Tên đăng nhập hoặc mật khẩu không đúng." }
 
+  writeTokenCookies(await cookies(), await response.json())
   redirect(safeRedirectPath(next))
 }
 
@@ -53,16 +69,16 @@ export async function register(
   if (!parsed.success) return { root: INVALID }
 
   const { username, email, password } = parsed.data
-  const failure = await authenticate("/auth/register", {
+  const response = await postJson("/auth/register", {
     fullName: toFullName(parsed.data),
     username,
     email,
     password,
-  })
-  if (failure === "unreachable") return { root: UNREACHABLE }
-  if (failure?.status === 409) {
+  }).catch(() => null)
+  if (!response) return { root: UNREACHABLE }
+  if (response.status === 409) {
     // The API names the taken column: "username already exists".
-    const { message } = await failure.json()
+    const { message } = await response.json()
     if (message === "username already exists") {
       return { username: "Tên đăng nhập này đã có người dùng" }
     }
@@ -71,9 +87,65 @@ export async function register(
     }
     return { root: "Tên đăng nhập hoặc email đã được đăng ký." }
   }
-  if (failure) return { root: INVALID }
+  if (!response.ok) return { root: INVALID }
 
+  // No tokens yet: the account is usable once the emailed code is entered.
+  const { email: sentTo } = await response.json()
+  return redirectToVerification(sentTo, next)
+}
+
+export async function verifyEmail(
+  values: VerifyEmailValues,
+  next?: string
+): Promise<FormErrors<VerifyEmailValues>> {
+  const parsed = verifyEmailSchema.safeParse(values)
+  if (!parsed.success) return { code: "Nhập đủ 6 chữ số" }
+
+  const email = await getPendingEmail()
+  if (!email) return { root: VERIFICATION_EXPIRED }
+
+  const response = await postJson("/auth/verify-email", {
+    email,
+    code: parsed.data.code,
+  }).catch(() => null)
+  if (!response) return { root: UNREACHABLE }
+  if (response.status === 400) {
+    return { code: "Mã không đúng hoặc đã hết hạn. Hãy kiểm tra lại hoặc gửi mã mới." }
+  }
+  if (response.status === 429) {
+    return {
+      root: "Bạn đã nhập sai mã quá nhiều lần. Vui lòng thử lại sau 24 giờ hoặc đăng nhập bằng Google.",
+    }
+  }
+  if (!response.ok) return { root: UNREACHABLE }
+
+  writeTokenCookies(await cookies(), await response.json())
+  await clearPendingEmail()
   redirect(safeRedirectPath(next))
+}
+
+export type ResendResult =
+  | { ok: true }
+  /** `limitReached`: no more resends this hour, so hide the button. */
+  | { ok: false; message: string; limitReached?: boolean }
+
+/** Asks for a new code (every 2 minutes, at most 3 resends an hour). */
+export async function resendVerificationCode(): Promise<ResendResult> {
+  const email = await getPendingEmail()
+  if (!email) return { ok: false, message: VERIFICATION_EXPIRED }
+
+  const response = await postJson("/auth/verify-email/resend", { email }).catch(() => null)
+  if (response?.status === 429) {
+    return {
+      ok: false,
+      limitReached: true,
+      message: "Bạn đã gửi lại mã 3 lần. Vui lòng thử lại sau 1 giờ.",
+    }
+  }
+  if (!response?.ok) {
+    return { ok: false, message: "Chưa gửi được mã. Vui lòng thử lại sau ít phút." }
+  }
+  return { ok: true }
 }
 
 export async function logout() {

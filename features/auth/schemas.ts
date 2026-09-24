@@ -48,8 +48,13 @@ export function toFullName({ lastName, firstName }: { lastName: string; firstNam
   return `${lastName.trim()} ${firstName.trim()}`
 }
 
+export const verifyEmailSchema = z.object({
+  code: z.string().regex(/^\d{6}$/, "Nhập đủ 6 chữ số"),
+})
+
 export type LoginValues = z.infer<typeof loginSchema>
 export type RegisterValues = z.infer<typeof registerSchema>
+export type VerifyEmailValues = z.infer<typeof verifyEmailSchema>
 
 /** Server Action errors, keyed by field, or `root` for the whole form. */
 export type FormErrors<Values> = Partial<Record<keyof Values | "root", string>>
