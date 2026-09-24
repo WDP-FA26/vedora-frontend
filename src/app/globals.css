@@ -52,6 +52,12 @@
   --animate-pet-sway: pet-sway 3s ease-in-out infinite;
   --animate-pet-wave: pet-wave 1.2s ease-in-out infinite;
   --animate-pet-step: pet-step 0.8s ease-in-out infinite;
+  --animate-feature-rise: feature-rise 2.4s ease-out infinite;
+  --animate-feature-fill: feature-fill 4s ease-in-out infinite;
+  --animate-feature-draw: feature-draw 4s ease-in-out infinite;
+  --animate-feature-pop: feature-pop 4s ease-out infinite;
+  --animate-feature-twinkle: feature-twinkle 2.4s ease-in-out infinite;
+  --animate-feature-travel: feature-travel 3s ease-in-out infinite;
 
   @keyframes pet-wave {
     0%, 100% {
@@ -98,6 +104,88 @@
     }
     50% {
       transform: rotate(8deg);
+    }
+  }
+
+  @keyframes feature-rise {
+    0% {
+      transform: translateY(4px);
+      opacity: 0;
+    }
+    30% {
+      opacity: 1;
+    }
+    100% {
+      transform: translateY(-14px);
+      opacity: 0;
+    }
+  }
+
+  @keyframes feature-fill {
+    0% {
+      transform: scaleX(0);
+    }
+    55%, 85% {
+      transform: scaleX(1);
+      opacity: 1;
+    }
+    100% {
+      transform: scaleX(1);
+      opacity: 0;
+    }
+  }
+
+  @keyframes feature-draw {
+    0% {
+      stroke-dashoffset: 1;
+    }
+    25%, 88% {
+      stroke-dashoffset: 0;
+      opacity: 1;
+    }
+    100% {
+      stroke-dashoffset: 0;
+      opacity: 0;
+    }
+  }
+
+  @keyframes feature-pop {
+    0%, 8% {
+      transform: scale(0);
+    }
+    22% {
+      transform: scale(1.15);
+    }
+    30%, 88% {
+      transform: scale(1);
+    }
+    100% {
+      transform: scale(0);
+    }
+  }
+
+  @keyframes feature-twinkle {
+    0%, 100% {
+      transform: scale(0.5);
+      opacity: 0.2;
+    }
+    50% {
+      transform: scale(1);
+      opacity: 1;
+    }
+  }
+
+  @keyframes feature-travel {
+    0% {
+      offset-distance: 0%;
+      opacity: 0;
+    }
+    15%, 85% {
+      opacity: 1;
+    }
+    100% {
+      offset-distance: 100%;
+      opacity: 0;
     }
   }
 

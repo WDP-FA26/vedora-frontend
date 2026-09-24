@@ -24,6 +24,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { ThemeMenuGroup } from "@/components/theme-switcher"
 import { Wordmark } from "@/features/shared/components/wordmark"
+import { FeatureArt } from "@/features/landing/components/feature-art"
 import {
   bodyBenefits,
   planetStats,
@@ -43,6 +44,8 @@ export function Landing() {
   const root = useRef<HTMLDivElement>(null)
   // 0–4: which shape the particle cloud shows, written by ScrollTrigger.
   const sceneProgress = useRef(0)
+  // The closing copy, which the final sprout is planted above.
+  const closing = useRef<HTMLDivElement>(null)
   // Created on first opt-in: browsers only allow audio after a user gesture.
   const sound = useRef<Soundscape | null>(null)
   const [soundOn, setSoundOn] = useState(false)
@@ -57,8 +60,12 @@ export function Landing() {
   }
 
   // Inertial scrolling, driven by GSAP's ticker so ScrollTrigger stays in sync.
+  // Touch devices keep their native scrolling, which already has momentum.
   useEffect(() => {
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return
+    const smooth = window.matchMedia(
+      "(prefers-reduced-motion: no-preference) and (hover: hover) and (pointer: fine)",
+    )
+    if (!smooth.matches) return
     const lenis = new Lenis({ lerp: 0.09 })
     lenis.on("scroll", ScrollTrigger.update)
     const raf = (time: number) => lenis.raf(time * 1000)
@@ -89,13 +96,18 @@ export function Landing() {
             hover: boolean
           }
           const pin = motion && wide
+          // Phones get flat fades that play once; 3D flips, blur and
+          // replaying on scroll-back cost too much there and feel busy.
+          const reveal = wide
+            ? { y: 48, rotateX: -25, toggleActions: "play none none reverse" }
+            : { y: 20, rotateX: 0, toggleActions: "play none none none" }
           const cleanups: Array<() => void> = []
 
           // Hero entrance.
           if (motion) {
             gsap.from(q("[data-hero-title]"), {
-              y: 40,
-              rotateX: -30,
+              y: wide ? 40 : 24,
+              rotateX: wide ? -30 : 0,
               opacity: 0,
               transformOrigin: "50% 100%",
               duration: 1.2,
@@ -122,7 +134,7 @@ export function Landing() {
             gsap.to(q("[data-hero-inner]"), {
               yPercent: -18,
               opacity: 0,
-              filter: "blur(8px)",
+              ...(wide && { filter: "blur(8px)" }),
               ease: "none",
               scrollTrigger: {
                 trigger: q("[data-hero]")[0],
@@ -148,29 +160,34 @@ export function Landing() {
               },
             })
 
-            if (motion) {
-              gsap.from(section.querySelectorAll("[data-reveal]"), {
-                y: 48,
-                rotateX: -25,
+            // Not every section has lines or reveals; skip empty targets.
+            const reveals = section.querySelectorAll("[data-reveal]")
+            const lines = section.querySelectorAll("[data-line]")
+            if (motion && reveals.length) {
+              gsap.from(reveals, {
+                y: reveal.y,
+                rotateX: reveal.rotateX,
                 opacity: 0,
-                duration: 1,
+                duration: wide ? 1 : 0.7,
                 ease: "power3.out",
-                stagger: 0.08,
+                stagger: wide ? 0.08 : 0.06,
                 scrollTrigger: {
                   trigger: section,
-                  start: "top 70%",
-                  toggleActions: "play none none reverse",
+                  start: wide ? "top 70%" : "top 80%",
+                  toggleActions: reveal.toggleActions,
                 },
               })
-              gsap.from(section.querySelectorAll("[data-line]"), {
+            }
+            if (motion && lines.length) {
+              gsap.from(lines, {
                 scaleX: 0,
                 duration: 1.2,
                 ease: "expo.out",
                 delay: 0.2,
                 scrollTrigger: {
                   trigger: section,
-                  start: "top 70%",
-                  toggleActions: "play none none reverse",
+                  start: wide ? "top 70%" : "top 80%",
+                  toggleActions: reveal.toggleActions,
                 },
               })
             }
@@ -234,7 +251,12 @@ export function Landing() {
 
             if (section.id === "vedora" && pin) {
               const track = section.querySelector<HTMLElement>("[data-track]")!
-              const distance = () => track.offsetWidth - window.innerWidth
+              // Slide until the track's end meets the end of its own box.
+              const distance = () =>
+                Math.max(
+                  0,
+                  track.offsetWidth - track.parentElement!.clientWidth,
+                )
               const slide = gsap.to(track, {
                 x: () => -distance(),
                 ease: "none",
@@ -260,7 +282,9 @@ export function Landing() {
                       trigger: card,
                       containerAnimation: slide,
                       start: "left 100%",
-                      end: "left 45%",
+                      // Settle once fully in view, so the last card (which
+                      // never travels far left) still lands flat.
+                      end: "right 100%",
                       scrub: true,
                     },
                   },
@@ -359,9 +383,13 @@ export function Landing() {
     >
       <div
         aria-hidden
-        className="pointer-events-none fixed inset-0 -z-10 bg-[radial-gradient(60%_50%_at_70%_40%,color-mix(in_oklch,var(--primary)_10%,transparent),transparent)]"
+        className="pointer-events-none fixed inset-x-0 top-0 -z-10 h-lvh bg-[radial-gradient(60%_50%_at_70%_40%,color-mix(in_oklch,var(--primary)_10%,transparent),transparent)]"
       >
-        <ParticleScene progress={sceneProgress} sound={sound} />
+        <ParticleScene
+          progress={sceneProgress}
+          anchor={closing}
+          sound={sound}
+        />
       </div>
 
       <header className="fixed inset-x-0 top-0 z-20 bg-background/60 backdrop-blur-md">
@@ -372,7 +400,7 @@ export function Landing() {
         />
         <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-3 sm:px-8">
           <Wordmark href="/" />
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1 sm:gap-2">
             <DropdownMenu>
               <DropdownMenuTrigger
                 render={<Button variant="action" size="icon-lg" shape="pill" />}
@@ -417,7 +445,7 @@ export function Landing() {
         <section
           data-hero
           aria-labelledby="hero-title"
-          className="mx-auto flex min-h-dvh max-w-7xl flex-col justify-end px-4 pt-24 pb-16 sm:px-8 md:justify-center md:pb-24"
+          className="mx-auto flex min-h-svh max-w-7xl flex-col justify-end px-4 pt-24 pb-10 sm:px-8 sm:pb-16 md:justify-center md:pb-24"
         >
           <div data-hero-inner className="max-w-2xl perspective-[900px]">
             <p
@@ -443,7 +471,7 @@ export function Landing() {
             </p>
             <p
               data-hero-fade
-              className="mt-12 flex items-center gap-2 text-sm font-medium text-muted-foreground"
+              className="mt-8 flex items-center gap-2 text-sm font-medium text-muted-foreground sm:mt-12"
             >
               <ArrowDownIcon data-scroll-hint aria-hidden className="size-4" />
               Cuộn để bắt đầu
@@ -456,7 +484,7 @@ export function Landing() {
           id="co-the"
           data-stage
           aria-labelledby="co-the-title"
-          className="flex min-h-dvh items-center"
+          className="flex min-h-svh items-center"
         >
           <div className="mx-auto w-full max-w-7xl px-4 py-24 sm:px-8">
             <div className="max-w-xl perspective-[900px]">
@@ -513,7 +541,7 @@ export function Landing() {
           id="hanh-tinh"
           data-stage
           aria-labelledby="hanh-tinh-title"
-          className="flex min-h-dvh items-center"
+          className="flex min-h-svh items-center"
         >
           <div className="mx-auto flex w-full max-w-7xl justify-end px-4 py-24 sm:px-8">
             <div className="max-w-xl perspective-[900px]">
@@ -575,7 +603,7 @@ export function Landing() {
           id="vedora"
           data-stage
           aria-labelledby="vedora-title"
-          className="flex min-h-dvh flex-col justify-center py-24"
+          className="flex min-h-svh flex-col justify-center py-24"
         >
           <div className="mx-auto w-full max-w-7xl px-4 sm:px-8">
             <div className="max-w-2xl perspective-[900px]">
@@ -597,57 +625,64 @@ export function Landing() {
             </div>
           </div>
 
-          <div className="mt-12 snap-x snap-mandatory overflow-x-auto pb-4 md:motion-safe:overflow-visible">
-            <ul
-              data-track
-              className="flex w-max gap-5 px-4 perspective-[1400px] transform-3d sm:px-8 md:pl-[max(2rem,calc((100vw-80rem)/2+2rem))]"
-            >
-              {platformFeatures.map((feature, i) => (
-                <li
-                  key={feature.title}
-                  data-card
-                  className="w-[min(20rem,80vw)] snap-start perspective-[900px] md:w-[22rem]"
-                >
-                  <div
-                    data-tilt
-                    className="group/card relative flex h-full flex-col overflow-hidden rounded-3xl border border-border bg-card/85 p-6 shadow-[0_24px_60px_-30px_oklch(0.3_0.06_165/0.45)] backdrop-blur-md md:p-7"
+          {/* Cards are sized as a share of this container (cqw), so on
+              desktop the row always overflows it and has room to slide. */}
+          <div className="@container mx-auto mt-10 w-full max-w-7xl md:mt-12">
+            <div className="snap-x snap-mandatory scroll-px-4 overflow-x-auto overscroll-x-contain pb-4 [scrollbar-width:none] sm:scroll-px-8 md:motion-safe:overflow-visible">
+              <ul
+                data-track
+                className="flex w-max gap-5 px-4 perspective-[1400px] transform-3d sm:px-8"
+              >
+                {platformFeatures.map((feature) => (
+                  <li
+                    key={feature.title}
+                    data-card
+                    className="w-[82cqw] snap-start perspective-[900px] sm:w-[55cqw] md:w-[34cqw]"
                   >
-                    <span
-                      aria-hidden
-                      className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_var(--gx,50%)_var(--gy,0%),color-mix(in_oklch,var(--primary)_16%,transparent),transparent_60%)] opacity-0 transition-opacity duration-500 group-hover/card:opacity-100"
-                    />
-                    <div className="flex items-center justify-between">
-                      <span className="grid size-12 place-items-center rounded-2xl bg-primary text-primary-foreground">
-                        <feature.icon aria-hidden className="size-6" />
-                      </span>
-                      <span className="font-mono text-sm text-muted-foreground tabular-nums">
-                        {String(i + 1).padStart(2, "0")}
-                      </span>
+                    <div
+                      data-tilt
+                      className="group/card relative flex h-full flex-col overflow-hidden rounded-3xl border border-border bg-card/95 p-6 shadow-[0_24px_60px_-30px_oklch(0.3_0.06_165/0.45)] md:bg-card/85 md:p-7 md:backdrop-blur-md"
+                    >
+                      <span
+                        aria-hidden
+                        className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_var(--gx,50%)_var(--gy,0%),color-mix(in_oklch,var(--primary)_16%,transparent),transparent_60%)] opacity-0 transition-opacity duration-500 group-hover/card:opacity-100"
+                      />
+                      <FeatureArt
+                        name={feature.art}
+                        className="mx-auto aspect-8/5 w-3/5"
+                      />
+                      <h3 className="mt-6 text-2xl font-bold tracking-[-0.03em] md:mt-8">
+                        {feature.title}
+                      </h3>
+                      <p className="mt-3 leading-relaxed text-muted-foreground">
+                        {feature.body}
+                      </p>
                     </div>
-                    <h3 className="mt-14 text-2xl font-bold tracking-[-0.03em]">
-                      {feature.title}
-                    </h3>
-                    <p className="mt-3 leading-relaxed text-muted-foreground">
-                      {feature.body}
-                    </p>
-                  </div>
-                </li>
-              ))}
-            </ul>
+                  </li>
+                ))}
+              </ul>
+            </div>
           </div>
+          <p
+            aria-hidden
+            className="mt-2 flex items-center gap-2 px-4 text-sm font-medium text-muted-foreground sm:px-8 md:hidden"
+          >
+            Vuốt để xem thêm
+            <ArrowRightIcon className="size-4" />
+          </p>
         </section>
 
         {/* Closing */}
         <section
           data-stage
           aria-labelledby="cta-title"
-          className="flex min-h-dvh flex-col items-center justify-end px-4 pb-24 text-center sm:px-8"
+          className="flex min-h-svh flex-col items-center justify-end px-4 pb-[min(6rem,10svh)] text-center sm:px-8"
         >
-          <div className="max-w-2xl perspective-[900px]">
+          <div ref={closing} className="max-w-2xl perspective-[900px]">
             <h2
               id="cta-title"
               data-reveal
-              className="text-[clamp(2.5rem,6vw,4.75rem)] leading-[1.2] font-extrabold tracking-[-0.045em] text-balance"
+              className="text-[clamp(2.25rem,min(6vw,9svh),4.75rem)] leading-[1.2] font-extrabold tracking-[-0.045em] text-balance"
             >
               Gieo hạt giống đầu tiên.
             </h2>
@@ -676,10 +711,6 @@ export function Landing() {
           </div>
         </section>
       </main>
-
-      <footer className="border-t border-border px-4 py-6 text-center text-sm text-muted-foreground">
-        © 2026 Vedora · Sống xanh có ý thức
-      </footer>
     </div>
   )
 }

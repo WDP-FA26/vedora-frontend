@@ -23,11 +23,13 @@ const DESKTOP_STAGES: Stage[] = [
   { x: 0, y: 0.4, scale: 0.72, opacity: 1 }, // sprout, clear above the CTA
 ]
 
+// On phones the cloud can't sit beside the copy, so it only takes the stage in
+// the hero and the closing, and stays a faint backdrop behind the chapters.
 const MOBILE_STAGES: Stage[] = [
-  { x: 0, y: 0.4, scale: 0.62, opacity: 1 },
-  { x: 0, y: 0.42, scale: 0.55, opacity: 0.45 },
-  { x: 0, y: 0.42, scale: 0.55, opacity: 0.45 },
-  { x: 0, y: 0.1, scale: 0.8, opacity: 0.25 },
+  { x: 0, y: 0.5, scale: 0.54, opacity: 1 },
+  { x: 0, y: 0.3, scale: 0.6, opacity: 0.14 },
+  { x: 0, y: 0.3, scale: 0.6, opacity: 0.14 },
+  { x: 0, y: 0.1, scale: 0.8, opacity: 0.1 },
   { x: 0, y: 0.4, scale: 0.55, opacity: 1 },
 ]
 
@@ -222,6 +224,14 @@ const fragmentShader = /* glsl */ `
 
 const smoothstep = (t: number) => t * t * (3 - 2 * t)
 
+// The sprout's soil sits at y = -1.7 and its leaves reach about 1.9 above it.
+const SPROUT_SOIL = -1.7
+const SPROUT_HEIGHT = 3.6
+// Space kept clear between the soil and the closing copy, and under the
+// header, as fractions of the viewport height.
+const SPROUT_GAP = 0.08
+const SPROUT_CEILING = 0.12
+
 /** Index and eased fraction between the two stages around `progress`. */
 function between(progress: number, count: number) {
   const clamped = Math.min(Math.max(progress, 0), count - 1)
@@ -248,9 +258,12 @@ function lerpStage(stages: Stage[], progress: number): Stage {
  */
 export function ParticleScene({
   progress,
+  anchor,
   sound,
 }: {
   progress: RefObject<number>
+  /** The closing copy: the sprout is planted just above it, fit to the room left. */
+  anchor?: RefObject<HTMLElement | null>
   /** Driven from this render loop so audio stays in step with the visuals. */
   sound?: RefObject<Soundscape | null>
 }) {
@@ -268,8 +281,9 @@ export function ParticleScene({
     }
 
     const isSmall = () => window.innerWidth < 768
-    const count = isSmall() ? 5000 : 9000
-    const pixelRatio = Math.min(window.devicePixelRatio, 2)
+    // Phones get fewer, lower-resolution particles to spare the GPU and battery.
+    const count = isSmall() ? 3500 : 9000
+    const pixelRatio = Math.min(window.devicePixelRatio, isSmall() ? 1.5 : 2)
     const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)")
 
     renderer.setPixelRatio(pixelRatio)
@@ -348,8 +362,12 @@ export function ParticleScene({
 
     let halfW = 1
     let halfH = 1
+    let size = ""
     const resize = () => {
       const { clientWidth: w, clientHeight: h } = container
+      // Mobile browsers fire resize as the toolbar hides; skip no-op resizes.
+      if (`${w}x${h}` === size) return
+      size = `${w}x${h}`
       renderer.setSize(w, h, false)
       renderer.domElement.style.width = "100%"
       renderer.domElement.style.height = "100%"
@@ -403,8 +421,27 @@ export function ParticleScene({
 
       const stage = lerpStage(isSmall() ? MOBILE_STAGES : DESKTOP_STAGES, current)
       const fit = Math.min(1, camera.aspect / 1.3, halfH / 2.6)
-      group.position.set(stage.x * halfW, stage.y * halfH, 0)
-      group.scale.setScalar(stage.scale * Math.max(fit, 0.6))
+      let y = stage.y * halfH
+      let opacity = stage.opacity
+      let scale = stage.scale * Math.max(fit, 0.6)
+
+      // Plant the sprout relative to the closing copy rather than the viewport,
+      // so the gap holds on any screen height.
+      const landing = smoothstep(Math.min(Math.max(current - 3, 0), 1))
+      if (landing > 0 && anchor?.current) {
+        const h = container.clientHeight
+        const toWorld = (px: number) => halfH - (px / h) * 2 * halfH
+        const soil = toWorld(anchor.current.getBoundingClientRect().top) + SPROUT_GAP * 2 * halfH
+        const room = toWorld(h * SPROUT_CEILING) - soil
+        const fits = room / SPROUT_HEIGHT
+        const planted = Math.max(Math.min(scale, fits), 0.3)
+        y += (soil - SPROUT_SOIL * planted - y) * landing
+        scale += (planted - scale) * landing
+        // Too little room to show it whole: fade it rather than crowd the header.
+        opacity *= 1 - landing * (1 - Math.min(Math.max(fits / 0.3, 0), 1))
+      }
+      group.position.set(stage.x * halfW, y, 0)
+      group.scale.setScalar(scale)
       group.rotation.y +=
         (Math.sin(elapsed * 0.3) * 0.35 * motion + pointer.x * 0.35 - group.rotation.y) *
         (1 - Math.exp(-dt * 3))
@@ -418,15 +455,14 @@ export function ParticleScene({
         u.uPointer.value.copy(group.worldToLocal(hit))
       }
       const push = pointer.active ? motion : 0
-      u.uPointerStrength.value +=
-        (push - u.uPointerStrength.value) * (1 - Math.exp(-dt * 4))
+      u.uPointerStrength.value += (push - u.uPointerStrength.value) * (1 - Math.exp(-dt * 4))
 
       blendPalette(current)
       u.uProgress.value = current
       u.uTime.value = elapsed
       u.uMotion.value = motion
       u.uVelocity.value = velocity * motion
-      u.uOpacity.value = stage.opacity
+      u.uOpacity.value = opacity
 
       renderer.render(scene, camera)
 
@@ -450,7 +486,7 @@ export function ParticleScene({
       renderer.dispose()
       renderer.domElement.remove()
     }
-  }, [progress, sound])
+  }, [progress, anchor, sound])
 
   return <div ref={containerRef} aria-hidden className="size-full" />
 }
