@@ -149,7 +149,7 @@ function AccountMenu() {
         </DropdownMenuItem>
         <DropdownMenuItem onClick={logout} disabled={pending}>
           <LogOutIcon aria-hidden />
-          Đăng xuất @{author.handle}
+          Đăng xuất
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
