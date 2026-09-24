@@ -17,7 +17,21 @@ type PostBase = {
 
 export type VideoPost = PostBase & {
   kind: "video"
-  video: { duration: string; caption: string; tone: PlaceholderTone }
+  video: {
+    duration: string
+    caption: string
+    tone: PlaceholderTone
+    /** Mux playback ID; fixtures without one render a placeholder. */
+    playbackId?: string
+    /** Mux aspect ratio, e.g. "16:9". */
+    aspectRatio?: string
+    /** Posts from the API: "processing" until Mux finishes encoding. */
+    status?: "processing" | "ready" | "failed"
+  }
+}
+
+export type TextPost = PostBase & {
+  kind: "text"
 }
 
 export type ArticlePost = PostBase & {
@@ -30,4 +44,4 @@ export type PhotoPost = PostBase & {
   photos: { alt: string; tone: PlaceholderTone }[]
 }
 
-export type Post = VideoPost | ArticlePost | PhotoPost
+export type Post = VideoPost | ArticlePost | PhotoPost | TextPost

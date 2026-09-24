@@ -34,6 +34,7 @@ import { formatCount, formatPostDate, formatPostDateLong } from "@/features/shar
 import { MediaPlaceholder } from "@/features/shared/components/media-placeholder"
 import type { ArticlePost, PhotoPost, Post, VideoPost } from "@/features/home/types"
 import { VerifiedBadge } from "@/features/shared/components/verified-badge"
+import { PostVideo } from "@/features/posts/components/post-video"
 
 export function PostCard({ post }: { post: Post }) {
   return (
@@ -67,7 +68,7 @@ export function PostCard({ post }: { post: Post }) {
           <PostMenu post={post} />
         </header>
 
-        <p className="mt-1.5 text-[0.9375rem] leading-[1.4] text-pretty">
+        <p className="mt-1.5 text-[0.9375rem] leading-[1.4] text-pretty whitespace-pre-line">
           {post.body}{" "}
           {post.tags.map((tag) => (
             <a key={tag} href="#" className="mr-1 text-primary hover:underline">
@@ -87,6 +88,7 @@ export function PostCard({ post }: { post: Post }) {
 }
 
 function VideoMedia({ post }: { post: VideoPost }) {
+  if (post.video.status) return <PostVideo post={post} />
   return (
     <MediaPlaceholder
       tone={post.video.tone}

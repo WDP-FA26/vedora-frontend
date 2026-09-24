@@ -6,6 +6,10 @@ const isPreview = process.env.VERCEL_ENV === "preview";
 const toolbar = (...sources: string[]) => (isPreview ? ` ${sources.join(" ")}` : "");
 // Client Components call vedora-api directly (see `useAuth()`).
 const apiOrigin = new URL(process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000/api/v1").origin;
+// Mux: direct uploads (direct-uploads-*.mux.com), HLS streams (stream.mux.com),
+// thumbnails and storyboards (image.mux.com), and Mux Data beacons (litix.io).
+const mux = "https://*.mux.com";
+const muxData = "https://*.litix.io";
 
 /**
  * No nonces: they would force every route to render per request, and the
@@ -16,10 +20,10 @@ const csp = [
   "default-src 'self'",
   `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ""}${toolbar("https://vercel.live")}`,
   `style-src 'self' 'unsafe-inline'${toolbar("https://vercel.live")}`,
-  `img-src 'self' blob: data:${toolbar("https://vercel.live", "https://vercel.com")}`,
+  `img-src 'self' blob: data: ${mux}${toolbar("https://vercel.live", "https://vercel.com")}`,
   `font-src 'self'${toolbar("https://vercel.live", "https://assets.vercel.com")}`,
-  `connect-src 'self' ${apiOrigin}${toolbar("https://vercel.live", "wss://ws-us3.pusher.com")}`,
-  "media-src 'self' blob:",
+  `connect-src 'self' ${apiOrigin} ${mux} ${muxData}${toolbar("https://vercel.live", "wss://ws-us3.pusher.com")}`,
+  `media-src 'self' blob: ${mux}`,
   "worker-src 'self' blob:",
   `frame-src 'self'${toolbar("https://vercel.live")}`,
   "object-src 'none'",

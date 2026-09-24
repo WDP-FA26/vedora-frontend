@@ -4,8 +4,10 @@ import type { Author } from "@/features/shared/types"
 
 const TONES: PlaceholderTone[] = ["basil", "sage", "grain", "beet", "tomato"]
 
-/** Adapts the API user to the `Author` shape the avatar and nav components use. */
-export function toAuthor(user: CurrentUser): Author {
+/** Adapts an API user (or post author) to the `Author` shape the avatar and nav components use. */
+export function toAuthor(
+  user: Pick<CurrentUser, "id" | "username" | "fullName">
+): Author {
   const words = user.fullName.trim().split(/\s+/)
   const initials =
     words.length > 1

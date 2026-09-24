@@ -12,8 +12,10 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { MobileTopBar } from "@/features/shared/components/mobile-nav"
 import { getFeed } from "@/features/home/data/posts"
+import { useFeedPosts } from "@/features/posts/hooks/use-feed-posts"
+import { toFeedPost } from "@/features/posts/lib/to-feed-post"
 import { PostCard } from "./post-card"
-import type { FeedTab } from "@/features/home/types"
+import type { FeedTab, Post } from "@/features/home/types"
 
 const tabs: { value: FeedTab; label: string }[] = [
   { value: "for-you", label: "Dành cho bạn" },
@@ -22,7 +24,22 @@ const tabs: { value: FeedTab; label: string }[] = [
   { value: "recipes", label: "Công thức" },
 ]
 
+/** Real posts from the API first, then the illustrative fixtures. */
+function withLivePosts(tab: FeedTab, live: Post[]): Post[] {
+  switch (tab) {
+    case "for-you":
+      return [...live, ...getFeed(tab)]
+    case "recipes":
+      return [...live.filter((post) => post.kind === "video"), ...getFeed(tab)]
+    default:
+      return getFeed(tab)
+  }
+}
+
 export function Feed() {
+  const { posts } = useFeedPosts()
+  const live = posts.map(toFeedPost)
+
   return (
     <Tabs defaultValue="for-you">
       <div className="sticky top-0 z-20 border-b border-border bg-card/85 backdrop-blur-md backdrop-saturate-150">
@@ -41,14 +58,14 @@ export function Feed() {
 
       {tabs.map((tab) => (
         <TabsContent key={tab.value} value={tab.value}>
-          <Timeline posts={getFeed(tab.value)} />
+          <Timeline posts={withLivePosts(tab.value, live)} />
         </TabsContent>
       ))}
     </Tabs>
   )
 }
 
-function Timeline({ posts }: { posts: ReturnType<typeof getFeed> }) {
+function Timeline({ posts }: { posts: Post[] }) {
   if (posts.length === 0) {
     return (
       <div className="py-10">
