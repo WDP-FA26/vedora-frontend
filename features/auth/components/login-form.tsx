@@ -6,10 +6,11 @@ import { zodResolver } from "@hookform/resolvers/zod"
 import { useSWRConfig } from "swr"
 
 import { Button } from "@/components/ui/button"
-import { Field, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field"
+import { Field, FieldError, FieldGroup, FieldLabel, FieldSeparator } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { Spinner } from "@/components/ui/spinner"
 import { login } from "@/features/auth/actions"
+import { GoogleButton } from "@/features/auth/components/google-button"
 import { loginSchema, type LoginValues } from "@/features/auth/schemas"
 
 export function LoginForm({ next }: { next?: string }) {
@@ -34,6 +35,9 @@ export function LoginForm({ next }: { next?: string }) {
   return (
     <form onSubmit={form.handleSubmit(onSubmit)} noValidate>
       <FieldGroup>
+        <GoogleButton next={next} />
+        <FieldSeparator>hoặc</FieldSeparator>
+
         <Controller
           name="username"
           control={form.control}

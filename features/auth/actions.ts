@@ -13,6 +13,7 @@ import {
 import {
   loginSchema,
   registerSchema,
+  toFullName,
   type FormErrors,
   type LoginValues,
   type RegisterValues,
@@ -51,9 +52,9 @@ export async function register(
   const parsed = registerSchema.safeParse(values)
   if (!parsed.success) return { root: INVALID }
 
-  const { fullName, username, email, password } = parsed.data
+  const { username, email, password } = parsed.data
   const failure = await authenticate("/auth/register", {
-    fullName,
+    fullName: toFullName(parsed.data),
     username,
     email,
     password,

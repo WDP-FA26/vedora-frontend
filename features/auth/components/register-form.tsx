@@ -12,19 +12,28 @@ import {
   FieldError,
   FieldGroup,
   FieldLabel,
+  FieldSeparator,
 } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { Spinner } from "@/components/ui/spinner"
 import { register } from "@/features/auth/actions"
+import { GoogleButton } from "@/features/auth/components/google-button"
 import { registerSchema, type RegisterValues } from "@/features/auth/schemas"
 
-const fields: {
+type FieldConfig = {
   name: keyof RegisterValues
   label: string
   description?: string
   input: React.ComponentProps<"input">
-}[] = [
-  { name: "fullName", label: "Họ và tên", input: { autoComplete: "name", autoFocus: true } },
+}
+
+// Side by side, family name first as Vietnamese names are written.
+const nameFields: FieldConfig[] = [
+  { name: "lastName", label: "Họ", input: { autoComplete: "family-name", autoFocus: true } },
+  { name: "firstName", label: "Tên", input: { autoComplete: "given-name" } },
+]
+
+const fields: FieldConfig[] = [
   {
     name: "username",
     label: "Tên đăng nhập",
@@ -50,7 +59,8 @@ export function RegisterForm({ next }: { next?: string }) {
   const form = useForm<RegisterValues>({
     resolver: zodResolver(registerSchema),
     defaultValues: {
-      fullName: "",
+      lastName: "",
+      firstName: "",
       username: "",
       email: "",
       password: "",
@@ -68,29 +78,32 @@ export function RegisterForm({ next }: { next?: string }) {
     }
   }
 
+  const renderField = ({ name, label, description, input }: FieldConfig) => (
+    <Controller
+      key={name}
+      name={name}
+      control={form.control}
+      render={({ field, fieldState }) => (
+        <Field data-invalid={fieldState.invalid}>
+          <FieldLabel htmlFor={field.name}>{label}</FieldLabel>
+          <Input {...input} {...field} id={field.name} aria-invalid={fieldState.invalid} />
+          {description && <FieldDescription>{description}</FieldDescription>}
+          {fieldState.invalid && <FieldError errors={[fieldState.error]} />}
+        </Field>
+      )}
+    />
+  )
+
   return (
     <form onSubmit={form.handleSubmit(onSubmit)} noValidate>
       <FieldGroup>
-        {fields.map(({ name, label, description, input }) => (
-          <Controller
-            key={name}
-            name={name}
-            control={form.control}
-            render={({ field, fieldState }) => (
-              <Field data-invalid={fieldState.invalid}>
-                <FieldLabel htmlFor={field.name}>{label}</FieldLabel>
-                <Input
-                  {...input}
-                  {...field}
-                  id={field.name}
-                  aria-invalid={fieldState.invalid}
-                />
-                {description && <FieldDescription>{description}</FieldDescription>}
-                {fieldState.invalid && <FieldError errors={[fieldState.error]} />}
-              </Field>
-            )}
-          />
-        ))}
+        <GoogleButton next={next} />
+        <FieldSeparator>hoặc đăng ký bằng email</FieldSeparator>
+
+        <div className="grid grid-cols-2 items-start gap-3">
+          {nameFields.map(renderField)}
+        </div>
+        {fields.map(renderField)}
 
         {errors.root && <FieldError errors={[errors.root]} />}
 

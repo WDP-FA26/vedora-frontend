@@ -17,7 +17,8 @@ export const loginSchema = z.object({
 
 export const registerSchema = z
   .object({
-    fullName: z.string().trim().min(1, "Nhập họ tên").max(100, "Họ tên tối đa 100 ký tự"),
+    lastName: z.string().trim().min(1, "Nhập họ").max(50, "Họ tối đa 50 ký tự"),
+    firstName: z.string().trim().min(1, "Nhập tên").max(50, "Tên tối đa 50 ký tự"),
     username: username.regex(
       /^[a-z0-9._-]+$/,
       "Chỉ dùng chữ thường, số, dấu chấm, gạch dưới hoặc gạch ngang"
@@ -34,6 +35,18 @@ export const registerSchema = z
     path: ["confirmPassword"],
     message: "Mật khẩu nhập lại không khớp",
   })
+  .refine((data) => toFullName(data).length <= 100, {
+    path: ["firstName"],
+    message: "Họ và tên tối đa 100 ký tự",
+  })
+
+/**
+ * vedora-api stores a single `fullName`. Vietnamese order: family name first,
+ * so "Nguyễn" + "Văn An" becomes "Nguyễn Văn An".
+ */
+export function toFullName({ lastName, firstName }: { lastName: string; firstName: string }) {
+  return `${lastName.trim()} ${firstName.trim()}`
+}
 
 export type LoginValues = z.infer<typeof loginSchema>
 export type RegisterValues = z.infer<typeof registerSchema>
