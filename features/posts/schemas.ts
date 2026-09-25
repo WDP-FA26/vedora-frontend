@@ -6,6 +6,8 @@ import { z } from "zod"
 /** Mirrors the API's `MAX_VIDEO_DURATION_SEC` default. */
 export const MAX_VIDEO_DURATION_SEC = 180
 export const MAX_POST_LENGTH = 280
+/** Mirrors the API's `MAX_POST_MEDIA`. */
+export const MAX_POST_MEDIA = 4
 
 export const apiMediaSchema = z.object({
   id: z.string(),
@@ -57,10 +59,10 @@ export const apiErrorSchema = z.object({
 export const postFormSchema = z
   .object({
     body: z.string().max(MAX_POST_LENGTH, `Tối đa ${MAX_POST_LENGTH} ký tự`),
-    /** Set once the video has finished uploading to Mux. */
-    mediaId: z.string().optional(),
+    /** Finished uploads, in display order. */
+    mediaIds: z.array(z.string()).max(MAX_POST_MEDIA),
   })
-  .refine((values) => values.body.trim() !== "" || values.mediaId, {
+  .refine((values) => values.body.trim() !== "" || values.mediaIds.length > 0, {
     path: ["body"],
     message: "Viết vài dòng hoặc thêm video",
   })

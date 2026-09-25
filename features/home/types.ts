@@ -16,17 +16,16 @@ type PostBase = {
 }
 
 /** Illustrative fixture video, drawn as a placeholder. */
-export type PlaceholderVideo = {
-  source: "placeholder"
-  duration: string
-  caption: string
-  tone: PlaceholderTone
+export type VideoPost = PostBase & {
+  kind: "video"
+  video: { duration: string; caption: string; tone: PlaceholderTone }
 }
 
 /** A video hosted on Mux, from a vedora-api post. */
 export type MuxVideo = {
-  source: "mux"
-  /** "processing" until Mux finishes encoding; only the author sees it. */
+  type: "video"
+  id: string
+  /** "processing" until Mux finishes encoding. */
   status: "processing" | "ready" | "failed"
   playbackId: string | null
   /** Mux aspect ratio, e.g. "16:9". */
@@ -34,9 +33,15 @@ export type MuxVideo = {
   duration: string
 }
 
-export type VideoPost = PostBase & {
-  kind: "video"
-  video: PlaceholderVideo | MuxVideo
+/** Up to four attachments; photos will join this union. */
+export type PostAttachment = MuxVideo
+
+/** A vedora-api post with attachments, laid out like X's media grid. */
+export type MediaPost = PostBase & {
+  kind: "media"
+  /** "processing" until every video is ready; only the author sees it. */
+  status: "processing" | "published" | "failed"
+  media: PostAttachment[]
 }
 
 export type TextPost = PostBase & {
@@ -53,4 +58,4 @@ export type PhotoPost = PostBase & {
   photos: { alt: string; tone: PlaceholderTone }[]
 }
 
-export type Post = VideoPost | ArticlePost | PhotoPost | TextPost
+export type Post = VideoPost | MediaPost | ArticlePost | PhotoPost | TextPost

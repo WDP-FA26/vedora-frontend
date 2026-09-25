@@ -4,9 +4,7 @@ import { useRef } from "react"
 import { Controller, useForm, useWatch } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import {
-  CalendarClockIcon,
   ClapperboardIcon,
-  FileTextIcon,
   GlobeIcon,
   ImageIcon,
   SmileIcon,
@@ -26,23 +24,28 @@ import {
 import { AuthorAvatar } from "@/features/shared/components/author-avatar"
 import { useAuth } from "@/features/auth/hooks/use-auth"
 import { useUpsertFeedPost } from "@/features/posts/hooks/use-feed-posts"
+import { MediaGrid } from "@/features/posts/components/media-grid"
 import { VideoPreview } from "@/features/posts/components/video-preview"
-import { useVideoUpload } from "@/features/posts/hooks/use-video-upload"
+import { useMediaUploads } from "@/features/posts/hooks/use-media-uploads"
 import { ApiError, createPost } from "@/features/posts/lib/posts-api"
 import {
   MAX_POST_LENGTH,
+  MAX_POST_MEDIA,
   postFormSchema,
   type PostFormValues,
 } from "@/features/posts/schemas"
 
 const VIDEO_TOOL = "Tải video lên"
 
+/** What leaving the composer would throw away. */
+export type ComposerDraft = { hasText: boolean; mediaCount: number }
+
+export const EMPTY_DRAFT: ComposerDraft = { hasText: false, mediaCount: 0 }
+
 const tools = [
   { label: "Thêm ảnh", icon: ImageIcon },
   { label: VIDEO_TOOL, icon: ClapperboardIcon },
   { label: "Đính kèm công thức", icon: UtensilsCrossedIcon },
-  { label: "Viết bài blog", icon: FileTextIcon },
-  { label: "Lên lịch đăng", icon: CalendarClockIcon, desktopOnly: true },
   { label: "Thêm biểu tượng cảm xúc", icon: SmileIcon, desktopOnly: true },
 ]
 
@@ -62,11 +65,18 @@ export function Composer({
   className,
   autoFocus,
   onPosted,
+  onDraftChange,
 }: {
   className?: string
   autoFocus?: boolean
   /** Called after the post was created on the API. */
   onPosted?: () => void
+  /**
+   * Called when the draft gains or loses text or attachments. Unmounting the
+   * composer discards the draft (and deletes its uploads), so a parent can
+   * confirm before closing it.
+   */
+  onDraftChange?: (draft: ComposerDraft) => void
 }) {
   const { author, accessToken } = useAuth()
   const upsertFeedPost = useUpsertFeedPost()
@@ -74,20 +84,25 @@ export function Composer({
 
   const form = useForm<PostFormValues>({
     resolver: zodResolver(postFormSchema),
-    defaultValues: { body: "", mediaId: undefined },
+    defaultValues: { body: "", mediaIds: [] },
   })
   const { isSubmitting, errors } = form.formState
-  const [body, mediaId] = useWatch({ control: form.control, name: ["body", "mediaId"] })
+  const body = useWatch({ control: form.control, name: "body" })
 
-  const { upload, start, remove, release } = useVideoUpload({
-    onUploaded: (id) => form.setValue("mediaId", id),
-    onCleared: () => form.setValue("mediaId", undefined),
+  const { uploads, error: uploadError, add, remove, release } = useMediaUploads({
+    onChange: (ids, count) => {
+      form.setValue("mediaIds", ids)
+      onDraftChange?.({
+        hasText: form.getValues("body").trim() !== "",
+        mediaCount: count,
+      })
+    },
   })
 
   const remaining = MAX_POST_LENGTH - body.length
-  const uploading = upload.status === "uploading"
+  const uploading = uploads.some((item) => item.mediaId === null)
   const canSubmit =
-    (body.trim() !== "" || mediaId !== undefined) &&
+    (body.trim() !== "" || uploads.length > 0) &&
     remaining >= 0 &&
     !uploading &&
     !isSubmitting
@@ -97,10 +112,11 @@ export function Composer({
     try {
       const post = await createPost(accessToken, {
         body: values.body.trim() || undefined,
-        mediaIds: values.mediaId ? [values.mediaId] : undefined,
+        mediaIds: values.mediaIds.length > 0 ? values.mediaIds : undefined,
       })
       release()
       form.reset()
+      onDraftChange?.(EMPTY_DRAFT)
       await upsertFeedPost(post)
       onPosted?.()
     } catch (error) {
@@ -126,6 +142,13 @@ export function Composer({
               </FieldLabel>
               <textarea
                 {...field}
+                onChange={(event) => {
+                  field.onChange(event)
+                  onDraftChange?.({
+                    hasText: event.target.value.trim() !== "",
+                    mediaCount: uploads.length,
+                  })
+                }}
                 id={field.name}
                 autoFocus={autoFocus}
                 aria-invalid={fieldState.invalid}
@@ -138,38 +161,44 @@ export function Composer({
           )}
         />
 
-        {(upload.status === "uploading" || upload.status === "uploaded") && (
-          <div className="relative mb-3 overflow-hidden rounded-2xl border border-border">
-            <VideoPreview src={upload.previewUrl} label="Xem trước video" />
-            <Button
-              type="button"
-              variant="raised"
-              size="icon"
-              shape="pill"
-              aria-label="Bỏ video"
-              onClick={remove}
-              className="absolute top-2 right-2"
-            >
-              <XIcon aria-hidden />
-            </Button>
-            {uploading && (
-              <div className="absolute inset-x-0 bottom-0 bg-card/90 px-3 py-2">
-                <Progress
-                  value={Math.round(upload.progress)}
-                  aria-label="Tiến trình tải video lên"
+        {uploads.length > 0 && (
+          <MediaGrid className="mb-3">
+            {uploads.map((item, index) => (
+              <div key={item.key} className="relative size-full">
+                <VideoPreview
+                  src={item.previewUrl}
+                  label={`Xem trước video ${index + 1}`}
+                  fill={uploads.length > 1}
+                />
+                <Button
+                  type="button"
+                  variant="raised"
+                  size="icon"
+                  shape="pill"
+                  aria-label={`Bỏ video ${index + 1}`}
+                  onClick={() => remove(item.key)}
+                  className="absolute top-2 right-2"
                 >
-                  <span className="text-xs font-semibold tabular-nums">
-                    Đang tải lên {Math.round(upload.progress)}%
-                  </span>
-                </Progress>
+                  <XIcon aria-hidden />
+                </Button>
+                {item.mediaId === null && (
+                  <div className="absolute inset-x-0 bottom-0 bg-card/90 px-3 py-2">
+                    <Progress
+                      value={Math.round(item.progress)}
+                      aria-label={`Tiến trình tải video ${index + 1} lên`}
+                    >
+                      <span className="text-xs font-semibold tabular-nums">
+                        Đang tải lên {Math.round(item.progress)}%
+                      </span>
+                    </Progress>
+                  </div>
+                )}
               </div>
-            )}
-          </div>
+            ))}
+          </MediaGrid>
         )}
 
-        {upload.status === "error" && (
-          <FieldError className="mb-2">{upload.message}</FieldError>
-        )}
+        {uploadError && <FieldError className="mb-2">{uploadError}</FieldError>}
         {errors.root && <FieldError className="mb-2" errors={[errors.root]} />}
 
         <p className="flex items-center gap-1.5 border-b border-border pb-3 text-xs font-semibold text-primary">
@@ -181,12 +210,13 @@ export function Composer({
             ref={fileInput}
             type="file"
             accept="video/*"
+            multiple
             hidden
             aria-label={VIDEO_TOOL}
             onChange={(event) => {
-              const file = event.target.files?.[0]
+              const files = Array.from(event.target.files ?? [])
               event.target.value = ""
-              if (file) void start(file)
+              if (files.length > 0) void add(files)
             }}
           />
           <div className="-ml-2 flex items-center">
@@ -202,9 +232,7 @@ export function Composer({
                       className={cn(desktopOnly && "max-sm:hidden")}
                       disabled={
                         label === VIDEO_TOOL &&
-                        (upload.status === "uploading" ||
-                          upload.status === "uploaded" ||
-                          isSubmitting)
+                        (uploads.length >= MAX_POST_MEDIA || isSubmitting)
                       }
                       onClick={
                         label === VIDEO_TOOL

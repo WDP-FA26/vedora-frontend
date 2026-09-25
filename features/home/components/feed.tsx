@@ -30,7 +30,7 @@ function withLivePosts(tab: FeedTab, live: Post[]): Post[] {
     case "for-you":
       return [...live, ...getFeed(tab)]
     case "recipes":
-      return [...live.filter((post) => post.kind === "video"), ...getFeed(tab)]
+      return [...live.filter((post) => post.kind === "media"), ...getFeed(tab)]
     default:
       return getFeed(tab)
   }

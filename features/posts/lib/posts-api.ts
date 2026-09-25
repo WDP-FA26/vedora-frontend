@@ -66,8 +66,9 @@ export function requestVideoUpload(token: string) {
   })
 }
 
+/** `keepalive` lets the request finish even if the page is closing. */
 export async function discardMedia(token: string, id: string) {
-  await send(`${API_URL}/media/${id}`, token, { method: "DELETE" })
+  await send(`${API_URL}/media/${id}`, token, { method: "DELETE", keepalive: true })
 }
 
 export function createPost(token: string, input: { body?: string; mediaIds?: string[] }) {

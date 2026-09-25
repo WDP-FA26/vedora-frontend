@@ -14,7 +14,7 @@ const posts: Post[] = [
     author: authors.marcus,
     stats: { replies: 1200, reposts: 4800, sprouts: 14200, views: 212000 },
     sprouted: true,
-    video: { source: "placeholder", duration: "2:45", caption: "Video từng bước", tone: "grain" },
+    video: { duration: "2:45", caption: "Video từng bước", tone: "grain" },
   },
   {
     id: "p2",
@@ -52,7 +52,7 @@ const posts: Post[] = [
     body: "Miso trắng làm nhanh bằng đậu gà thay cho đậu nành. Koji gạo, 6% muối và hơi ấm từ đèn lò nướng lo phần việc nặng. Mình cho xem kết cấu ở ngày thứ nhất, hai và ba để bạn biết thế nào là ‘đã xong’.",
     author: authors.kenji,
     stats: { replies: 256, reposts: 1100, sprouts: 8700, views: 126000 },
-    video: { source: "placeholder", duration: "6:12", caption: "Kỹ thuật", tone: "beet" },
+    video: { duration: "6:12", caption: "Kỹ thuật", tone: "beet" },
   },
   {
     id: "p5",

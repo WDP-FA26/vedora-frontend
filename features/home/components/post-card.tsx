@@ -34,7 +34,7 @@ import { formatCount, formatPostDate, formatPostDateLong } from "@/features/shar
 import { MediaPlaceholder } from "@/features/shared/components/media-placeholder"
 import type { ArticlePost, PhotoPost, Post, VideoPost } from "@/features/home/types"
 import { VerifiedBadge } from "@/features/shared/components/verified-badge"
-import { PostVideo } from "@/features/posts/components/post-video"
+import { PostMedia } from "@/features/posts/components/post-media"
 
 export function PostCard({ post }: { post: Post }) {
   return (
@@ -78,6 +78,7 @@ export function PostCard({ post }: { post: Post }) {
         </p>
 
         {post.kind === "video" && <VideoMedia post={post} />}
+        {post.kind === "media" && <PostMedia post={post} />}
         {post.kind === "article" && <ArticleCard post={post} />}
         {post.kind === "photo" && <PhotoMedia post={post} />}
 
@@ -89,9 +90,6 @@ export function PostCard({ post }: { post: Post }) {
 
 function VideoMedia({ post }: { post: VideoPost }) {
   const { video, author } = post
-  if (video.source === "mux") {
-    return <PostVideo postId={post.id} author={author} video={video} />
-  }
   return (
     <MediaPlaceholder
       tone={video.tone}
