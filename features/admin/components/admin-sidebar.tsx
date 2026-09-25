@@ -43,11 +43,11 @@ import {
 /**
  * Admin navigation, modelled on Meta Business Suite: brand on top, the main
  * tools in labelled sections in the middle, settings and the account at the
- * bottom. Collapses to icons on desktop and becomes a sheet on phones.
+ * bottom. Slides fully away when collapsed and becomes a sheet on phones.
  */
 export function AdminSidebar() {
   return (
-    <Sidebar collapsible="icon">
+    <Sidebar collapsible="offcanvas">
       <SidebarHeader>
         <BrandButton />
       </SidebarHeader>
@@ -77,7 +77,7 @@ function BrandButton() {
   const { setOpenMobile } = useSidebar()
 
   return (
-    <SidebarMenu className="group-data-[collapsible=icon]:hidden">
+    <SidebarMenu>
       <SidebarMenuItem>
         <SidebarMenuButton
           size="lg"
@@ -114,7 +114,6 @@ function NavMenu({ items, label }: { items: AdminNavItem[]; label: string }) {
             <SidebarMenuItem key={href}>
               <SidebarMenuButton
                 isActive={active}
-                tooltip={label}
                 variant="brand"
                 size="nav"
                 render={
