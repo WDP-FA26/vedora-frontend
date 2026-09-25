@@ -9,9 +9,3 @@ export type Author = {
   verified?: string
 }
 
-export type Trend = {
-  id: string
-  context: string
-  topic: string
-  sprouts: number
-}

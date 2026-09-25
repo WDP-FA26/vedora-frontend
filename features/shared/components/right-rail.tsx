@@ -2,23 +2,16 @@
 
 import { useEffect, useRef, useState } from "react"
 import Link from "next/link"
-import { CheckIcon, EllipsisIcon, SearchIcon, SparklesIcon, TrendingUpIcon } from "lucide-react"
+import { CheckIcon, SearchIcon, SparklesIcon } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
 import {
   InputGroup,
   InputGroupAddon,
   InputGroupInput,
 } from "@/components/ui/input-group"
 import { AuthorAvatar } from "@/features/shared/components/author-avatar"
-import { suggestedCreators, trends } from "@/features/shared/data/trends"
-import { formatCount } from "@/features/shared/lib/format"
+import { suggestedCreators } from "@/features/shared/data/creators"
 import type { Author } from "@/features/shared/types"
 import { VerifiedBadge } from "@/features/shared/components/verified-badge"
 
@@ -70,49 +63,6 @@ export function RightRail() {
       </form>
 
       <UpgradePanel />
-
-      <Panel title="Xu hướng ẩm thực thuần chay" icon={<TrendingUpIcon aria-hidden className="size-4 text-primary" />}>
-        <ol>
-          {trends.slice(0, 3).map((trend) => (
-            <li
-              key={trend.id}
-              className="group/trend relative flex items-start justify-between gap-2 px-4 py-3 transition-colors hover:bg-muted/60"
-            >
-              <Link href="#" className="min-w-0 outline-none after:absolute after:inset-0 focus-visible:after:ring-3 focus-visible:after:ring-ring/50 focus-visible:after:ring-inset">
-                <span className="block text-xs text-muted-foreground">
-                  {trend.context} · Xu hướng
-                </span>
-                <span className="mt-0.5 block truncate text-[0.9375rem] font-bold tracking-[-0.01em]">
-                  {trend.topic}
-                </span>
-                <span className="mt-0.5 block text-xs text-muted-foreground tabular-nums">
-                  {formatCount(trend.sprouts)} lượt thả mầm
-                </span>
-              </Link>
-              <DropdownMenu>
-                <DropdownMenuTrigger
-                  render={
-                    <Button
-                      variant="action"
-                      size="icon-sm"
-                      shape="pill"
-                      className="relative z-10 -mr-1.5"
-                    />
-                  }
-                  aria-label={`Tùy chọn khác cho ${trend.topic}`}
-                >
-                  <EllipsisIcon aria-hidden />
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-60">
-                  <DropdownMenuItem>Không quan tâm</DropdownMenuItem>
-                  <DropdownMenuItem>Xu hướng này có hại hoặc là spam</DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </li>
-          ))}
-        </ol>
-        <PanelLink href="#">Xem thêm xu hướng</PanelLink>
-      </Panel>
 
       <Panel title="Nhà sáng tạo nên theo dõi">
         <ul>
@@ -184,18 +134,15 @@ function UpgradePanel() {
 
 function Panel({
   title,
-  icon,
   children,
 }: {
   title: string
-  icon?: React.ReactNode
   children: React.ReactNode
 }) {
   return (
     <section className="overflow-hidden rounded-2xl border border-border bg-card">
-      <h2 className="flex items-center justify-between px-4 pt-4 pb-2 text-[1.0625rem] font-bold tracking-[-0.02em]">
+      <h2 className="px-4 pt-4 pb-2 text-[1.0625rem] font-bold tracking-[-0.02em]">
         {title}
-        {icon}
       </h2>
       {children}
     </section>
