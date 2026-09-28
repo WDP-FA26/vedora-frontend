@@ -35,7 +35,6 @@ const FAILURE_MESSAGES: Record<
   INVALID_FILE: "Tệp bị hỏng hoặc không đúng định dạng.",
   ENCRYPTED: "PDF được đặt mật khẩu.",
   NO_TEXT: "Tệp không có chữ hay hình ảnh nào.",
-  UNSUPPORTED_TYPE: "Loại tệp này không còn được hỗ trợ.",
   EXTRACTION_FAILED: "Đọc nội dung tệp thất bại hoặc bị gián đoạn.",
   INDEXING_FAILED: "Lưu vào kho tìm kiếm thất bại. Hãy xóa và tải lên lại.",
 }

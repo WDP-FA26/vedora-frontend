@@ -19,7 +19,6 @@ const knowledgeDocumentSchema = z.object({
       "INVALID_FILE",
       "ENCRYPTED",
       "NO_TEXT",
-      "UNSUPPORTED_TYPE",
       "EXTRACTION_FAILED",
       "INDEXING_FAILED",
     ])
