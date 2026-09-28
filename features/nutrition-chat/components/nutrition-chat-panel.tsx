@@ -92,7 +92,8 @@ export function NutritionChatPanel({ onClose }: { onClose: () => void }) {
       <MessageScrollerProvider autoScroll defaultScrollPosition="end">
         <MessageScroller className="flex-1">
           <MessageScrollerViewport aria-label="Cuộc trò chuyện" scrollbar="hidden">
-            <MessageScrollerContent>
+            {/* the viewport's bottom fade is permanent where scroll-driven animations are unsupported (Firefox) */}
+            <MessageScrollerContent className="pb-10">
               {messages.map((message) => {
                 const text = messageText(message)
                 // the reply's first chunk can be empty; the spinner covers it
@@ -101,7 +102,6 @@ export function NutritionChatPanel({ onClose }: { onClose: () => void }) {
                 <MessageScrollerItem
                   key={message.id}
                   messageId={message.id}
-                  scrollAnchor={message.role === "user"}
                 >
                   {message.role === "assistant" ? (
                     <AssistantMessage>
