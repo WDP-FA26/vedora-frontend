@@ -6,7 +6,7 @@ export default function AuthLayout({ children }: LayoutProps<"/">) {
   return (
     <div className="grid min-h-dvh flex-1 lg:grid-cols-[minmax(0,5fr)_minmax(0,6fr)]">
       <aside className="relative hidden overflow-hidden bg-primary p-12 text-primary-foreground lg:flex lg:flex-col">
-        <Wordmark href="/" className="w-fit text-primary-foreground" />
+        <Wordmark href="/" mono className="w-fit text-primary-foreground" />
         <div className="mt-auto max-w-md">
           <SproutIcon aria-hidden className="mb-6 size-10 opacity-80" strokeWidth={1.5} />
           <p className="text-3xl leading-tight font-bold tracking-tight text-balance">

@@ -49,13 +49,6 @@ export const videoUploadSchema = z.object({
   uploadUrl: z.url(),
 })
 
-/** Nest error body; `code` is set on errors the UI handles specifically. */
-export const apiErrorSchema = z.object({
-  statusCode: z.number(),
-  code: z.string().optional(),
-  message: z.union([z.string(), z.array(z.string())]),
-})
-
 export const postFormSchema = z
   .object({
     body: z.string().max(MAX_POST_LENGTH, `Tối đa ${MAX_POST_LENGTH} ký tự`),

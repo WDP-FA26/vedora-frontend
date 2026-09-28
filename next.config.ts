@@ -10,6 +10,8 @@ const apiOrigin = new URL(process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4
 // thumbnails and storyboards (image.mux.com), and Mux Data beacons (litix.io).
 const mux = "https://*.mux.com";
 const muxData = "https://*.litix.io";
+// Vercel Blob client uploads (`put()` from `@vercel/blob/client`), incl. multipart.
+const vercelBlob = "https://vercel.com/api/blob/";
 // Mux Player loads Google's Cast SDK in Chrome to offer Chromecast.
 const castSdk = "https://www.gstatic.com";
 
@@ -24,7 +26,7 @@ const csp = [
   `style-src 'self' 'unsafe-inline'${toolbar("https://vercel.live")}`,
   `img-src 'self' blob: data: ${mux}${toolbar("https://vercel.live", "https://vercel.com")}`,
   `font-src 'self'${toolbar("https://vercel.live", "https://assets.vercel.com")}`,
-  `connect-src 'self' ${apiOrigin} ${mux} ${muxData}${toolbar("https://vercel.live", "wss://ws-us3.pusher.com")}`,
+  `connect-src 'self' ${apiOrigin} ${mux} ${muxData} ${vercelBlob}${toolbar("https://vercel.live", "wss://ws-us3.pusher.com")}`,
   `media-src 'self' blob: ${mux}`,
   "worker-src 'self' blob:",
   `frame-src 'self'${toolbar("https://vercel.live")}`,
