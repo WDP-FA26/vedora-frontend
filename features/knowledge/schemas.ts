@@ -8,7 +8,7 @@ export const MAX_KNOWLEDGE_FILE_MB = 50
 /** A hint for the file picker; the API decides which types it accepts. */
 export const KNOWLEDGE_ACCEPT = ".pdf,application/pdf"
 
-export const knowledgeDocumentSchema = z.object({
+const knowledgeDocumentSchema = z.object({
   id: z.string(),
   title: z.string(),
   contentType: z.string(),

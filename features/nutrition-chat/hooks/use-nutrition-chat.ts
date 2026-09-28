@@ -7,7 +7,7 @@ import { APICallError, DefaultChatTransport, isToolUIPart, type UIMessage } from
 import { useAuth } from "@/features/auth/hooks/use-auth"
 import { API_URL } from "@/features/auth/lib/api"
 
-/** Mirrors `CONTEXT_MESSAGES` in vedora-api's NutritionChatService. */
+/** Mirrors `MAX_CHAT_MESSAGES` in vedora-api's NutritionChatDto. */
 const CONTEXT_MESSAGES = 5
 
 /** vedora-api marks its fixed refusals with `{ refused: true }`. */
