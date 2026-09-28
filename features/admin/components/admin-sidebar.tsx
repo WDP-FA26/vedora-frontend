@@ -34,6 +34,7 @@ import { ThemeMenuGroup } from "@/components/theme-switcher"
 import { useAuth } from "@/features/auth/hooks/use-auth"
 import { useLogout } from "@/features/auth/hooks/use-logout"
 import { AuthorAvatar } from "@/features/shared/components/author-avatar"
+import { Logo } from "@/features/shared/components/wordmark"
 import {
   adminFooterItems,
   adminNavSections,
@@ -84,13 +85,9 @@ function BrandButton() {
           render={<Link href="/admin" onClick={() => setOpenMobile(false)} />}
           aria-label="Trang tổng quan quản trị Vedora"
         >
-          <span className="grid leading-none">
-            <span className="text-xl font-extrabold tracking-[-0.04em]">
-              Vedora
-            </span>
-            <span className="mt-1 text-xs font-medium text-muted-foreground">
-              Quản trị
-            </span>
+          <Logo className="h-8" />
+          <span className="text-xs font-medium text-muted-foreground">
+            Quản trị
           </span>
         </SidebarMenuButton>
       </SidebarMenuItem>

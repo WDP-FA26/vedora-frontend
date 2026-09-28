@@ -1,15 +1,35 @@
 import Link from "next/link"
-import { SproutIcon } from "lucide-react"
 import { cn } from "cn"
 
-/** Text wordmark, or just the round mark when `compact`. */
+/**
+ * The Vedora logo (`public/logo.svg`). `mono` paints its silhouette in the
+ * current text color, for colored backgrounds; dark mode always does.
+ */
+export function Logo({ mono, className }: { mono?: boolean; className?: string }) {
+  return (
+    <span
+      aria-hidden
+      className={cn(
+        "block aspect-[2.8] h-10 shrink-0",
+        mono
+          ? "bg-current mask-[url(/logo.svg)] mask-contain mask-center mask-no-repeat"
+          : "bg-[url(/logo.svg)] bg-contain bg-center bg-no-repeat dark:bg-current dark:bg-none dark:mask-[url(/logo.svg)] dark:mask-contain dark:mask-center dark:mask-no-repeat",
+        className
+      )}
+    />
+  )
+}
+
+/** The logo, or just the round “V” mark (`public/logo-mark.svg`) when `compact`. */
 export function Wordmark({
   href = "/home",
   compact,
+  mono,
   className,
 }: {
   href?: string
   compact?: boolean
+  mono?: boolean
   className?: string
 }) {
   return (
@@ -26,12 +46,10 @@ export function Wordmark({
           aria-hidden
           className="grid size-10 shrink-0 place-items-center rounded-full bg-primary text-primary-foreground transition-transform group-hover/wordmark:-rotate-6"
         >
-          <SproutIcon className="size-5" strokeWidth={2} />
+          <span className="size-3/5 bg-current mask-[url(/logo-mark.svg)] mask-contain mask-center mask-no-repeat" />
         </span>
       ) : (
-        <span className="text-[2rem] leading-none font-extrabold tracking-[-0.04em]">
-          Vedora
-        </span>
+        <Logo mono={mono} />
       )}
     </Link>
   )
