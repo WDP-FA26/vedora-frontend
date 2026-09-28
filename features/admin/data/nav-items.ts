@@ -5,6 +5,7 @@ import {
   CircleHelpIcon,
   FileTextIcon,
   HouseIcon,
+  LibraryIcon,
   MenuIcon,
   SettingsIcon,
   ShieldAlertIcon,
@@ -45,6 +46,7 @@ export const adminNavSections: AdminNavSection[] = [
     items: [
       { href: "/admin/content", label: "Bài đăng", icon: FileTextIcon },
       { href: "/admin/reports", label: "Kiểm duyệt", icon: ShieldAlertIcon },
+      { href: "/admin/knowledge", label: "Tài liệu kiến thức", icon: LibraryIcon },
     ],
   },
 ]

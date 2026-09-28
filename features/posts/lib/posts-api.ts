@@ -1,53 +1,10 @@
-import type { z } from "zod"
-
 import { API_URL } from "@/features/auth/lib/api"
+import { send, sendJson } from "@/features/shared/lib/api-client"
 import {
-  apiErrorSchema,
   apiPostSchema,
   postPageSchema,
   videoUploadSchema,
 } from "@/features/posts/schemas"
-
-// Client Components call vedora-api directly with the token from `useAuth()`.
-
-export class ApiError extends Error {
-  constructor(
-    readonly status: number,
-    /** Machine-readable reason, e.g. `UPLOAD_LIMIT_REACHED`. */
-    readonly code: string | undefined,
-    message: string
-  ) {
-    super(message)
-    this.name = "ApiError"
-  }
-}
-
-async function send(url: string, token: string, init: RequestInit = {}) {
-  const headers = new Headers(init.headers)
-  headers.set("Authorization", `Bearer ${token}`)
-  if (init.body) headers.set("Content-Type", "application/json")
-
-  const response = await fetch(url, { ...init, headers })
-  if (!response.ok) {
-    const error = apiErrorSchema.safeParse(await response.json().catch(() => null))
-    throw new ApiError(
-      response.status,
-      error.data?.code,
-      error.success ? [error.data.message].flat().join("; ") : response.statusText
-    )
-  }
-  return response
-}
-
-async function sendJson<S extends z.ZodType>(
-  schema: S,
-  url: string,
-  token: string,
-  init?: RequestInit
-): Promise<z.infer<S>> {
-  const response = await send(url, token, init)
-  return schema.parse(await response.json())
-}
 
 /** SWR fetcher for `[POSTS_KEY, accessToken]`. */
 export function fetchPostPage([url, token]: readonly [string, string]) {
