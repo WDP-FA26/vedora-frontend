@@ -1,5 +1,6 @@
 "use client"
 
+import "@/lib/zod-config"
 import { SWRConfig } from "swr"
 import { fetcher } from "@/lib/fetcher"
 
