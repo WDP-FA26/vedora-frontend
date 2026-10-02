@@ -42,13 +42,17 @@ export function useUpsertFeedPost() {
  * Polls the author's PROCESSING post until Mux finishes, then updates it in
  * the feed. `GET /posts/:id` is also what advances it when the API runs
  * without Mux webhooks (local dev).
+ *
+ * SWR asks `refreshInterval` whether to start polling only on mount, before
+ * the first response, so it must keep polling while `latest` is undefined.
  */
 export function useProcessingPost(id: string) {
   const { accessToken } = useAuth()
   const upsert = useUpsertFeedPost()
 
   useSWR(accessToken ? ([postKey(id), accessToken] as const) : null, fetchPost, {
-    refreshInterval: (latest) => (latest?.status === "PROCESSING" ? 3000 : 0),
+    refreshInterval: (latest) =>
+      !latest || latest.status === "PROCESSING" ? 3000 : 0,
     onSuccess: (post) => {
       if (post.status !== "PROCESSING") void upsert(post)
     },

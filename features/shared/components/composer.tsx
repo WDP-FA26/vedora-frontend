@@ -27,7 +27,8 @@ import { useUpsertFeedPost } from "@/features/posts/hooks/use-feed-posts"
 import { MediaGrid } from "@/features/posts/components/media-grid"
 import { VideoPreview } from "@/features/posts/components/video-preview"
 import { useMediaUploads } from "@/features/posts/hooks/use-media-uploads"
-import { ApiError, createPost } from "@/features/posts/lib/posts-api"
+import { createPost } from "@/features/posts/lib/posts-api"
+import { ApiError } from "@/features/shared/lib/api-client"
 import {
   MAX_POST_LENGTH,
   MAX_POST_MEDIA,

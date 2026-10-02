@@ -68,7 +68,7 @@ export function MobileTopBar() {
         </SheetContent>
       </Sheet>
 
-      <Wordmark compact className="[&>span]:size-8 [&_svg]:size-4" />
+      <Wordmark compact className="[&>span]:size-8" />
 
       <Button
         variant="ghost"

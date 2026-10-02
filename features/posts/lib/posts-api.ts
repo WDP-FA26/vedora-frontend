@@ -1,8 +1,6 @@
-import type { z } from "zod"
-
 import { API_URL } from "@/features/auth/lib/api"
+import { send, sendJson } from "@/features/shared/lib/api-client"
 import {
-  apiErrorSchema,
   apiPostSchema,
   apiCommentSchema,
   commentPageSchema,

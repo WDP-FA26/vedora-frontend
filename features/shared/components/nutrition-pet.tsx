@@ -1,7 +1,6 @@
 "use client"
 
 import { createContext, use, useEffect, useRef, useState, type ReactNode } from "react"
-import Link from "next/link"
 
 import {
   DropdownMenuGroup,
@@ -9,6 +8,8 @@ import {
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
 } from "@/components/ui/dropdown-menu"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { NutritionChatPanel } from "@/features/nutrition-chat/components/nutrition-chat-panel"
 import {
   PET_COOKIE,
   PET_OFFSET_COOKIE,
@@ -116,60 +117,74 @@ export function NutritionPet() {
   const [dragOffset, setDragOffset] = useState<PetOffset | null>(null)
   const drag = useRef<{ startX: number; startY: number; origin: PetOffset; moved: boolean } | null>(null)
   const suppressClick = useRef(false)
+  const [chatOpen, setChatOpen] = useState(false)
   const offset = dragOffset ?? savedOffset
 
   return (
-    <Link
-      href="/home/nutrition-chat"
-      aria-label="Mở Trợ lý dinh dưỡng (kéo để di chuyển)"
-      draggable={false}
-      style={{ translate: `${offset.x}px ${offset.y}px` }}
-      className="group fixed right-4 bottom-20 z-40 flex touch-none items-end gap-2 select-none sm:right-6 sm:bottom-6"
-      onPointerDown={(event) => {
-        if (event.button !== 0) return
-        event.currentTarget.setPointerCapture(event.pointerId)
-        drag.current = { startX: event.clientX, startY: event.clientY, origin: offset, moved: false }
-      }}
-      onPointerMove={(event) => {
-        const state = drag.current
-        if (!state) return
-        const dx = event.clientX - state.startX
-        const dy = event.clientY - state.startY
-        if (!state.moved && Math.hypot(dx, dy) < DRAG_THRESHOLD) return
-        state.moved = true
-        setDragOffset({ x: state.origin.x + dx, y: state.origin.y + dy })
-      }}
-      onPointerUp={(event) => {
-        const state = drag.current
-        drag.current = null
-        if (!state?.moved || !dragOffset) return
-        suppressClick.current = true
-        // keep the pet fully on screen
-        const rect = event.currentTarget.getBoundingClientRect()
-        const nudgeX = Math.max(0, -rect.left) - Math.max(0, rect.right - window.innerWidth)
-        const nudgeY = Math.max(0, -rect.top) - Math.max(0, rect.bottom - window.innerHeight)
-        setOffset({ x: dragOffset.x + nudgeX, y: dragOffset.y + nudgeY })
-        setDragOffset(null)
-      }}
-      onPointerCancel={() => {
-        drag.current = null
-        setDragOffset(null)
-      }}
-      onClick={(event) => {
-        if (!suppressClick.current) return
-        suppressClick.current = false
-        event.preventDefault()
+    <Popover
+      open={chatOpen}
+      onOpenChange={(open, { reason }) => {
+        // a drag ends with a click on the pet; don't treat it as a toggle
+        if (reason === "trigger-press" && suppressClick.current) return
+        setChatOpen(open)
       }}
     >
-      <span
-        role="status"
-        data-visible={message !== null || undefined}
-        className="mb-16 max-w-52 rounded-2xl rounded-br-sm border border-border bg-popover px-3 py-1.5 text-sm font-medium text-popover-foreground pointer-events-none opacity-0 shadow-sm transition-opacity duration-300 data-visible:pointer-events-auto data-visible:opacity-100 sm:group-hover:opacity-100"
+      <PopoverTrigger
+        aria-label="Mở Trợ lý dinh dưỡng (kéo để di chuyển)"
+        style={{ translate: `${offset.x}px ${offset.y}px` }}
+        className="group fixed right-4 bottom-20 z-40 touch-none select-none sm:right-6 sm:bottom-6"
+        onPointerDown={(event) => {
+          if (event.button !== 0) return
+          suppressClick.current = false
+          event.currentTarget.setPointerCapture(event.pointerId)
+          drag.current = { startX: event.clientX, startY: event.clientY, origin: offset, moved: false }
+        }}
+        onPointerMove={(event) => {
+          const state = drag.current
+          if (!state) return
+          const dx = event.clientX - state.startX
+          const dy = event.clientY - state.startY
+          if (!state.moved && Math.hypot(dx, dy) < DRAG_THRESHOLD) return
+          state.moved = true
+          setDragOffset({ x: state.origin.x + dx, y: state.origin.y + dy })
+        }}
+        onPointerUp={(event) => {
+          const state = drag.current
+          drag.current = null
+          if (!state?.moved || !dragOffset) return
+          suppressClick.current = true
+          // keep the pet fully on screen
+          const rect = event.currentTarget.getBoundingClientRect()
+          const nudgeX = Math.max(0, -rect.left) - Math.max(0, rect.right - window.innerWidth)
+          const nudgeY = Math.max(0, -rect.top) - Math.max(0, rect.bottom - window.innerHeight)
+          setOffset({ x: dragOffset.x + nudgeX, y: dragOffset.y + nudgeY })
+          setDragOffset(null)
+        }}
+        onPointerCancel={() => {
+          drag.current = null
+          setDragOffset(null)
+        }}
       >
-        {message ?? REMINDER}
-      </span>
-      {pet === "salad" ? <SaladPet /> : <SproutPet />}
-    </Link>
+        <span className="flex items-end gap-2">
+          <span
+            role="status"
+            data-visible={(message !== null && !chatOpen) || undefined}
+            className="mb-16 max-w-52 rounded-2xl rounded-br-sm border border-border bg-popover px-3 py-1.5 text-sm font-medium text-popover-foreground pointer-events-none opacity-0 shadow-sm transition-opacity duration-300 data-visible:pointer-events-auto data-visible:opacity-100 sm:group-hover:opacity-100 group-data-popup-open:invisible"
+          >
+            {message ?? REMINDER}
+          </span>
+          {pet === "salad" ? <SaladPet /> : <SproutPet />}
+        </span>
+      </PopoverTrigger>
+      <PopoverContent
+        side="top"
+        align="end"
+        sideOffset={8}
+        className="h-[min(40rem,calc(100dvh-9rem))] w-[min(28rem,calc(100vw-2rem))]"
+      >
+        <NutritionChatPanel onClose={() => setChatOpen(false)} />
+      </PopoverContent>
+    </Popover>
   )
 }
 

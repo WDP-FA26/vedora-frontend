@@ -4,11 +4,8 @@ import { useEffect, useRef, useState } from "react"
 import { UpChunk } from "@mux/upchunk"
 
 import { useAuth } from "@/features/auth/hooks/use-auth"
-import {
-  ApiError,
-  discardMedia,
-  requestVideoUpload,
-} from "@/features/posts/lib/posts-api"
+import { discardMedia, requestVideoUpload } from "@/features/posts/lib/posts-api"
+import { ApiError } from "@/features/shared/lib/api-client"
 import {
   MAX_POST_MEDIA,
   MAX_VIDEO_DURATION_SEC,

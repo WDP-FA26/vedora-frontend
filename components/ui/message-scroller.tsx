@@ -36,13 +36,21 @@ function MessageScroller({
 
 function MessageScrollerViewport({
   className,
+  scrollbar = "thin",
   ...props
-}: React.ComponentProps<typeof MessageScrollerPrimitive.Viewport>) {
+}: React.ComponentProps<typeof MessageScrollerPrimitive.Viewport> & {
+  /** `hidden` keeps wheel/touch scrolling but draws no scrollbar. */
+  scrollbar?: "thin" | "hidden"
+}) {
   return (
     <MessageScrollerPrimitive.Viewport
       data-slot="message-scroller-viewport"
+      data-scrollbar={scrollbar}
       className={cn(
-        "size-full min-h-0 min-w-0 scroll-fade-b scrollbar-thin scrollbar-gutter-stable overflow-y-auto overscroll-contain contain-content data-autoscrolling:scrollbar-thumb-transparent data-autoscrolling:scrollbar-track-transparent data-pending-scroll:invisible",
+        "size-full min-h-0 min-w-0 scroll-fade-b overflow-y-auto overscroll-contain contain-content data-pending-scroll:invisible",
+        scrollbar === "hidden"
+          ? "no-scrollbar"
+          : "scrollbar-thin scrollbar-gutter-stable data-autoscrolling:scrollbar-thumb-transparent data-autoscrolling:scrollbar-track-transparent",
         className
       )}
       {...props}
