@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useRef, useState } from "react"
 import {
   BookmarkIcon,
   ChartNoAxesColumnIcon,
@@ -30,11 +30,23 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { AuthorAvatar } from "@/features/shared/components/author-avatar"
-import { formatCount, formatPostDate, formatPostDateLong } from "@/features/shared/lib/format"
+import {
+  formatCount,
+  formatPostDate,
+  formatPostDateLong,
+} from "@/features/shared/lib/format"
 import { MediaPlaceholder } from "@/features/shared/components/media-placeholder"
-import type { ArticlePost, PhotoPost, Post, VideoPost } from "@/features/home/types"
+import type {
+  ArticlePost,
+  PhotoPost,
+  Post,
+  VideoPost,
+} from "@/features/home/types"
 import { VerifiedBadge } from "@/features/shared/components/verified-badge"
 import { PostMedia } from "@/features/posts/components/post-media"
+import { PostCommentsDialog } from "@/features/posts/components/post-comments-dialog"
+import { usePostInteractions } from "@/features/posts/hooks/use-post-interactions"
+import { interactionError } from "@/features/posts/lib/posts-api"
 
 export function PostCard({ post }: { post: Post }) {
   return (
@@ -149,7 +161,7 @@ function PhotoMedia({ post }: { post: PhotoPost }) {
     <div
       className={cn(
         "mt-4 grid gap-0.5 overflow-hidden rounded-2xl border border-border",
-        single ? "grid-cols-1" : "grid-cols-2"
+        single ? "grid-cols-1" : "grid-cols-2",
       )}
     >
       {post.photos.map((photo) => (
@@ -204,14 +216,34 @@ function PostMenu({ post }: { post: Post }) {
 }
 
 function PostActions({ post }: { post: Post }) {
-  const [sprouted, setSprouted] = useState(post.sprouted ?? false)
+  const [commentsOpen, setCommentsOpen] = useState(false)
+  const [likePending, setLikePending] = useState(false)
+  const [likeError, setLikeError] = useState<string | null>(null)
+  const likeBusy = useRef(false)
+  const { setLike } = usePostInteractions(post.id)
+  const canInteract = post.apiPost?.status === "PUBLISHED"
+  const sprouted = post.sprouted ?? false
   const [reposted, setReposted] = useState(false)
   const [bookmarked, setBookmarked] = useState(post.bookmarked ?? false)
   const [copied, setCopied] = useState(false)
 
-  const sprouts =
-    post.stats.sprouts + Number(sprouted) - Number(post.sprouted ?? false)
+  const sprouts = post.stats.sprouts
   const reposts = post.stats.reposts + (reposted ? 1 : 0)
+
+  async function toggleLike() {
+    if (!canInteract || likeBusy.current) return
+    likeBusy.current = true
+    setLikePending(true)
+    setLikeError(null)
+    try {
+      await setLike(!sprouted)
+    } catch (error) {
+      setLikeError(interactionError(error))
+    } finally {
+      likeBusy.current = false
+      setLikePending(false)
+    }
+  }
 
   async function share() {
     const url = `${window.location.origin}/posts/${post.id}`
@@ -226,51 +258,73 @@ function PostActions({ post }: { post: Post }) {
   }
 
   return (
-    <div
-      role="group"
-      aria-label="Hành động với bài viết"
-      className="mt-3 -ml-2.5 flex items-center justify-between gap-1"
-    >
-      <ActionButton label="Trả lời" count={post.stats.replies} icon={MessageCircleIcon} />
-      <ActionButton
-        label={reposted ? "Hủy đăng lại" : "Đăng lại"}
-        count={reposts}
-        icon={Repeat2Icon}
-        active={reposted}
-        toggle
-        onClick={() => setReposted((value) => !value)}
-      />
-      <ActionButton
-        label={sprouted ? "Bỏ thả mầm" : "Thả mầm"}
-        count={sprouts}
-        icon={SproutIcon}
-        active={sprouted}
-        toggle
-        onClick={() => setSprouted((value) => !value)}
-        activeIconClassName="animate-sprout-pop fill-primary/25"
-      />
-      <ActionButton
-        label="Lượt xem"
-        count={post.stats.views}
-        icon={ChartNoAxesColumnIcon}
-      />
-      <span className="flex items-center">
+    <>
+      <div
+        role="group"
+        aria-label="Hành động với bài viết"
+        className="mt-3 -ml-2.5 flex items-center justify-between gap-1"
+      >
         <ActionButton
-          label={bookmarked ? "Bỏ lưu" : "Lưu"}
-          icon={BookmarkIcon}
-          active={bookmarked}
+          label="Trả lời"
+          count={post.stats.replies}
+          icon={MessageCircleIcon}
+          disabled={!canInteract}
+          onClick={() => setCommentsOpen(true)}
+        />
+        <ActionButton
+          label={reposted ? "Hủy đăng lại" : "Đăng lại"}
+          count={reposts}
+          icon={Repeat2Icon}
+          active={reposted}
           toggle
-          onClick={() => setBookmarked((value) => !value)}
-          activeIconClassName="fill-primary"
+          onClick={() => setReposted((value) => !value)}
         />
         <ActionButton
-          label={copied ? "Đã sao chép liên kết" : "Chia sẻ"}
-          icon={copied ? CheckIcon : ShareIcon}
-          active={copied}
-          onClick={share}
+          label={sprouted ? "Bỏ thả mầm" : "Thả mầm"}
+          count={sprouts}
+          icon={SproutIcon}
+          active={sprouted}
+          toggle
+          onClick={() => void toggleLike()}
+          disabled={likePending || !canInteract}
+          activeIconClassName="animate-sprout-pop fill-primary/25"
         />
-      </span>
-    </div>
+        <ActionButton
+          label="Lượt xem"
+          count={post.stats.views}
+          icon={ChartNoAxesColumnIcon}
+        />
+        <span className="flex items-center">
+          <ActionButton
+            label={bookmarked ? "Bỏ lưu" : "Lưu"}
+            icon={BookmarkIcon}
+            active={bookmarked}
+            toggle
+            onClick={() => setBookmarked((value) => !value)}
+            activeIconClassName="fill-primary"
+          />
+          <ActionButton
+            label={copied ? "Đã sao chép liên kết" : "Chia sẻ"}
+            icon={copied ? CheckIcon : ShareIcon}
+            active={copied}
+            onClick={share}
+          />
+        </span>
+      </div>
+      {likeError && (
+        <p role="alert" className="mt-1 text-xs text-destructive">
+          {likeError}
+        </p>
+      )}
+      {post.apiPost && (
+        <PostCommentsDialog
+          postId={post.id}
+          postAuthorId={post.apiPost.authorId}
+          open={commentsOpen}
+          onOpenChange={setCommentsOpen}
+        />
+      )}
+    </>
   )
 }
 
@@ -282,6 +336,7 @@ function ActionButton({
   toggle,
   onClick,
   activeIconClassName,
+  disabled,
 }: {
   label: string
   count?: number
@@ -291,16 +346,20 @@ function ActionButton({
   toggle?: boolean
   onClick?: () => void
   activeIconClassName?: string
+  disabled?: boolean
 }) {
   return (
     <Button
       variant="action"
       size="count"
       shape="pill"
-      aria-label={count === undefined ? label : `${label}, ${formatCount(count)}`}
+      aria-label={
+        count === undefined ? label : `${label}, ${formatCount(count)}`
+      }
       aria-pressed={toggle ? Boolean(active) : undefined}
       data-active={active ? "" : undefined}
       onClick={onClick}
+      disabled={disabled}
     >
       <Icon
         aria-hidden

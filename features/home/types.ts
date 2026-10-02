@@ -13,6 +13,8 @@ type PostBase = {
   stats: { replies: number; reposts: number; sprouts: number; views: number }
   sprouted?: boolean
   bookmarked?: boolean
+  /** Present only for API posts; illustrative fixtures never call interaction APIs. */
+  apiPost?: { authorId: string; status: "PROCESSING" | "PUBLISHED" | "FAILED" }
 }
 
 /** Illustrative fixture video, drawn as a placeholder. */

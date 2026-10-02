@@ -20,6 +20,19 @@ You can start editing the page by modifying `app/page.tsx`. The page auto-update
 
 This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
 
+## Comment và like bài đăng
+
+Feed đã kết nối comment/like với Vedora API qua `NEXT_PUBLIC_API_URL`:
+
+- Nút **Thả mầm** gọi `PUT /posts/:id/like`; **Bỏ thả mầm** gọi `DELETE` cùng URL.
+- Nút **Trả lời** mở hộp bình luận: tải thêm bằng cursor, gửi, sửa và xóa comment theo quyền.
+- Số comment/like và trạng thái thả mầm lấy từ API; thay đổi cập nhật cache SWR của feed.
+- Chỉ bài thật đã `PUBLISHED` bật tương tác. Bài minh họa không gửi request API.
+
+Backend cần áp dụng migration `20261002000000_post_comments_and_likes` trước khi chạy
+frontend mới. Trong thư mục `vedora-api`, chạy `npm run prisma:migrate:deploy`.
+Hợp đồng API và hướng dẫn tích hợp nằm tại `vedora-api/docs/docs-for-FE/post-comments-likes.md`.
+
 ## Learn More
 
 To learn more about Next.js, take a look at the following resources:

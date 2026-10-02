@@ -8,6 +8,7 @@ export const MAX_VIDEO_DURATION_SEC = 180
 export const MAX_POST_LENGTH = 280
 /** Mirrors the API's `MAX_POST_MEDIA`. */
 export const MAX_POST_MEDIA = 4
+export const MAX_COMMENT_LENGTH = 1000
 
 export const apiMediaSchema = z.object({
   id: z.string(),
@@ -35,8 +36,16 @@ export const apiPostSchema = z.object({
   body: z.string().nullable(),
   publishedAt: z.string().nullable(),
   createdAt: z.string(),
-  author: z.object({ id: z.string(), username: z.string(), fullName: z.string() }),
+  author: z.object({
+    id: z.string(),
+    username: z.string(),
+    fullName: z.string(),
+    avatarUrl: z.string().nullable(),
+  }),
   media: z.array(apiMediaSchema),
+  commentCount: z.number().int().nonnegative(),
+  likeCount: z.number().int().nonnegative(),
+  isLiked: z.boolean(),
 })
 
 export const postPageSchema = z.object({
@@ -47,6 +56,26 @@ export const postPageSchema = z.object({
 export const videoUploadSchema = z.object({
   media: apiMediaSchema,
   uploadUrl: z.url(),
+})
+
+export const apiCommentSchema = z.object({
+  id: z.string(),
+  postId: z.string(),
+  body: z.string(),
+  author: apiPostSchema.shape.author,
+  createdAt: z.string(),
+  updatedAt: z.string(),
+})
+
+export const commentPageSchema = z.object({
+  items: z.array(apiCommentSchema),
+  nextCursor: z.string().nullable(),
+})
+
+export const postLikeSchema = z.object({
+  postId: z.string(),
+  isLiked: z.boolean(),
+  likeCount: z.number().int().nonnegative(),
 })
 
 /** Nest error body; `code` is set on errors the UI handles specifically. */
@@ -72,3 +101,6 @@ export type ApiPost = z.infer<typeof apiPostSchema>
 export type PostPage = z.infer<typeof postPageSchema>
 export type VideoUploadTarget = z.infer<typeof videoUploadSchema>
 export type PostFormValues = z.infer<typeof postFormSchema>
+export type ApiComment = z.infer<typeof apiCommentSchema>
+export type CommentPage = z.infer<typeof commentPageSchema>
+export type PostLike = z.infer<typeof postLikeSchema>
