@@ -35,7 +35,13 @@ export const apiPostSchema = z.object({
   body: z.string().nullable(),
   publishedAt: z.string().nullable(),
   createdAt: z.string(),
-  author: z.object({ id: z.string(), username: z.string(), fullName: z.string() }),
+  author: z.object({
+    id: z.string(),
+    username: z.string(),
+    fullName: z.string(),
+    /** Absent on API versions from before profiles. */
+    avatarUrl: z.string().nullable().optional(),
+  }),
   media: z.array(apiMediaSchema),
 })
 
