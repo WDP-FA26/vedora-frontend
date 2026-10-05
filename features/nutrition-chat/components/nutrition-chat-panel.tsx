@@ -92,8 +92,7 @@ export function NutritionChatPanel({ onClose }: { onClose: () => void }) {
       <MessageScrollerProvider autoScroll defaultScrollPosition="end">
         <MessageScroller className="flex-1">
           <MessageScrollerViewport aria-label="Cuộc trò chuyện" scrollbar="hidden">
-            {/* the viewport's bottom fade is permanent where scroll-driven animations are unsupported (Firefox) */}
-            <MessageScrollerContent className="pb-10">
+            <MessageScrollerContent>
               {messages.map((message) => {
                 const text = messageText(message)
                 // the reply's first chunk can be empty; the spinner covers it
@@ -159,6 +158,12 @@ export function NutritionChatPanel({ onClose }: { onClose: () => void }) {
                   </BubbleGroup>
                 </MessageScrollerItem>
               )}
+              {/*
+                Keeps the last line clear of the viewport's bottom fade, which is
+                permanent where scroll-driven animations are unsupported (Firefox).
+                With the content's gap-6 this adds up to 2.5rem.
+              */}
+              <div aria-hidden className="h-4 shrink-0" />
             </MessageScrollerContent>
           </MessageScrollerViewport>
           <MessageScrollerButton />
