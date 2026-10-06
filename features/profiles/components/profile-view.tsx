@@ -1,7 +1,7 @@
 "use client"
 
 import Link from "next/link"
-import { CalendarDaysIcon } from "lucide-react"
+import { BadgeCheckIcon, CalendarDaysIcon } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { useAuth } from "@/features/auth/hooks/use-auth"
@@ -13,7 +13,10 @@ import { ProfilePosts } from "@/features/profiles/components/profile-posts"
 import { useProfile } from "@/features/profiles/hooks/use-profile"
 import { formatJoinDate } from "@/features/profiles/lib/format"
 import { profilePath } from "@/features/profiles/profiles-cache"
+import { VerifiedBadge } from "@/features/shared/components/verified-badge"
 import { formatCount } from "@/features/shared/lib/format"
+import { PROFESSIONAL_LABEL } from "@/features/verification/schemas"
+import { VERIFICATION_PATH } from "@/features/verification/verification-cache"
 
 /** A profile's header and posts. Public; the owner also gets the edit button. */
 export function ProfileView({ id }: { id: string }) {
@@ -68,7 +71,10 @@ export function ProfileView({ id }: { id: string }) {
         </div>
 
         <div className="mt-1 min-w-0">
-          <h1 className="truncate text-xl leading-6 font-extrabold">{profile.fullName}</h1>
+          <div className="flex items-center gap-1">
+            <h1 className="truncate text-xl leading-6 font-extrabold">{profile.fullName}</h1>
+            {profile.isProfessional && <VerifiedBadge label={PROFESSIONAL_LABEL} />}
+          </div>
           <p className="truncate text-[0.9375rem] leading-5 text-muted-foreground">
             @{profile.username}
           </p>
@@ -82,6 +88,16 @@ export function ProfileView({ id }: { id: string }) {
           <CalendarDaysIcon aria-hidden className="size-[1.125rem]" />
           Tham gia {formatJoinDate(profile.createdAt)}
         </p>
+
+        {isOwn && !profile.isProfessional && (
+          <Link
+            href={VERIFICATION_PATH}
+            className="mt-1 inline-flex items-center gap-1 text-[0.9375rem] leading-5 text-primary underline-offset-4 hover:underline"
+          >
+            <BadgeCheckIcon aria-hidden className="size-[1.125rem]" />
+            Xác minh tài khoản chuyên gia
+          </Link>
+        )}
 
         <ul className="mt-3 flex flex-wrap gap-x-5 gap-y-1 text-sm leading-5">
           {counts.map(({ label, value, href }) => (
