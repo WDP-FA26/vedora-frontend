@@ -9,7 +9,7 @@ export function ProfileAvatar({
   className,
 }: {
   profile: Pick<ApiProfileSummary, "id" | "username" | "fullName" | "avatarUrl">
-  size?: "default" | "sm" | "lg"
+  size?: "default" | "sm" | "lg" | "fill"
   className?: string
 }) {
   return <AuthorAvatar author={toAuthor(profile)} size={size} className={className} />

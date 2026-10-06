@@ -31,16 +31,15 @@ export function ProfileView({ id }: { id: string }) {
 
   const isOwn = profile.id === user?.id
   const counts = [
-    { label: "Bài viết", value: profile.postCount },
-    {
-      label: "Người theo dõi",
-      value: profile.followerCount,
-      href: `${profilePath(profile.id)}/followers`,
-    },
     {
       label: "Đang theo dõi",
       value: profile.followingCount,
       href: `${profilePath(profile.id)}/following`,
+    },
+    {
+      label: "Người theo dõi",
+      value: profile.followerCount,
+      href: `${profilePath(profile.id)}/followers`,
     },
   ]
 
@@ -48,17 +47,17 @@ export function ProfileView({ id }: { id: string }) {
     <article aria-label={`Hồ sơ của ${profile.fullName}`}>
       <ProfileCover profile={profile} />
 
-      <div className="flex flex-col gap-3 px-4 pb-5 sm:px-5">
-        <div className="flex items-end justify-between gap-3">
-          {/* The ring separates the avatar from the cover it overlaps. */}
-          <div className="-mt-10 rounded-full ring-4 ring-card">
-            <ProfileAvatar profile={profile} size="lg" className="size-20" />
+      <div className="px-4 pt-3 pb-4">
+        <div className="flex items-start justify-between gap-3">
+          {/* A quarter of the column, half of it over the cover; the border separates the two. */}
+          <div className="-mt-[15%] aspect-square w-1/4 min-w-12 rounded-full border-4 border-card bg-card">
+            <ProfileAvatar profile={profile} size="fill" />
           </div>
           {isOwn ? (
             <EditProfileDialog
               profile={profile}
               trigger={
-                <Button type="button" variant="outline" shape="pill">
+                <Button type="button" variant="outline" shape="pill" size="pill">
                   Chỉnh sửa hồ sơ
                 </Button>
               }
@@ -68,46 +67,35 @@ export function ProfileView({ id }: { id: string }) {
           )}
         </div>
 
-        <div className="min-w-0">
-          <h1 className="truncate text-xl font-bold">{profile.fullName}</h1>
-          <p className="truncate text-sm text-muted-foreground">@{profile.username}</p>
+        <div className="mt-1 min-w-0">
+          <h1 className="truncate text-xl leading-6 font-extrabold">{profile.fullName}</h1>
+          <p className="truncate text-[0.9375rem] leading-5 text-muted-foreground">
+            @{profile.username}
+          </p>
         </div>
 
         {profile.bio && (
-          <p className="text-[0.9375rem] leading-relaxed whitespace-pre-line">
-            {profile.bio}
-          </p>
+          <p className="mt-3 text-[0.9375rem] leading-5 whitespace-pre-line">{profile.bio}</p>
         )}
 
-        <p className="flex items-center gap-1.5 text-sm text-muted-foreground">
-          <CalendarDaysIcon aria-hidden className="size-4" />
+        <p className="mt-3 flex items-center gap-1 text-[0.9375rem] leading-5 text-muted-foreground">
+          <CalendarDaysIcon aria-hidden className="size-[1.125rem]" />
           Tham gia {formatJoinDate(profile.createdAt)}
         </p>
 
-        <ul className="flex flex-wrap gap-x-5 gap-y-1 text-sm">
-          {counts.map(({ label, value, href }) => {
-            const content = (
-              <>
-                <span className="font-semibold tabular-nums">{formatCount(value)}</span>{" "}
+        <ul className="mt-3 flex flex-wrap gap-x-5 gap-y-1 text-sm leading-5">
+          {counts.map(({ label, value, href }) => (
+            <li key={label}>
+              <Link href={href} className="hover:underline">
+                <span className="font-bold tabular-nums">{formatCount(value)}</span>{" "}
                 <span className="text-muted-foreground">{label}</span>
-              </>
-            )
-            return (
-              <li key={label}>
-                {href ? (
-                  <Link href={href} className="hover:underline">
-                    {content}
-                  </Link>
-                ) : (
-                  content
-                )}
-              </li>
-            )
-          })}
+              </Link>
+            </li>
+          ))}
         </ul>
       </div>
 
-      <ProfilePosts id={profile.id} />
+      <ProfilePosts id={profile.id} count={profile.postCount} />
     </article>
   )
 }
@@ -116,11 +104,11 @@ function ProfileSkeleton() {
   return (
     <div aria-busy aria-label="Đang tải hồ sơ" className="animate-pulse">
       <div className="aspect-[3/1] w-full bg-muted" />
-      <div className="flex flex-col gap-3 px-4 pb-5 sm:px-5">
-        <div className="-mt-10 size-20 rounded-full bg-muted ring-4 ring-card" />
-        <div className="h-6 w-48 rounded-md bg-muted" />
-        <div className="h-4 w-32 rounded-md bg-muted" />
-        <div className="h-4 w-full rounded-md bg-muted" />
+      <div className="px-4 pt-3 pb-4">
+        <div className="-mt-[15%] aspect-square w-1/4 min-w-12 rounded-full border-4 border-card bg-muted" />
+        <div className="mt-2 h-6 w-48 rounded-md bg-muted" />
+        <div className="mt-2 h-4 w-32 rounded-md bg-muted" />
+        <div className="mt-4 h-4 w-56 rounded-md bg-muted" />
       </div>
     </div>
   )

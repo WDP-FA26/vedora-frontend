@@ -157,14 +157,14 @@ function ProfileEditForm({
 
   return (
     <>
-      <header className="flex items-center gap-4 px-3 py-2">
+      <header className="flex h-[3.3125rem] items-center gap-4 px-3">
         <DialogClose render={<Button variant="ghost" size="icon" shape="pill" aria-label="Đóng" />}>
           <XIcon />
         </DialogClose>
         <DialogTitle size="lg" className="flex-1">
           Chỉnh sửa hồ sơ
         </DialogTitle>
-        <Button type="submit" form={FORM_ID} shape="pill" disabled={isSubmitting}>
+        <Button type="submit" form={FORM_ID} shape="pill" size="pill" disabled={isSubmitting}>
           {isSubmitting && <Spinner aria-hidden />}
           Lưu
         </Button>
@@ -294,8 +294,8 @@ function ProfileImages({
       </ProfileCover>
 
       <div className="-mt-12 ml-4 flex items-end gap-2">
-        <div className="relative rounded-full ring-4 ring-popover">
-          <ProfileAvatar profile={profile} size="lg" className="size-28" />
+        <div className="relative size-28 rounded-full border-4 border-popover bg-popover">
+          <ProfileAvatar profile={profile} size="fill" />
           <ImagePicker kind="AVATAR" pending={pending} onPick={onPick} />
         </div>
         {profile.avatarUrl && (
@@ -340,7 +340,7 @@ function ImagePicker({
       {...getRootProps()}
       className="absolute inset-0 flex items-center justify-center gap-4 rounded-[inherit] bg-black/20"
     >
-      <input {...getInputProps()} />
+      <input {...getInputProps({ className: "absolute" })} />
       <Button
         type="button"
         variant="overlay"
@@ -384,14 +384,14 @@ function ImageCropStep({
 
   return (
     <>
-      <header className="flex items-center gap-4 px-3 py-2">
+      <header className="flex h-[3.3125rem] items-center gap-4 px-3">
         <Button variant="ghost" size="icon" shape="pill" aria-label="Quay lại" onClick={onCancel}>
           <ArrowLeftIcon />
         </Button>
         <DialogTitle size="lg" className="flex-1">
           Chỉnh sửa {label}
         </DialogTitle>
-        <Button shape="pill" disabled={!area || applying} onClick={() => void apply()}>
+        <Button shape="pill" size="pill" disabled={!area || applying} onClick={() => void apply()}>
           {applying && <Spinner aria-hidden />}
           Áp dụng
         </Button>
