@@ -6,8 +6,8 @@ import {
   videoUploadSchema,
 } from "@/features/posts/schemas"
 
-/** SWR fetcher for `[POSTS_KEY, accessToken]`. */
-export function fetchPostPage([url, token]: readonly [string, string]) {
+/** SWR fetcher for `[POSTS_KEY | authorPostsKey(id), accessToken]`. Guests may list posts. */
+export function fetchPostPage([url, token]: readonly [string, string | undefined]) {
   return sendJson(postPageSchema, url, token)
 }
 

@@ -6,7 +6,7 @@ const TONES: PlaceholderTone[] = ["basil", "sage", "grain", "beet", "tomato"]
 
 /** Adapts an API user (or post author) to the `Author` shape the avatar and nav components use. */
 export function toAuthor(
-  user: Pick<CurrentUser, "id" | "username" | "fullName">
+  user: Pick<CurrentUser, "id" | "username" | "fullName"> & { avatarUrl?: string | null }
 ): Author {
   const words = user.fullName.trim().split(/\s+/)
   const initials =
@@ -17,7 +17,9 @@ export function toAuthor(
   const hash = [...user.id].reduce((sum, char) => sum + char.charCodeAt(0), 0)
 
   return {
+    id: user.id,
     name: user.fullName,
+    avatarUrl: user.avatarUrl,
     handle: user.username,
     initials: initials.toUpperCase(),
     tone: TONES[hash % TONES.length],

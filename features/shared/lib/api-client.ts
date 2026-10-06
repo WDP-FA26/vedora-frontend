@@ -1,6 +1,7 @@
 import { z } from "zod"
 
 // Client Components call vedora-api directly with the token from `useAuth()`.
+// Public endpoints are called without one when the visitor is signed out.
 
 /** Nest error body; `code` is set on errors the UI handles specifically. */
 const apiErrorSchema = z.object({
@@ -21,9 +22,9 @@ export class ApiError extends Error {
   }
 }
 
-export async function send(url: string, token: string, init: RequestInit = {}) {
+export async function send(url: string, token: string | undefined, init: RequestInit = {}) {
   const headers = new Headers(init.headers)
-  headers.set("Authorization", `Bearer ${token}`)
+  if (token) headers.set("Authorization", `Bearer ${token}`)
   if (init.body) headers.set("Content-Type", "application/json")
 
   const response = await fetch(url, { ...init, headers })
@@ -41,7 +42,7 @@ export async function send(url: string, token: string, init: RequestInit = {}) {
 export async function sendJson<S extends z.ZodType>(
   schema: S,
   url: string,
-  token: string,
+  token: string | undefined,
   init?: RequestInit
 ): Promise<z.infer<S>> {
   const response = await send(url, token, init)

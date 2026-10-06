@@ -12,6 +12,8 @@ const mux = "https://*.mux.com";
 const muxData = "https://*.litix.io";
 // Vercel Blob client uploads (`put()` from `@vercel/blob/client`), incl. multipart.
 const vercelBlob = "https://vercel.com/api/blob/";
+// Avatars and covers, served from the public Vercel Blob store.
+const vercelBlobPublic = "https://*.public.blob.vercel-storage.com";
 // Mux Player loads Google's Cast SDK in Chrome to offer Chromecast.
 const castSdk = "https://www.gstatic.com";
 
@@ -24,7 +26,7 @@ const csp = [
   "default-src 'self'",
   `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ""} ${castSdk}${toolbar("https://vercel.live")}`,
   `style-src 'self' 'unsafe-inline'${toolbar("https://vercel.live")}`,
-  `img-src 'self' blob: data: ${mux}${toolbar("https://vercel.live", "https://vercel.com")}`,
+  `img-src 'self' blob: data: ${mux} ${vercelBlobPublic}${toolbar("https://vercel.live", "https://vercel.com")}`,
   `font-src 'self'${toolbar("https://vercel.live", "https://assets.vercel.com")}`,
   `connect-src 'self' ${apiOrigin} ${mux} ${muxData} ${vercelBlob}${toolbar("https://vercel.live", "wss://ws-us3.pusher.com")}`,
   `media-src 'self' blob: ${mux}`,

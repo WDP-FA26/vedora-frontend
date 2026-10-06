@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import Link from "next/link"
 import {
   BookmarkIcon,
   ChartNoAxesColumnIcon,
@@ -37,17 +38,36 @@ import { VerifiedBadge } from "@/features/shared/components/verified-badge"
 import { PostMedia } from "@/features/posts/components/post-media"
 
 export function PostCard({ post }: { post: Post }) {
+  // Fixture authors have no id, and so no profile to open.
+  const profileHref = post.author.id ? `/profile/${post.author.id}` : null
+
   return (
     <article
       aria-label={`Bài viết của ${post.author.name}`}
       className="flex gap-3 border-b border-border px-4 pt-6 pb-4 transition-colors hover:bg-[color-mix(in_oklch,var(--card),var(--muted)_45%)]"
     >
-      <AuthorAvatar author={post.author} size="lg" className="mt-0.5" />
+      {profileHref ? (
+        <Link
+          href={profileHref}
+          aria-label={`Hồ sơ của ${post.author.name}`}
+          className="mt-0.5 self-start rounded-full"
+        >
+          <AuthorAvatar author={post.author} size="lg" />
+        </Link>
+      ) : (
+        <AuthorAvatar author={post.author} size="lg" className="mt-0.5" />
+      )}
 
       <div className="min-w-0 flex-1">
         <header className="flex items-center gap-1 text-[0.9375rem] leading-5">
           <span className="flex min-w-0 items-center gap-1">
-            <span className="truncate font-bold">{post.author.name}</span>
+            {profileHref ? (
+              <Link href={profileHref} className="truncate font-bold hover:underline">
+                {post.author.name}
+              </Link>
+            ) : (
+              <span className="truncate font-bold">{post.author.name}</span>
+            )}
             {post.author.verified && (
               <VerifiedBadge label={post.author.verified} />
             )}
