@@ -1,7 +1,6 @@
 "use client"
 
 import { useEffect, useEffectEvent, useRef, useState } from "react"
-import { put } from "@vercel/blob/client"
 
 import { useAuth } from "@/features/auth/hooks/use-auth"
 import {
@@ -11,24 +10,18 @@ import {
 import { requestKnowledgeUpload } from "@/features/knowledge/lib/knowledge-api"
 import { MAX_KNOWLEDGE_FILE_MB } from "@/features/knowledge/schemas"
 import { ApiError } from "@/features/shared/lib/api-client"
+import { uploadToStorage } from "@/features/shared/lib/storage-upload"
 
-/** One file on its way to Vercel Blob, in the order it was picked. */
 export type KnowledgeUpload = {
   key: string
   name: string
-  /** Whole percent, 0–100. */
   progress: number
 }
 
-/** Bookkeeping for one upload, with what's needed to cancel it. */
 type Entry = KnowledgeUpload & {
   abort: AbortController
-  /** Issued by the API before the file finished uploading. */
   documentId: string | null
 }
-
-/** Above this, `put()` sends parallel, individually retried parts. */
-const MULTIPART_FROM_BYTES = 5 * 1024 * 1024
 
 function failureMessage(error: unknown, name: string) {
   if (error instanceof ApiError && error.status === 415) {
@@ -40,14 +33,6 @@ function failureMessage(error: unknown, name: string) {
   return `Tải “${name}” lên thất bại. Thử lại nhé.`
 }
 
-/**
- * Sends knowledge-base files straight to Vercel Blob: vedora-api checks the
- * file type and size, creates the document and a client token scoped to its
- * pathname, and `put()` uploads the file with it. The browser never reports
- * completion; Vercel Blob's callback to the API does, and the document list
- * polls until then. Cancelling or unmounting aborts unfinished uploads and
- * deletes their documents.
- */
 export function useKnowledgeUploads() {
   const { accessToken } = useAuth()
   const upsert = useUpsertKnowledgeDocument()
@@ -87,13 +72,9 @@ export function useKnowledgeUploads() {
         return
       }
 
-      await put(target.pathname, file, {
-        access: "private",
-        token: target.clientToken,
-        contentType: target.document.contentType,
-        multipart: file.size >= MULTIPART_FROM_BYTES,
-        abortSignal: entry.abort.signal,
-        onUploadProgress: ({ percentage }) => {
+      await uploadToStorage(target.upload, file, {
+        signal: entry.abort.signal,
+        onProgress: (percentage) => {
           const progress = Math.round(percentage)
           if (progress === entry.progress) return
           entry.progress = progress
