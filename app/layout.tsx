@@ -1,13 +1,30 @@
 import type { Metadata } from "next";
-import { Plus_Jakarta_Sans, Geist_Mono } from "next/font/google";
+import {
+  Be_Vietnam_Pro,
+  Figtree,
+  Geist_Mono,
+  Source_Sans_3,
+} from "next/font/google";
 import { ThemeProvider } from "@/components/theme-provider";
 import { SWRProvider } from "@/components/swr-provider";
 import "./globals.css";
 import { TooltipProvider } from "@/components/ui/tooltip";
 
-const jakartaSans = Plus_Jakarta_Sans({
+const sourceSans = Source_Sans_3({
   variable: "--font-sans",
   subsets: ["latin", "vietnamese"],
+});
+
+const beVietnam = Be_Vietnam_Pro({
+  variable: "--font-heading",
+  subsets: ["latin", "vietnamese"],
+  weight: ["500", "600", "700", "800"],
+});
+
+// Figtree ships no Vietnamese glyphs, so it is only for Latin text and numerals.
+const figtree = Figtree({
+  variable: "--font-display",
+  subsets: ["latin"],
 });
 
 const geistMono = Geist_Mono({
@@ -25,7 +42,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html
       lang="vi"
-      className={`${jakartaSans.variable} ${geistMono.variable} h-full antialiased`}
+      className={`${sourceSans.variable} ${beVietnam.variable} ${figtree.variable} ${geistMono.variable} h-full antialiased`}
       suppressHydrationWarning
     >
       <body className="min-h-full flex flex-col">

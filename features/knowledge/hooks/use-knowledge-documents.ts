@@ -14,6 +14,9 @@ import type { KnowledgeDocument } from "@/features/knowledge/schemas"
 const isPending = (document: KnowledgeDocument) =>
   document.status === "WAITING_UPLOAD" || document.status === "PROCESSING"
 
+// TanStack Table rebuilds its row models whenever `data` changes identity.
+const NO_DOCUMENTS: KnowledgeDocument[] = []
+
 export function useKnowledgeDocuments() {
   const { accessToken } = useAuth()
   const [polling, setPolling] = useState(false)
@@ -25,7 +28,7 @@ export function useKnowledgeDocuments() {
       onSuccess: (documents) => setPolling(documents.some(isPending)),
     }
   )
-  return { documents: data ?? [], error, isLoading }
+  return { documents: data ?? NO_DOCUMENTS, error, isLoading }
 }
 
 export function useUpsertKnowledgeDocument() {

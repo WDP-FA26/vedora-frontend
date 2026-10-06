@@ -42,18 +42,18 @@ type Palette = { a: string; b: string; accent: string; ratio: number }
 
 const PALETTES: Record<"light" | "dark", Palette[]> = {
   light: [
-    { a: "#006045", b: "#00bc7d", accent: "#e1731a", ratio: 0.07 },
-    { a: "#006045", b: "#00a36c", accent: "#e0433a", ratio: 0.38 },
-    { a: "#0b5563", b: "#00bc7d", accent: "#2f7fc1", ratio: 0.3 },
-    { a: "#006045", b: "#00bc7d", accent: "#e1731a", ratio: 0.05 },
-    { a: "#006045", b: "#2fbf71", accent: "#a86a1c", ratio: 0.16 },
+    { a: "#255d32", b: "#398f3b", accent: "#f79b2d", ratio: 0.07 },
+    { a: "#255d32", b: "#398f3b", accent: "#d84a3e", ratio: 0.38 },
+    { a: "#0b7472", b: "#398f3b", accent: "#2f7fc1", ratio: 0.3 },
+    { a: "#255d32", b: "#398f3b", accent: "#f79b2d", ratio: 0.05 },
+    { a: "#255d32", b: "#75b65c", accent: "#a86a1c", ratio: 0.16 },
   ],
   dark: [
-    { a: "#009966", b: "#5ee9b5", accent: "#fbbf24", ratio: 0.07 },
-    { a: "#009966", b: "#5ee9b5", accent: "#ff6b5b", ratio: 0.38 },
-    { a: "#0e8f8f", b: "#5ee9b5", accent: "#60a5fa", ratio: 0.3 },
-    { a: "#009966", b: "#5ee9b5", accent: "#fbbf24", ratio: 0.05 },
-    { a: "#009966", b: "#86efac", accent: "#d6a15a", ratio: 0.16 },
+    { a: "#398f3b", b: "#75b65c", accent: "#f8d544", ratio: 0.07 },
+    { a: "#398f3b", b: "#75b65c", accent: "#e35a62", ratio: 0.38 },
+    { a: "#0e8f8f", b: "#a9f4ef", accent: "#60a5fa", ratio: 0.3 },
+    { a: "#398f3b", b: "#75b65c", accent: "#f8d544", ratio: 0.05 },
+    { a: "#398f3b", b: "#75b65c", accent: "#d6a15a", ratio: 0.16 },
   ],
 }
 

@@ -3,7 +3,14 @@
 import * as React from "react"
 import { cn } from "cn"
 
-function Table({ className, ...props }: React.ComponentProps<"table">) {
+function Table({
+  className,
+  variant = "default",
+  ...props
+}: React.ComponentProps<"table"> & {
+  /** `flush` runs edge to edge with roomier rows, for full-page data tables. */
+  variant?: "default" | "flush"
+}) {
   return (
     <div
       data-slot="table-container"
@@ -11,7 +18,8 @@ function Table({ className, ...props }: React.ComponentProps<"table">) {
     >
       <table
         data-slot="table"
-        className={cn("w-full caption-bottom text-sm", className)}
+        data-variant={variant}
+        className={cn("group/table w-full caption-bottom text-sm", className)}
         {...props}
       />
     </div>
@@ -22,7 +30,10 @@ function TableHeader({ className, ...props }: React.ComponentProps<"thead">) {
   return (
     <thead
       data-slot="table-header"
-      className={cn("[&_tr]:border-b", className)}
+      className={cn(
+        "[&_tr]:border-b group-data-[variant=flush]/table:bg-muted/40 group-data-[variant=flush]/table:[&_tr]:hover:bg-transparent",
+        className
+      )}
       {...props}
     />
   )
@@ -32,7 +43,10 @@ function TableBody({ className, ...props }: React.ComponentProps<"tbody">) {
   return (
     <tbody
       data-slot="table-body"
-      className={cn("[&_tr:last-child]:border-0", className)}
+      className={cn(
+        "[&_tr:last-child]:border-0 group-data-[variant=flush]/table:[&_tr:last-child]:border-b",
+        className
+      )}
       {...props}
     />
   )
@@ -70,6 +84,7 @@ function TableHead({ className, ...props }: React.ComponentProps<"th">) {
       data-slot="table-head"
       className={cn(
         "h-10 px-2 text-left align-middle font-medium whitespace-nowrap text-foreground [&:has([role=checkbox])]:pr-0",
+        "group-data-[variant=flush]/table:px-3 group-data-[variant=flush]/table:text-[0.8125rem] group-data-[variant=flush]/table:text-muted-foreground group-data-[variant=flush]/table:first:pl-4 group-data-[variant=flush]/table:last:pr-4",
         className
       )}
       {...props}
@@ -83,6 +98,7 @@ function TableCell({ className, ...props }: React.ComponentProps<"td">) {
       data-slot="table-cell"
       className={cn(
         "p-2 align-middle whitespace-nowrap [&:has([role=checkbox])]:pr-0",
+        "group-data-[variant=flush]/table:h-12 group-data-[variant=flush]/table:px-3 group-data-[variant=flush]/table:first:pl-4 group-data-[variant=flush]/table:last:pr-4",
         className
       )}
       {...props}
