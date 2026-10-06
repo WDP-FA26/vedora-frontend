@@ -22,6 +22,8 @@ const buttonVariants = cva(
         action:
           "text-muted-foreground hover:bg-accent hover:text-primary aria-pressed:text-primary data-active:text-primary",
         tool: "text-primary hover:bg-accent hover:text-primary",
+        overlay:
+          "bg-black/50 text-white backdrop-blur-sm hover:bg-black/40 hover:text-white focus-visible:ring-white/50",
       },
       shape: {
         default: "",

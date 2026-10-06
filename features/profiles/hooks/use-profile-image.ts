@@ -1,7 +1,6 @@
 "use client"
 
 import { useState } from "react"
-import { put } from "@vercel/blob/client"
 
 import { useAuth } from "@/features/auth/hooks/use-auth"
 import { useSetMyProfile } from "@/features/profiles/hooks/use-profile"
@@ -16,13 +15,10 @@ import {
   type ImageKind,
 } from "@/features/profiles/schemas"
 import { ApiError } from "@/features/shared/lib/api-client"
+import { uploadToStorage } from "@/features/shared/lib/storage-upload"
 
-const ACTIVATE_ATTEMPTS = 10
-const ACTIVATE_RETRY_MS = 1000
-/**
- * `put()` retries network and unknown errors up to 10 times with backoff,
- * which can take minutes; give up well before that so the dialog shows an error.
- */
+const ACTIVATE_ATTEMPTS = 6
+const ACTIVATE_FIRST_RETRY_MS = 250
 const UPLOAD_TIMEOUT_MS = 30_000
 
 function failureMessage(error: unknown) {
@@ -35,12 +31,6 @@ function failureMessage(error: unknown) {
   return "Không cập nhật được ảnh. Thử lại nhé."
 }
 
-/**
- * vedora-api only activates an upload once Vercel Blob's callback confirmed
- * it, which can land a moment after `put()` resolves. Until then it answers
- * 409 "Image upload is not ready", which is retried. An API on localhost never
- * gets the callback, so there the retries run out.
- */
 async function activateWhenConfirmed(token: string, uploadId: string) {
   for (let attempt = 1; ; attempt++) {
     try {
@@ -48,20 +38,15 @@ async function activateWhenConfirmed(token: string, uploadId: string) {
     } catch (error) {
       const unconfirmed = error instanceof ApiError && error.status === 409
       if (!unconfirmed || attempt === ACTIVATE_ATTEMPTS) throw error
-      await new Promise((resolve) => setTimeout(resolve, ACTIVATE_RETRY_MS))
+      const delay = ACTIVATE_FIRST_RETRY_MS * 2 ** (attempt - 1)
+      await new Promise((resolve) => setTimeout(resolve, delay))
     }
   }
 }
 
-/**
- * Changes or removes the signed-in user's avatar or cover. A change asks
- * vedora-api for a client token scoped to one pathname, uploads the file
- * straight to Vercel Blob with it, then activates the upload on the profile.
- */
 export function useProfileImage() {
   const { accessToken } = useAuth()
   const setMyProfile = useSetMyProfile()
-  /** Which image is being changed, so only its controls show as busy. */
   const [pending, setPending] = useState<ImageKind | null>(null)
   const [error, setError] = useState<string | null>(null)
 
@@ -89,13 +74,8 @@ export function useProfileImage() {
     }
     return run(kind, async (token) => {
       const target = await requestImageUpload(token, kind, file)
-      await put(target.pathname, file, {
-        // Profile images are public. Vercel rejects this (400) when the API's
-        // store is a Private one, as the shared knowledge-base store is.
-        access: "public",
-        token: target.clientToken,
-        contentType: file.type,
-        abortSignal: AbortSignal.timeout(UPLOAD_TIMEOUT_MS),
+      await uploadToStorage(target.upload, file, {
+        signal: AbortSignal.timeout(UPLOAD_TIMEOUT_MS),
       })
       await setMyProfile(await activateWhenConfirmed(token, target.id))
     })

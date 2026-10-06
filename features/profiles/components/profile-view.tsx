@@ -8,6 +8,7 @@ import { useAuth } from "@/features/auth/hooks/use-auth"
 import { EditProfileDialog } from "@/features/profiles/components/edit-profile-dialog"
 import { FollowButton } from "@/features/profiles/components/follow-button"
 import { ProfileAvatar } from "@/features/profiles/components/profile-avatar"
+import { ProfileCover } from "@/features/profiles/components/profile-cover"
 import { ProfilePosts } from "@/features/profiles/components/profile-posts"
 import { useProfile } from "@/features/profiles/hooks/use-profile"
 import { formatJoinDate } from "@/features/profiles/lib/format"
@@ -45,13 +46,7 @@ export function ProfileView({ id }: { id: string }) {
 
   return (
     <article aria-label={`Hồ sơ của ${profile.fullName}`}>
-      <div className="aspect-[3/1] w-full overflow-hidden bg-muted">
-        {profile.coverUrl && (
-          // Served from Vercel Blob at any size; next/image has no loader for it.
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={profile.coverUrl} alt="" className="size-full object-cover" />
-        )}
-      </div>
+      <ProfileCover profile={profile} />
 
       <div className="flex flex-col gap-3 px-4 pb-5 sm:px-5">
         <div className="flex items-end justify-between gap-3">

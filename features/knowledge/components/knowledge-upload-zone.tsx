@@ -1,6 +1,6 @@
 "use client"
 
-import { useRef, useState } from "react"
+import { useDropzone } from "react-dropzone"
 import { FileTextIcon, FileUpIcon, XIcon } from "lucide-react"
 import { cn } from "cn"
 
@@ -33,25 +33,21 @@ export function KnowledgeUploadZone({
   onFiles: (files: File[]) => void
   onCancel: (key: string) => void
 }) {
-  const input = useRef<HTMLInputElement>(null)
-  const [dragging, setDragging] = useState(false)
+  const { getRootProps, getInputProps, open, isDragActive } = useDropzone({
+    accept: KNOWLEDGE_ACCEPT,
+    noClick: true,
+    noKeyboard: true,
+    // Rejected files go through too, so vedora-api explains why.
+    onDrop: (accepted, rejected) => onFiles([...accepted, ...rejected.map(({ file }) => file)]),
+  })
 
   return (
     <section aria-label="Tải tài liệu lên" className="space-y-3">
       <div
-        onDragOver={(event) => {
-          event.preventDefault()
-          setDragging(true)
-        }}
-        onDragLeave={() => setDragging(false)}
-        onDrop={(event) => {
-          event.preventDefault()
-          setDragging(false)
-          onFiles([...event.dataTransfer.files])
-        }}
+        {...getRootProps()}
         className={cn(
           "flex flex-col items-center gap-3 rounded-2xl border border-dashed border-border px-6 py-10 text-center transition-colors",
-          dragging && "border-primary bg-accent"
+          isDragActive && "border-primary bg-accent"
         )}
       >
         <span className="flex size-11 items-center justify-center rounded-full bg-accent text-primary">
@@ -64,20 +60,10 @@ export function KnowledgeUploadZone({
             nhiều cột và bản scan.
           </p>
         </div>
-        <Button variant="outline" onClick={() => input.current?.click()}>
+        <Button variant="outline" onClick={open}>
           Chọn tệp
         </Button>
-        <input
-          ref={input}
-          type="file"
-          accept={KNOWLEDGE_ACCEPT}
-          multiple
-          hidden
-          onChange={(event) => {
-            onFiles([...(event.target.files ?? [])])
-            event.target.value = ""
-          }}
-        />
+        <input {...getInputProps()} />
       </div>
 
       {uploads.length > 0 && (
