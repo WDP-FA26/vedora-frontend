@@ -1,19 +1,17 @@
 import { z } from "zod"
 
+import { presignedUploadSchema } from "@/features/shared/lib/storage-upload"
+
 // Mirrors vedora-api's `/profiles` responses and `UpdateProfileDto`.
 // Responses are parsed with these, so the types below are checked at runtime.
 
-/** Same limit as the register form's full name. */
 export const MAX_FULL_NAME_LENGTH = 100
 export const MAX_BIO_LENGTH = 500
 
-/** What `POST /profiles/me/images/uploads` and `DELETE .../images/{kind}` take. */
 export const IMAGE_KINDS = ["AVATAR", "COVER"] as const
 export const IMAGE_CONTENT_TYPES = ["image/jpeg", "image/png", "image/webp"]
-/** Mirrors the API's limits: 5 MiB for an avatar, 10 MiB for a cover. */
 export const MAX_IMAGE_MB = { AVATAR: 5, COVER: 10 } as const
 
-/** A profile as listed in followers/following. */
 export const apiProfileSummarySchema = z.object({
   id: z.string(),
   username: z.string(),
@@ -23,7 +21,6 @@ export const apiProfileSummarySchema = z.object({
   coverUrl: z.string().nullable(),
 })
 
-/** A full public profile with its counts. */
 export const apiProfileSchema = apiProfileSummarySchema.extend({
   createdAt: z.string(),
   postCount: z.number(),
@@ -40,11 +37,9 @@ export const relationshipSchema = z.object({
   isFollowing: z.boolean(),
 })
 
-/** A Vercel Blob client token scoped to one avatar or cover upload. */
 export const imageUploadSchema = z.object({
   id: z.string(),
-  pathname: z.string(),
-  clientToken: z.string(),
+  upload: presignedUploadSchema,
 })
 
 export const profileFormSchema = z.object({
