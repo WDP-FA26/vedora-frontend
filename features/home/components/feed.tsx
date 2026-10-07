@@ -10,6 +10,7 @@ import {
   EmptyTitle,
 } from "@/components/ui/empty"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { WeekPlanButton } from "@/features/meal-plan/components/week-plan-button"
 import { MobileTopBar } from "@/features/shared/components/mobile-nav"
 import { getFeed } from "@/features/home/data/posts"
 import { useFeedPosts } from "@/features/posts/hooks/use-feed-posts"
@@ -44,16 +45,23 @@ export function Feed() {
     <Tabs defaultValue="for-you">
       <div className="sticky top-0 z-20 border-b border-border bg-card/85 backdrop-blur-md backdrop-saturate-150">
         <MobileTopBar />
-        <TabsList
-          variant="timeline"
-          aria-label="Dòng thời gian"
-        >
-          {tabs.map((tab) => (
-            <TabsTrigger key={tab.value} value={tab.value}>
-              {tab.label}
-            </TabsTrigger>
-          ))}
-        </TabsList>
+        <div className="flex items-center">
+          <div className="min-w-0 flex-1">
+            <TabsList
+              variant="timeline"
+              aria-label="Dòng thời gian"
+            >
+              {tabs.map((tab) => (
+                <TabsTrigger key={tab.value} value={tab.value}>
+                  {tab.label}
+                </TabsTrigger>
+              ))}
+            </TabsList>
+          </div>
+          <div className="hidden px-2 sm:block">
+            <WeekPlanButton />
+          </div>
+        </div>
       </div>
 
       {tabs.map((tab) => (

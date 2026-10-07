@@ -1,5 +1,6 @@
 "use client"
 
+import { WeekPlanButton } from "@/features/meal-plan/components/week-plan-button"
 import { useState } from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
@@ -70,14 +71,17 @@ export function MobileTopBar() {
 
       <Wordmark compact className="[&>span]:size-8" />
 
-      <Button
-        variant="ghost"
-        size="icon-lg"
-        shape="pill"
-        aria-label="Tìm kiếm"
-      >
-        <SearchIcon aria-hidden className="size-5" />
-      </Button>
+      <div className="flex items-center">
+        <WeekPlanButton />
+        <Button
+          variant="ghost"
+          size="icon-lg"
+          shape="pill"
+          aria-label="Tìm kiếm"
+        >
+          <SearchIcon aria-hidden className="size-5" />
+        </Button>
+      </div>
     </div>
   )
 }
