@@ -721,7 +721,7 @@ function ChapterLabel({ number, name }: { number: string; name: string }) {
       data-reveal
       className="flex items-center gap-3 text-sm font-semibold tracking-[0.18em] text-primary uppercase"
     >
-      <span className="font-mono tabular-nums">{number}</span>
+      <span className="font-display tabular-nums">{number}</span>
       <span
         data-line
         aria-hidden

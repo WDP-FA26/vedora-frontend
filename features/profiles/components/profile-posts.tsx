@@ -11,17 +11,21 @@ import {
 } from "@/components/ui/empty"
 import { Spinner } from "@/components/ui/spinner"
 import { PostCard } from "@/features/home/components/post-card"
+import { formatCount } from "@/features/shared/lib/format"
 import { toFeedPost } from "@/features/posts/lib/to-feed-post"
 import { useProfilePosts } from "@/features/profiles/hooks/use-profile-posts"
 
 /** The published posts of profile `id`, under the profile header. */
-export function ProfilePosts({ id }: { id: string }) {
+export function ProfilePosts({ id, count }: { id: string; count: number }) {
   const { posts, error, isLoading } = useProfilePosts(id)
 
   return (
     <section aria-labelledby="profile-posts-title" className="border-t border-border">
       <h2 id="profile-posts-title" className="px-4 pt-4 text-base font-bold sm:px-5">
-        Bài viết
+        Bài viết{" "}
+        <span className="font-normal text-muted-foreground tabular-nums">
+          {formatCount(count)}
+        </span>
       </h2>
 
       {isLoading ? (

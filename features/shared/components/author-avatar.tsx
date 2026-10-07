@@ -8,7 +8,7 @@ export function AuthorAvatar({
   className,
 }: {
   author: Author
-  size?: "default" | "sm" | "lg"
+  size?: "default" | "sm" | "lg" | "fill"
   className?: string
 }) {
   return (

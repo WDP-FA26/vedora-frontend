@@ -19,6 +19,7 @@ export const apiProfileSummarySchema = z.object({
   bio: z.string().nullable(),
   avatarUrl: z.string().nullable(),
   coverUrl: z.string().nullable(),
+  isProfessional: z.boolean(),
 })
 
 export const apiProfileSchema = apiProfileSummarySchema.extend({
