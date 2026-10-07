@@ -4,7 +4,7 @@ import { usePathname, useRouter } from "next/navigation"
 import { useSWRConfig } from "swr"
 
 import { useAuth } from "@/features/auth/hooks/use-auth"
-import { setPostLike, setPostRepost } from "@/features/posts/lib/posts-api"
+import { setPostBookmark, setPostLike, setPostRepost } from "@/features/posts/lib/posts-api"
 import { POSTS_KEY } from "@/features/posts/posts-cache"
 import type { ApiPost, PostPage } from "@/features/posts/schemas"
 
@@ -14,7 +14,7 @@ const isPostsKey = (key: unknown) =>
   Array.isArray(key) && typeof key[0] === "string" && key[0].startsWith(POSTS_KEY)
 
 /**
- * Likes and reposts for the signed-in user. A post can sit in several caches
+ * Likes, reposts and saved posts for the signed-in user. A post can sit in several caches
  * at once (feed, profile, its own page), so changes are written to all of
  * them: first optimistically, then with the counts the API returns.
  */
@@ -76,6 +76,13 @@ export function usePostInteractions() {
           repostCount: post.repostCount + (reposted ? -1 : 1),
         }),
         (token) => setPostRepost(token, id, reposted)
+      ),
+    setBookmarked: (id: string, bookmarked: boolean) =>
+      toggle(
+        id,
+        () => ({ isBookmarked: bookmarked }),
+        () => ({ isBookmarked: !bookmarked }),
+        (token) => setPostBookmark(token, id, bookmarked)
       ),
   }
 }

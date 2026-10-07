@@ -272,14 +272,19 @@ export function PostActions({ post }: { post: Post }) {
   // API posts save to the server and read their state from the SWR cache;
   // the illustrative fixtures only toggle locally.
   const live = Boolean(post.author.id)
-  const { setLiked, setReposted: saveReposted } = usePostInteractions()
+  const {
+    setLiked,
+    setReposted: saveReposted,
+    setBookmarked: saveBookmarked,
+  } = usePostInteractions()
   const [localSprouted, setLocalSprouted] = useState(post.sprouted ?? false)
   const [localReposted, setLocalReposted] = useState(false)
-  const [bookmarked, setBookmarked] = useState(post.bookmarked ?? false)
+  const [localBookmarked, setLocalBookmarked] = useState(post.bookmarked ?? false)
   const [copied, setCopied] = useState(false)
 
   const sprouted = live ? (post.sprouted ?? false) : localSprouted
   const reposted = live ? (post.reposted ?? false) : localReposted
+  const bookmarked = live ? (post.bookmarked ?? false) : localBookmarked
   const sprouts = live
     ? post.stats.sprouts
     : post.stats.sprouts + Number(sprouted) - Number(post.sprouted ?? false)
@@ -293,6 +298,11 @@ export function PostActions({ post }: { post: Post }) {
   function toggleRepost() {
     if (live) void saveReposted(post.id, !reposted)
     else setLocalReposted((value) => !value)
+  }
+
+  function toggleBookmark() {
+    if (live) void saveBookmarked(post.id, !bookmarked)
+    else setLocalBookmarked((value) => !value)
   }
 
   async function share() {
@@ -342,7 +352,7 @@ export function PostActions({ post }: { post: Post }) {
           icon={BookmarkIcon}
           active={bookmarked}
           toggle
-          onClick={() => setBookmarked((value) => !value)}
+          onClick={toggleBookmark}
           activeIconClassName="fill-primary"
         />
         <ActionButton

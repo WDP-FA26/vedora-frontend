@@ -3,6 +3,7 @@ import { send, sendJson } from "@/features/shared/lib/api-client"
 import { postKey } from "@/features/posts/posts-cache"
 import {
   apiPostSchema,
+  postBookmarkSchema,
   postLikeSchema,
   postPageSchema,
   postRepostSchema,
@@ -39,7 +40,7 @@ export function createPost(token: string, input: { body?: string; mediaIds?: str
   })
 }
 
-/** Both are idempotent: PUT sets the state, DELETE clears it. */
+/** All three are idempotent: PUT sets the state, DELETE clears it. */
 export function setPostLike(token: string, id: string, liked: boolean) {
   return sendJson(postLikeSchema, `${postKey(id)}/like`, token, {
     method: liked ? "PUT" : "DELETE",
@@ -49,6 +50,12 @@ export function setPostLike(token: string, id: string, liked: boolean) {
 export function setPostRepost(token: string, id: string, reposted: boolean) {
   return sendJson(postRepostSchema, `${postKey(id)}/repost`, token, {
     method: reposted ? "PUT" : "DELETE",
+  })
+}
+
+export function setPostBookmark(token: string, id: string, bookmarked: boolean) {
+  return sendJson(postBookmarkSchema, `${postKey(id)}/bookmark`, token, {
+    method: bookmarked ? "PUT" : "DELETE",
   })
 }
 

@@ -49,6 +49,8 @@ export const apiPostSchema = z.object({
   isLiked: z.boolean(),
   repostCount: z.number(),
   isReposted: z.boolean(),
+  /** Private to the viewer; always false for guests. */
+  isBookmarked: z.boolean(),
   /** Saved in batches by the API, so a few seconds behind. */
   viewCount: z.number(),
 })
@@ -67,6 +69,8 @@ export const postLikeSchema = z.object({
   isLiked: z.boolean(),
   likeCount: z.number(),
 })
+
+export const postBookmarkSchema = z.object({ isBookmarked: z.boolean() })
 
 export const postRepostSchema = z.object({
   isReposted: z.boolean(),

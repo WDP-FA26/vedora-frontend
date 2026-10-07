@@ -11,6 +11,9 @@ export function authorPostsKey(authorId: string) {
   return `${POSTS_KEY}?authorId=${authorId}&limit=20`
 }
 
+/** The posts the signed-in user saved, most recently saved first. */
+export const BOOKMARKS_KEY = `${POSTS_KEY}/bookmarks?limit=50`
+
 export function postKey(id: string) {
   return `${POSTS_KEY}/${id}`
 }
