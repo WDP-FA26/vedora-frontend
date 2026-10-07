@@ -14,3 +14,8 @@ export function authorPostsKey(authorId: string) {
 export function postKey(id: string) {
   return `${POSTS_KEY}/${id}`
 }
+
+/** The public page of post `id`, also the link that "Chia sẻ" copies. */
+export function postPath(id: string) {
+  return `/posts/${id}`
+}
