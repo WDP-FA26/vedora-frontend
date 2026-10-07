@@ -1,3 +1,4 @@
+import { API_URL } from "@/features/auth/lib/api"
 import { send, sendJson } from "@/features/shared/lib/api-client"
 import { MY_PROFILE_KEY, profileKey } from "@/features/profiles/profiles-cache"
 import {
@@ -24,6 +25,14 @@ export function updateMyProfile(token: string, input: { fullName?: string; bio?:
   return sendJson(apiProfileSchema, MY_PROFILE_KEY, token, {
     method: "PATCH",
     body: JSON.stringify(input),
+  })
+}
+
+/** Usernames belong to the account, so they change through `/users`, not `/profiles`. */
+export async function updateMyUsername(token: string, id: string, username: string) {
+  await send(`${API_URL}/users/${id}`, token, {
+    method: "PATCH",
+    body: JSON.stringify({ username }),
   })
 }
 
