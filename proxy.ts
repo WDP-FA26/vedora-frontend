@@ -10,21 +10,12 @@ import {
   writeTokenCookies,
 } from "@/features/auth/lib/tokens"
 
-// TODO: guard "/admin" again once it has real admin tools.
 const PROTECTED_PREFIXES = ["/home"]
 const GUEST_ONLY_PATHS = ["/login", "/register", "/verify-email"]
 
 const matchesAny = (pathname: string, prefixes: string[]) =>
   prefixes.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`))
 
-/**
- * 1. Rotate the token pair when the access token is missing or about to
- *    expire. Server Components can't write cookies, so it happens here,
- *    before rendering.
- * 2. Redirect guests away from protected pages and signed-in users away from
- *    /login and /register. This is a UX shortcut only: `requireAuth()` and
- *    each Server Action / Route Handler still check the session themselves.
- */
 export async function proxy(request: NextRequest) {
   const refresh = await refreshSession(request)
   const signedIn = Boolean(request.cookies.get(ACCESS_TOKEN_COOKIE)?.value)
@@ -38,7 +29,6 @@ export async function proxy(request: NextRequest) {
   return response
 }
 
-/** Rotates if needed and mirrors the result onto `request.cookies`. */
 async function refreshSession(request: NextRequest) {
   const accessToken = request.cookies.get(ACCESS_TOKEN_COOKIE)?.value
   const refreshToken = request.cookies.get(REFRESH_TOKEN_COOKIE)?.value
@@ -56,6 +46,8 @@ async function refreshSession(request: NextRequest) {
 }
 
 function redirectFor(request: NextRequest, signedIn: boolean) {
+  if (request.method !== "GET" && request.method !== "HEAD") return
+
   const { pathname, search, searchParams } = request.nextUrl
 
   if (!signedIn && matchesAny(pathname, PROTECTED_PREFIXES)) {
@@ -71,8 +63,6 @@ function redirectFor(request: NextRequest, signedIn: boolean) {
 
 export const config = {
   matcher: [
-    // Skip static assets and image optimization; Server Actions and Route
-    // Handlers stay covered so they always see a fresh access token.
     "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|txt|xml)$).*)",
   ],
 }
