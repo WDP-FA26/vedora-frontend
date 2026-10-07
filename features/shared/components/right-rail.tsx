@@ -90,7 +90,7 @@ export function RightRail() {
 }
 
 const upgradePerks = [
-  "Trợ lý dinh dưỡng không giới hạn",
+  "Trợ lý Vedora không giới hạn",
   "Thực đơn tuần tự động theo mục tiêu",
   "Đăng video công thức dài đến 30 phút",
 ]

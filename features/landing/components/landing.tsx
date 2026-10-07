@@ -20,9 +20,11 @@ import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { ThemeMenuGroup } from "@/components/theme-switcher"
+import { PetMenuGroup } from "@/features/shared/components/nutrition-pet"
 import { Wordmark } from "@/features/shared/components/wordmark"
 import { FeatureArt } from "@/features/landing/components/feature-art"
 import {
@@ -411,6 +413,8 @@ export function Landing() {
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-44">
                 <ThemeMenuGroup />
+                <DropdownMenuSeparator />
+                <PetMenuGroup />
               </DropdownMenuContent>
             </DropdownMenu>
             <Button
