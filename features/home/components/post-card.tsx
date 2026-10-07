@@ -35,14 +35,23 @@ import { formatCount, formatPostDate, formatPostDateLong } from "@/features/shar
 import { MediaPlaceholder } from "@/features/shared/components/media-placeholder"
 import type { ArticlePost, PhotoPost, Post, VideoPost } from "@/features/home/types"
 import { VerifiedBadge } from "@/features/shared/components/verified-badge"
+import { useAuth } from "@/features/auth/hooks/use-auth"
 import { PostMedia } from "@/features/posts/components/post-media"
+import { ReportDialog } from "@/features/posts/components/report-dialog"
+import { usePostInteractions } from "@/features/posts/hooks/use-post-interactions"
+import { usePostView } from "@/features/posts/hooks/use-post-view"
+import { postPath } from "@/features/posts/posts-cache"
 
 export function PostCard({ post }: { post: Post }) {
   // Fixture authors have no id, and so no profile to open.
   const profileHref = post.author.id ? `/profile/${post.author.id}` : null
+  // Likewise, only API posts have a page of their own.
+  const postHref = post.author.id ? postPath(post.id) : null
+  const viewRef = usePostView<HTMLElement>(post.author.id ? post.id : null)
 
   return (
     <article
+      ref={viewRef}
       aria-label={`Bài viết của ${post.author.name}`}
       className="flex gap-3 border-b border-border px-4 pt-6 pb-4 transition-colors hover:bg-[color-mix(in_oklch,var(--card),var(--muted)_45%)]"
     >
@@ -78,13 +87,7 @@ export function PostCard({ post }: { post: Post }) {
           <span aria-hidden className="text-muted-foreground">
             ·
           </span>
-          <time
-            dateTime={post.publishedAt}
-            title={formatPostDateLong(post.publishedAt)}
-            className="shrink-0 text-muted-foreground tabular-nums"
-          >
-            {formatPostDate(post.publishedAt)}
-          </time>
+          <PostTime post={post} href={postHref} />
           <PostMenu post={post} />
         </header>
 
@@ -105,6 +108,29 @@ export function PostCard({ post }: { post: Post }) {
         <PostActions post={post} />
       </div>
     </article>
+  )
+}
+
+function PostTime({ post, href }: { post: Post; href: string | null }) {
+  const time = (
+    <time
+      dateTime={post.publishedAt}
+      title={formatPostDateLong(post.publishedAt)}
+      className="tabular-nums"
+    >
+      {formatPostDate(post.publishedAt)}
+    </time>
+  )
+  return href ? (
+    <Link
+      href={href}
+      aria-label={`Mở bài viết, ${formatPostDateLong(post.publishedAt)}`}
+      className="shrink-0 text-muted-foreground hover:underline"
+    >
+      {time}
+    </Link>
+  ) : (
+    <span className="shrink-0 text-muted-foreground">{time}</span>
   )
 }
 
@@ -184,57 +210,103 @@ function PhotoMedia({ post }: { post: PhotoPost }) {
   )
 }
 
-function PostMenu({ post }: { post: Post }) {
+export function PostMenu({ post }: { post: Post }) {
+  const { user } = useAuth()
+  const [reporting, setReporting] = useState(false)
+  // Fixtures can't be reported, and nobody reports their own post.
+  const reportable = Boolean(user && post.author.id && post.author.id !== user.id)
+
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger
-        render={
-          <Button
-            variant="action"
-            size="icon-sm"
-            shape="pill"
-            className="-my-1 -mr-2 ml-auto"
-          />
-        }
-        aria-label="Tùy chọn khác"
-      >
-        <EllipsisIcon aria-hidden />
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-56">
-        <DropdownMenuItem>
-          <LinkIcon aria-hidden />
-          Sao chép liên kết
-        </DropdownMenuItem>
-        <DropdownMenuItem>
-          <EyeOffIcon aria-hidden />
-          Không quan tâm bài viết này
-        </DropdownMenuItem>
-        <DropdownMenuItem>
-          <VolumeXIcon aria-hidden />
-          Tắt tiếng @{post.author.handle}
-        </DropdownMenuItem>
-        <DropdownMenuSeparator />
-        <DropdownMenuItem variant="destructive">
-          <FlagIcon aria-hidden />
-          Báo cáo bài viết
-        </DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
+    <>
+      <DropdownMenu>
+        <DropdownMenuTrigger
+          render={
+            <Button
+              variant="action"
+              size="icon-sm"
+              shape="pill"
+              className="-my-1 -mr-2 ml-auto"
+            />
+          }
+          aria-label="Tùy chọn khác"
+        >
+          <EllipsisIcon aria-hidden />
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="w-56">
+          <DropdownMenuItem>
+            <LinkIcon aria-hidden />
+            Sao chép liên kết
+          </DropdownMenuItem>
+          <DropdownMenuItem>
+            <EyeOffIcon aria-hidden />
+            Không quan tâm bài viết này
+          </DropdownMenuItem>
+          <DropdownMenuItem>
+            <VolumeXIcon aria-hidden />
+            Tắt tiếng @{post.author.handle}
+          </DropdownMenuItem>
+          {reportable && (
+            <>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem variant="destructive" onClick={() => setReporting(true)}>
+                <FlagIcon aria-hidden />
+                Báo cáo bài viết
+              </DropdownMenuItem>
+            </>
+          )}
+        </DropdownMenuContent>
+      </DropdownMenu>
+      {reportable && (
+        <ReportDialog
+          postId={post.id}
+          authorName={post.author.name}
+          open={reporting}
+          onOpenChange={setReporting}
+        />
+      )}
+    </>
   )
 }
 
-function PostActions({ post }: { post: Post }) {
-  const [sprouted, setSprouted] = useState(post.sprouted ?? false)
-  const [reposted, setReposted] = useState(false)
-  const [bookmarked, setBookmarked] = useState(post.bookmarked ?? false)
+export function PostActions({ post }: { post: Post }) {
+  // API posts save to the server and read their state from the SWR cache;
+  // the illustrative fixtures only toggle locally.
+  const live = Boolean(post.author.id)
+  const {
+    setLiked,
+    setReposted: saveReposted,
+    setBookmarked: saveBookmarked,
+  } = usePostInteractions()
+  const [localSprouted, setLocalSprouted] = useState(post.sprouted ?? false)
+  const [localReposted, setLocalReposted] = useState(false)
+  const [localBookmarked, setLocalBookmarked] = useState(post.bookmarked ?? false)
   const [copied, setCopied] = useState(false)
 
-  const sprouts =
-    post.stats.sprouts + Number(sprouted) - Number(post.sprouted ?? false)
-  const reposts = post.stats.reposts + (reposted ? 1 : 0)
+  const sprouted = live ? (post.sprouted ?? false) : localSprouted
+  const reposted = live ? (post.reposted ?? false) : localReposted
+  const bookmarked = live ? (post.bookmarked ?? false) : localBookmarked
+  const sprouts = live
+    ? post.stats.sprouts
+    : post.stats.sprouts + Number(sprouted) - Number(post.sprouted ?? false)
+  const reposts = live ? post.stats.reposts : post.stats.reposts + Number(reposted)
+
+  function toggleSprout() {
+    if (live) void setLiked(post.id, !sprouted)
+    else setLocalSprouted((value) => !value)
+  }
+
+  function toggleRepost() {
+    if (live) void saveReposted(post.id, !reposted)
+    else setLocalReposted((value) => !value)
+  }
+
+  function toggleBookmark() {
+    if (live) void saveBookmarked(post.id, !bookmarked)
+    else setLocalBookmarked((value) => !value)
+  }
 
   async function share() {
-    const url = `${window.location.origin}/posts/${post.id}`
+    const url = `${window.location.origin}${postPath(post.id)}`
     try {
       await navigator.clipboard.writeText(url)
       setCopied(true)
@@ -258,7 +330,7 @@ function PostActions({ post }: { post: Post }) {
         icon={Repeat2Icon}
         active={reposted}
         toggle
-        onClick={() => setReposted((value) => !value)}
+        onClick={toggleRepost}
       />
       <ActionButton
         label={sprouted ? "Bỏ thả mầm" : "Thả mầm"}
@@ -266,7 +338,7 @@ function PostActions({ post }: { post: Post }) {
         icon={SproutIcon}
         active={sprouted}
         toggle
-        onClick={() => setSprouted((value) => !value)}
+        onClick={toggleSprout}
         activeIconClassName="animate-sprout-pop fill-primary/25"
       />
       <ActionButton
@@ -280,7 +352,7 @@ function PostActions({ post }: { post: Post }) {
           icon={BookmarkIcon}
           active={bookmarked}
           toggle
-          onClick={() => setBookmarked((value) => !value)}
+          onClick={toggleBookmark}
           activeIconClassName="fill-primary"
         />
         <ActionButton

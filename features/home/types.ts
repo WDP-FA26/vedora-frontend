@@ -12,6 +12,7 @@ type PostBase = {
   author: Author
   stats: { replies: number; reposts: number; sprouts: number; views: number }
   sprouted?: boolean
+  reposted?: boolean
   bookmarked?: boolean
 }
 

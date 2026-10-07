@@ -14,7 +14,6 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { ThemeMenuGroup } from "@/components/theme-switcher"
-import { PetMenuGroup } from "./nutrition-pet"
 import { AuthorAvatar } from "@/features/shared/components/author-avatar"
 import { ComposeDialog } from "@/features/shared/components/compose-dialog"
 import { useAuth } from "@/features/auth/hooks/use-auth"
@@ -140,8 +139,6 @@ function AccountMenu() {
       </DropdownMenuTrigger>
       <DropdownMenuContent side="top" align="start" className="w-60">
         <ThemeMenuGroup />
-        <DropdownMenuSeparator />
-        <PetMenuGroup />
         <DropdownMenuSeparator />
         <DropdownMenuItem render={<Link href="/home/settings" />}>
           <SettingsIcon aria-hidden />

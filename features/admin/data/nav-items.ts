@@ -1,6 +1,7 @@
 import {
   BadgeCheckIcon,
   BellIcon,
+  BookOpenIcon,
   ChartColumnIcon,
   CircleHelpIcon,
   FileTextIcon,
@@ -40,6 +41,7 @@ export const adminNavSections: AdminNavSection[] = [
     items: [
       { href: "/admin/content", label: "Bài đăng", icon: FileTextIcon },
       { href: "/admin/reports", label: "Kiểm duyệt", icon: ShieldAlertIcon },
+      { href: "/admin/recipes", label: "Công thức", icon: BookOpenIcon },
       { href: "/admin/knowledge", label: "Tài liệu kiến thức", icon: LibraryIcon },
     ],
   },

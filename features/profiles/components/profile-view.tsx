@@ -1,7 +1,7 @@
 "use client"
 
 import Link from "next/link"
-import { BadgeCheckIcon, CalendarDaysIcon } from "lucide-react"
+import { BadgeCheckIcon, CalendarDaysIcon, UtensilsCrossedIcon } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { useAuth } from "@/features/auth/hooks/use-auth"
@@ -16,6 +16,7 @@ import { profilePath } from "@/features/profiles/profiles-cache"
 import { VerifiedBadge } from "@/features/shared/components/verified-badge"
 import { formatCount } from "@/features/shared/lib/format"
 import { PROFESSIONAL_LABEL } from "@/features/verification/schemas"
+import { DIETARY_PATH } from "@/features/dietary/dietary"
 import { VERIFICATION_PATH } from "@/features/verification/verification-cache"
 
 /** A profile's header and posts. Public; the owner also gets the edit button. */
@@ -96,6 +97,16 @@ export function ProfileView({ id }: { id: string }) {
           >
             <BadgeCheckIcon aria-hidden className="size-[1.125rem]" />
             Xác minh tài khoản chuyên gia
+          </Link>
+        )}
+
+        {isOwn && (
+          <Link
+            href={DIETARY_PATH}
+            className="mt-1 flex w-fit items-center gap-1 text-[0.9375rem] leading-5 text-primary underline-offset-4 hover:underline"
+          >
+            <UtensilsCrossedIcon aria-hidden className="size-[1.125rem]" />
+            Thực phẩm tôi không ăn
           </Link>
         )}
 

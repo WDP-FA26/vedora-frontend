@@ -30,11 +30,13 @@ import { ProfileCover } from "@/features/profiles/components/profile-cover"
 import { useSetMyProfile } from "@/features/profiles/hooks/use-profile"
 import { useProfileImage } from "@/features/profiles/hooks/use-profile-image"
 import { cropImage, type CropArea } from "@/features/profiles/lib/crop-image"
-import { updateMyProfile } from "@/features/profiles/lib/profiles-api"
+import { updateMyProfile, updateMyUsername } from "@/features/profiles/lib/profiles-api"
+import { ApiError } from "@/features/shared/lib/api-client"
 import {
   IMAGE_CONTENT_TYPES,
   MAX_BIO_LENGTH,
   MAX_FULL_NAME_LENGTH,
+  MAX_USERNAME_LENGTH,
   profileFormSchema,
   type ApiProfile,
   type ImageKind,
@@ -68,7 +70,7 @@ export function EditProfileDialog({
   const form = useForm<ProfileFormValues>({
     resolver: zodResolver(profileFormSchema),
     // Follows the profile, so reopening shows what was last saved.
-    values: { fullName: profile.fullName, bio: profile.bio ?? "" },
+    values: { username: profile.username, fullName: profile.fullName, bio: profile.bio ?? "" },
   })
 
   // Created on pick and revoked on close, not in an effect, so Strict Mode can't revoke it early.
@@ -145,19 +147,27 @@ function ProfileEditForm({
   const setMyProfile = useSetMyProfile()
   const { isSubmitting, errors } = form.formState
 
-  async function onSubmit(values: ProfileFormValues) {
+  async function onSubmit({ username, ...values }: ProfileFormValues) {
     if (!accessToken) return
     try {
+      // First, so a taken username stops the save before anything changes.
+      if (username !== profile.username) {
+        await updateMyUsername(accessToken, profile.id, username)
+      }
       await setMyProfile(await updateMyProfile(accessToken, values))
       onSaved()
-    } catch {
+    } catch (error) {
+      if (error instanceof ApiError && error.status === 409) {
+        form.setError("username", { message: "Tên đăng nhập này đã có người dùng" })
+        return
+      }
       form.setError("root", { message: "Không lưu được hồ sơ. Thử lại nhé." })
     }
   }
 
   return (
     <>
-      <header className="flex h-[3.3125rem] items-center gap-4 px-3">
+      <header className="flex items-center gap-4 px-3 py-3">
         <DialogClose render={<Button variant="ghost" size="icon" shape="pill" aria-label="Đóng" />}>
           <XIcon />
         </DialogClose>
@@ -209,6 +219,28 @@ function ProfileEditForm({
             )}
           />
           <Controller
+            name="username"
+            control={form.control}
+            render={({ field, fieldState }) => (
+              <OutlinedField
+                id={field.name}
+                label="Tên đăng nhập"
+                count={`${field.value.length}/${MAX_USERNAME_LENGTH}`}
+                error={fieldState.error}
+                description="Hiển thị dạng @tên trên hồ sơ và là tên bạn dùng để đăng nhập."
+              >
+                <InputGroupInput
+                  {...field}
+                  id={field.name}
+                  aria-invalid={fieldState.invalid}
+                  autoComplete="username"
+                  autoCapitalize="none"
+                  spellCheck={false}
+                />
+              </OutlinedField>
+            )}
+          />
+          <Controller
             name="bio"
             control={form.control}
             render={({ field, fieldState }) => (
@@ -240,12 +272,14 @@ function OutlinedField({
   label,
   count,
   error,
+  description,
   children,
 }: {
   id: string
   label: string
   count: string
   error?: { message?: string }
+  description?: string
   children: React.ReactNode
 }) {
   return (
@@ -257,6 +291,7 @@ function OutlinedField({
         </InputGroupAddon>
         {children}
       </InputGroup>
+      {description && !error && <p className="mt-1 text-xs text-muted-foreground">{description}</p>}
       {error && <FieldError className="mt-1" errors={[error]} />}
     </div>
   )
@@ -384,7 +419,7 @@ function ImageCropStep({
 
   return (
     <>
-      <header className="flex h-[3.3125rem] items-center gap-4 px-3">
+      <header className="flex items-center gap-4 px-3 py-3">
         <Button variant="ghost" size="icon" shape="pill" aria-label="Quay lại" onClick={onCancel}>
           <ArrowLeftIcon />
         </Button>

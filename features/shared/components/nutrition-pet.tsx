@@ -66,7 +66,7 @@ export function PetMenuGroup() {
 
   return (
     <DropdownMenuGroup>
-      <DropdownMenuLabel>Trợ lý dinh dưỡng</DropdownMenuLabel>
+      <DropdownMenuLabel>Trợ lý Vedora</DropdownMenuLabel>
       <DropdownMenuRadioGroup
         value={pet}
         onValueChange={(value) => {
@@ -85,7 +85,7 @@ export function PetMenuGroup() {
 
 const DRAG_THRESHOLD = 4
 
-const GREETING = "Xin chào! Mình là trợ lý dinh dưỡng của bạn 🌱"
+const GREETING = "Xin chào! Mình là Trợ lý Vedora 🌱"
 const REMINDER = "Hỏi mình về dinh dưỡng nhé!"
 const MESSAGE_VISIBLE_MS = 25_000
 const MESSAGE_INTERVAL_MS = 3 * 60_000
@@ -130,7 +130,7 @@ export function NutritionPet() {
       }}
     >
       <PopoverTrigger
-        aria-label="Mở Trợ lý dinh dưỡng (kéo để di chuyển)"
+        aria-label="Mở Trợ lý Vedora (kéo để di chuyển)"
         style={{ translate: `${offset.x}px ${offset.y}px` }}
         className="group fixed right-4 bottom-20 z-40 touch-none select-none sm:right-6 sm:bottom-6"
         onPointerDown={(event) => {

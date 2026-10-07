@@ -121,7 +121,7 @@ export function DataTable<TData extends RowData>({
           </div>
         )}
 
-        <div className="ml-auto flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2 xl:ml-auto">
           {hasSelection && selectionActions?.(table)}
           <InputGroup className="h-7 w-44 lg:w-56">
             <InputGroupAddon>

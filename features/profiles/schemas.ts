@@ -1,12 +1,15 @@
 import { z } from "zod"
 
+import { newUsernameSchema } from "@/features/auth/schemas"
 import { presignedUploadSchema } from "@/features/shared/lib/storage-upload"
 
-// Mirrors vedora-api's `/profiles` responses and `UpdateProfileDto`.
+// Mirrors vedora-api's `/profiles` responses, `UpdateProfileDto` and the
+// `username` of `UpdateUserDto`.
 // Responses are parsed with these, so the types below are checked at runtime.
 
 export const MAX_FULL_NAME_LENGTH = 100
 export const MAX_BIO_LENGTH = 500
+export const MAX_USERNAME_LENGTH = 30
 
 export const IMAGE_KINDS = ["AVATAR", "COVER"] as const
 export const IMAGE_CONTENT_TYPES = ["image/jpeg", "image/png", "image/webp"]
@@ -44,6 +47,7 @@ export const imageUploadSchema = z.object({
 })
 
 export const profileFormSchema = z.object({
+  username: newUsernameSchema,
   fullName: z
     .string()
     .trim()

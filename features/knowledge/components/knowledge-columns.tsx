@@ -98,7 +98,7 @@ function DeleteDocumentButton({ document }: { document: KnowledgeDocument }) {
             <AlertDialogTitle>Xoá tài liệu này?</AlertDialogTitle>
             <AlertDialogDescription>
               “{document.title}” và văn bản đã trích xuất sẽ bị xoá vĩnh viễn.
-              Trợ lý dinh dưỡng sẽ không dùng tài liệu này nữa.
+              Trợ lý Vedora sẽ không dùng tài liệu này nữa.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

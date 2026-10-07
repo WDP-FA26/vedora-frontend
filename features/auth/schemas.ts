@@ -10,6 +10,12 @@ const username = z
   .min(3, "Tên đăng nhập cần ít nhất 3 ký tự")
   .max(30, "Tên đăng nhập tối đa 30 ký tự")
 
+/** A username being chosen (register, rename); login accepts whatever exists. */
+export const newUsernameSchema = username.regex(
+  /^[a-z0-9._-]+$/,
+  "Chỉ dùng chữ thường, số, dấu chấm, gạch dưới hoặc gạch ngang"
+)
+
 export const loginSchema = z.object({
   username,
   password: z.string().min(1, "Nhập mật khẩu"),
@@ -19,10 +25,7 @@ export const registerSchema = z
   .object({
     lastName: z.string().trim().min(1, "Nhập họ").max(50, "Họ tối đa 50 ký tự"),
     firstName: z.string().trim().min(1, "Nhập tên").max(50, "Tên tối đa 50 ký tự"),
-    username: username.regex(
-      /^[a-z0-9._-]+$/,
-      "Chỉ dùng chữ thường, số, dấu chấm, gạch dưới hoặc gạch ngang"
-    ),
+    username: newUsernameSchema,
     email: z
       .string()
       .trim()

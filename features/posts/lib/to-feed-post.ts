@@ -29,7 +29,15 @@ export function toFeedPost(post: ApiPost): Post {
     body: post.body ?? "",
     tags: [],
     author: toAuthor(post.author),
-    stats: { replies: 0, reposts: 0, sprouts: 0, views: 0 },
+    stats: {
+      replies: post.commentCount,
+      reposts: post.repostCount,
+      sprouts: post.likeCount,
+      views: post.viewCount,
+    },
+    sprouted: post.isLiked,
+    reposted: post.isReposted,
+    bookmarked: post.isBookmarked,
   }
   const videos = post.media.filter((media) => media.type === "VIDEO")
   if (videos.length === 0) return { ...base, kind: "text" }

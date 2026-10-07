@@ -17,6 +17,16 @@ export function useFeedPosts() {
   return { posts: data?.items ?? [], error, isLoading }
 }
 
+/** One post by id. Works signed out for published posts. */
+export function usePost(id: string) {
+  const { accessToken } = useAuth()
+  const { data, error, isLoading } = useSWR(
+    [postKey(id), accessToken] as const,
+    fetchPost
+  )
+  return { post: data ?? null, error, isLoading }
+}
+
 /** Writes a post into the cached feed: prepends it, or replaces it by id. */
 export function useUpsertFeedPost() {
   const { accessToken } = useAuth()
