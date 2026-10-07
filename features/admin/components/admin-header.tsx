@@ -2,7 +2,6 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { ArrowLeftIcon } from "lucide-react"
 
 import {
   Breadcrumb,
@@ -11,7 +10,6 @@ import {
   BreadcrumbList,
   BreadcrumbSeparator,
 } from "@/components/ui/breadcrumb"
-import { Button } from "@/components/ui/button"
 import { SidebarTrigger, useSidebar } from "@/components/ui/sidebar"
 import {
   ADMIN_HOME,
@@ -19,7 +17,7 @@ import {
   isAdminNavActive,
 } from "@/features/admin/data/nav-items"
 
-/** Where you are in the admin area, plus the way back to the main site. */
+/** Where you are in the admin area. */
 export function AdminHeader() {
   const pathname = usePathname()
   const { state, isMobile } = useSidebar()
@@ -60,18 +58,6 @@ export function AdminHeader() {
           )}
         </BreadcrumbList>
       </Breadcrumb>
-
-      <Button
-        variant="outline"
-        size="sm"
-        className="ml-auto"
-        render={<Link href="/home" />}
-        nativeButton={false}
-      >
-        <ArrowLeftIcon aria-hidden />
-        <span className="hidden sm:inline">Về trang chính</span>
-        <span className="sr-only sm:hidden">Về trang chính</span>
-      </Button>
     </header>
   )
 }
