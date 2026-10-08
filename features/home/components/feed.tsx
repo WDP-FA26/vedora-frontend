@@ -1,7 +1,16 @@
 "use client"
 
-import { BookOpenTextIcon, ImageIcon, SproutIcon } from "lucide-react"
+import {
+  BookOpenTextIcon,
+  ClapperboardIcon,
+  RotateCcwIcon,
+  SproutIcon,
+  UtensilsCrossedIcon,
+  UsersIcon,
+} from "lucide-react"
+import { useSWRConfig } from "swr"
 
+import { Button } from "@/components/ui/button"
 import {
   Empty,
   EmptyDescription,
@@ -9,17 +18,19 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from "@/components/ui/empty"
+import { Skeleton } from "@/components/ui/skeleton"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { WeekPlanButton } from "@/features/meal-plan/components/week-plan-button"
-import { MobileTopBar } from "@/features/shared/components/mobile-nav"
-import { AuthorAvatar } from "@/features/shared/components/author-avatar"
-import { ComposeDialog } from "@/features/shared/components/compose-dialog"
 import { useAuth } from "@/features/auth/hooks/use-auth"
 import { getFeed } from "@/features/home/data/posts"
+import type { FeedTab, Post } from "@/features/home/types"
+import { WeekPlanButton } from "@/features/meal-plan/components/week-plan-button"
 import { useFeedPosts } from "@/features/posts/hooks/use-feed-posts"
 import { toFeedPost } from "@/features/posts/lib/to-feed-post"
+import { POSTS_KEY } from "@/features/posts/posts-cache"
+import { AuthorAvatar } from "@/features/shared/components/author-avatar"
+import { ComposeDialog } from "@/features/shared/components/compose-dialog"
+import { MobileTopBar } from "@/features/shared/components/mobile-nav"
 import { PostCard } from "./post-card"
-import type { FeedTab, Post } from "@/features/home/types"
 
 const tabs: { value: FeedTab; label: string }[] = [
   { value: "for-you", label: "Dành cho bạn" },
@@ -28,32 +39,50 @@ const tabs: { value: FeedTab; label: string }[] = [
   { value: "recipes", label: "Công thức" },
 ]
 
-/** Real posts from the API first, then the illustrative fixtures. */
-function withLivePosts(tab: FeedTab, live: Post[]): Post[] {
-  switch (tab) {
-    case "for-you":
-      return [...live, ...getFeed(tab)]
-    case "recipes":
-      return [...live.filter((post) => post.kind === "media"), ...getFeed(tab)]
-    default:
-      return getFeed(tab)
-  }
-}
+const emptyCopy = {
+  "for-you": {
+    icon: SproutIcon,
+    title: "Chưa thấy bài viết công khai",
+    description: "Trong các bài mới tải chưa có chia sẻ công khai. Hãy quay lại sau.",
+  },
+  following: {
+    icon: UsersIcon,
+    title: "Bảng tin Đang theo dõi chưa khả dụng",
+    description: "Trang Khám phá hiện chưa có dữ liệu bài viết từ những người bạn theo dõi.",
+  },
+  blogs: {
+    icon: BookOpenTextIcon,
+    title: "Chưa thấy blog công khai",
+    description: "Trong các bài mới tải chưa có blog công khai.",
+  },
+  recipes: {
+    icon: UtensilsCrossedIcon,
+    title: "Bảng tin công thức chưa khả dụng",
+    description: "Trang Khám phá hiện chưa có nguồn công thức công khai để hiển thị.",
+  },
+} as const
 
 export function Feed() {
-  const { posts } = useFeedPosts()
-  const live = posts.map(toFeedPost)
+  const { posts, error, isLoading } = useFeedPosts()
+  const { accessToken } = useAuth()
+  const { mutate } = useSWRConfig()
+  // The list endpoint may include the author's processing posts. Only
+  // published content belongs in the public Explore timeline.
+  const published = posts.filter((post) => post.status === "PUBLISHED")
+  const forYou = published.map(toFeedPost)
+  const blogs = published.filter((post) => post.type === "BLOG").map(toFeedPost)
+
+  function retry() {
+    if (accessToken) void mutate([POSTS_KEY, accessToken])
+  }
 
   return (
     <Tabs defaultValue="for-you">
-      <div className="sticky top-0 z-20 border-b border-border bg-card/85 backdrop-blur-md backdrop-saturate-150">
+      <div className="sticky top-0 z-20 border-b border-border bg-card/90 backdrop-blur-md">
         <MobileTopBar />
-        <div className="flex items-center">
-          <div className="min-w-0 flex-1">
-            <TabsList
-              variant="timeline"
-              aria-label="Dòng thời gian"
-            >
+        <div className="flex min-w-0 items-center">
+          <div className="min-w-0 flex-1 overflow-x-auto overscroll-x-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            <TabsList variant="timeline" aria-label="Dòng thời gian" className="min-w-max">
               {tabs.map((tab) => (
                 <TabsTrigger key={tab.value} value={tab.value}>
                   {tab.label}
@@ -61,16 +90,24 @@ export function Feed() {
               ))}
             </TabsList>
           </div>
-          <div className="hidden px-2 sm:block">
+          <div className="hidden shrink-0 px-2 sm:block">
             <WeekPlanButton />
           </div>
         </div>
       </div>
 
+      <FeedComposer />
+
       {tabs.map((tab) => (
         <TabsContent key={tab.value} value={tab.value}>
-          <FeedComposer />
-          <Timeline posts={withLivePosts(tab.value, live)} />
+          <Timeline
+            tab={tab.value}
+            livePosts={tab.value === "for-you" ? forYou : tab.value === "blogs" ? blogs : []}
+            mockPosts={getFeed(tab.value)}
+            isLoading={isLoading}
+            hasError={Boolean(error)}
+            onRetry={retry}
+          />
         </TabsContent>
       ))}
     </Tabs>
@@ -81,66 +118,140 @@ function FeedComposer() {
   const { author } = useAuth()
 
   return (
-    <section aria-label="Tạo bài viết" className="px-3 pt-4">
-      <ComposeDialog
-        trigger={
-          <button
-            type="button"
-            aria-label="Tạo bài viết mới"
-            className="flex h-auto w-full cursor-pointer flex-col items-stretch rounded-[1.4rem] border border-border/80 bg-card p-4 text-left shadow-[0_2px_10px_rgba(37,93,50,0.045)] transition-[border-color,box-shadow] outline-none hover:border-primary/20 hover:shadow-[0_10px_24px_rgba(37,93,50,0.08)] focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/30"
-          >
-            <span className="flex w-full items-center gap-3">
-              {author && <AuthorAvatar author={author} size="lg" />}
-              <span className="flex min-h-11 min-w-0 flex-1 items-center rounded-full bg-background px-4 text-sm font-normal text-muted-foreground">
-                Bạn đang nghĩ gì?
-              </span>
-            </span>
-            <span
-              aria-hidden
-              className="mt-3 flex w-full items-center justify-around gap-2 border-t border-border/70 pt-3 text-xs font-semibold text-muted-foreground sm:text-sm"
+    <section aria-label="Tạo bài viết" className="px-3 pt-3">
+      <div className="grid grid-cols-[2.75rem_minmax(0,1fr)_auto] items-center gap-x-2 gap-y-3 rounded-[1.25rem] border border-border/80 bg-card p-3 shadow-[0_2px_10px_rgba(37,93,50,0.04)] sm:gap-x-3 sm:p-4">
+        {author ? (
+          <AuthorAvatar author={author} size="lg" />
+        ) : (
+          <span aria-hidden className="size-11 rounded-full bg-secondary" />
+        )}
+        <ComposeDialog
+          trigger={
+            <Button
+              type="button"
+              variant="outline"
+              shape="pill"
+              size="lg"
+              aria-label="Tạo bài viết mới"
+              className="col-span-2 h-11 min-w-0 justify-start overflow-hidden text-left"
             >
-              <span className="inline-flex items-center gap-1.5">
-                <ImageIcon aria-hidden className="size-4 text-brand-leaf" />
-                Ảnh / video
+              <span className="min-w-0 truncate font-normal text-muted-foreground">
+                Bạn muốn chia sẻ món chay nào hôm nay?
               </span>
-              <span aria-hidden className="h-5 w-px bg-border" />
-              <span className="inline-flex items-center gap-1.5">
-                <BookOpenTextIcon aria-hidden className="size-4 text-brand-orange" />
-                Blog
-              </span>
-            </span>
-          </button>
-        }
-      />
+            </Button>
+          }
+          mediaTrigger={
+            <Button
+              type="button"
+              variant="tool"
+              size="lg"
+              aria-label="Tạo bài viết và thêm video"
+              className="col-span-2 row-start-2 justify-self-start"
+            >
+              <ClapperboardIcon aria-hidden className="size-[1.125rem]" />
+              Thêm video
+            </Button>
+          }
+        />
+        <span
+          title="Trình soạn Blog chưa khả dụng"
+          className="col-start-3 row-start-2 flex flex-col items-start pr-1 text-xs text-muted-foreground sm:text-sm"
+        >
+          <span className="inline-flex items-center gap-1.5">
+            <BookOpenTextIcon aria-hidden className="size-[1.125rem]" />
+            Viết blog
+          </span>
+          <span className="pl-6 text-[0.6875rem]">Chưa hỗ trợ</span>
+        </span>
+      </div>
     </section>
   )
 }
 
-function Timeline({ posts }: { posts: Post[] }) {
-  if (posts.length === 0) {
+function Timeline({
+  tab,
+  livePosts,
+  mockPosts,
+  isLoading,
+  hasError,
+  onRetry,
+}: {
+  tab: FeedTab
+  livePosts: Post[]
+  mockPosts: Post[]
+  isLoading: boolean
+  hasError: boolean
+  onRetry: () => void
+}) {
+  const hasApiSource = tab === "for-you" || tab === "blogs"
+
+  if (livePosts.length === 0 && mockPosts.length === 0 && !isLoading && !hasError) {
+    const { icon: Icon, title, description } = emptyCopy[tab]
     return (
-      <div className="py-10">
-        <Empty>
-          <EmptyHeader>
-            <EmptyMedia variant="icon">
-              <SproutIcon />
-            </EmptyMedia>
-            <EmptyTitle>Chưa có gì ở đây</EmptyTitle>
-            <EmptyDescription>
-              Hãy theo dõi vài đầu bếp và người làm vườn, bài viết của họ sẽ xuất hiện ở đây.
-            </EmptyDescription>
-          </EmptyHeader>
-        </Empty>
+      <div className="px-3 py-6">
+        <div className="rounded-2xl border border-dashed border-border bg-card">
+          <Empty>
+            <EmptyHeader>
+              <EmptyMedia variant="icon">
+                <Icon aria-hidden />
+              </EmptyMedia>
+              <EmptyTitle>{title}</EmptyTitle>
+              <EmptyDescription>{description}</EmptyDescription>
+            </EmptyHeader>
+          </Empty>
+        </div>
       </div>
     )
   }
 
   return (
-    <div className="space-y-3 px-3 pt-3 pb-4">
-      {posts.map((post) => (
-        <PostCard key={post.id} post={post} />
+    <>
+      {hasApiSource && isLoading && livePosts.length === 0 && <FeedSkeleton />}
+      <div className="space-y-3 px-3 pt-3 pb-4">
+        {hasApiSource && hasError && (
+          <div role="alert" className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-destructive/20 bg-card px-4 py-3 text-sm">
+            <span>Không tải được bài viết mới. Kiểm tra kết nối rồi thử lại.</span>
+            <Button type="button" variant="outline" size="sm" shape="pill" onClick={onRetry}>
+              <RotateCcwIcon aria-hidden />
+              Thử lại
+            </Button>
+          </div>
+        )}
+        {livePosts.map((post) => (
+          <PostCard key={post.id} post={post} />
+        ))}
+        {mockPosts.map((post) => (
+          <PostCard key={`static-${post.id}`} post={post} />
+        ))}
+        <div aria-hidden className="h-24 sm:h-0" />
+      </div>
+    </>
+  )
+}
+
+function FeedSkeleton() {
+  return (
+    <div role="status" aria-label="Đang tải bảng tin" className="space-y-3 px-3 py-4">
+      {Array.from({ length: 2 }, (_, index) => (
+        <div key={index} className="rounded-[1.25rem] border border-border bg-card p-4">
+          <div className="flex items-center gap-3">
+            <div className="size-11 overflow-hidden rounded-full">
+              <Skeleton className="size-full" />
+            </div>
+            <div className="flex-1 space-y-2">
+              <Skeleton className="h-4 w-32" />
+              <Skeleton className="h-3 w-20" />
+            </div>
+          </div>
+          <Skeleton className="mt-5 h-4 w-full" />
+          <Skeleton className="mt-2 h-4 w-4/5" />
+          <div className="mt-4 aspect-video overflow-hidden rounded-2xl">
+            <Skeleton className="size-full" />
+          </div>
+          <Skeleton className="mt-4 h-8 w-full" />
+        </div>
       ))}
-      <div aria-hidden className="h-24 sm:h-0" />
+      <span className="sr-only">Đang tải bảng tin</span>
     </div>
   )
 }

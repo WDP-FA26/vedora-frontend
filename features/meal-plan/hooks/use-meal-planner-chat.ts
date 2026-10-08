@@ -18,7 +18,7 @@ import {
 const CONTEXT_MESSAGES = 10
 const MAX_TEXT_LENGTH = 4000
 
-export type ProposalStatus = "applied" | "dismissed"
+export type ProposalStatus = "staged" | "saved" | "dismissed"
 type Statuses = Record<string, ProposalStatus>
 
 export interface Proposal extends MealPlanProposal {
@@ -34,7 +34,7 @@ const WELCOME: PlannerMessage = {
   parts: [
     {
       type: "text",
-      text: "Chào bạn! Mình lên thực đơn tuần theo những gì bạn không ăn, không xếp các nguyên liệu kỵ nhau vào cùng một ngày, và trả lời câu hỏi về dinh dưỡng thực vật. Bạn muốn bắt đầu thế nào?",
+      text: "Bạn muốn lên thực đơn hay tìm hiểu thêm về món chay? Mình có thể giúp bạn chọn món theo sở thích, thời gian nấu và các thành phần cần tránh.",
     },
   ],
 }
@@ -57,6 +57,14 @@ export function messageProposals(message: UIMessage): Proposal[] {
   })
 }
 
+export function messageCannotPropose(message: UIMessage) {
+  return message.parts.some((part) => {
+    if (part.type !== "tool-proposeMealPlan" || part.state !== "output-available") return false
+    const proposal = proposalSchema.safeParse(part.output)
+    return proposal.success && !proposal.data.ok
+  })
+}
+
 // The API takes plain text turns, so a proposal rides along as a note the
 // planner can read: what it offered and whether the user took it.
 function contextText(message: UIMessage, statuses: Statuses) {
@@ -73,8 +81,10 @@ function contextText(message: UIMessage, statuses: Statuses) {
       })
       .join(" | ")
     const status =
-      statuses[proposal.id] === "applied"
-        ? "người dùng đã áp dụng"
+      statuses[proposal.id] === "saved"
+        ? "người dùng đã lưu thực đơn"
+        : statuses[proposal.id] === "staged"
+          ? "người dùng đã đưa vào bản nháp, chưa lưu"
         : statuses[proposal.id] === "dismissed"
           ? "người dùng đã bỏ qua"
           : "chưa áp dụng"
@@ -157,14 +167,16 @@ export function useMealPlannerChat() {
     setProposalStatus: (id: string, next: ProposalStatus) =>
       setStatuses((current) => ({ ...current, [id]: next })),
     error: error ? errorMessage(error) : null,
-    send: (text: string) =>
+    send: (text: string) => {
+      clearError()
       void sendMessage(
         { text },
         {
           headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : undefined,
           body: { statuses },
         }
-      ),
+      )
+    },
     reset: () => {
       void stop()
       clearError()

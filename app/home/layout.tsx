@@ -29,7 +29,7 @@ export default async function MainLayout({ children }: LayoutProps<"/home">) {
   return (
     <PetProvider initial={petPreference}>
       <AuthProvider accessToken={accessToken} user={user}>
-        <div className="mx-auto flex w-full max-w-[79rem] flex-1 justify-center">
+        <div className="vedora-main-shell mx-auto flex w-full max-w-[79rem] flex-1 justify-center">
           <LeftNav />
           <MainColumns rail={<RightRail />}>{children}</MainColumns>
           <MobileBottomNav />

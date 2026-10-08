@@ -16,6 +16,10 @@ import {
 export type MediaUpload = {
   key: string
   previewUrl: string
+  fileName: string
+  durationSec: number | null
+  status: "uploading" | "ready" | "failed"
+  error?: string
   /** 0–100 while uploading; set to 100 once Mux has the whole file. */
   progress: number
   /** Set once the upload finished and the attachment can be posted. */
@@ -24,10 +28,13 @@ export type MediaUpload = {
 
 /** Bookkeeping for one upload, with what's needed to cancel it. */
 type Entry = MediaUpload & {
+  file: File
   token: string
   /** Issued by the API before the file finished uploading. */
   pendingId: string | null
   task: UpChunk | null
+  attempt: number
+  cleanup: Promise<void> | null
 }
 
 /**
@@ -72,9 +79,13 @@ export function useMediaUploads({
   /** Publishes `entries` to React and the form after every change. */
   function sync() {
     setUploads(
-      entries.current.map(({ key, previewUrl, progress, mediaId }) => ({
+      entries.current.map(({ key, previewUrl, fileName, durationSec, status, error, progress, mediaId }) => ({
         key,
         previewUrl,
+        fileName,
+        durationSec,
+        status,
+        error,
         progress,
         mediaId,
       }))
@@ -87,7 +98,9 @@ export function useMediaUploads({
 
   function drop(entry: Entry, { discard }: { discard: boolean }) {
     entries.current = entries.current.filter((other) => other !== entry)
+    entry.attempt += 1
     entry.task?.abort()
+    entry.task = null
     URL.revokeObjectURL(entry.previewUrl)
     const id = entry.mediaId ?? entry.pendingId
     if (discard && id) {
@@ -104,20 +117,32 @@ export function useMediaUploads({
     []
   )
 
-  function fail(entry: Entry, message: string) {
-    if (!entries.current.includes(entry)) return
-    drop(entry, { discard: true })
+  function fail(entry: Entry, attempt: number, message: string) {
+    if (!entries.current.includes(entry) || entry.attempt !== attempt || entry.status !== "uploading") return
+    entry.status = "failed"
+    entry.error = message
+    entry.progress = 0
+    entry.task?.abort()
+    entry.task = null
+    const pendingId = entry.pendingId
+    entry.pendingId = null
+    if (pendingId) {
+      entry.cleanup = discardMedia(entry.token, pendingId).catch(() => {
+        // The API also expires uploads that never became posts.
+      })
+    }
     setError(message)
     sync()
   }
 
-  async function upload(entry: Entry, file: File) {
+  async function upload(entry: Entry, attempt: number) {
     let target: VideoUploadTarget
     try {
       target = await requestVideoUpload(entry.token)
     } catch (err) {
       fail(
         entry,
+        attempt,
         err instanceof ApiError && err.code === "UPLOAD_LIMIT_REACHED"
           ? "Bạn có quá nhiều video chưa đăng. Hãy đăng hoặc bỏ bớt."
           : "Không bắt đầu tải lên được. Thử lại nhé."
@@ -126,29 +151,40 @@ export function useMediaUploads({
     }
     const mediaId = target.media.id
     // Removed while the URL was being issued; already cleaned up.
-    if (!entries.current.includes(entry)) {
+    if (!entries.current.includes(entry) || entry.attempt !== attempt || entry.status !== "uploading") {
       discardMedia(entry.token, mediaId).catch(() => {})
       return
     }
     entry.pendingId = mediaId
 
-    const task = UpChunk.createUpload({
-      endpoint: target.uploadUrl,
-      file,
-      chunkSize: 5120,
-    })
+    let task: UpChunk
+    try {
+      task = UpChunk.createUpload({
+        endpoint: target.uploadUrl,
+        file: entry.file,
+        chunkSize: 5120,
+      })
+    } catch {
+      fail(entry, attempt, "Không bắt đầu tải lên được. Thử lại nhé.")
+      return
+    }
     entry.task = task
     task.on("progress", (event: CustomEvent<number>) => {
+      if (!entries.current.includes(entry) || entry.attempt !== attempt || entry.status !== "uploading") return
       entry.progress = event.detail
       sync()
     })
     task.on("success", () => {
+      if (!entries.current.includes(entry) || entry.attempt !== attempt || entry.status !== "uploading") return
       entry.task = null
+      entry.pendingId = null
       entry.progress = 100
       entry.mediaId = mediaId
+      entry.status = "ready"
+      entry.error = undefined
       sync()
     })
-    task.on("error", () => fail(entry, "Tải video lên thất bại. Thử lại nhé."))
+    task.on("error", () => fail(entry, attempt, "Tải video lên thất bại. Thử lại nhé."))
   }
 
   /** Adds files after the current attachments, up to the post's limit. */
@@ -168,23 +204,60 @@ export function useMediaUploads({
       const entry: Entry = {
         key: crypto.randomUUID(),
         previewUrl: URL.createObjectURL(file),
+        fileName: file.name,
+        durationSec: null,
+        status: "uploading",
+        error: undefined,
         progress: 0,
         mediaId: null,
+        file,
         token: accessToken,
         pendingId: null,
         task: null,
+        attempt: 1,
+        cleanup: null,
       }
       // Reserve the slot now so a second pick can't go over the limit.
       entries.current = [...entries.current, entry]
       sync()
 
       const duration = await readDuration(file)
+      if (!entries.current.includes(entry)) continue
+      entry.durationSec = duration
+      sync()
       if (duration !== null && duration > MAX_VIDEO_DURATION_SEC) {
-        fail(entry, `Mỗi video dài tối đa ${MAX_VIDEO_DURATION_SEC / 60} phút.`)
+        drop(entry, { discard: false })
+        setError(`Mỗi video dài tối đa ${MAX_VIDEO_DURATION_SEC / 60} phút.`)
+        sync()
         continue
       }
-      if (entries.current.includes(entry)) void upload(entry, file)
+      void upload(entry, entry.attempt)
     }
+  }
+
+  /** Retries the same file without clearing the draft or its local preview. */
+  async function retry(key: string) {
+    const entry = entries.current.find((other) => other.key === key)
+    if (!entry || entry.status !== "failed") return
+    if (!accessToken) {
+      const message = "Phiên đăng nhập đã hết hạn. Hãy đăng nhập lại để thử tải lên."
+      entry.error = message
+      setError(message)
+      sync()
+      return
+    }
+    entry.token = accessToken
+    entry.attempt += 1
+    const attempt = entry.attempt
+    entry.status = "uploading"
+    entry.error = undefined
+    entry.progress = 0
+    setError(null)
+    sync()
+    if (entry.cleanup) await entry.cleanup
+    entry.cleanup = null
+    if (!entries.current.includes(entry) || entry.attempt !== attempt) return
+    await upload(entry, attempt)
   }
 
   /** Drops one attachment and deletes it on the API. */
@@ -203,5 +276,5 @@ export function useMediaUploads({
     sync()
   }
 
-  return { uploads, error, add, remove, release }
+  return { uploads, error, add, retry, remove, release }
 }

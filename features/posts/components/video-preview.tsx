@@ -3,10 +3,12 @@
 import {
   MediaControlBar,
   MediaController,
+  MediaFullscreenButton,
   MediaMuteButton,
   MediaPlayButton,
   MediaTimeDisplay,
   MediaTimeRange,
+  MediaVolumeRange,
 } from "media-chrome/react"
 import { cn } from "cn"
 
@@ -22,7 +24,7 @@ export function VideoPreview({
 }: {
   src: string
   label: string
-  /** In a multi-item grid: fill the cell and crop, like X. */
+  /** In a multi-item grid, keep the full video in view. */
   fill?: boolean
 }) {
   return (
@@ -41,7 +43,7 @@ export function VideoPreview({
         preload="metadata"
         className={cn(
           "w-full bg-black",
-          fill ? "h-full object-cover" : "max-h-72 object-contain"
+          fill ? "h-full object-contain" : "max-h-72 object-contain"
         )}
       />
       <MediaControlBar>
@@ -49,6 +51,8 @@ export function VideoPreview({
         <MediaTimeRange />
         <MediaTimeDisplay showDuration />
         <MediaMuteButton />
+        <MediaVolumeRange className="hidden sm:block" />
+        <MediaFullscreenButton />
       </MediaControlBar>
     </MediaController>
   )

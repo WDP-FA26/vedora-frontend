@@ -1,5 +1,6 @@
 "use client"
 
+import { useState } from "react"
 import MuxPlayer from "@mux/mux-player-react/lazy"
 import { ClapperboardIcon, TriangleAlertIcon } from "lucide-react"
 import { cn } from "cn"
@@ -11,7 +12,7 @@ import { useProcessingPost } from "@/features/posts/hooks/use-feed-posts"
 import { MediaPlaceholder } from "@/features/shared/components/media-placeholder"
 import type { Author } from "@/features/shared/types"
 
-/** A post's attachments in X's grid, or their processing state. */
+/** Actual video attachments, or their server-reported processing state. */
 export function PostMedia({ post }: { post: MediaPost }) {
   if (post.status === "processing") return <ProcessingMedia post={post} />
 
@@ -20,7 +21,7 @@ export function PostMedia({ post }: { post: MediaPost }) {
     <MediaGrid className="mt-4">
       {post.media.map((video, index) => (
         <PostVideo
-          key={video.id}
+          key={`${video.id}:${video.playbackId ?? "pending"}`}
           video={video}
           author={post.author}
           label={
@@ -44,21 +45,39 @@ function PostVideo({
   video: MuxVideo
   author: Author
   label: string
-  /** In a multi-item grid: fill the cell and crop, like X. */
+  /** In a multi-item grid, fit within the cell without cropping the video. */
   fill: boolean
 }) {
+  const [loadFailed, setLoadFailed] = useState(false)
+
   if (video.status !== "ready" || !video.playbackId) {
     return (
       <MediaPlaceholder
         tone={author.tone}
-        label={label}
+        label={`Không xử lý được ${label.toLowerCase()}`}
         icon={TriangleAlertIcon}
-        className={fill ? "size-full" : "aspect-video"}
+        className={fill ? "size-full" : "aspect-video max-h-[32rem]"}
       >
-        <span className="absolute bottom-3 left-3 text-sm font-semibold">
+        <span className="absolute bottom-3 left-3 rounded-lg bg-card/90 px-2.5 py-1 text-sm font-medium">
           Không xử lý được video này
         </span>
       </MediaPlaceholder>
+    )
+  }
+
+  if (loadFailed) {
+    return (
+      <div className={cn("flex flex-col items-center justify-center bg-muted text-center text-muted-foreground", fill ? "h-full gap-1 p-2 text-xs" : "min-h-40 gap-3 px-4 text-sm")}>
+        <TriangleAlertIcon aria-hidden className="size-5" />
+        <p>Không tải được video này.</p>
+        <button
+          type="button"
+          className="rounded-full border border-border bg-card px-3 py-1.5 font-medium text-foreground outline-none hover:bg-accent focus-visible:ring-3 focus-visible:ring-ring/30"
+          onClick={() => setLoadFailed(false)}
+        >
+          Thử lại
+        </button>
+      </div>
     )
   }
 
@@ -70,12 +89,13 @@ function PostVideo({
       title={label}
       metadata={{ video_title: label }}
       className={cn(
-        "block w-full",
-        fill ? "h-full [--media-object-fit:cover]" : "max-h-[32rem]"
+        "block w-full bg-black [--media-object-fit:contain]",
+        fill ? "h-full" : "max-h-[32rem]"
       )}
       style={
         fill ? undefined : { aspectRatio: video.aspectRatio?.replace(":", " / ") ?? "16 / 9" }
       }
+      onError={() => setLoadFailed(true)}
     />
   )
 }
@@ -93,7 +113,7 @@ function ProcessingMedia({ post }: { post: MediaPost }) {
             tone={post.author.tone}
             label={`Video của ${post.author.name}`}
             icon={ClapperboardIcon}
-            className={single ? "aspect-video" : "size-full"}
+            className={single ? "aspect-video max-h-[32rem]" : "size-full"}
           />
         ))}
       </MediaGrid>
