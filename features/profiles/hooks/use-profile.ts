@@ -11,11 +11,11 @@ import type { ApiProfile } from "@/features/profiles/schemas"
 /** A public profile by user id. Works signed out. */
 export function useProfile(id: string) {
   const { accessToken } = useAuth()
-  const { data, error, isLoading } = useSWR(
+  const { data, error, isLoading, mutate } = useSWR(
     [profileKey(id), accessToken] as const,
     fetchProfile
   )
-  return { profile: data ?? null, error, isLoading }
+  return { profile: data ?? null, error, isLoading, retry: () => mutate() }
 }
 
 /**

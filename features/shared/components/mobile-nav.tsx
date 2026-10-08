@@ -11,10 +11,11 @@ import { Button } from "@/components/ui/button"
 import { Sheet, SheetContent, SheetTitle, SheetTrigger } from "@/components/ui/sheet"
 import { ThemeSwitcher } from "@/components/theme-switcher"
 import { AuthorAvatar } from "@/features/shared/components/author-avatar"
+import { NutritionPet } from "@/features/shared/components/nutrition-pet"
 import { ComposeDialog } from "@/features/shared/components/compose-dialog"
 import { useAuth } from "@/features/auth/hooks/use-auth"
 import { useLogout } from "@/features/auth/hooks/use-logout"
-import { NavLinks } from "./left-nav"
+import { isNavItemCurrent, NavLinks } from "./left-nav"
 import { navItems } from "@/features/shared/data/nav-items"
 import { Wordmark } from "./wordmark"
 
@@ -86,52 +87,73 @@ export function MobileTopBar() {
   )
 }
 
-/** Phone-only bottom tab bar plus the floating compose button. */
+/** Phone-only bottom tab bar, with compose in the bar instead of over the feed. */
 export function MobileBottomNav() {
   const pathname = usePathname()
+  const { user } = useAuth()
+  const items = navItems.filter((item) => item.href !== "/home/settings")
+  const isCurrent = (href: string) => isNavItemCurrent(pathname, href, user?.id)
 
   return (
-    <>
-      <ComposeDialog
-        trigger={
-          <Button
-            aria-label="Tạo bài viết mới"
-            variant="raised"
-            size="icon-fab"
-            shape="pill"
-            className="fixed right-4 bottom-[calc(4.5rem+env(safe-area-inset-bottom))] z-30 sm:hidden"
-          >
-            <PlusIcon aria-hidden strokeWidth={2.25} />
-          </Button>
-        }
-      />
-      <nav
-        aria-label="Điều hướng chính"
-        className="fixed inset-x-0 bottom-0 z-30 border-t border-border bg-card/90 pb-[env(safe-area-inset-bottom)] backdrop-blur-md sm:hidden"
+    <nav
+      aria-label="Điều hướng chính"
+      className="fixed inset-x-0 bottom-0 z-30 border-t border-border bg-card/90 pb-[env(safe-area-inset-bottom)] shadow-[0_-6px_22px_rgba(37,93,50,0.06)] backdrop-blur-md sm:hidden"
+    >
+      <ul className="flex h-16 items-center justify-around">
+        {items.slice(0, 2).map((item) => (
+          <MobileNavItem key={item.href} item={item} current={isCurrent(item.href)} />
+        ))}
+        <li className="flex flex-1 items-center justify-center">
+          <div className="-translate-y-1 rounded-full ring-4 ring-card">
+            <ComposeDialog
+              trigger={
+                <Button
+                  aria-label="Tạo bài viết mới"
+                  variant="raised"
+                  size="icon-xl"
+                  shape="pill"
+                >
+                  <PlusIcon aria-hidden strokeWidth={2.25} />
+                </Button>
+              }
+            />
+          </div>
+        </li>
+        {items.slice(2, 4).map((item) => (
+          <MobileNavItem key={item.href} item={item} current={isCurrent(item.href)} />
+        ))}
+        <li className="flex flex-1 items-center justify-center">
+          <NutritionPet compact inline />
+        </li>
+        {items.slice(4).map((item) => (
+          <MobileNavItem key={item.href} item={item} current={isCurrent(item.href)} />
+        ))}
+      </ul>
+    </nav>
+  )
+}
+
+function MobileNavItem({
+  item,
+  current,
+}: {
+  item: (typeof navItems)[number]
+  current: boolean
+}) {
+  const Icon = item.icon
+  return (
+    <li className="flex h-full flex-1">
+      <Link
+        href={item.href}
+        aria-label={item.label}
+        aria-current={current ? "page" : undefined}
+        className={cn(
+          "flex h-full flex-1 items-center justify-center text-muted-foreground outline-none focus-visible:bg-accent",
+          current && "text-primary"
+        )}
       >
-        <ul className="flex h-14 items-stretch justify-around">
-          {navItems
-            .filter((item) => item.href !== "/home/settings")
-            .map(({ href, label, icon: Icon }) => {
-              const current = pathname === href
-              return (
-                <li key={href} className="flex flex-1">
-                  <Link
-                    href={href}
-                    aria-label={label}
-                    aria-current={current ? "page" : undefined}
-                    className={cn(
-                      "flex flex-1 items-center justify-center text-muted-foreground outline-none focus-visible:bg-accent",
-                      current && "text-primary"
-                    )}
-                  >
-                    <Icon aria-hidden className="size-6" strokeWidth={current ? 2.25 : 1.75} />
-                  </Link>
-                </li>
-              )
-            })}
-        </ul>
-      </nav>
-    </>
+        <Icon aria-hidden className="size-6" strokeWidth={current ? 2.25 : 1.75} />
+      </Link>
+    </li>
   )
 }

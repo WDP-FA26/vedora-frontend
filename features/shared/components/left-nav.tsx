@@ -17,6 +17,7 @@ import { ThemeMenuGroup } from "@/components/theme-switcher"
 import { AuthorAvatar } from "@/features/shared/components/author-avatar"
 import { ComposeDialog } from "@/features/shared/components/compose-dialog"
 import { useAuth } from "@/features/auth/hooks/use-auth"
+import { profilePath } from "@/features/profiles/profiles-cache"
 import { useLogout } from "@/features/auth/hooks/use-logout"
 import { navItems } from "@/features/shared/data/nav-items"
 import { Wordmark } from "./wordmark"
@@ -27,7 +28,7 @@ import { Wordmark } from "./wordmark"
  */
 export function LeftNav() {
   return (
-    <header className="sticky top-0 hidden h-dvh w-[4.5rem] shrink-0 flex-col items-center px-2 py-4 sm:flex xl:w-[16.25rem] xl:items-stretch xl:px-4">
+    <header className="sticky top-0 hidden h-dvh w-[4.5rem] shrink-0 flex-col items-center px-2 py-4 sm:flex xl:w-[14rem] xl:items-stretch xl:px-4">
       <Wordmark compact className="xl:hidden" />
       <Wordmark className="px-2 max-xl:hidden" />
 
@@ -60,12 +61,13 @@ export function NavLinks({
   onNavigate?: () => void
 }) {
   const pathname = usePathname()
+  const { user } = useAuth()
 
   return (
     <nav aria-label="Điều hướng chính" className={className}>
       <ul className="flex flex-col gap-1">
         {navItems.map(({ href, label, icon: Icon, isNew }) => {
-          const current = pathname === href
+          const current = isNavItemCurrent(pathname, href, user?.id)
           return (
             <li key={href}>
               <Link
@@ -112,6 +114,15 @@ export function NavLinks({
         })}
       </ul>
     </nav>
+  )
+}
+
+export function isNavItemCurrent(pathname: string, href: string, userId?: string) {
+  return (
+    pathname === href ||
+    (href === "/home/profile" &&
+      (pathname === "/home/dietary" ||
+        (userId !== undefined && pathname === profilePath(userId))))
   )
 }
 

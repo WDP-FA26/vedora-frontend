@@ -1,11 +1,19 @@
 import Link from "next/link"
+import { cookies } from "next/headers"
 
 import { Button } from "@/components/ui/button"
 import { AuthProvider } from "@/features/auth/components/auth-provider"
 import { getAccessToken, getAuth } from "@/features/auth/server/session"
 import { LeftNav } from "@/features/shared/components/left-nav"
 import { MobileBottomNav } from "@/features/shared/components/mobile-nav"
+import { PetProvider } from "@/features/shared/components/nutrition-pet"
 import { RightRail } from "@/features/shared/components/right-rail"
+import {
+  PET_COOKIE,
+  PET_OFFSET_COOKIE,
+  parseOffset,
+  parsePet,
+} from "@/features/shared/lib/pet-preference"
 import { Wordmark } from "@/features/shared/components/wordmark"
 
 /**
@@ -33,8 +41,15 @@ export default async function PublicLayout({ children }: { children: React.React
     )
   }
 
+  const cookieStore = await cookies()
+  const petPreference = {
+    pet: parsePet(cookieStore.get(PET_COOKIE)?.value),
+    offset: parseOffset(cookieStore.get(PET_OFFSET_COOKIE)?.value),
+  }
+
   return (
-    <AuthProvider accessToken={accessToken} user={user}>
+    <PetProvider initial={petPreference}>
+      <AuthProvider accessToken={accessToken} user={user}>
         <div className="mx-auto flex w-full max-w-[79rem] flex-1 justify-center">
           <LeftNav />
           <main className="min-h-dvh w-full max-w-[37.5rem] min-w-0 bg-card sm:border-x sm:border-border">
@@ -43,6 +58,7 @@ export default async function PublicLayout({ children }: { children: React.React
           <RightRail />
           <MobileBottomNav />
         </div>
-    </AuthProvider>
+      </AuthProvider>
+    </PetProvider>
   )
 }

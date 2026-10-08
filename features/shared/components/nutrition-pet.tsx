@@ -111,7 +111,10 @@ function usePetMessage() {
   return message
 }
 
-export function NutritionPet() {
+export function NutritionPet({
+  compact = false,
+  inline = false,
+}: { compact?: boolean; inline?: boolean } = {}) {
   const message = usePetMessage()
   const { pet, offset: savedOffset, setOffset } = usePet()
   const [dragOffset, setDragOffset] = useState<PetOffset | null>(null)
@@ -130,11 +133,22 @@ export function NutritionPet() {
       }}
     >
       <PopoverTrigger
-        aria-label="Mở Trợ lý Vedora (kéo để di chuyển)"
-        style={{ translate: `${offset.x}px ${offset.y}px` }}
-        className="group fixed right-4 bottom-20 z-40 touch-none select-none sm:right-6 sm:bottom-6"
+        aria-label={inline ? "Mở Trợ lý Vedora" : "Mở Trợ lý Vedora (kéo để di chuyển)"}
+        style={inline ? undefined : { translate: `${offset.x}px ${offset.y}px` }}
+        render={
+          <button
+            type="button"
+            className={`group cursor-pointer touch-none select-none ${
+              inline
+                ? "inline-flex h-12 w-full items-center justify-center rounded-full transition-colors hover:bg-accent focus-visible:ring-3 focus-visible:ring-ring/50"
+                : compact
+                  ? "fixed right-3 bottom-[calc(5rem+env(safe-area-inset-bottom))] z-40 hidden sm:flex sm:right-4 sm:bottom-5"
+                  : "fixed right-4 bottom-20 z-40 sm:right-6 sm:bottom-6"
+            }`}
+          />
+        }
         onPointerDown={(event) => {
-          if (event.button !== 0) return
+          if (inline || event.button !== 0) return
           suppressClick.current = false
           event.currentTarget.setPointerCapture(event.pointerId)
           drag.current = { startX: event.clientX, startY: event.clientY, origin: offset, moved: false }
@@ -166,14 +180,20 @@ export function NutritionPet() {
         }}
       >
         <span className="flex items-end gap-2">
-          <span
-            role="status"
-            data-visible={(message !== null && !chatOpen) || undefined}
-            className="mb-16 max-w-52 rounded-2xl rounded-br-sm border border-border bg-popover px-3 py-1.5 text-sm font-medium text-popover-foreground pointer-events-none opacity-0 shadow-sm transition-opacity duration-300 data-visible:pointer-events-auto data-visible:opacity-100 sm:group-hover:opacity-100 group-data-popup-open:invisible"
-          >
-            {message ?? REMINDER}
-          </span>
-          {pet === "salad" ? <SaladPet /> : <SproutPet />}
+          {!compact && (
+            <span
+              role="status"
+              data-visible={(message !== null && !chatOpen) || undefined}
+              className="mb-16 max-w-52 rounded-2xl rounded-br-sm border border-border bg-popover px-3 py-1.5 text-sm font-medium text-popover-foreground pointer-events-none opacity-0 shadow-sm transition-opacity duration-300 data-visible:pointer-events-auto data-visible:opacity-100 sm:group-hover:opacity-100 group-data-popup-open:invisible"
+            >
+              {message ?? REMINDER}
+            </span>
+          )}
+          {pet === "salad" ? (
+            <SaladPet compact={compact} inline={inline} />
+          ) : (
+            <SproutPet compact={compact} inline={inline} />
+          )}
         </span>
       </PopoverTrigger>
       <PopoverContent
@@ -188,8 +208,14 @@ export function NutritionPet() {
   )
 }
 
-const petClassName =
-  "size-24 animate-pet-bob drop-shadow-md transition-transform group-hover:scale-110 sm:size-32"
+function petClassName(compact = false, inline = false) {
+  if (inline) {
+    return "size-10 animate-pet-bob drop-shadow-sm transition-transform group-hover:scale-110"
+  }
+  return compact
+    ? "size-12 animate-pet-bob drop-shadow-md transition-transform group-hover:scale-110 sm:size-16"
+    : "size-24 animate-pet-bob drop-shadow-md transition-transform group-hover:scale-110 sm:size-32"
+}
 
 function Eyes({ cy }: { cy: number }) {
   return (
@@ -202,9 +228,9 @@ function Eyes({ cy }: { cy: number }) {
   )
 }
 
-function SproutPet() {
+function SproutPet({ compact = false, inline = false }: { compact?: boolean; inline?: boolean }) {
   return (
-    <svg viewBox="0 0 64 72" className={petClassName} aria-hidden>
+    <svg viewBox="0 0 64 72" className={petClassName(compact, inline)} aria-hidden>
       <g className="origin-[32px_22px] animate-pet-sway">
         <path d="M32 22 C32 14 32 10 32 8" stroke="var(--color-primary)" strokeWidth="2.5" fill="none" strokeLinecap="round" />
         <path d="M32 10 C24 2 16 6 18 12 C22 14 28 13 32 10Z" fill="oklch(0.72 0.17 145)" />
@@ -222,9 +248,9 @@ function SproutPet() {
 
 const limb = { stroke: "oklch(0.3 0.03 60)", strokeWidth: 2.2, fill: "none", strokeLinecap: "round" as const }
 
-function SaladPet() {
+function SaladPet({ compact = false, inline = false }: { compact?: boolean; inline?: boolean }) {
   return (
-    <svg viewBox="0 0 64 72" className={petClassName} aria-hidden>
+    <svg viewBox="0 0 64 72" className={petClassName(compact, inline)} aria-hidden>
       {/* legs */}
       <g className="origin-[26px_56px] animate-pet-step">
         <path d="M26 56 L24 67 L20 68" {...limb} />

@@ -14,8 +14,8 @@ export function MainColumns({ children, rail }: { children: ReactNode; rail: Rea
     <>
       <main
         className={cn(
-          "min-h-dvh w-full min-w-0 bg-card sm:border-x sm:border-border",
-          !wide && "max-w-[37.5rem]"
+          "min-h-dvh w-full min-w-0 bg-background sm:border-x sm:border-border",
+          !wide && "max-w-[37.5rem] xl:max-w-[42rem]"
         )}
       >
         {children}
