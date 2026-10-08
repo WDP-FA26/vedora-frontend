@@ -9,9 +9,14 @@ import { authorPostsKey } from "@/features/posts/posts-cache"
 /** First page of the published posts by profile `id`, newest first. Works signed out. */
 export function useProfilePosts(id: string) {
   const { accessToken } = useAuth()
-  const { data, error, isLoading } = useSWR(
+  const { data, error, isLoading, mutate } = useSWR(
     [authorPostsKey(id), accessToken] as const,
     fetchPostPage
   )
-  return { posts: data?.items ?? [], error, isLoading }
+  return {
+    posts: data?.items ?? [],
+    error,
+    isLoading,
+    retry: () => mutate(),
+  }
 }

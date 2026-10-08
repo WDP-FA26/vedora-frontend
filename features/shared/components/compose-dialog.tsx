@@ -88,8 +88,8 @@ export function ComposeDialog({ trigger }: { trigger: React.ReactElement }) {
               <TypeOption
                 icon={BookOpenTextIcon}
                 title="Blog"
-                description="Bài đọc dài: công thức chi tiết, câu chuyện, nghiên cứu."
-                badge="Sắp ra mắt"
+                description="Bài viết dài về công thức, câu chuyện và nghiên cứu."
+                badge="Chưa hỗ trợ"
               />
             </div>
           </div>

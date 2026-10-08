@@ -39,7 +39,7 @@ export function MediaPlaceholder({
       aria-label={label}
       className={cn(
         "relative isolate flex items-center justify-center overflow-hidden",
-        "bg-[radial-gradient(circle_at_1px_1px,color-mix(in_oklch,currentColor_14%,transparent)_1px,transparent_0)] bg-size-[14px_14px]",
+        "bg-[radial-gradient(circle_at_1px_1px,color-mix(in_oklch,currentColor_8%,transparent)_1px,transparent_0)] bg-size-[18px_18px]",
         toneClasses[tone],
         className
       )}

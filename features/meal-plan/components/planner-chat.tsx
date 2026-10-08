@@ -92,11 +92,11 @@ export function PlannerChat({
   })
 
   return (
-    <div className="flex flex-col gap-6 px-4 pt-4 sm:px-5 lg:min-h-[calc(100dvh-2.8125rem)]">
+    <div className="flex flex-col gap-6 px-4 pt-4 sm:px-5 lg:h-[calc(100dvh-2.8125rem)] lg:min-h-0">
       <div
         aria-label="Cuộc trò chuyện"
         aria-live="polite"
-        className="flex flex-1 flex-col gap-6"
+        className="flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto overscroll-contain pb-2"
       >
         {messages.map((message) => {
           const text = messageText(message)
@@ -170,11 +170,11 @@ export function PlannerChat({
             ))}
           </BubbleGroup>
         )}
+        <div ref={end} aria-hidden className="h-px shrink-0 scroll-mb-40" />
       </div>
 
       <div
-        ref={end}
-        className="sticky bottom-[calc(3.5rem+env(safe-area-inset-bottom))] flex scroll-mb-24 flex-col gap-2 bg-card pt-2 pb-4 sm:bottom-0"
+        className="sticky bottom-[calc(4rem+env(safe-area-inset-bottom))] z-10 -mx-4 flex scroll-mb-24 flex-col gap-2 border-t border-border/80 bg-card/95 px-4 pt-3 pb-4 shadow-[0_-8px_22px_rgba(20,38,26,0.04)] backdrop-blur-lg sm:bottom-0 sm:-mx-5 sm:px-5"
       >
         <form onSubmit={onSubmit}>
           <Controller
@@ -190,7 +190,7 @@ export function PlannerChat({
                     placeholder="Nhờ lên thực đơn, đổi món, hoặc hỏi về dinh dưỡng"
                     maxLength={MAX_CHAT_MESSAGE_LENGTH}
                     rows={1}
-                    className="max-h-28 min-h-0"
+                    className="max-h-32 min-h-12"
                     onKeyDown={(event) => {
                       if (event.key !== "Enter" || event.shiftKey || event.nativeEvent.isComposing)
                         return

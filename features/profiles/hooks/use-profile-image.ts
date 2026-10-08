@@ -51,13 +51,15 @@ export function useProfileImage() {
   const [error, setError] = useState<string | null>(null)
 
   async function run(kind: ImageKind, change: (token: string) => Promise<void>) {
-    if (!accessToken || pending) return
+    if (!accessToken) throw new Error("Phiên đăng nhập đã hết hạn.")
+    if (pending) throw new Error("Đang cập nhật ảnh khác.")
     setError(null)
     setPending(kind)
     try {
       await change(accessToken)
     } catch (err) {
       setError(failureMessage(err))
+      throw err
     } finally {
       setPending(null)
     }
@@ -66,11 +68,11 @@ export function useProfileImage() {
   function upload(kind: ImageKind, file: File) {
     if (!IMAGE_CONTENT_TYPES.includes(file.type)) {
       setError("Ảnh phải là JPEG, PNG hoặc WebP.")
-      return Promise.resolve()
+      return Promise.reject(new Error("Ảnh phải là JPEG, PNG hoặc WebP."))
     }
     if (file.size > MAX_IMAGE_MB[kind] * 1024 * 1024) {
       setError(`Ảnh lớn hơn ${MAX_IMAGE_MB[kind]} MB. Chọn ảnh nhỏ hơn nhé.`)
-      return Promise.resolve()
+      return Promise.reject(new Error(`Ảnh lớn hơn ${MAX_IMAGE_MB[kind]} MB.`))
     }
     return run(kind, async (token) => {
       const target = await requestImageUpload(token, kind, file)
@@ -87,5 +89,5 @@ export function useProfileImage() {
     })
   }
 
-  return { pending, error, upload, remove }
+  return { pending, error, upload, remove, clearError: () => setError(null) }
 }

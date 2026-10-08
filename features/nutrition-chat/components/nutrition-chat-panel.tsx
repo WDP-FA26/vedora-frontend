@@ -260,7 +260,7 @@ export function NutritionChatPanel({ onClose }: { onClose: () => void }) {
         />
       </form>
       <PopoverDescription className="text-center">
-        Bản dùng thử, vài lượt hỏi mỗi ngày. Chỉ mang tính tham khảo, không thay thế bác sĩ
+        Mỗi ngày có giới hạn lượt hỏi. Thông tin chỉ mang tính tham khảo, không thay thế tư vấn y tế.
       </PopoverDescription>
     </div>
   )

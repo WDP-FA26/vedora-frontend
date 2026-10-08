@@ -53,7 +53,7 @@ export function PostCard({ post }: { post: Post }) {
     <article
       ref={viewRef}
       aria-label={`Bài viết của ${post.author.name}`}
-      className="flex gap-3 border-b border-border px-4 pt-6 pb-4 transition-colors hover:bg-[color-mix(in_oklch,var(--card),var(--muted)_45%)]"
+      className="flex gap-3 rounded-[1.5rem] border border-border/80 bg-card px-4 pt-5 pb-4 shadow-[0_2px_10px_rgba(37,93,50,0.045)] transition-[transform,border-color,box-shadow] duration-200 hover:-translate-y-0.5 hover:border-primary/20 hover:shadow-[0_12px_26px_rgba(37,93,50,0.09)]"
     >
       {profileHref ? (
         <Link

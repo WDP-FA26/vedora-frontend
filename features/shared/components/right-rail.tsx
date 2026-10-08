@@ -1,8 +1,9 @@
 "use client"
 
 import { useEffect, useRef, useState } from "react"
+import Image from "next/image"
 import Link from "next/link"
-import { CheckIcon, SearchIcon, SparklesIcon } from "lucide-react"
+import { ArrowRightIcon, CheckIcon, SearchIcon, SparklesIcon } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -62,6 +63,8 @@ export function RightRail() {
         </InputGroup>
       </form>
 
+      <AiPanel />
+
       <UpgradePanel />
 
       <Panel title="Nhà sáng tạo nên theo dõi">
@@ -86,6 +89,56 @@ export function RightRail() {
         </ul>
       </nav>
     </aside>
+  )
+}
+
+function AiPanel() {
+  return (
+    <section className="overflow-hidden rounded-[1.6rem] border border-border/80 bg-card shadow-[0_4px_18px_rgba(37,93,50,0.05)]">
+      <header className="flex items-center gap-3 px-4 pt-4 pb-3">
+        <span className="grid size-10 place-items-center rounded-2xl bg-secondary text-primary">
+          <SparklesIcon aria-hidden className="size-5" />
+        </span>
+        <span className="min-w-0">
+          <span className="block text-[1.0625rem] font-bold tracking-[-0.02em]">
+            Dinh dưỡng & thực đơn
+          </span>
+        </span>
+      </header>
+
+      <Link
+        href="/home/meal-planner"
+        className="group relative mx-3 block overflow-hidden rounded-2xl bg-brand-forest p-4 text-white outline-none transition hover:shadow-md focus-visible:ring-3 focus-visible:ring-ring/50"
+      >
+        <span className="relative z-10 block max-w-[68%]">
+          <span className="block text-base leading-snug font-bold">
+            Thực đơn bữa ăn theo tuần
+          </span>
+          <span className="mt-1 block text-xs leading-5 text-white/75">
+            Sắp xếp bữa sáng, trưa và tối trong tuần, đổi món cùng Trợ lý Vedora khi cần.
+          </span>
+          <span className="mt-3 inline-flex items-center gap-1.5 text-xs font-bold text-brand-lemon">
+            Xem thực đơn tuần
+            <ArrowRightIcon aria-hidden className="size-3.5 transition-transform group-hover:translate-x-0.5" />
+          </span>
+        </span>
+        <span aria-hidden className="absolute right-1 bottom-1 size-24 rotate-3">
+          <Image src="/carrot-sticker.png" alt="" width={256} height={256} className="h-full w-full object-contain drop-shadow-md" />
+        </span>
+      </Link>
+
+      <div className="grid gap-2 p-3">
+        <div className="rounded-2xl bg-background px-3.5 py-3">
+          <div className="flex items-center gap-2 text-sm font-semibold">
+            <SparklesIcon aria-hidden className="size-4 text-brand-leaf" />
+            Trợ lý dinh dưỡng
+          </div>
+          <p className="mt-1 pl-6 text-xs leading-5 text-muted-foreground">
+            Hỏi về nguyên liệu và dinh dưỡng thực vật cùng Trợ lý Vedora.
+          </p>
+        </div>
+      </div>
+    </section>
   )
 }
 
