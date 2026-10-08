@@ -29,11 +29,15 @@ export const getAuth = cache(async (): Promise<CurrentUser | null> => {
   return response.json()
 })
 
-/** Like `getAuth`, but sends signed-out visitors to `/login`. */
+/**
+ * Like `getAuth`, but sends signed-out visitors to `/login`. A token the API
+ * rejects goes through `/auth/session-expired`, which clears the cookies first.
+ */
 export async function requireAuth(returnTo?: string): Promise<CurrentUser> {
   const user = await getAuth()
   if (!user) {
-    redirect(returnTo ? `/login?next=${encodeURIComponent(returnTo)}` : "/login")
+    const query = returnTo ? `?next=${encodeURIComponent(returnTo)}` : ""
+    redirect(`/auth/session-expired${query}`)
   }
   return user
 }
