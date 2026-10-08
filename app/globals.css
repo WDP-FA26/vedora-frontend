@@ -318,6 +318,13 @@
     outline-color: var(--ring);
   }
 }
+
+@layer components {
+  .vedora-main-shell:has(> main[data-wide="true"]) {
+    max-width: 112rem;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

@@ -78,7 +78,9 @@ export function MobileTopBar() {
           variant="ghost"
           size="icon-lg"
           shape="pill"
-          aria-label="Tìm kiếm"
+          aria-label="Tìm kiếm chưa khả dụng"
+          title="Tìm kiếm đang được cập nhật"
+          disabled
         >
           <SearchIcon aria-hidden className="size-5" />
         </Button>
