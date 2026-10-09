@@ -73,6 +73,9 @@
   --animate-feature-pop: feature-pop 4s ease-out infinite;
   --animate-feature-twinkle: feature-twinkle 2.4s ease-in-out infinite;
   --animate-feature-travel: feature-travel 3s ease-in-out infinite;
+  --animate-meal-rise: meal-rise 3.2s ease-in-out infinite alternate;
+  --animate-meal-spin: meal-spin 16s linear infinite;
+  --animate-meal-steam: meal-steam 2.6s ease-out infinite;
 
   @keyframes pet-wave {
     0%, 100% {
@@ -200,6 +203,35 @@
     }
     100% {
       offset-distance: 100%;
+      opacity: 0;
+    }
+  }
+
+  @keyframes meal-rise {
+    from {
+      transform: translateY(5px);
+    }
+    to {
+      transform: translateY(0);
+    }
+  }
+
+  @keyframes meal-spin {
+    to {
+      transform: rotate(360deg);
+    }
+  }
+
+  @keyframes meal-steam {
+    0% {
+      transform: translateY(2px);
+      opacity: 0;
+    }
+    40% {
+      opacity: 0.9;
+    }
+    100% {
+      transform: translateY(-4px);
       opacity: 0;
     }
   }

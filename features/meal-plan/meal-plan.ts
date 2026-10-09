@@ -40,6 +40,7 @@ const sectionSchema = z.enum(MEAL_SECTIONS)
 const mealRecipeSchema = z.object({
   id: z.string(),
   title: z.string(),
+  imageUrl: z.string().nullable(),
   servings: z.number(),
   prepMinutes: z.number().nullable(),
   cookMinutes: z.number().nullable(),

@@ -140,7 +140,7 @@ export function ProfileView({ id }: { id: string }) {
           </Link>
         )}
 
-        {isOwn && <DietaryOverviewCard userId={profile.id} />}
+        {isOwn && <DietaryOverviewCard />}
       </div>
 
       <ProfilePosts id={profile.id} count={profile.postCount} />

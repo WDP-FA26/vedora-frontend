@@ -3,7 +3,7 @@ import { z } from "zod"
 import { API_URL } from "@/features/auth/lib/api"
 import { sendJson } from "@/features/shared/lib/api-client"
 
-// Mirrors vedora-api's `/dietary` routes: what the signed-in user does not eat.
+// Mirrors vedora-api's `/dietary` routes: what the signed-in user does not eat, and what they like.
 
 export const DIETARY_PATH = "/home/dietary"
 
@@ -21,20 +21,34 @@ const dietaryOptionsSchema = z.object({
 const dietaryRestrictionsSchema = z.object({
   ingredients: z.array(namedRefSchema),
   groups: z.array(namedRefSchema),
+  liked: z.array(namedRefSchema),
 })
 
 export type DietaryOptions = z.infer<typeof dietaryOptionsSchema>
 export type DietaryRestrictions = z.infer<typeof dietaryRestrictionsSchema>
 
 export const MAX_AVOIDED_INGREDIENTS = 200
+export const MAX_LIKED_INGREDIENTS = 100
 
-/** Ids of everything the user avoids, as the API takes them. */
-export const dietaryFormSchema = z.object({
-  groupIds: z.array(z.string()),
-  ingredientIds: z
-    .array(z.string())
-    .max(MAX_AVOIDED_INGREDIENTS, `Chọn tối đa ${MAX_AVOIDED_INGREDIENTS} nguyên liệu.`),
-})
+/** Ids of what the user avoids and likes, as the API takes them. */
+export const dietaryFormSchema = z
+  .object({
+    groupIds: z.array(z.string()),
+    ingredientIds: z
+      .array(z.string())
+      .max(MAX_AVOIDED_INGREDIENTS, `Chọn tối đa ${MAX_AVOIDED_INGREDIENTS} nguyên liệu.`),
+    likedIngredientIds: z
+      .array(z.string())
+      .max(MAX_LIKED_INGREDIENTS, `Chọn tối đa ${MAX_LIKED_INGREDIENTS} nguyên liệu.`),
+  })
+  .refine(
+    ({ ingredientIds, likedIngredientIds }) =>
+      !likedIngredientIds.some((id) => ingredientIds.includes(id)),
+    {
+      path: ["likedIngredientIds"],
+      message: "Một nguyên liệu không thể vừa thích vừa nằm trong danh sách không ăn.",
+    }
+  )
 export type DietaryFormValues = z.infer<typeof dietaryFormSchema>
 
 type Key = readonly [string, string]

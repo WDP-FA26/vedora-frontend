@@ -53,7 +53,7 @@ export function PostCard({ post }: { post: Post }) {
     <article
       ref={viewRef}
       aria-label={`Bài viết của ${post.author.name}`}
-      className="flex min-w-0 gap-3 rounded-[1.35rem] border border-border/80 bg-card px-4 py-4 shadow-[0_2px_10px_rgba(37,93,50,0.035)] sm:px-5"
+      className="flex min-w-0 gap-3 border-b border-border px-4 pt-4 pb-2 sm:px-5"
     >
       {profileHref ? (
         <Link
@@ -313,7 +313,7 @@ export function PostActions({ post }: { post: Post }) {
     <div
       role="group"
       aria-label="Hành động với bài viết"
-      className="mt-3 -ml-2 flex flex-wrap items-center justify-between gap-x-1 gap-y-1 border-t border-border/65 pt-2"
+      className="mt-2 -ml-2 flex flex-wrap items-center justify-between gap-x-1 gap-y-1"
     >
       <ActionStat label="Bình luận" count={post.stats.replies} icon={MessageCircleIcon} />
       {live ? (

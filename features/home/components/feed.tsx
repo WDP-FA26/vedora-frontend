@@ -118,8 +118,8 @@ function FeedComposer() {
   const { author } = useAuth()
 
   return (
-    <section aria-label="Tạo bài viết" className="px-3 pt-3">
-      <div className="grid grid-cols-[2.75rem_minmax(0,1fr)_auto] items-center gap-x-2 gap-y-3 rounded-[1.25rem] border border-border/80 bg-card p-3 shadow-[0_2px_10px_rgba(37,93,50,0.04)] sm:gap-x-3 sm:p-4">
+    <section aria-label="Tạo bài viết" className="border-b border-border">
+      <div className="flex items-center gap-2 px-4 py-3 sm:gap-3 sm:px-5">
         {author ? (
           <AuthorAvatar author={author} size="lg" />
         ) : (
@@ -133,7 +133,7 @@ function FeedComposer() {
               shape="pill"
               size="lg"
               aria-label="Tạo bài viết mới"
-              className="col-span-2 h-11 min-w-0 justify-start overflow-hidden text-left"
+              className="h-11 min-w-0 flex-1 justify-start overflow-hidden text-left"
             >
               <span className="min-w-0 truncate font-normal text-muted-foreground">
                 Bạn muốn chia sẻ món chay nào hôm nay?
@@ -146,23 +146,13 @@ function FeedComposer() {
               variant="tool"
               size="lg"
               aria-label="Tạo bài viết và thêm video"
-              className="col-span-2 row-start-2 justify-self-start"
+              className="shrink-0"
             >
               <ClapperboardIcon aria-hidden className="size-[1.125rem]" />
-              Thêm video
+              <span className="hidden sm:inline">Thêm video</span>
             </Button>
           }
         />
-        <span
-          title="Trình soạn Blog chưa khả dụng"
-          className="col-start-3 row-start-2 flex flex-col items-start pr-1 text-xs text-muted-foreground sm:text-sm"
-        >
-          <span className="inline-flex items-center gap-1.5">
-            <BookOpenTextIcon aria-hidden className="size-[1.125rem]" />
-            Viết blog
-          </span>
-          <span className="pl-6 text-[0.6875rem]">Chưa hỗ trợ</span>
-        </span>
       </div>
     </section>
   )
@@ -207,9 +197,9 @@ function Timeline({
   return (
     <>
       {hasApiSource && isLoading && livePosts.length === 0 && <FeedSkeleton />}
-      <div className="space-y-3 px-3 pt-3 pb-4">
+      <div className="pb-4">
         {hasApiSource && hasError && (
-          <div role="alert" className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-destructive/20 bg-card px-4 py-3 text-sm">
+          <div role="alert" className="flex flex-wrap items-center justify-between gap-3 border-b border-border px-4 py-3 text-sm sm:px-5">
             <span>Không tải được bài viết mới. Kiểm tra kết nối rồi thử lại.</span>
             <Button type="button" variant="outline" size="sm" shape="pill" onClick={onRetry}>
               <RotateCcwIcon aria-hidden />
@@ -231,9 +221,9 @@ function Timeline({
 
 function FeedSkeleton() {
   return (
-    <div role="status" aria-label="Đang tải bảng tin" className="space-y-3 px-3 py-4">
+    <div role="status" aria-label="Đang tải bảng tin">
       {Array.from({ length: 2 }, (_, index) => (
-        <div key={index} className="rounded-[1.25rem] border border-border bg-card p-4">
+        <div key={index} className="border-b border-border px-4 py-4 sm:px-5">
           <div className="flex items-center gap-3">
             <div className="size-11 overflow-hidden rounded-full">
               <Skeleton className="size-full" />

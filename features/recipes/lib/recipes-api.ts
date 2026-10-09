@@ -100,6 +100,7 @@ export const saveRule = (token: string, id: string | undefined, body: RuleInput)
 export type RecipeInput = {
   title: string
   description?: string
+  imageUrl?: string
   servings: number
   prepMinutes?: number
   cookMinutes?: number

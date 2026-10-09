@@ -1,18 +1,14 @@
 "use client"
 
-import { useState, type ReactNode } from "react"
+import { useRef, useState, type ReactNode } from "react"
 import Link from "next/link"
 import {
-  BookOpenIcon,
   CalendarDaysIcon,
   CheckIcon,
-  Clock3Icon,
   MessageCircleIcon,
   RefreshCwIcon,
   SparklesIcon,
   TriangleAlertIcon,
-  UsersRoundIcon,
-  UtensilsCrossedIcon,
 } from "lucide-react"
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
@@ -26,6 +22,7 @@ import {
 } from "@/components/ui/dialog"
 import { Spinner } from "@/components/ui/spinner"
 import { DIETARY_PATH } from "@/features/dietary/dietary"
+import { MealArt } from "@/features/meal-plan/components/meal-art"
 import {
   DAY_LABELS,
   problemText,
@@ -63,13 +60,47 @@ type TimetableProps = {
   savingDraft?: boolean
   saveError?: string | null
   suggestion?: MealPlanProposal | null
-  onStageSuggestion?: () => void
-  onDismissSuggestion?: () => void
 }
 
 function todayWeekday(): Weekday {
   const day = new Date().getDay()
   return WEEKDAYS[day === 0 ? 6 : day - 1]
+}
+
+const DAY_SHORT: Record<Weekday, string> = {
+  MON: "T2",
+  TUE: "T3",
+  WED: "T4",
+  THU: "T5",
+  FRI: "T6",
+  SAT: "T7",
+  SUN: "CN",
+}
+
+/** Day of the month for each weekday of the current week, Monday first. */
+function thisWeekDates(): number[] {
+  const now = new Date()
+  const monday = now.getDate() - ((now.getDay() + 6) % 7)
+  return WEEKDAYS.map((_, index) =>
+    new Date(now.getFullYear(), now.getMonth(), monday + index).getDate()
+  )
+}
+
+/** One short line per distinct problem, with every day it happens on. */
+function problemLines(problems: MealPlan["problems"]) {
+  const lines = new Map<string, Weekday[]>()
+  for (const problem of problems) {
+    const text = problem.code === "AVOIDED_INGREDIENT"
+      ? `${problem.recipes.join(", ")} có ${problem.ingredients.join(", ")}`
+      : problemText(problem)
+    const days = lines.get(text) ?? []
+    if (!days.includes(problem.day)) days.push(problem.day)
+    lines.set(text, days)
+  }
+  return [...lines.entries()].map(([text, days]) => ({
+    text,
+    days: WEEKDAYS.filter((day) => days.includes(day)),
+  }))
 }
 
 function recipeTime(recipe: MealRecipe | undefined) {
@@ -128,91 +159,26 @@ export function Timetable({
   savingDraft = false,
   saveError,
   suggestion,
-  onStageSuggestion,
-  onDismissSuggestion,
 }: TimetableProps) {
   const [selectedDay, setSelectedDay] = useState<Weekday | null>(null)
   const [opened, setOpened] = useState<OpenedRecipe | null>(null)
   const [today] = useState<Weekday>(todayWeekday)
+  const [weekDates] = useState(thisWeekDates)
   const days = displayDays(plan, suggestion ?? draft)
-  const activeDay = days.find(({ day }) => day === selectedDay) ?? days[0]
+  const activeDay = days.find(({ day }) => day === (selectedDay ?? today)) ?? days[0]
   const hasMeals = days.some(({ sections }) => sections.some(({ recipes }) => recipes.length > 0))
-  const hasSavedMeals = Boolean(plan?.days.some(({ sections }) => sections.some(({ recipes }) => recipes.length > 0)))
   const isDraft = Boolean(draft && !suggestion)
   const isSuggestion = Boolean(suggestion)
-  const suggestedChanges = suggestion?.days.flatMap(({ day, sections }) =>
-    sections
-      .filter(({ recipes, previous }) => recipes.map(({ id }) => id).join() !== previous.map(({ id }) => id).join())
-      .map(({ section, recipes, previous }) => ({ day, section, recipes, previous }))
-  ) ?? []
+  const showProblems = plan !== undefined && plan.problems.length > 0 && !isDraft && !isSuggestion
 
   return (
     <div className="flex min-w-0 flex-col bg-card pb-[calc(4rem+env(safe-area-inset-bottom))] sm:pb-0 lg:min-h-full">
-      <header className="flex flex-wrap items-start justify-between gap-3 border-b border-border px-4 py-4 sm:px-5">
-        <div className="flex min-w-0 items-center gap-3">
-          <span className="flex size-10 shrink-0 items-center justify-center rounded-2xl bg-secondary text-primary">
-            <CalendarDaysIcon className="size-5" aria-hidden />
-          </span>
-          <div className="min-w-0">
-            <h2 className="font-heading text-lg font-bold leading-tight">Thực đơn tuần</h2>
-            <p className="mt-0.5 text-xs text-muted-foreground">
-              {isDraft ? "Xem lại trước khi lưu" : isSuggestion ? "Đề xuất để bạn xem trước" : "Lặp lại theo thứ trong tuần"}
-            </p>
-          </div>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          {hasMeals && (
-            <span className={cn(
-              "inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold",
-              isDraft || isSuggestion ? "bg-brand-cream/55 text-foreground" : "bg-secondary text-primary"
-            )}>
-              {isDraft || isSuggestion ? (
-                <span className="size-1.5 rounded-full bg-brand-orange" />
-              ) : (
-                <CheckIcon className="size-3.5" aria-hidden />
-              )}
-              {isDraft ? "Có thay đổi chưa lưu" : isSuggestion ? "Đề xuất chưa áp dụng" : "Đã lưu"}
-            </span>
-          )}
-          {action}
-        </div>
+      <header className="flex flex-wrap items-center justify-between gap-3 border-b border-border px-4 py-3 sm:px-5">
+        <h2 className="min-w-0 font-heading text-lg font-bold leading-tight">
+          {isDraft ? "Bản nháp thực đơn" : isSuggestion ? "Thực đơn đề xuất" : "Thực đơn tuần"}
+        </h2>
+        {action}
       </header>
-
-      {suggestion && (
-        <div className="border-b border-border bg-secondary/35 px-4 py-4 sm:px-5">
-          <div className="rounded-2xl border border-primary/20 bg-card p-4 shadow-sm">
-            <div className="flex items-center gap-2 text-sm font-bold text-primary">
-              <SparklesIcon className="size-4" aria-hidden />
-              Đề xuất của trợ lý
-            </div>
-            <p className="mt-1.5 text-sm leading-6 text-muted-foreground">
-              {draft
-                ? "Bản nháp hiện tại vẫn được giữ. Kiểm tra đề xuất mới trước khi thay bản nháp."
-                : hasSavedMeals
-                  ? "Thực đơn đã lưu chưa thay đổi. Kiểm tra món được đề xuất trước khi đưa vào bản nháp."
-                  : "Kiểm tra món được đề xuất trước khi đưa vào bản nháp."}
-            </p>
-            <ul className="mt-3 space-y-2 text-xs">
-              {suggestedChanges.map(({ day, section, recipes, previous }) => (
-                <li key={`${day}-${section}`} className="rounded-xl bg-secondary/50 px-3 py-2">
-                  <span className="block font-semibold">{DAY_LABELS[day]} · Bữa {SECTION_LABELS[section].toLowerCase()}</span>
-                  <span className="mt-1 block text-muted-foreground">{previous.map(({ title }) => title).join(", ") || "Chưa có món"} → <strong className="text-foreground">{recipes.map(({ title }) => title).join(", ") || "Để trống"}</strong></span>
-                </li>
-              ))}
-            </ul>
-            <div className="mt-3 flex flex-wrap gap-2">
-              {suggestedChanges.length > 0 && onStageSuggestion && (
-                <Button size="sm" onClick={onStageSuggestion}>Áp dụng vào bản nháp</Button>
-              )}
-              {onDismissSuggestion && (
-                <Button variant="outline" size="sm" onClick={onDismissSuggestion}>
-                  {hasSavedMeals ? "Giữ thực đơn hiện tại" : "Bỏ đề xuất"}
-                </Button>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
 
       {failed && plan && !isDraft && (
         <div className="px-4 pt-4 sm:px-5">
@@ -279,18 +245,19 @@ export function Timetable({
         </div>
       ) : (
         <>
-          {plan && plan.problems.length > 0 && !isDraft && !isSuggestion && (
+          {showProblems && (
             <div className="px-4 pt-4 sm:px-5">
               <Alert variant="destructive">
                 <TriangleAlertIcon aria-hidden />
                 <AlertTitle>Thực đơn có chỗ cần xem lại</AlertTitle>
                 <AlertDescription>
-                  <ul className="mt-1 list-disc space-y-1 pl-4">
-                    {plan.problems.map((problem, index) => (
-                      <li key={index}>{DAY_LABELS[problem.day]}: {problemText(problem)}</li>
-                    ))}
-                  </ul>
-                  <Link href={DIETARY_PATH} className="mt-2 inline-block font-medium underline underline-offset-4">
+                  {problemLines(plan.problems).map(({ text, days: problemDays }) => (
+                    <span key={text} className="block">
+                      {text}
+                      <span className="font-medium"> · {problemDays.map((day) => DAY_LABELS[day]).join(", ")}</span>
+                    </span>
+                  ))}
+                  <Link href={DIETARY_PATH} className="mt-1.5 inline-block font-medium underline underline-offset-4">
                     Xem hồ sơ ăn uống
                   </Link>
                 </AlertDescription>
@@ -298,53 +265,77 @@ export function Timetable({
             </div>
           )}
 
-          <div className="border-b border-border px-4 py-4 sm:px-5">
-            <p className="mb-3 text-xs font-semibold tracking-wide text-muted-foreground uppercase">
-              {days.length} ngày · Chọn ngày để xem các bữa
-            </p>
-            <div className="flex gap-2 overflow-x-auto pb-1 [scrollbar-width:thin]" role="group" aria-label="Chọn ngày trong thực đơn">
-              {days.map(({ day }) => (
+          <div
+            className="relative grid grid-cols-7 border-b border-border px-3 py-3 sm:px-4"
+            role="group"
+            aria-label="Chọn ngày trong thực đơn"
+          >
+            {activeDay && (
+              <span aria-hidden className="pointer-events-none absolute inset-x-3 inset-y-3 sm:inset-x-4">
+                <span
+                  className="flex h-full w-[calc(100%/7)] items-end justify-center pb-1 transition-transform duration-300 ease-out motion-reduce:transition-none"
+                  style={{ transform: `translateX(${WEEKDAYS.indexOf(activeDay.day) * 100}%)` }}
+                >
+                  <span className="size-9 rounded-full bg-primary shadow-sm" />
+                </span>
+              </span>
+            )}
+            {WEEKDAYS.map((day, index) => {
+              const selected = activeDay?.day === day
+              const flagged = showProblems && plan.problems.some((problem) => problem.day === day)
+              return (
                 <button
                   key={day}
                   type="button"
-                  aria-pressed={activeDay?.day === day}
+                  aria-pressed={selected}
+                  aria-label={DAY_LABELS[day] + (day === today ? ", hôm nay" : "") + (flagged ? ", có món cần xem lại" : "")}
+                  disabled={!days.some((item) => item.day === day)}
                   onClick={() => setSelectedDay(day)}
-                  className={cn(
-                    "flex min-w-[4.6rem] shrink-0 flex-col items-center rounded-2xl border px-3 py-2.5 text-center outline-none transition-colors focus-visible:ring-3 focus-visible:ring-ring/30",
-                    activeDay?.day === day
-                      ? "border-primary bg-primary text-primary-foreground shadow-sm"
-                      : "border-border bg-background text-foreground hover:border-primary/35 hover:bg-accent"
-                  )}
+                  className="group relative flex flex-col items-center gap-1 rounded-xl py-1 outline-none focus-visible:ring-3 focus-visible:ring-ring/30 disabled:opacity-40"
                 >
-                  <span className="text-xs font-semibold">{DAY_LABELS[day]}</span>
-                  {day === today && (
-                    <span className={cn(
-                      "mt-1 text-[0.65rem]",
-                      activeDay?.day === day ? "text-primary-foreground/80" : "text-primary"
-                    )}>Hôm nay</span>
+                  <span className={cn(
+                    "text-[0.6875rem] font-semibold",
+                    day === today ? "text-primary" : "text-muted-foreground"
+                  )}>
+                    {DAY_SHORT[day]}
+                  </span>
+                  <span className={cn(
+                    "flex size-9 items-center justify-center rounded-full text-sm font-semibold tabular-nums transition-colors duration-300",
+                    selected
+                      ? "text-primary-foreground"
+                      : day === today
+                        ? "text-primary ring-1 ring-primary/40 group-hover:bg-accent"
+                        : "text-foreground group-hover:bg-accent"
+                  )}>
+                    {weekDates[index]}
+                  </span>
+                  {flagged && (
+                    <span aria-hidden className="absolute top-[1.375rem] right-1/2 size-2 translate-x-[1.125rem] rounded-full bg-destructive ring-2 ring-card" />
                   )}
                 </button>
-              ))}
-            </div>
+              )
+            })}
           </div>
 
           {activeDay && (
-            <section aria-label={"Các bữa " + DAY_LABELS[activeDay.day]} className="flex flex-col gap-4 px-4 py-5 sm:px-5">
-              <div className="flex flex-wrap items-baseline justify-between gap-2">
-                <h3 className="font-heading text-lg font-bold">{DAY_LABELS[activeDay.day]}</h3>
-                <span className="text-xs text-muted-foreground">
-                  {activeDay.sections.reduce((count, section) => count + section.recipes.length, 0)} món
-                </span>
-              </div>
-              {activeDay.sections.map(({ section, recipes }) => (
-                <div key={section} className="space-y-2.5">
-                  <h4 className="text-xs font-bold tracking-wide text-muted-foreground uppercase">
+            <section key={activeDay.day} aria-label={"Các bữa " + DAY_LABELS[activeDay.day]} className="flex flex-col gap-5 px-4 py-5 sm:px-5">
+              <h3 className="font-heading text-lg font-bold">
+                {DAY_LABELS[activeDay.day]}
+                {activeDay.day === today && (
+                  <span className="ml-2 text-xs font-medium text-primary">Hôm nay</span>
+                )}
+              </h3>
+              {activeDay.sections.map(({ section, recipes }, index) => (
+                <div
+                  key={section}
+                  className="flex flex-col gap-2 animate-in fade-in slide-in-from-bottom-2 fill-mode-backwards duration-300 ease-out motion-reduce:animate-none"
+                  style={{ animationDelay: `${index * 60}ms` }}
+                >
+                  <h4 className="text-xs font-semibold text-muted-foreground">
                     Bữa {SECTION_LABELS[section].toLowerCase()}
                   </h4>
                   {recipes.length === 0 ? (
-                    <div className="rounded-2xl border border-dashed border-border px-4 py-3 text-sm text-muted-foreground">
-                      Chưa có món cho bữa này
-                    </div>
+                    <p className="text-sm text-muted-foreground">Chưa có món</p>
                   ) : recipes.map((recipe) => (
                     <MealCard
                       key={recipe.id}
@@ -425,52 +416,53 @@ function MealCard({
 }) {
   const minutes = recipeTime(recipe.detail)
   return (
-    <article className="overflow-hidden rounded-[1.25rem] border border-border bg-background shadow-[0_4px_18px_-12px_rgba(20,38,26,0.35)]">
-      <div className="flex min-w-0 gap-3 p-3">
-        <span className="flex size-16 shrink-0 items-center justify-center rounded-2xl bg-secondary/75 text-primary" aria-hidden>
-          <UtensilsCrossedIcon className="size-6" />
-        </span>
-        <div className="min-w-0 flex-1 self-center">
-          <h5 className="font-heading text-sm font-semibold leading-snug text-foreground">{recipe.title}</h5>
-          {(minutes !== null || (recipe.detail && recipe.detail.servings > 0)) && (
-            <p className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
-              {minutes !== null && (
-                <span className="inline-flex items-center gap-1"><Clock3Icon className="size-3.5" aria-hidden />{minutes} phút</span>
-              )}
-              {recipe.detail && recipe.detail.servings > 0 && (
-                <span className="inline-flex items-center gap-1"><UsersRoundIcon className="size-3.5" aria-hidden />{recipe.detail.servings} khẩu phần</span>
-              )}
-            </p>
-          )}
-        </div>
-      </div>
-      <div className="flex flex-wrap gap-1 border-t border-border px-2.5 py-2">
-        {onOpen && (
-          <Button variant="ghost" size="sm" onClick={onOpen}>
-            <BookOpenIcon aria-hidden /> Xem công thức
-          </Button>
+    <article className="flex min-w-0 overflow-hidden rounded-2xl border border-border bg-background">
+      <MealArt section={section} imageUrl={recipe.detail?.imageUrl} className="size-24 rounded-none sm:size-28" />
+      <div className="flex min-w-0 flex-1 flex-col justify-center px-3.5 py-2.5">
+        <h5 className="text-[0.9375rem] font-semibold leading-snug text-foreground">
+          {onOpen ? (
+            <button
+              type="button"
+              onClick={onOpen}
+              className="rounded-sm text-left underline-offset-4 outline-none hover:underline focus-visible:ring-3 focus-visible:ring-ring/30"
+            >
+              {recipe.title}
+            </button>
+          ) : recipe.title}
+        </h5>
+        {(minutes !== null || (recipe.detail && recipe.detail.servings > 0)) && (
+          <p className="mt-0.5 text-xs text-muted-foreground">
+            {[
+              minutes !== null ? minutes + " phút" : null,
+              recipe.detail && recipe.detail.servings > 0 ? recipe.detail.servings + " khẩu phần" : null,
+            ].filter(Boolean).join(" · ")}
+          </p>
         )}
-        {onReplace && (
-          <Button
-            variant="ghost"
-            size="sm"
-            disabled={busy || disableReplace}
-            title={disableReplace ? "Lưu hoặc bỏ bản nháp trước khi đề xuất đổi món khác" : undefined}
-            onClick={() => onReplace(day, section, recipe.title)}
-            aria-label={"Đổi món " + recipe.title + ", " + DAY_LABELS[day] + ", bữa " + SECTION_LABELS[section].toLowerCase()}
-          >
-            <RefreshCwIcon aria-hidden /> Đổi món
-          </Button>
-        )}
-        {onAsk && (
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => onAsk(recipe, day, section)}
-            aria-label={"Hỏi trợ lý về " + recipe.title + ", " + DAY_LABELS[day] + ", bữa " + SECTION_LABELS[section].toLowerCase()}
-          >
-            <MessageCircleIcon aria-hidden /> Hỏi trợ lý
-          </Button>
+        {(onReplace || onAsk) && (
+          <div className="mt-1.5 -ml-2 flex flex-wrap gap-x-1">
+            {onReplace && (
+              <Button
+                variant="ghost"
+                size="sm"
+                disabled={busy || disableReplace}
+                title={disableReplace ? "Lưu hoặc bỏ bản nháp trước khi đề xuất đổi món khác" : undefined}
+                onClick={() => onReplace(day, section, recipe.title)}
+                aria-label={"Đổi món " + recipe.title + ", " + DAY_LABELS[day] + ", bữa " + SECTION_LABELS[section].toLowerCase()}
+              >
+                <RefreshCwIcon aria-hidden /> Đổi món
+              </Button>
+            )}
+            {onAsk && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => onAsk(recipe, day, section)}
+                aria-label={"Hỏi trợ lý về " + recipe.title + ", " + DAY_LABELS[day] + ", bữa " + SECTION_LABELS[section].toLowerCase()}
+              >
+                <MessageCircleIcon aria-hidden /> Hỏi trợ lý
+              </Button>
+            )}
+          </div>
         )}
       </div>
     </article>
@@ -479,13 +471,16 @@ function MealCard({
 
 function RecipeDialogContent({ opened, onAsk }: { opened: OpenedRecipe; onAsk?: () => void }) {
   const { recipe, day, section } = opened
+  // Focus the dialog itself: focusing its first button would scroll past the photo.
+  const popup = useRef<HTMLDivElement>(null)
   const minutes = recipeTime(recipe)
   const details = [
     recipe.servings > 0 ? recipe.servings + " khẩu phần" : null,
     minutes !== null ? "khoảng " + minutes + " phút" : null,
   ].filter(Boolean).join(" · ")
   return (
-    <DialogContent className="max-h-[85dvh] overflow-y-auto">
+    <DialogContent ref={popup} initialFocus={popup} className="max-h-[85dvh] overflow-y-auto">
+      <MealArt section={section} imageUrl={recipe.imageUrl} photoOnly className="aspect-[16/9] size-auto w-full" />
       <DialogHeader>
         <p className="text-xs font-semibold text-primary">
           {DAY_LABELS[day]} · Bữa {SECTION_LABELS[section].toLowerCase()}

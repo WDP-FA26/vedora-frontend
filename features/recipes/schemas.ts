@@ -52,9 +52,22 @@ const recipeConflictSchema = z.object({
 })
 export const recipeConflictsSchema = z.array(recipeConflictSchema)
 
+/** Hosts the CSP in `next.config.ts` lets dish photos load from. */
+export const DISH_IMAGE_HOSTS = ["upload.wikimedia.org", "images.unsplash.com", "images.pexels.com"]
+
+function isDishImageUrl(text: string) {
+  try {
+    const url = new URL(text)
+    return url.protocol === "https:" && DISH_IMAGE_HOSTS.includes(url.hostname)
+  } catch {
+    return false
+  }
+}
+
 export const recipeSchema = z.object({
   id: z.string(),
   title: z.string(),
+  imageUrl: z.string().nullable(),
   servings: z.number(),
   prepMinutes: z.number().nullable(),
   cookMinutes: z.number().nullable(),
@@ -174,6 +187,13 @@ const optionalMinutes = z
 export const recipeFormSchema = z.object({
   title: z.string().trim().min(1, "Nhập tên món.").max(150, "Tên món dài tối đa 150 ký tự."),
   description: z.string().trim().max(1000, "Mô tả dài tối đa 1000 ký tự."),
+  imageUrl: z
+    .string()
+    .trim()
+    .max(2048, "Đường dẫn dài tối đa 2048 ký tự.")
+    .refine((text) => text === "" || isDishImageUrl(text), {
+      message: "Dùng đường dẫn ảnh https từ Wikimedia Commons, Unsplash hoặc Pexels.",
+    }),
   servings: wholeNumber(100, "Nhập số khẩu phần từ 1 đến 100.").refine(
     (text) => Number(text) >= 1,
     { message: "Nhập số khẩu phần từ 1 đến 100." }

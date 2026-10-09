@@ -9,7 +9,6 @@ import { Button } from "@/components/ui/button"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useAuth } from "@/features/auth/hooks/use-auth"
 import { isAccessTokenFresh } from "@/features/auth/lib/tokens"
-import { useDietaryDraft } from "@/features/dietary/hooks/use-dietary-draft"
 import { fetchMyDietary, MY_DIETARY_KEY } from "@/features/dietary/dietary"
 import { PlannerChat } from "@/features/meal-plan/components/planner-chat"
 import { MealRequestForm } from "@/features/meal-plan/components/meal-request-form"
@@ -74,10 +73,9 @@ function changedDayInputs(proposal: Proposal, current: MealPlan): MealDayInput[]
 
 /** The saved recurring week and the assistant share one frontend draft. */
 export function MealPlannerView() {
-  const { accessToken, user } = useAuth()
+  const { accessToken } = useAuth()
   const router = useRouter()
   const chat = useMealPlannerChat()
-  const { appliedDraft: profile } = useDietaryDraft(user?.id)
   const [tab, setTab] = useState<Tab>("chat")
   const [draft, setDraft] = useState<Proposal | null>(null)
   const [savingDraft, setSavingDraft] = useState(false)
@@ -104,6 +102,7 @@ export function MealPlannerView() {
     ...(restrictions.data?.groups.map(({ name }) => name) ?? []),
     ...(restrictions.data?.ingredients.map(({ name }) => name) ?? []),
   ]
+  const savedLiked = restrictions.data?.liked.map(({ name }) => name) ?? []
   const formReplyReceived = formSentAtCount !== null &&
     chat.messages.length > formSentAtCount && chat.messages.at(-1)?.role === "assistant" && !chat.busy
   const formAwaitingReply = formHandoffState === "sent" && !chat.error && !formReplyReceived
@@ -234,8 +233,8 @@ export function MealPlannerView() {
               chat={chat}
               onStage={stage}
               openPlan={() => setTab("plan")}
-              profile={profile}
               savedAvoided={savedAvoided}
+              savedLiked={savedLiked}
               profileLoading={restrictions.isLoading}
               profileError={Boolean(restrictions.error)}
               askContext={askContext}
@@ -252,8 +251,8 @@ export function MealPlannerView() {
           <div className={cn("min-w-0 lg:h-full lg:min-h-0 lg:overflow-y-auto lg:border-l lg:border-border", tab !== "plan" && "hidden lg:block")}>
             {showRequestForm ? (
               <MealRequestForm
-                profile={profile}
                 savedAvoided={savedAvoided}
+                savedLiked={savedLiked}
                 profileLoading={restrictions.isLoading}
                 profileError={Boolean(restrictions.error)}
                 onRetryProfile={() => void restrictions.mutate()}
@@ -285,12 +284,6 @@ export function MealPlannerView() {
               savingDraft={savingDraft}
               saveError={saveError}
               suggestion={suggestion}
-              onStageSuggestion={() => suggestion && stage(suggestion)}
-              onDismissSuggestion={() => {
-                if (!suggestion) return
-                chat.setProposalStatus(suggestion.id, "dismissed")
-                setFormHandoffState("editing")
-              }}
             />}
           </div>
         </div>

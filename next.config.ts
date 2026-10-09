@@ -13,6 +13,9 @@ const muxData = "https://*.litix.io";
 const storageOrigin = new URL(process.env.NEXT_PUBLIC_STORAGE_URL ?? "http://localhost:9000").origin;
 // Mux Player loads Google's Cast SDK in Chrome to offer Chromecast.
 const castSdk = "https://www.gstatic.com";
+// Dish photos are hot-linked, not stored: only these free-licence hosts may serve them.
+// Keep in sync with DISH_IMAGE_HOSTS in features/recipes/schemas.ts.
+const dishImages = "https://upload.wikimedia.org https://images.unsplash.com https://images.pexels.com";
 // Cloudflare Turnstile: the script and the challenge iframe of the guest chat.
 const turnstile = "https://challenges.cloudflare.com";
 
@@ -25,7 +28,7 @@ const csp = [
   "default-src 'self'",
   `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ""} ${castSdk} ${turnstile}${toolbar("https://vercel.live")}`,
   `style-src 'self' 'unsafe-inline'${toolbar("https://vercel.live")}`,
-  `img-src 'self' blob: data: ${mux} ${storageOrigin}${toolbar("https://vercel.live", "https://vercel.com")}`,
+  `img-src 'self' blob: data: ${mux} ${storageOrigin} ${dishImages}${toolbar("https://vercel.live", "https://vercel.com")}`,
   `font-src 'self'${toolbar("https://vercel.live", "https://assets.vercel.com")}`,
   `connect-src 'self' ${apiOrigin} ${mux} ${muxData} ${storageOrigin}${toolbar("https://vercel.live", "wss://ws-us3.pusher.com")}`,
   `media-src 'self' blob: ${mux}`,

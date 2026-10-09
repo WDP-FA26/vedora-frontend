@@ -24,7 +24,6 @@ import { Message, MessageContent, MessageHeader } from "@/components/ui/message"
 import { Spinner } from "@/components/ui/spinner"
 import { Switch } from "@/components/ui/switch"
 import { DIETARY_PATH } from "@/features/dietary/dietary"
-import { FOOD_CATALOG, type DietaryDraft } from "@/features/dietary/dietary-draft"
 import {
   messageProposals,
   messageCannotPropose,
@@ -60,21 +59,10 @@ function looksLikeMealChange(text: string) {
   return /^(?:(?:hãy|(?:tôi|mình)\s+muốn)\s+)?(?:đổi|thay|đề\s+xuất\s+món\s+khác|gợi\s+ý\s+món\s+khác)\b/iu.test(text)
 }
 
-function dietLabel(profile: DietaryDraft) {
-  return profile.dietMode === "vegan" ? "Thuần chay" : profile.dietMode === "vegetarian" ? "Ăn chay" : "Chưa chọn"
-}
-
-function allergyLabel(profile: DietaryDraft) {
-  if (profile.allergyStatus === "unset") return "Chưa khai báo"
-  if (profile.allergyStatus === "none") return "Đã xác nhận không có dị ứng"
-  const catalog = [...FOOD_CATALOG, ...profile.customAllergens]
-  const names = profile.allergens.map((id) => catalog.find((item) => item.id === id)?.name ?? id)
-  return names.length > 0 ? names.join(", ") : "Cần chọn dị ứng"
-}
-
-function profileLine(profile: DietaryDraft, savedAvoided: string[]) {
-  const avoided = savedAvoided.length ? ` Thực phẩm cần tránh đã lưu: ${savedAvoided.join(", ")}.` : ""
-  return `Hồ sơ ăn uống tôi đã chọn: chế độ ăn ${dietLabel(profile).toLowerCase()}, dị ứng ${allergyLabel(profile).toLowerCase()}.${avoided}`
+function profileLine(savedAvoided: string[], savedLiked: string[]) {
+  const avoided = savedAvoided.length ? savedAvoided.join(", ") : "chưa khai báo"
+  const liked = savedLiked.length ? ` Nguyên liệu tôi thích: ${savedLiked.join(", ")}.` : ""
+  return `Hồ sơ ăn uống của tôi: thực phẩm không ăn: ${avoided}.${liked}`
 }
 
 function AssistantMessage({ children }: { children: ReactNode }) {
@@ -96,8 +84,8 @@ export function PlannerChat({
   chat,
   onStage,
   openPlan,
-  profile,
   savedAvoided = [],
+  savedLiked = [],
   profileLoading = false,
   profileError = false,
   askContext,
@@ -109,8 +97,8 @@ export function PlannerChat({
   chat: MealPlannerChat
   onStage: (proposal: Proposal) => void
   openPlan: () => void
-  profile: DietaryDraft
   savedAvoided?: string[]
+  savedLiked?: string[]
   profileLoading?: boolean
   profileError?: boolean
   askContext?: MealAskContext | null
@@ -198,7 +186,7 @@ export function PlannerChat({
       ? `Về món ${askContext.title} ở ${DAY_LABELS[askContext.day]}, bữa ${SECTION_LABELS[askContext.section].toLowerCase()}: `
       : ""
     const includeProfile = !fromForm.current && (useProfile || looksLikeMealChange(text))
-    const payload = `${context}${text}${includeProfile ? `\n\n${profileLine(profile, savedAvoided)}` : ""}`
+    const payload = `${context}${text}${includeProfile ? `\n\n${profileLine(savedAvoided, savedLiked)}` : ""}`
     if (payload.length > MAX_PLANNER_MESSAGE_LENGTH) {
       setInputError(`Tin nhắn cùng ngữ cảnh hồ sơ tối đa ${MAX_PLANNER_MESSAGE_LENGTH} ký tự. Hãy rút ngắn nội dung.`)
       return
@@ -225,9 +213,16 @@ export function PlannerChat({
         </div>
         {profileOpen && (
           <div className="mt-3 space-y-2 text-xs leading-5">
-            <p><span className="font-semibold">Chế độ ăn:</span> {dietLabel(profile)}</p>
-            <p><span className="font-semibold">Dị ứng:</span> {allergyLabel(profile)}</p>
-            {profileLoading ? <p role="status" className="text-muted-foreground">Đang tải thực phẩm cần tránh đã lưu…</p> : profileError ? <p role="alert" className="text-destructive">Chưa tải được thực phẩm cần tránh đã lưu.</p> : savedAvoided.length > 0 ? <p><span className="font-semibold">Thực phẩm cần tránh đã lưu:</span> {savedAvoided.join(", ")}</p> : null}
+            {profileLoading ? (
+              <p role="status" className="text-muted-foreground">Đang tải hồ sơ ăn uống…</p>
+            ) : profileError ? (
+              <p role="alert" className="text-destructive">Chưa tải được hồ sơ ăn uống.</p>
+            ) : (
+              <>
+                <p><span className="font-semibold">Không ăn:</span> {savedAvoided.length > 0 ? savedAvoided.join(", ") : "Chưa khai báo"}</p>
+                <p><span className="font-semibold">Thích:</span> {savedLiked.length > 0 ? savedLiked.join(", ") : "Chưa chọn"}</p>
+              </>
+            )}
             <label className="flex items-center justify-between gap-3 border-t border-border pt-2">
               <span>Dùng hồ sơ ăn uống khi trò chuyện</span>
               <Switch checked={useProfile} onCheckedChange={setUseProfile} aria-label="Dùng hồ sơ ăn uống khi trò chuyện" size="sm" />
@@ -286,12 +281,43 @@ function ProposalCard({ proposal, status, superseded, onStage, onDismiss, openPl
   onDismiss: () => void
   openPlan: () => void
 }) {
-  const changed = proposal.days.flatMap(({ day, sections }) => sections.filter(({ recipes, previous }) => recipes.map(({ id }) => id).join() !== previous.map(({ id }) => id).join()).map(({ section, recipes, previous }) => ({ day, section, recipes, previous })))
+  const titles = (recipes: { title: string }[]) => recipes.map(({ title }) => title).join(", ")
+  const changedDays = proposal.days
+    .map(({ day, sections }) => ({
+      day,
+      sections: sections.filter(({ recipes, previous }) =>
+        recipes.map(({ id }) => id).join() !== previous.map(({ id }) => id).join()
+      ),
+    }))
+    .filter(({ sections }) => sections.length > 0)
+  const changed = changedDays.flatMap(({ sections }) => sections)
   return (
-    <article aria-label="Đề xuất thực đơn" className="mt-2 w-full rounded-2xl border border-primary/20 bg-card p-4 shadow-sm">
-      <p className="text-xs font-bold uppercase tracking-wide text-primary">Đề xuất của trợ lý</p>
-      <h3 className="mt-1 text-sm font-semibold">{changed.length ? `Đề xuất cho ${[...new Set(changed.map(({ day }) => DAY_LABELS[day]))].join(", ")}` : "Thực đơn hiện tại đã giống đề xuất"}</h3>
-      <dl className="mt-3 space-y-2 text-sm">{changed.map(({ day, section, recipes, previous }) => <div key={`${day}-${section}`} className="rounded-xl bg-secondary/50 px-3 py-2"><dt className="text-xs font-semibold text-muted-foreground">{DAY_LABELS[day]} · Bữa {SECTION_LABELS[section].toLowerCase()}</dt><dd className="mt-1"><span className="text-muted-foreground">{previous.map(({ title }) => title).join(", ") || "Chưa có món"}</span><ArrowRightIcon aria-hidden className="mx-2 inline size-3.5" /><strong>{recipes.map(({ title }) => title).join(", ") || "Để trống"}</strong></dd></div>)}</dl>
+    <article aria-label="Đề xuất thực đơn" className="mt-2 w-full rounded-xl border border-border bg-card px-4 py-3">
+      <h3 className="text-sm font-semibold">
+        {changed.length === 0
+          ? "Thực đơn hiện tại đã giống đề xuất"
+          : changedDays.length === 7
+            ? "Thực đơn đề xuất cho cả tuần"
+            : `Thực đơn đề xuất cho ${changedDays.map(({ day }) => DAY_LABELS[day]).join(", ")}`}
+      </h3>
+      {changedDays.map(({ day, sections }) => (
+        <section key={day} className="mt-3 border-t border-border pt-2.5">
+          <h4 className="text-xs font-semibold text-muted-foreground">{DAY_LABELS[day]}</h4>
+          <dl className="mt-1 text-sm leading-6">
+            {sections.map(({ section, recipes, previous }) => (
+              <div key={section} className="flex gap-3">
+                <dt className="w-10 shrink-0 text-muted-foreground">{SECTION_LABELS[section]}</dt>
+                <dd className="min-w-0">
+                  {recipes.length > 0 ? titles(recipes) : <span className="text-muted-foreground">Để trống</span>}
+                  {previous.length > 0 && (
+                    <span className="text-muted-foreground"> · thay {titles(previous)}</span>
+                  )}
+                </dd>
+              </div>
+            ))}
+          </dl>
+        </section>
+      ))}
       {status === "saved" ? <p role="status" className="mt-3 text-sm text-primary">Đã lưu vào thực đơn.</p> : status === "staged" ? <div className="mt-3 flex flex-wrap items-center gap-2"><p role="status" className="text-sm">Đã thêm vào bản nháp, chưa lưu.</p><Button variant="link" size="sm" onClick={openPlan}>Xem bản nháp</Button></div> : status === "dismissed" ? <p role="status" className="mt-3 text-sm text-muted-foreground">Đã bỏ đề xuất.</p> : superseded ? <p className="mt-3 text-sm text-muted-foreground">Đã có đề xuất mới hơn.</p> : changed.length > 0 ? <div className="mt-3 flex flex-wrap gap-2"><Button size="sm" onClick={() => onStage(proposal)}>Áp dụng vào bản nháp</Button><Button variant="outline" size="sm" onClick={onDismiss}>Bỏ đề xuất</Button></div> : null}
     </article>
   )

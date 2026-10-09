@@ -14,7 +14,6 @@ import {
 
 import { Button } from "@/components/ui/button"
 import { DIETARY_PATH } from "@/features/dietary/dietary"
-import { FOOD_CATALOG, type DietaryDraft } from "@/features/dietary/dietary-draft"
 import { MEAL_SECTIONS, SECTION_LABELS, type MealSection } from "@/features/meal-plan/meal-plan"
 
 const MAX_CHAT_MESSAGE_LENGTH = 4000
@@ -31,8 +30,8 @@ type ExtraIngredient = {
 type IngredientEditor = Omit<ExtraIngredient, "id">
 
 type MealRequestFormProps = {
-  profile: DietaryDraft
   savedAvoided?: string[]
+  savedLiked?: string[]
   profileLoading?: boolean
   profileError?: boolean
   onRetryProfile?: () => void
@@ -48,11 +47,6 @@ type MealRequestFormProps = {
 
 function clean(value: string) {
   return value.trim().replace(/\s+/gu, " ")
-}
-
-function selectedNames(ids: string[], custom: { id: string; name: string }[]) {
-  const catalog = [...FOOD_CATALOG, ...custom]
-  return ids.map((id) => catalog.find((item) => item.id === id)?.name ?? id).map(clean).filter(Boolean)
 }
 
 function ingredientLabel(item: { name: string; amount: string; unit: string }) {
@@ -87,8 +81,8 @@ function seedDetails(text: string) {
 
 /** Builds a chat draft only; sending and saving remain separate user actions. */
 export function MealRequestForm({
-  profile,
   savedAvoided = [],
+  savedLiked = [],
   profileLoading = false,
   profileError = false,
   onRetryProfile,
@@ -106,7 +100,6 @@ export function MealRequestForm({
   const [minutes, setMinutes] = useState("")
   const [priority, setPriority] = useState<(typeof PRIORITIES)[number]>("Đa dạng")
   const [note, setNote] = useState("")
-  const [excludedPantryIds, setExcludedPantryIds] = useState<string[]>([])
   const [extraIngredients, setExtraIngredients] = useState<ExtraIngredient[]>([])
   const [ingredientEditor, setIngredientEditor] = useState<IngredientEditor>({ name: "", amount: "", unit: "" })
   const [confirmedSignature, setConfirmedSignature] = useState<string | null>(null)
@@ -114,21 +107,10 @@ export function MealRequestForm({
   const nextIngredientId = useRef(1)
   const lastSeedNonce = useRef<number | null>(null)
 
-  const allergyNames = selectedNames(profile.allergens, profile.customAllergens)
-  const allergyReady = profile.allergyStatus === "none" ||
-    (profile.allergyStatus === "some" && allergyNames.length > 0)
-  const profileReady = allergyReady && !profileLoading && !profileError
+  const profileReady = !profileLoading && !profileError
   const avoidedNames = [...new Set(savedAvoided.map(clean).filter(Boolean))]
-  const selectedPantry = profile.pantry.filter((item) => !excludedPantryIds.includes(item.id))
-  const profileSignature = JSON.stringify([
-    profile.dietMode,
-    profile.allergyStatus,
-    allergyNames,
-    selectedNames(profile.likes, profile.customPreferences),
-    selectedNames(profile.dislikes, profile.customPreferences),
-    avoidedNames,
-    profile.pantry.map(({ id, name, amount, unit }) => [id, name, amount, unit]),
-  ])
+  const likedNames = [...new Set(savedLiked.map(clean).filter(Boolean))]
+  const profileSignature = JSON.stringify([avoidedNames, likedNames])
   const profileConfirmed = profileReady && confirmedSignature === profileSignature
 
   useEffect(() => {
@@ -175,15 +157,11 @@ export function MealRequestForm({
     event.preventDefault()
     if (busy) return
     if (profileLoading) {
-      setError("Đợi tải xong thực phẩm cần tránh đã lưu trước khi đưa yêu cầu vào chat.")
+      setError("Đợi tải xong hồ sơ ăn uống trước khi đưa yêu cầu vào chat.")
       return
     }
     if (profileError) {
-      setError("Chưa tải được thực phẩm cần tránh đã lưu. Hãy thử lại trước khi lập thực đơn.")
-      return
-    }
-    if (!allergyReady) {
-      setError("Hãy hoàn tất thông tin dị ứng trong hồ sơ ăn uống trước khi lập thực đơn.")
+      setError("Chưa tải được hồ sơ ăn uống. Hãy thử lại trước khi lập thực đơn.")
       return
     }
     if (!profileConfirmed) {
@@ -223,28 +201,15 @@ export function MealRequestForm({
       }
     }
 
-    const diet = profile.dietMode === "vegan"
-      ? "thuần chay"
-      : profile.dietMode === "vegetarian"
-        ? "ăn chay"
-        : "chưa chọn chế độ ăn"
-    const likes = selectedNames(profile.likes, profile.customPreferences)
-    const dislikes = selectedNames(profile.dislikes, profile.customPreferences)
     const ingredients = [
-      ...selectedPantry.map(ingredientLabel),
       ...extraIngredients.map(ingredientLabel),
       ...(pending ? [ingredientLabel(ingredientEditor)] : []),
     ]
     const prompt = [
       "Hãy đề xuất bản nháp thực đơn 7 ngày lặp theo thứ trong tuần, từ Thứ Hai đến Chủ nhật.",
       `Các bữa cần lập mỗi ngày: ${MEAL_SECTIONS.filter((meal) => meals.includes(meal)).map((meal) => SECTION_LABELS[meal].toLowerCase()).join(", ")}.`,
-      `Chế độ ăn trong hồ sơ: ${diet}.`,
-      profile.allergyStatus === "none"
-        ? "Dị ứng: tôi đã xác nhận không có dị ứng."
-        : `Dị ứng cần tránh: ${allergyNames.join(", ")}.`,
-      avoidedNames.length ? `Thực phẩm cần tránh đã lưu: ${avoidedNames.join(", ")}.` : "",
-      dislikes.length ? `Món hoặc nguyên liệu không thích: ${dislikes.join(", ")}.` : "",
-      likes.length ? `Món hoặc nguyên liệu yêu thích: ${likes.join(", ")}.` : "",
+      avoidedNames.length ? `Thực phẩm tôi không ăn: ${avoidedNames.join(", ")}.` : "",
+      likedNames.length ? `Nguyên liệu tôi thích: ${likedNames.join(", ")}.` : "",
       people ? `Số người ăn: ${people}.` : "",
       minutes ? `Thời gian nấu tối đa cho mỗi bữa: ${minutes} phút.` : "",
       `Ưu tiên: ${priority.toLowerCase()}.`,
@@ -265,18 +230,13 @@ export function MealRequestForm({
     <div className="min-w-0 bg-card">
     <form hidden={handoffState !== "editing"} noValidate onSubmit={submit} className="min-w-0 bg-card pb-[calc(4rem+env(safe-area-inset-bottom))] sm:pb-4">
       <header className="flex min-h-24 items-center justify-between gap-2 overflow-hidden border-b border-border bg-gradient-to-r from-card via-card to-brand-cream/25 px-4 py-3 sm:min-h-28 sm:px-5">
-        <div className="flex min-w-0 items-center gap-3">
-          <span className="flex size-10 shrink-0 items-center justify-center rounded-2xl bg-secondary text-primary">
-            <CalendarDaysIcon aria-hidden className="size-5" />
-          </span>
-          <div className="min-w-0">
-            <h2 className="font-heading text-lg font-bold leading-tight">Lên thực đơn</h2>
-            <p className="mt-0.5 text-xs text-muted-foreground">Điền thông tin rồi đưa yêu cầu sang chat</p>
-          </div>
+        <div className="min-w-0">
+          <h2 className="font-heading text-lg font-bold leading-tight">Lên thực đơn</h2>
+          <p className="mt-0.5 text-xs text-muted-foreground">Điền thông tin rồi đưa yêu cầu sang chat</p>
         </div>
         <div className="flex shrink-0 items-start gap-1">
-          {onCancel && <Button type="button" variant="ghost" size="icon-sm" onClick={onCancel} aria-label="Đóng biểu mẫu"><XIcon aria-hidden /></Button>}
           <Image src="/tomato-sticker.png" alt="" aria-hidden width={96} height={80} className="h-16 w-16 shrink-0 object-contain drop-shadow-[0_6px_7px_rgba(37,85,50,0.15)] sm:h-24 sm:w-24" />
+          {onCancel && <Button type="button" variant="ghost" size="icon-sm" onClick={onCancel} aria-label="Đóng biểu mẫu"><XIcon aria-hidden /></Button>}
         </div>
       </header>
 
@@ -327,27 +287,8 @@ export function MealRequestForm({
         <section aria-labelledby="request-pantry-title" className="space-y-3 border-t border-border pt-5">
           <div>
             <h3 id="request-pantry-title" className="text-sm font-bold">2. Nguyên liệu đang có</h3>
-            <p className="mt-1 text-xs leading-5 text-muted-foreground">Chọn từ hồ sơ ăn uống hoặc thêm riêng cho yêu cầu này.</p>
+            <p className="mt-1 text-xs leading-5 text-muted-foreground">Thêm nguyên liệu bạn muốn tận dụng cho yêu cầu này.</p>
           </div>
-          {profile.pantry.length > 0 ? (
-            <fieldset>
-              <legend className="mb-2 text-xs font-semibold">Từ hồ sơ ăn uống</legend>
-              <div className="space-y-2">
-                {profile.pantry.map((item) => (
-                  <label key={item.id} className="flex cursor-pointer items-center gap-2.5 rounded-xl border border-border bg-background px-3 py-2.5 text-sm">
-                    <input type="checkbox" checked={!excludedPantryIds.includes(item.id)} onChange={(event) => {
-                      setExcludedPantryIds((current) => event.target.checked ? current.filter((id) => id !== item.id) : [...current, item.id])
-                      setError("")
-                    }} className="size-4 shrink-0 accent-primary" />
-                    <span className="min-w-0 flex-1 break-words">{ingredientLabel(item)}</span>
-                  </label>
-                ))}
-              </div>
-            </fieldset>
-          ) : (
-            <p className="rounded-xl bg-secondary/50 px-3 py-2 text-xs leading-5 text-muted-foreground">Hồ sơ chưa có nguyên liệu. Bạn có thể nhập thêm bên dưới.</p>
-          )}
-
           {extraIngredients.length > 0 && (
             <ul aria-label="Nguyên liệu thêm cho yêu cầu này" className="space-y-2">
               {extraIngredients.map((item) => (
@@ -378,16 +319,18 @@ export function MealRequestForm({
             <Link href={DIETARY_PATH} className="text-xs font-semibold text-primary underline-offset-4 hover:underline focus-visible:underline">Chỉnh hồ sơ</Link>
           </div>
           <div className="space-y-1 rounded-2xl bg-secondary/50 p-3 text-xs leading-5">
-            <p><strong>Chế độ ăn:</strong> {profile.dietMode === "vegan" ? "Thuần chay" : profile.dietMode === "vegetarian" ? "Ăn chay" : "Chưa chọn"}</p>
-            <p><strong>Dị ứng:</strong> {profile.allergyStatus === "unset" ? "Chưa khai báo" : profile.allergyStatus === "none" ? "Đã xác nhận không có dị ứng" : allergyNames.length ? allergyNames.join(", ") : "Chưa chọn loại dị ứng"}</p>
-            {!profileLoading && !profileError && avoidedNames.length > 0 && <p><strong>Thực phẩm cần tránh đã lưu:</strong> {avoidedNames.join(", ")}</p>}
+            {profileLoading || profileError ? null : (
+              <>
+                <p><strong>Không ăn:</strong> {avoidedNames.length > 0 ? avoidedNames.join(", ") : "Chưa khai báo"}</p>
+                <p><strong>Thích:</strong> {likedNames.length > 0 ? likedNames.join(", ") : "Chưa chọn"}</p>
+              </>
+            )}
           </div>
-          {profileLoading && <p role="status" className="rounded-xl bg-secondary/50 px-3 py-2 text-xs leading-5 text-muted-foreground">Đang tải thực phẩm cần tránh đã lưu…</p>}
-          {profileError && <div role="alert" className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-destructive/30 bg-destructive/5 px-3 py-2 text-xs leading-5 text-destructive"><span>Chưa tải được thực phẩm cần tránh đã lưu.</span>{onRetryProfile && <Button type="button" variant="outline" size="sm" onClick={onRetryProfile}>Thử lại</Button>}</div>}
-          {!allergyReady && <p role="alert" className="rounded-xl border border-destructive/30 bg-destructive/5 px-3 py-2 text-xs leading-5 text-destructive">Hãy khai báo dị ứng trong <Link href={DIETARY_PATH} className="font-semibold underline underline-offset-2">hồ sơ ăn uống</Link> trước khi gửi yêu cầu lập thực đơn.</p>}
+          {profileLoading && <p role="status" className="rounded-xl bg-secondary/50 px-3 py-2 text-xs leading-5 text-muted-foreground">Đang tải hồ sơ ăn uống…</p>}
+          {profileError && <div role="alert" className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-destructive/30 bg-destructive/5 px-3 py-2 text-xs leading-5 text-destructive"><span>Chưa tải được hồ sơ ăn uống.</span>{onRetryProfile && <Button type="button" variant="outline" size="sm" onClick={onRetryProfile}>Thử lại</Button>}</div>}
           <label className="flex cursor-pointer items-start gap-2 text-xs leading-5">
             <input type="checkbox" checked={profileConfirmed} disabled={!profileReady} onChange={(event) => { setConfirmedSignature(event.target.checked ? profileSignature : null); setError("") }} className="mt-0.5 size-4 shrink-0 accent-primary" />
-            <span>Tôi đã kiểm tra thông tin ăn uống và dị ứng ở trên.</span>
+            <span>Tôi đã kiểm tra hồ sơ ăn uống ở trên.</span>
           </label>
         </section>
 

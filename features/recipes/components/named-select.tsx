@@ -19,7 +19,12 @@ export type SelectOption = {
   name: string
   /** Extra text the search matches, e.g. an ingredient's other names. */
   keywords?: string
+  /** A second line under the name in the list. */
+  detail?: string
 }
+
+/** Long catalogs render only the first matches; typing narrows them down. */
+const MAX_VISIBLE_OPTIONS = 50
 
 const fold = (text: string) =>
   text
@@ -55,6 +60,7 @@ export function NamedSelect({
   return (
     <Combobox
       items={options}
+      limit={MAX_VISIBLE_OPTIONS}
       value={options.find((option) => option.id === value) ?? null}
       onValueChange={(option) => onChange(option?.id ?? "")}
       itemToStringLabel={optionLabel}
@@ -99,6 +105,7 @@ export function NamedMultiSelect({
     <Combobox
       multiple
       items={options}
+      limit={MAX_VISIBLE_OPTIONS}
       value={selected}
       onValueChange={(next) => onChange(next.map((option) => option.id))}
       itemToStringLabel={optionLabel}
@@ -126,7 +133,16 @@ export function NamedMultiSelect({
         <ComboboxList>
           {(option: SelectOption) => (
             <ComboboxItem key={option.id} value={option}>
-              {option.name}
+              {option.detail ? (
+                <span className="min-w-0">
+                  <span className="block">{option.name}</span>
+                  <span className="block truncate text-xs text-muted-foreground">
+                    {option.detail}
+                  </span>
+                </span>
+              ) : (
+                option.name
+              )}
             </ComboboxItem>
           )}
         </ComboboxList>

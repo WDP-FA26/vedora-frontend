@@ -11,6 +11,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Button, buttonVariants } from "@/components/ui/button"
 import {
   Field,
+  FieldDescription,
   FieldError,
   FieldGroup,
   FieldLabel,
@@ -87,6 +88,7 @@ function toFormValues(recipe: RecipeDetail | null): RecipeFormValues {
   return {
     title: recipe?.title ?? "",
     description: recipe?.description ?? "",
+    imageUrl: recipe?.imageUrl ?? "",
     servings: String(recipe?.servings ?? 2),
     prepMinutes: recipe?.prepMinutes?.toString() ?? "",
     cookMinutes: recipe?.cookMinutes?.toString() ?? "",
@@ -137,6 +139,7 @@ function RecipeForm({
       await saveRecipe(accessToken, recipe?.id, {
         title: values.title,
         description: values.description || undefined,
+        imageUrl: values.imageUrl || undefined,
         servings: Number(values.servings),
         prepMinutes: values.prepMinutes ? Number(values.prepMinutes) : undefined,
         cookMinutes: values.cookMinutes ? Number(values.cookMinutes) : undefined,
@@ -222,6 +225,29 @@ function RecipeForm({
                     rows={2}
                     aria-invalid={fieldState.invalid}
                   />
+                  {fieldState.invalid && <FieldError errors={[fieldState.error]} />}
+                </Field>
+              )}
+            />
+            <Controller
+              name="imageUrl"
+              control={form.control}
+              render={({ field, fieldState }) => (
+                <Field data-invalid={fieldState.invalid}>
+                  <FieldLabel htmlFor={field.name}>Ảnh món (không bắt buộc)</FieldLabel>
+                  <Input
+                    {...field}
+                    id={field.name}
+                    type="url"
+                    inputMode="url"
+                    autoComplete="off"
+                    aria-invalid={fieldState.invalid}
+                    placeholder="https://upload.wikimedia.org/…"
+                  />
+                  <FieldDescription>
+                    Dán đường dẫn ảnh từ Wikimedia Commons, Unsplash hoặc Pexels. Ảnh được hiển thị
+                    trực tiếp từ đó, Vedora không lưu lại.
+                  </FieldDescription>
                   {fieldState.invalid && <FieldError errors={[fieldState.error]} />}
                 </Field>
               )}
