@@ -7,6 +7,7 @@ import { ArrowLeftIcon } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Spinner } from "@/components/ui/spinner"
 import { PostActions, PostMenu } from "@/features/home/components/post-card"
+import { PostComments } from "@/features/posts/components/post-comments"
 import { PostMedia } from "@/features/posts/components/post-media"
 import { usePost } from "@/features/posts/hooks/use-feed-posts"
 import { usePostView } from "@/features/posts/hooks/use-post-view"
@@ -45,7 +46,17 @@ export function PostDetail({ id }: { id: string }) {
           <Spinner aria-label="Đang tải bài viết" />
         </div>
       ) : post ? (
-        <PostArticle post={post} />
+        <>
+          <PostArticle post={post} />
+          {/* The API takes comments on published posts only. */}
+          {post.status === "PUBLISHED" && (
+            <PostComments
+              postId={post.id}
+              postAuthorId={post.author.id}
+              count={post.commentCount}
+            />
+          )}
+        </>
       ) : (
         <p role="alert" className="p-4 text-sm text-destructive sm:px-5">
           {error instanceof ApiError && (error.status === 404 || error.status === 400)

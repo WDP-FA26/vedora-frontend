@@ -37,7 +37,7 @@ import { PostMedia } from "@/features/posts/components/post-media"
 import { ReportDialog } from "@/features/posts/components/report-dialog"
 import { usePostInteractions } from "@/features/posts/hooks/use-post-interactions"
 import { usePostView } from "@/features/posts/hooks/use-post-view"
-import { postPath } from "@/features/posts/posts-cache"
+import { commentsPath, postPath } from "@/features/posts/posts-cache"
 
 export function PostCard({ post }: { post: Post }) {
   // Fixture authors have no id, and so no profile to open.
@@ -315,9 +315,14 @@ export function PostActions({ post }: { post: Post }) {
       aria-label="Hành động với bài viết"
       className="mt-2 -ml-2 flex flex-wrap items-center justify-between gap-x-1 gap-y-1"
     >
-      <ActionStat label="Bình luận" count={post.stats.replies} icon={MessageCircleIcon} />
       {live ? (
         <>
+          <ActionButton
+            label="Bình luận"
+            count={post.stats.replies}
+            icon={MessageCircleIcon}
+            href={commentsPath(post.id)}
+          />
           <ActionButton
             label={reposted ? "Hủy đăng lại" : "Đăng lại"}
             count={post.stats.reposts}
@@ -338,6 +343,7 @@ export function PostActions({ post }: { post: Post }) {
         </>
       ) : (
         <>
+          <ActionStat label="Bình luận" count={post.stats.replies} icon={MessageCircleIcon} />
           <ActionStat label="Đăng lại" count={post.stats.reposts} icon={Repeat2Icon} />
           <ActionStat label="Thả mầm" count={post.stats.sprouts} icon={SproutIcon} />
         </>
@@ -407,6 +413,7 @@ function ActionButton({
   active,
   toggle,
   onClick,
+  href,
   activeIconClassName,
 }: {
   label: string
@@ -416,6 +423,8 @@ function ActionButton({
   /** Exposes `active` as a pressed state to assistive tech. */
   toggle?: boolean
   onClick?: () => void
+  /** Renders a link to `href` instead of a button. */
+  href?: string
   activeIconClassName?: string
 }) {
   return (
@@ -427,6 +436,7 @@ function ActionButton({
       aria-pressed={toggle ? Boolean(active) : undefined}
       data-active={active ? "" : undefined}
       onClick={onClick}
+      {...(href ? { nativeButton: false, render: <Link href={href} /> } : {})}
     >
       <Icon
         aria-hidden
