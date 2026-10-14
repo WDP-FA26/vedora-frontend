@@ -18,7 +18,20 @@ export function postKey(id: string) {
   return `${POSTS_KEY}/${id}`
 }
 
+/** First page of the comments on post `id`, newest first. Guests may read it. */
+export function commentsKey(id: string) {
+  return `${postKey(id)}/comments`
+}
+
 /** The public page of post `id`, also the link that "Chia sẻ" copies. */
 export function postPath(id: string) {
   return `/posts/${id}`
+}
+
+/** Id of the comment thread on a post's page. */
+export const COMMENTS_ANCHOR = "comments"
+
+/** The comment thread on post `id`'s page. */
+export function commentsPath(id: string) {
+  return `${postPath(id)}#${COMMENTS_ANCHOR}`
 }

@@ -8,6 +8,8 @@ export const MAX_VIDEO_DURATION_SEC = 180
 export const MAX_POST_LENGTH = 280
 /** Mirrors the API's `MAX_POST_MEDIA`. */
 export const MAX_POST_MEDIA = 4
+/** Mirrors the API's `MAX_COMMENT_BODY_LENGTH`. */
+export const MAX_COMMENT_LENGTH = 1000
 
 export const apiMediaSchema = z.object({
   id: z.string(),
@@ -63,6 +65,29 @@ export const postPageSchema = z.object({
 export const videoUploadSchema = z.object({
   media: apiMediaSchema,
   uploadUrl: z.url(),
+})
+
+export const apiCommentSchema = z.object({
+  id: z.string(),
+  postId: z.string(),
+  body: z.string(),
+  author: apiPostSchema.shape.author,
+  createdAt: z.string(),
+  updatedAt: z.string(),
+})
+
+export const commentPageSchema = z.object({
+  items: z.array(apiCommentSchema),
+  nextCursor: z.string().nullable(),
+})
+
+/** Mirrors `CommentBodyDto`, which trims the body before checking it. */
+export const commentFormSchema = z.object({
+  body: z
+    .string()
+    .trim()
+    .min(1, "Viết vài chữ trước khi gửi")
+    .max(MAX_COMMENT_LENGTH, `Tối đa ${MAX_COMMENT_LENGTH} ký tự`),
 })
 
 export const postLikeSchema = z.object({
@@ -125,6 +150,9 @@ export type ApiMedia = z.infer<typeof apiMediaSchema>
 export type ApiPost = z.infer<typeof apiPostSchema>
 export type PostPage = z.infer<typeof postPageSchema>
 export type VideoUploadTarget = z.infer<typeof videoUploadSchema>
+export type ApiComment = z.infer<typeof apiCommentSchema>
+export type CommentPage = z.infer<typeof commentPageSchema>
+export type CommentFormValues = z.infer<typeof commentFormSchema>
 export type ReportReason = (typeof REPORT_REASONS)[number]
 export type ReportFormValues = z.infer<typeof reportFormSchema>
 export type PostFormValues = z.infer<typeof postFormSchema>

@@ -10,8 +10,12 @@ import type { ApiPost, PostPage } from "@/features/posts/schemas"
 
 type PostPatch = (post: ApiPost) => Partial<ApiPost>
 
+// Comment pages live under `/posts/:id/comments` but hold comments, not posts.
 const isPostsKey = (key: unknown) =>
-  Array.isArray(key) && typeof key[0] === "string" && key[0].startsWith(POSTS_KEY)
+  Array.isArray(key) &&
+  typeof key[0] === "string" &&
+  key[0].startsWith(POSTS_KEY) &&
+  !key[0].includes("/comments")
 
 /**
  * Likes, reposts and saved posts for the signed-in user. A post can sit in several caches
@@ -84,5 +88,8 @@ export function usePostInteractions() {
         () => ({ isBookmarked: !bookmarked }),
         (token) => setPostBookmark(token, id, bookmarked)
       ),
+    /** Keeps `commentCount` in step once a comment is added (+1) or deleted (-1). */
+    countComment: (id: string, delta: 1 | -1) =>
+      patch(id, (post) => ({ commentCount: Math.max(0, post.commentCount + delta) })),
   }
 }
