@@ -11,7 +11,7 @@ import { Button } from "@/components/ui/button"
 import { Field, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp"
 import { Spinner } from "@/components/ui/spinner"
-import { resendVerificationCode, verifyEmail } from "@/features/auth/actions"
+import { resendVerificationCode, verifyEmail, type ResendResult } from "@/features/auth/actions"
 import { verifyEmailSchema, type VerifyEmailValues } from "@/features/auth/schemas"
 
 // Mirror the API's limits, which are what actually enforce them.
@@ -83,7 +83,7 @@ export function VerifyEmailForm({ next }: { next?: string }) {
           Xác minh
         </Button>
 
-        <ResendCode />
+        <ResendCode resend={resendVerificationCode} />
 
         <p className="text-center text-sm text-muted-foreground">
           Nhầm email?{" "}
@@ -104,7 +104,7 @@ export function VerifyEmailForm({ next }: { next?: string }) {
  * away. The count is per page visit; if earlier visits used up the resends,
  * the API answers 429 and the button goes away then.
  */
-function ResendCode() {
+export function ResendCode({ resend: requestCode }: { resend: () => Promise<ResendResult> }) {
   const [secondsLeft, setSecondsLeft] = useState(RESEND_COOLDOWN_SECONDS)
   const [resendsLeft, setResendsLeft] = useState(MAX_RESENDS)
   const [status, setStatus] = useState<{ error: boolean; message: string } | null>(null)
@@ -118,7 +118,7 @@ function ResendCode() {
 
   function resend() {
     startTransition(async () => {
-      const result = await resendVerificationCode()
+      const result = await requestCode()
       if (!result.ok) {
         if (result.limitReached) setResendsLeft(0)
         setStatus({ error: true, message: result.message })

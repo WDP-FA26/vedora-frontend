@@ -11,7 +11,13 @@ import {
 } from "@/features/auth/lib/tokens"
 
 const PROTECTED_PREFIXES = ["/home"]
-const GUEST_ONLY_PATHS = ["/login", "/register", "/verify-email"]
+const GUEST_ONLY_PATHS = [
+  "/login",
+  "/register",
+  "/verify-email",
+  "/forgot-password",
+  "/reset-password",
+]
 
 const matchesAny = (pathname: string, prefixes: string[]) =>
   prefixes.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`))
