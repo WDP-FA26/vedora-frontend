@@ -14,7 +14,7 @@ export const metadata: Metadata = {
 }
 
 export default async function LoginPage({ searchParams }: PageProps<"/login">) {
-  const { next, error } = await searchParams
+  const { next, error, reset } = await searchParams
   const googleError = typeof error === "string" ? GOOGLE_ERRORS[error as GoogleError] : undefined
 
   return (
@@ -23,6 +23,11 @@ export default async function LoginPage({ searchParams }: PageProps<"/login">) {
       <p className="mt-1.5 mb-8 text-sm text-muted-foreground">
         Đăng nhập để xem bảng tin và tiếp tục chia sẻ món ngon.
       </p>
+      {reset === "1" && (
+        <p role="status" className="mb-6 rounded-lg bg-primary/10 px-3 py-2.5 text-sm text-primary">
+          Đã đặt lại mật khẩu. Hãy đăng nhập bằng mật khẩu mới.
+        </p>
+      )}
       {googleError && (
         <p role="alert" className="mb-6 rounded-lg bg-destructive/10 px-3 py-2.5 text-sm text-destructive">
           {googleError}

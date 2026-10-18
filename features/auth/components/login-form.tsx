@@ -62,7 +62,15 @@ export function LoginForm({ next }: { next?: string }) {
           control={form.control}
           render={({ field, fieldState }) => (
             <Field data-invalid={fieldState.invalid}>
-              <FieldLabel htmlFor={field.name}>Mật khẩu</FieldLabel>
+              <div className="flex items-center justify-between gap-2">
+                <FieldLabel htmlFor={field.name}>Mật khẩu</FieldLabel>
+                <Link
+                  href="/forgot-password"
+                  className="text-sm font-medium text-primary underline-offset-4 hover:underline"
+                >
+                  Quên mật khẩu?
+                </Link>
+              </div>
               <Input
                 {...field}
                 id={field.name}

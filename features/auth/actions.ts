@@ -16,19 +16,26 @@ import {
   writeTokenCookies,
 } from "@/features/auth/lib/tokens"
 import {
+  forgotPasswordSchema,
   loginSchema,
   registerSchema,
+  resetPasswordSchema,
   toFullName,
   verifyEmailSchema,
+  type ForgotPasswordValues,
   type FormErrors,
   type LoginValues,
   type RegisterValues,
+  type ResetPasswordValues,
   type VerifyEmailValues,
 } from "@/features/auth/schemas"
 
 const UNREACHABLE = "Không kết nối được máy chủ. Vui lòng thử lại sau."
 const INVALID = "Thông tin chưa hợp lệ. Vui lòng kiểm tra lại."
 const VERIFICATION_EXPIRED = "Phiên xác minh đã hết hạn. Vui lòng đăng nhập lại."
+const RESET_EXPIRED = "Phiên đặt lại mật khẩu đã hết hạn. Vui lòng yêu cầu mã mới."
+const TOO_MANY_GUESSES =
+  "Bạn đã nhập sai mã quá nhiều lần. Vui lòng thử lại sau 24 giờ hoặc đăng nhập bằng Google."
 
 /** Keeps `?next=` when moving between the auth pages. */
 function withNext(path: string, next?: string) {
@@ -112,11 +119,7 @@ export async function verifyEmail(
   if (response.status === 400) {
     return { code: "Mã không đúng hoặc đã hết hạn. Hãy kiểm tra lại hoặc gửi mã mới." }
   }
-  if (response.status === 429) {
-    return {
-      root: "Bạn đã nhập sai mã quá nhiều lần. Vui lòng thử lại sau 24 giờ hoặc đăng nhập bằng Google.",
-    }
-  }
+  if (response.status === 429) return { root: TOO_MANY_GUESSES }
   if (!response.ok) return { root: UNREACHABLE }
 
   writeTokenCookies(await cookies(), await response.json())
@@ -133,8 +136,18 @@ export type ResendResult =
 export async function resendVerificationCode(): Promise<ResendResult> {
   const email = await getPendingEmail()
   if (!email) return { ok: false, message: VERIFICATION_EXPIRED }
+  return resendCode("/auth/verify-email/resend", email)
+}
 
-  const response = await postJson("/auth/verify-email/resend", { email }).catch(() => null)
+/** Asks for a new password reset code, with the same limits. */
+export async function resendPasswordResetCode(): Promise<ResendResult> {
+  const email = await getPendingEmail("reset")
+  if (!email) return { ok: false, message: RESET_EXPIRED }
+  return resendCode("/auth/password/forgot", email)
+}
+
+async function resendCode(path: string, email: string): Promise<ResendResult> {
+  const response = await postJson(path, { email }).catch(() => null)
   if (response?.status === 429) {
     return {
       ok: false,
@@ -146,6 +159,54 @@ export async function resendVerificationCode(): Promise<ResendResult> {
     return { ok: false, message: "Chưa gửi được mã. Vui lòng thử lại sau ít phút." }
   }
   return { ok: true }
+}
+
+/**
+ * Emails a reset code, then asks for it. The API answers the same for unknown
+ * emails, so this always moves on and never reveals whether one is registered.
+ */
+export async function requestPasswordReset(
+  values: ForgotPasswordValues
+): Promise<FormErrors<ForgotPasswordValues>> {
+  const parsed = forgotPasswordSchema.safeParse(values)
+  if (!parsed.success) return { email: "Email không hợp lệ" }
+
+  const { email } = parsed.data
+  const response = await postJson("/auth/password/forgot", { email }).catch(() => null)
+  if (!response) return { root: UNREACHABLE }
+  if (response.status === 429) {
+    return { root: "Bạn đã yêu cầu mã quá nhiều lần. Vui lòng thử lại sau 1 giờ." }
+  }
+  if (!response.ok) return { root: "Chưa gửi được mã. Vui lòng thử lại sau ít phút." }
+
+  await setPendingEmail(email, "reset")
+  redirect("/reset-password")
+}
+
+export async function resetPassword(
+  values: ResetPasswordValues
+): Promise<FormErrors<ResetPasswordValues>> {
+  const parsed = resetPasswordSchema.safeParse(values)
+  if (!parsed.success) return { root: INVALID }
+
+  const email = await getPendingEmail("reset")
+  if (!email) return { root: RESET_EXPIRED }
+
+  const { code, password } = parsed.data
+  const response = await postJson("/auth/password/reset", { email, code, password }).catch(
+    () => null
+  )
+  if (!response) return { root: UNREACHABLE }
+  if (response.status === 400) {
+    return { code: "Mã không đúng hoặc đã hết hạn. Hãy kiểm tra lại hoặc gửi mã mới." }
+  }
+  if (response.status === 429) return { root: TOO_MANY_GUESSES }
+  if (!response.ok) return { root: UNREACHABLE }
+
+  // Every session was signed out, this browser's included: start fresh.
+  clearTokenCookies(await cookies())
+  await clearPendingEmail("reset")
+  redirect("/login?reset=1")
 }
 
 export async function logout() {

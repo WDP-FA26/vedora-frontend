@@ -10,6 +10,19 @@ const username = z
   .min(3, "Tên đăng nhập cần ít nhất 3 ký tự")
   .max(30, "Tên đăng nhập tối đa 30 ký tự")
 
+const email = z
+  .string()
+  .trim()
+  .toLowerCase()
+  .pipe(z.email("Email không hợp lệ").max(320, "Email quá dài"))
+
+const newPassword = z
+  .string()
+  .min(8, "Mật khẩu cần ít nhất 8 ký tự")
+  .max(72, "Mật khẩu tối đa 72 ký tự")
+
+const sixDigitCode = z.string().regex(/^\d{6}$/, "Nhập đủ 6 chữ số")
+
 /** A username being chosen (register, rename); login accepts whatever exists. */
 export const newUsernameSchema = username.regex(
   /^[a-z0-9._-]+$/,
@@ -26,12 +39,8 @@ export const registerSchema = z
     lastName: z.string().trim().min(1, "Nhập họ").max(50, "Họ tối đa 50 ký tự"),
     firstName: z.string().trim().min(1, "Nhập tên").max(50, "Tên tối đa 50 ký tự"),
     username: newUsernameSchema,
-    email: z
-      .string()
-      .trim()
-      .toLowerCase()
-      .pipe(z.email("Email không hợp lệ").max(320, "Email quá dài")),
-    password: z.string().min(8, "Mật khẩu cần ít nhất 8 ký tự").max(72, "Mật khẩu tối đa 72 ký tự"),
+    email,
+    password: newPassword,
     confirmPassword: z.string(),
   })
   .refine((data) => data.password === data.confirmPassword, {
@@ -52,12 +61,27 @@ export function toFullName({ lastName, firstName }: { lastName: string; firstNam
 }
 
 export const verifyEmailSchema = z.object({
-  code: z.string().regex(/^\d{6}$/, "Nhập đủ 6 chữ số"),
+  code: sixDigitCode,
 })
+
+export const forgotPasswordSchema = z.object({ email })
+
+export const resetPasswordSchema = z
+  .object({
+    code: sixDigitCode,
+    password: newPassword,
+    confirmPassword: z.string(),
+  })
+  .refine((data) => data.password === data.confirmPassword, {
+    path: ["confirmPassword"],
+    message: "Mật khẩu nhập lại không khớp",
+  })
 
 export type LoginValues = z.infer<typeof loginSchema>
 export type RegisterValues = z.infer<typeof registerSchema>
 export type VerifyEmailValues = z.infer<typeof verifyEmailSchema>
+export type ForgotPasswordValues = z.infer<typeof forgotPasswordSchema>
+export type ResetPasswordValues = z.infer<typeof resetPasswordSchema>
 
 /** Server Action errors, keyed by field, or `root` for the whole form. */
 export type FormErrors<Values> = Partial<Record<keyof Values | "root", string>>
