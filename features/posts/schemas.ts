@@ -20,23 +20,33 @@ export const MAX_POST_MEDIA = 4
 /** Mirrors the API's `MAX_COMMENT_BODY_LENGTH`. */
 export const MAX_COMMENT_LENGTH = 1000
 
+export const captionTrackSchema = z.object({
+  languageCode: z.string(),
+  /** The language's own name, e.g. "Tiếng Việt". */
+  name: z.string(),
+  /** The spoken language, as opposed to its translation. */
+  isOriginal: z.boolean(),
+  /** Public WebVTT file on Cloudinary. */
+  url: z.url(),
+})
+
 export const apiMediaSchema = z.object({
   id: z.string(),
   type: z.enum(["VIDEO", "IMAGE"]),
   status: z.enum(["WAITING_UPLOAD", "PROCESSING", "READY", "FAILED"]),
   failureReason: z
-    .enum([
-      "TOO_LONG",
-      "ENCODING_FAILED",
-      "UPLOAD_ERRORED",
-      "UPLOAD_CANCELLED",
-      "UPLOAD_TIMED_OUT",
-      "NO_PLAYBACK_ID",
-    ])
+    .enum(["TOO_LONG", "ENCODING_FAILED", "UPLOAD_ERRORED", "UPLOAD_TIMED_OUT"])
     .nullable(),
-  playbackId: z.string().nullable(),
+  /** Cloudinary public ID, for `CldVideoPlayer`. */
+  publicId: z.string(),
+  /** Adaptive HLS stream; set once READY. */
+  playbackUrl: z.url().nullable(),
+  /** First frame as JPEG; set once READY. */
+  posterUrl: z.url().nullable(),
   durationSec: z.number().nullable(),
   aspectRatio: z.string().nullable(),
+  /** Spoken language first; empty until the post is published and transcribed. */
+  captions: z.array(captionTrackSchema),
 })
 
 export const apiPostSchema = z.object({
@@ -73,7 +83,13 @@ export const postPageSchema = z.object({
 
 export const videoUploadSchema = z.object({
   media: apiMediaSchema,
-  uploadUrl: z.url(),
+  /** A signed direct upload to Cloudinary; the signature expires after an hour. */
+  upload: z.object({
+    url: z.url(),
+    fields: z.record(z.string(), z.string()),
+    /** Larger files go in chunks of this many bytes. */
+    chunkSize: z.number(),
+  }),
 })
 
 export const apiCommentSchema = z.object({
@@ -159,6 +175,7 @@ export const postFormSchema = z
   })
 
 export type ApiMedia = z.infer<typeof apiMediaSchema>
+export type CaptionTrack = z.infer<typeof captionTrackSchema>
 export type ApiPost = z.infer<typeof apiPostSchema>
 export type PostPage = z.infer<typeof postPageSchema>
 export type VideoUploadTarget = z.infer<typeof videoUploadSchema>

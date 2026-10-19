@@ -13,9 +13,8 @@ import {
 import { cn } from "cn"
 
 /**
- * Plays a local file before it reaches Mux. Media Chrome (the UI Mux Player
- * is built on) over a native `<video>`, so any format the browser decodes
- * works and the controls match Mux Player in the feed.
+ * Plays a local file before it reaches Cloudinary: Media Chrome over a native
+ * `<video>`, so any format the browser decodes works.
  */
 export function VideoPreview({
   src,

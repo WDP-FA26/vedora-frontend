@@ -11,10 +11,8 @@ import type { CaptionStatus, CaptionTrack } from "@/features/admin/schemas"
 /** Shown when a video has no caption track to read. */
 const STATUS_MESSAGES: Record<CaptionStatus, string> = {
   NONE: "Chưa có bản ghi lời. Video được ghi lời sau khi bài được đăng.",
-  GENERATING: "Đang ghi lời video…",
-  ATTACHING: "Đang ghi lời video…",
-  TRANSLATING: "Đang dịch bản ghi lời…",
-  READY: "Không đọc được bản ghi lời từ Mux. Thử mở lại nhé.",
+  TRANSCRIBING: "Đang ghi lời và dịch video…",
+  READY: "Không đọc được bản ghi lời. Thử mở lại nhé.",
   NO_SPEECH: "Video không có lời thoại.",
   FAILED: "Không ghi lời được video này.",
 }
@@ -38,7 +36,7 @@ export function Transcript({
   onSeek: (seconds: number) => void
 }) {
   const [selected, setSelected] = useState<string | null>(null)
-  const track = tracks.find(({ id }) => id === selected) ?? tracks[0] ?? null
+  const track = tracks.find(({ url }) => url === selected) ?? tracks[0] ?? null
   const { cues, error } = useTranscript(track?.url ?? null)
 
   return (
@@ -47,13 +45,13 @@ export function Transcript({
         <h4 className="text-[0.8125rem] text-muted-foreground">Bản ghi lời</h4>
         {tracks.length > 1 && (
           <div className="flex items-center gap-1">
-            {tracks.map(({ id, name }) => (
+            {tracks.map(({ url, name }) => (
               <Button
-                key={id}
-                variant={id === track?.id ? "outline" : "action"}
+                key={url}
+                variant={url === track?.url ? "outline" : "action"}
                 size="sm"
-                aria-pressed={id === track?.id}
-                onClick={() => setSelected(id)}
+                aria-pressed={url === track?.url}
+                onClick={() => setSelected(url)}
               >
                 {name}
               </Button>

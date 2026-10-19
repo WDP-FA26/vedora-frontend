@@ -49,9 +49,9 @@ export function useUpsertFeedPost() {
 }
 
 /**
- * Polls the author's PROCESSING post until Mux finishes, then updates it in
- * the feed. `GET /posts/:id` is also what advances it when the API runs
- * without Mux webhooks (local dev).
+ * Polls the author's PROCESSING post until Cloudinary finishes, then updates
+ * it in the feed. `GET /posts/:id` is also what advances it when the API runs
+ * without Cloudinary notifications.
  *
  * SWR asks `refreshInterval` whether to start polling only on mount, before
  * the first response, so it must keep polling while `latest` is undefined.

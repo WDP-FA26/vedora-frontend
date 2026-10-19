@@ -1,7 +1,6 @@
 "use client"
 
 import Link from "next/link"
-import MuxPlayer from "@mux/mux-player-react/lazy"
 import { useState } from "react"
 import { ClapperboardIcon, EllipsisIcon, SproutIcon } from "lucide-react"
 
@@ -23,6 +22,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { PostCard } from "@/features/home/components/post-card"
+import { VideoPlayer } from "@/features/posts/components/video-player"
 import { postPath } from "@/features/posts/posts-cache"
 import type { ApiPost } from "@/features/posts/schemas"
 import { formatCount } from "@/features/shared/lib/format"
@@ -96,7 +96,7 @@ function MyVideoCard({ post }: { post: ApiPost }) {
 
   return <article className="min-w-0 overflow-hidden rounded-2xl border border-border bg-card shadow-sm">
     <div className="aspect-video overflow-hidden bg-secondary">
-      {video?.playbackId && video.status === "READY" ? <MuxPlayer playbackId={video.playbackId} streamType="on-demand" accentColor="var(--primary)" title={title} className="block h-full w-full bg-black [--media-object-fit:contain]" /> : <div className="flex h-full items-center justify-center text-primary"><ClapperboardIcon aria-hidden className="size-9" /></div>}
+      {video?.status === "READY" ? <VideoPlayer publicId={video.publicId} aspectRatio={video.aspectRatio} captions={video.captions} label={title} className="flex h-full items-center" /> : <div className="flex h-full items-center justify-center text-primary"><ClapperboardIcon aria-hidden className="size-9" /></div>}
     </div>
     <div className="space-y-3 p-4">
       <div className="flex items-start justify-between gap-2"><div className="min-w-0"><h3 className="line-clamp-2 text-sm font-bold leading-5">{title}</h3><p className="mt-1 text-xs text-muted-foreground">{post.publishedAt ? "Ngày đăng" : "Ngày tạo"}: {formattedDate}</p></div><DropdownMenu><DropdownMenuTrigger render={<Button type="button" variant="ghost" size="icon-sm" aria-label={`Tùy chọn cho ${title}`} />}><EllipsisIcon aria-hidden /></DropdownMenuTrigger><DropdownMenuContent align="end"><DropdownMenuItem disabled>Chỉnh sửa · Sắp có</DropdownMenuItem><DropdownMenuItem disabled>Xóa bài viết · Sắp có</DropdownMenuItem></DropdownMenuContent></DropdownMenu></div>

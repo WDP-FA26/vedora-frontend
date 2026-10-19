@@ -1,9 +1,13 @@
 "use client"
 
 import { useEffect, useRef, useState } from "react"
-import { UpChunk } from "@mux/upchunk"
 
 import { useAuth } from "@/features/auth/hooks/use-auth"
+import {
+  CloudinaryUploadError,
+  uploadToCloudinary,
+  type UploadTask,
+} from "@/features/posts/lib/cloudinary-upload"
 import { discardMedia, requestVideoUpload } from "@/features/posts/lib/posts-api"
 import { ApiError } from "@/features/shared/lib/api-client"
 import {
@@ -20,7 +24,7 @@ export type MediaUpload = {
   durationSec: number | null
   status: "uploading" | "ready" | "failed"
   error?: string
-  /** 0–100 while uploading; set to 100 once Mux has the whole file. */
+  /** 0–100 while uploading; set to 100 once Cloudinary has the whole file. */
   progress: number
   /** Set once the upload finished and the attachment can be posted. */
   mediaId: string | null
@@ -32,7 +36,7 @@ type Entry = MediaUpload & {
   token: string
   /** Issued by the API before the file finished uploading. */
   pendingId: string | null
-  task: UpChunk | null
+  task: UploadTask | null
   attempt: number
   cleanup: Promise<void> | null
 }
@@ -59,8 +63,8 @@ function readDuration(file: File): Promise<number | null> {
 }
 
 /**
- * Sends up to `MAX_POST_MEDIA` videos straight to Mux: vedora-api issues a
- * direct-upload URL per file and UpChunk streams it in resumable chunks.
+ * Sends up to `MAX_POST_MEDIA` videos straight to Cloudinary: vedora-api signs
+ * a direct upload per file, and large files go up in chunks.
  * `onChange` receives the finished media IDs, in order, for `POST /posts`,
  * and how many attachments the composer holds, finished or not.
  * Unmounting (closing the composer) cancels unposted uploads and discards
@@ -157,34 +161,34 @@ export function useMediaUploads({
     }
     entry.pendingId = mediaId
 
-    let task: UpChunk
-    try {
-      task = UpChunk.createUpload({
-        endpoint: target.uploadUrl,
-        file: entry.file,
-        chunkSize: 5120,
-      })
-    } catch {
-      fail(entry, attempt, "Không bắt đầu tải lên được. Thử lại nhé.")
-      return
-    }
+    const current = () =>
+      entries.current.includes(entry) && entry.attempt === attempt && entry.status === "uploading"
+    const task = uploadToCloudinary(target.upload, entry.file, (percent) => {
+      if (!current()) return
+      entry.progress = percent
+      sync()
+    })
     entry.task = task
-    task.on("progress", (event: CustomEvent<number>) => {
-      if (!entries.current.includes(entry) || entry.attempt !== attempt || entry.status !== "uploading") return
-      entry.progress = event.detail
-      sync()
-    })
-    task.on("success", () => {
-      if (!entries.current.includes(entry) || entry.attempt !== attempt || entry.status !== "uploading") return
-      entry.task = null
-      entry.pendingId = null
-      entry.progress = 100
-      entry.mediaId = mediaId
-      entry.status = "ready"
-      entry.error = undefined
-      sync()
-    })
-    task.on("error", () => fail(entry, attempt, "Tải video lên thất bại. Thử lại nhé."))
+    task.done.then(
+      () => {
+        if (!current()) return
+        entry.task = null
+        entry.pendingId = null
+        entry.progress = 100
+        entry.mediaId = mediaId
+        entry.status = "ready"
+        entry.error = undefined
+        sync()
+      },
+      (err: unknown) =>
+        fail(
+          entry,
+          attempt,
+          err instanceof CloudinaryUploadError && /too large/i.test(err.message)
+            ? "Video quá lớn để tải lên."
+            : "Tải video lên thất bại. Thử lại nhé."
+        )
+    )
   }
 
   /** Adds files after the current attachments, up to the post's limit. */

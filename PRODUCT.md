@@ -25,7 +25,7 @@ A social feed that treats food content as craft: recipe reels, peer-reviewed nut
 - The composer takes text plus media (images, video, recipe, poll, emoji).
 - Post types: video/recipe reel, blog or research article, and image post.
 - The right rail shows trending topics and suggested creators.
-- Video uploads go through Mux direct uploads (`app/api/mux/upload/route.ts`).
+- Video uploads go straight to Cloudinary with an upload signed by vedora-api (`features/posts/lib/cloudinary-upload.ts`); playback uses next-cloudinary's `CldVideoPlayer` and needs `NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME`.
 
 ## Capabilities and Constraints
 

@@ -2,8 +2,6 @@
 
 import { useRef, useState } from "react"
 import Link from "next/link"
-import MuxPlayer from "@mux/mux-player-react/lazy"
-import type { MuxPlayerRefAttributes } from "@mux/mux-player-react"
 import { BookOpenIcon, ExternalLinkIcon, Trash2Icon } from "lucide-react"
 
 import {
@@ -32,6 +30,7 @@ import { Transcript } from "@/features/admin/components/content/transcript"
 import { useAdminPost, useDeleteAdminPost } from "@/features/admin/hooks/use-admin-posts"
 import type { AdminMediaDetail, AdminPostDetail } from "@/features/admin/schemas"
 import { toAuthor } from "@/features/auth/lib/to-author"
+import { VideoPlayer } from "@/features/posts/components/video-player"
 import { postPath } from "@/features/posts/posts-cache"
 import { profilePath } from "@/features/profiles/profiles-cache"
 import { NEW_RECIPE_PATH } from "@/features/recipes/recipes-cache"
@@ -41,11 +40,9 @@ import { formatCount, formatPostDateLong } from "@/features/shared/lib/format"
 
 const FAILURE_MESSAGES: Record<NonNullable<AdminMediaDetail["failureReason"]>, string> = {
   TOO_LONG: "Video dài quá giới hạn.",
-  ENCODING_FAILED: "Mux không xử lý được tệp video.",
+  ENCODING_FAILED: "Cloudinary không xử lý được tệp video.",
   UPLOAD_ERRORED: "Tải lên bị lỗi.",
-  UPLOAD_CANCELLED: "Tải lên đã bị huỷ.",
   UPLOAD_TIMED_OUT: "Tải lên quá thời gian.",
-  NO_PLAYBACK_ID: "Video không có mã phát.",
 }
 
 /** A post in full: its text, videos and their transcripts, with delete. */
@@ -223,26 +220,24 @@ export function PostVideo({
   media: AdminMediaDetail
   label: string
 }) {
-  const player = useRef<MuxPlayerRefAttributes>(null)
+  const player = useRef<HTMLVideoElement | null>(null)
   const [time, setTime] = useState(0)
 
   return (
     <section aria-label={label} className="flex flex-col gap-3">
       <h3 className="text-[0.8125rem] text-muted-foreground">{label}</h3>
 
-      {media.status === "READY" && media.playbackId ? (
+      {media.status === "READY" ? (
         <>
           <div className="overflow-hidden rounded-xl bg-black">
-            <MuxPlayer
-              ref={player}
-              playbackId={media.playbackId}
-              streamType="on-demand"
-              accentColor="var(--primary)"
-              title={label}
-              metadata={{ video_title: label }}
-              className="block max-h-96 w-full"
-              style={{ aspectRatio: media.aspectRatio?.replace(":", " / ") ?? "16 / 9" }}
-              onTimeUpdate={() => setTime(player.current?.currentTime ?? 0)}
+            <VideoPlayer
+              publicId={media.publicId}
+              aspectRatio={media.aspectRatio}
+              captions={media.captions}
+              label={label}
+              className="max-h-96"
+              videoRef={player}
+              onTimeUpdate={setTime}
             />
           </div>
           <Transcript

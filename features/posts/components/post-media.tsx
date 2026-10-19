@@ -1,13 +1,13 @@
 "use client"
 
 import { useState } from "react"
-import MuxPlayer from "@mux/mux-player-react/lazy"
 import { ClapperboardIcon, TriangleAlertIcon } from "lucide-react"
 import { cn } from "cn"
 
 import { Spinner } from "@/components/ui/spinner"
-import type { MediaPost, MuxVideo } from "@/features/home/types"
+import type { CloudinaryVideo, MediaPost } from "@/features/home/types"
 import { MediaGrid } from "@/features/posts/components/media-grid"
+import { VideoPlayer } from "@/features/posts/components/video-player"
 import { useProcessingPost } from "@/features/posts/hooks/use-feed-posts"
 import { MediaPlaceholder } from "@/features/shared/components/media-placeholder"
 import type { Author } from "@/features/shared/types"
@@ -21,7 +21,7 @@ export function PostMedia({ post }: { post: MediaPost }) {
     <MediaGrid className="mt-4">
       {post.media.map((video, index) => (
         <PostVideo
-          key={`${video.id}:${video.playbackId ?? "pending"}`}
+          key={`${video.id}:${video.status}`}
           video={video}
           author={post.author}
           label={
@@ -42,7 +42,7 @@ function PostVideo({
   label,
   fill,
 }: {
-  video: MuxVideo
+  video: CloudinaryVideo
   author: Author
   label: string
   /** In a multi-item grid, fit within the cell without cropping the video. */
@@ -50,7 +50,7 @@ function PostVideo({
 }) {
   const [loadFailed, setLoadFailed] = useState(false)
 
-  if (video.status !== "ready" || !video.playbackId) {
+  if (video.status !== "ready") {
     return (
       <MediaPlaceholder
         tone={author.tone}
@@ -82,19 +82,12 @@ function PostVideo({
   }
 
   return (
-    <MuxPlayer
-      playbackId={video.playbackId}
-      streamType="on-demand"
-      accentColor="var(--primary)"
-      title={label}
-      metadata={{ video_title: label }}
-      className={cn(
-        "block w-full bg-black [--media-object-fit:contain]",
-        fill ? "h-full" : "max-h-[32rem]"
-      )}
-      style={
-        fill ? undefined : { aspectRatio: video.aspectRatio?.replace(":", " / ") ?? "16 / 9" }
-      }
+    <VideoPlayer
+      publicId={video.publicId}
+      aspectRatio={video.aspectRatio}
+      captions={video.captions}
+      label={label}
+      className={cn(fill ? "flex h-full items-center" : "max-h-[32rem]")}
       onError={() => setLoadFailed(true)}
     />
   )

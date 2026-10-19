@@ -6,13 +6,13 @@ const isPreview = process.env.VERCEL_ENV === "preview";
 const toolbar = (...sources: string[]) => (isPreview ? ` ${sources.join(" ")}` : "");
 // Client Components call vedora-api directly (see `useAuth()`).
 const apiOrigin = new URL(process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000/api/v1").origin;
-// Mux: direct uploads (direct-uploads-*.mux.com), HLS streams (stream.mux.com),
-// thumbnails and storyboards (image.mux.com), and Mux Data beacons (litix.io).
-const mux = "https://*.mux.com";
-const muxData = "https://*.litix.io";
+// Cloudinary: signed direct uploads (api.cloudinary.com); HLS streams, posters
+// and caption files (res.cloudinary.com).
+const cloudinaryUpload = "https://api.cloudinary.com";
+const cloudinaryCdn = "https://res.cloudinary.com";
+// CldVideoPlayer loads its pinned player build from unpkg.
+const cloudinaryPlayer = "https://unpkg.com/cloudinary-video-player@1.11.1/";
 const storageOrigin = new URL(process.env.NEXT_PUBLIC_STORAGE_URL ?? "http://localhost:9000").origin;
-// Mux Player loads Google's Cast SDK in Chrome to offer Chromecast.
-const castSdk = "https://www.gstatic.com";
 // Dish photos are hot-linked, not stored: only these free-licence hosts may serve them.
 // Keep in sync with DISH_IMAGE_HOSTS in features/recipes/schemas.ts.
 const dishImages = "https://upload.wikimedia.org https://images.unsplash.com https://images.pexels.com";
@@ -26,12 +26,13 @@ const turnstile = "https://challenges.cloudflare.com";
  */
 const csp = [
   "default-src 'self'",
-  `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ""} ${castSdk} ${turnstile}${toolbar("https://vercel.live")}`,
+  `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ""} ${cloudinaryPlayer} ${turnstile}${toolbar("https://vercel.live")}`,
   `style-src 'self' 'unsafe-inline'${toolbar("https://vercel.live")}`,
-  `img-src 'self' blob: data: ${mux} ${storageOrigin} ${dishImages}${toolbar("https://vercel.live", "https://vercel.com")}`,
-  `font-src 'self'${toolbar("https://vercel.live", "https://assets.vercel.com")}`,
-  `connect-src 'self' ${apiOrigin} ${mux} ${muxData} ${storageOrigin}${toolbar("https://vercel.live", "wss://ws-us3.pusher.com")}`,
-  `media-src 'self' blob: ${mux}`,
+  `img-src 'self' blob: data: ${cloudinaryCdn} ${storageOrigin} ${dishImages}${toolbar("https://vercel.live", "https://vercel.com")}`,
+  // The Cloudinary player's icon font is inlined as a data: URI.
+  `font-src 'self' data:${toolbar("https://vercel.live", "https://assets.vercel.com")}`,
+  `connect-src 'self' ${apiOrigin} ${cloudinaryUpload} ${cloudinaryCdn} ${storageOrigin}${toolbar("https://vercel.live", "wss://ws-us3.pusher.com")}`,
+  `media-src 'self' blob: ${cloudinaryCdn}`,
   "worker-src 'self' blob:",
   `frame-src 'self' ${turnstile}${toolbar("https://vercel.live")}`,
   "object-src 'none'",

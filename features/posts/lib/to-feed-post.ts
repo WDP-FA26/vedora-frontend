@@ -1,5 +1,5 @@
 import { toAuthor } from "@/features/auth/lib/to-author"
-import type { MediaPost, MuxVideo, Post } from "@/features/home/types"
+import type { CloudinaryVideo, MediaPost, Post } from "@/features/home/types"
 import type { ApiMedia, ApiPost } from "@/features/posts/schemas"
 
 function formatDuration(seconds: number | null) {
@@ -14,7 +14,7 @@ const postStatus: Record<ApiPost["status"], MediaPost["status"]> = {
   FAILED: "failed",
 }
 
-const mediaStatus: Record<ApiMedia["status"], MuxVideo["status"]> = {
+const mediaStatus: Record<ApiMedia["status"], CloudinaryVideo["status"]> = {
   WAITING_UPLOAD: "processing",
   PROCESSING: "processing",
   READY: "ready",
@@ -50,9 +50,11 @@ export function toFeedPost(post: ApiPost): Post {
       type: "video",
       id: video.id,
       status: mediaStatus[video.status],
-      playbackId: video.playbackId,
+      publicId: video.publicId,
+      posterUrl: video.posterUrl,
       aspectRatio: video.aspectRatio,
       duration: formatDuration(video.durationSec),
+      captions: video.captions,
     })),
   }
 }

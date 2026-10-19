@@ -1,3 +1,4 @@
+import type { CaptionTrack } from "@/features/posts/schemas"
 import type { PlaceholderTone } from "@/features/shared/components/media-placeholder"
 import type { Author } from "@/features/shared/types"
 
@@ -22,20 +23,22 @@ export type VideoPost = PostBase & {
   video: { duration: string; caption: string; tone: PlaceholderTone }
 }
 
-/** A video hosted on Mux, from a vedora-api post. */
-export type MuxVideo = {
+/** A video hosted on Cloudinary, from a vedora-api post. */
+export type CloudinaryVideo = {
   type: "video"
   id: string
-  /** "processing" until Mux finishes encoding. */
+  /** "processing" until Cloudinary has built the stream. */
   status: "processing" | "ready" | "failed"
-  playbackId: string | null
-  /** Mux aspect ratio, e.g. "16:9". */
+  publicId: string
+  posterUrl: string | null
+  /** e.g. "16:9". */
   aspectRatio: string | null
   duration: string
+  captions: CaptionTrack[]
 }
 
 /** Up to four attachments; photos will join this union. */
-export type PostAttachment = MuxVideo
+export type PostAttachment = CloudinaryVideo
 
 /** A vedora-api post with attachments, laid out like X's media grid. */
 export type MediaPost = PostBase & {

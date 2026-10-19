@@ -54,7 +54,7 @@ export async function deleteAdminPost(token: string, id: string) {
   await send(adminPostKey(id), token, { method: "DELETE" })
 }
 
-/** A caption track's cues, read from its public WebVTT file on Mux. */
+/** A caption track's cues, read from its public WebVTT file on Cloudinary. */
 export async function fetchTranscript(url: string) {
   const response = await fetch(url)
   if (!response.ok) throw new Error(`Transcript request failed: ${response.status}`)

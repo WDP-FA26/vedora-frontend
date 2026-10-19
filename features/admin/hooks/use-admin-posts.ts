@@ -29,7 +29,7 @@ export function useAdminPosts() {
   return { posts: data ?? NO_POSTS, error, isLoading }
 }
 
-/** One post with its videos' caption tracks, which the API reads from Mux. */
+/** One post with its videos' caption tracks. */
 export function useAdminPost(id: string | null) {
   const { accessToken } = useAuth()
   const { data, error } = useSWR(

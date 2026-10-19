@@ -2,6 +2,8 @@ import { z } from "zod"
 
 import { apiMediaSchema, REPORT_REASONS } from "@/features/posts/schemas"
 
+export type { CaptionTrack } from "@/features/posts/schemas"
+
 // Mirrors vedora-api's `GET /users`, `/admin/posts` and `/admin/reports` (admin only): rows in
 // a page-based `PaginatedResponseDto`.
 
@@ -20,30 +22,12 @@ export const adminUserPageSchema = z.object({
   meta: z.object({ hasNextPage: z.boolean() }),
 })
 
-export const CAPTION_STATUSES = [
-  "NONE",
-  "GENERATING",
-  "ATTACHING",
-  "TRANSLATING",
-  "READY",
-  "NO_SPEECH",
-  "FAILED",
-] as const
+export const CAPTION_STATUSES = ["NONE", "TRANSCRIBING", "READY", "NO_SPEECH", "FAILED"] as const
 
 const adminMediaSchema = apiMediaSchema.extend({
   captionStatus: z.enum(CAPTION_STATUSES),
-  /** Spoken language Mux detected, e.g. `vi`. */
+  /** Spoken language Whisper detected, e.g. `vi`. */
   captionLanguage: z.string().nullable(),
-})
-
-const captionTrackSchema = z.object({
-  id: z.string(),
-  languageCode: z.string().nullable(),
-  name: z.string(),
-  /** The spoken language, as opposed to its translation. */
-  isOriginal: z.boolean(),
-  /** Public WebVTT file on Mux. */
-  url: z.url(),
 })
 
 const adminPostSchema = z.object({
@@ -71,9 +55,8 @@ export const adminPostPageSchema = z.object({
   meta: z.object({ hasNextPage: z.boolean() }),
 })
 
-export const adminPostDetailSchema = adminPostSchema.extend({
-  media: z.array(adminMediaSchema.extend({ captions: z.array(captionTrackSchema) })),
-})
+/** One post; its media already carries the caption tracks. */
+export const adminPostDetailSchema = adminPostSchema
 
 const reportUserSchema = z.object({
   id: z.string(),
@@ -106,7 +89,6 @@ export const adminReportPageSchema = z.object({
 export type AdminReport = z.infer<typeof adminReportSchema>
 export type AdminUser = z.infer<typeof adminUserSchema>
 export type CaptionStatus = (typeof CAPTION_STATUSES)[number]
-export type CaptionTrack = z.infer<typeof captionTrackSchema>
 export type AdminPost = z.infer<typeof adminPostSchema>
 export type AdminPostDetail = z.infer<typeof adminPostDetailSchema>
 export type AdminMediaDetail = AdminPostDetail["media"][number]
