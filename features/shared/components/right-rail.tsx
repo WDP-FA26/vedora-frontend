@@ -3,14 +3,11 @@
 import { useEffect, useRef, useState } from "react"
 import Image from "next/image"
 import Link from "next/link"
-import { ArrowRightIcon, CheckIcon, SearchIcon } from "lucide-react"
+import { usePathname } from "next/navigation"
+import { ArrowRightIcon, CheckIcon } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
-import {
-  InputGroup,
-  InputGroupAddon,
-  InputGroupInput,
-} from "@/components/ui/input-group"
+import { PostSearchForm } from "@/features/posts/components/post-search-form"
 import { AuthorAvatar } from "@/features/shared/components/author-avatar"
 import { suggestedCreators } from "@/features/shared/data/creators"
 import type { Author } from "@/features/shared/types"
@@ -42,6 +39,7 @@ function useStickyTop() {
 
 export function RightRail() {
   const { ref, top } = useStickyTop()
+  const pathname = usePathname()
 
   return (
     <aside
@@ -50,18 +48,8 @@ export function RightRail() {
       style={{ top }}
       className="sticky hidden w-[21.875rem] shrink-0 flex-col gap-4 self-start py-3 pl-6 *:shrink-0 lg:flex xl:pl-8"
     >
-      <form role="search" onSubmit={(event) => event.preventDefault()}>
-        <InputGroup variant="search">
-          <InputGroupAddon>
-            <SearchIcon aria-hidden />
-          </InputGroupAddon>
-          <InputGroupInput
-            type="search"
-            aria-label="Tìm kiếm trên Vedora"
-            placeholder="Tìm công thức, blog, nhà sáng tạo…"
-          />
-        </InputGroup>
-      </form>
+      {/* The search page has its own box. */}
+      {pathname !== "/home/search" && <PostSearchForm />}
 
       <AiPanel />
 

@@ -42,7 +42,9 @@ import { useMediaUploads } from "@/features/posts/hooks/use-media-uploads"
 import { createPost } from "@/features/posts/lib/posts-api"
 import { VideoPreview } from "@/features/posts/components/video-preview"
 import {
+  countWords,
   MAX_POST_LENGTH,
+  MAX_POST_WORDS,
   MAX_VIDEO_DURATION_SEC,
   postFormSchema,
   type ApiPost,
@@ -151,7 +153,8 @@ export function VideoGuideComposer({
   })
 
   const currentBody = composeBody(title, description)
-  const remaining = MAX_POST_LENGTH - currentBody.length
+  const currentWords = countWords(currentBody)
+  const remaining = MAX_POST_WORDS - currentWords
   const readyUpload = uploads.length === 1 && uploads[0].status === "ready"
   const canSubmit = !isSubmitting && !replaceOriginalKey && !uploads.some((upload) => upload.status === "uploading")
 
@@ -226,7 +229,9 @@ export function VideoGuideComposer({
     const next: typeof fieldErrors = {}
     if (!title.trim()) next.title = "Nhập tiêu đề video."
     if (!hasDescriptionContent(description)) next.description = "Viết nội dung hướng dẫn; các đề mục mẫu chưa được tính là nội dung."
-    if (currentBody.length > MAX_POST_LENGTH) {
+    if (currentWords > MAX_POST_WORDS) {
+      next.description = `Tiêu đề và mô tả cộng lại tối đa ${MAX_POST_WORDS} từ.`
+    } else if (currentBody.length > MAX_POST_LENGTH) {
       next.description = `Tiêu đề và mô tả cộng lại tối đa ${MAX_POST_LENGTH} ký tự.`
     }
     if (uploads.length === 0) next.video = "Chọn một video hướng dẫn."
@@ -387,7 +392,7 @@ export function VideoGuideComposer({
                 <label htmlFor="video-guide-description" className="mb-1.5 block text-sm font-semibold">Mô tả và các bước hướng dẫn</label>
                 <textarea id="video-guide-description" value={description} onChange={(event) => updateText(title, event.target.value)} aria-invalid={Boolean(fieldErrors.description)} aria-describedby={fieldErrors.description ? "video-guide-description-error" : undefined} rows={7} placeholder="Giới thiệu món ăn, nguyên liệu, cách thực hiện và mẹo của bạn…" className="block min-h-44 w-full resize-y rounded-2xl border border-border bg-background px-4 py-3 text-sm leading-relaxed outline-none placeholder:text-muted-foreground/80 focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-primary/15" />
                 {fieldErrors.description && <p id="video-guide-description-error" className="mt-1 text-xs text-destructive">{fieldErrors.description}</p>}
-                <p className={cn("mt-1 text-right text-xs tabular-nums text-muted-foreground", remaining < 20 && "font-semibold text-amber-700", remaining < 0 && "text-destructive")} aria-live="polite">{currentBody.length}/{MAX_POST_LENGTH} ký tự</p>
+                <p className={cn("mt-1 text-right text-xs tabular-nums text-muted-foreground", remaining < 25 && "font-semibold text-amber-700", remaining < 0 && "text-destructive")} aria-live="polite">{currentWords}/{MAX_POST_WORDS} từ</p>
               </div>
             </div>
 

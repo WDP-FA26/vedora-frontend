@@ -5,7 +5,16 @@ import { z } from "zod"
 
 /** Mirrors the API's `MAX_VIDEO_DURATION_SEC` default. */
 export const MAX_VIDEO_DURATION_SEC = 180
-export const MAX_POST_LENGTH = 280
+/** Mirrors the API's `MAX_POST_BODY_WORDS` and `MAX_POST_BODY_LENGTH`. */
+export const MAX_POST_WORDS = 250
+export const MAX_POST_LENGTH = 2000
+/** Mirrors the API's `MAX_SEARCH_QUERY_LENGTH`. */
+export const MAX_SEARCH_QUERY_LENGTH = 200
+
+/** Runs of non-whitespace, counted the same way as the API's `countWords`. */
+export function countWords(text: string) {
+  return text.split(/\s+/).filter(Boolean).length
+}
 /** Mirrors the API's `MAX_POST_MEDIA`. */
 export const MAX_POST_MEDIA = 4
 /** Mirrors the API's `MAX_COMMENT_BODY_LENGTH`. */
@@ -137,7 +146,10 @@ export const reportFormSchema = z
 
 export const postFormSchema = z
   .object({
-    body: z.string().max(MAX_POST_LENGTH, `Tối đa ${MAX_POST_LENGTH} ký tự`),
+    body: z
+      .string()
+      .max(MAX_POST_LENGTH, `Tối đa ${MAX_POST_LENGTH} ký tự`)
+      .refine((body) => countWords(body) <= MAX_POST_WORDS, `Tối đa ${MAX_POST_WORDS} từ`),
     /** Finished uploads, in display order. */
     mediaIds: z.array(z.string()).max(MAX_POST_MEDIA),
   })
