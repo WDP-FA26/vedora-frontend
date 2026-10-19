@@ -78,9 +78,9 @@ export function MobileTopBar() {
           variant="ghost"
           size="icon-lg"
           shape="pill"
-          aria-label="Tìm kiếm chưa khả dụng"
-          title="Tìm kiếm đang được cập nhật"
-          disabled
+          aria-label="Tìm kiếm"
+          render={<Link href="/home/search" />}
+          nativeButton={false}
         >
           <SearchIcon aria-hidden className="size-5" />
         </Button>

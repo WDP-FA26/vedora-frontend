@@ -24,7 +24,9 @@ import { useMediaUploads } from "@/features/posts/hooks/use-media-uploads"
 import { createPost } from "@/features/posts/lib/posts-api"
 import { ApiError } from "@/features/shared/lib/api-client"
 import {
+  countWords,
   MAX_POST_LENGTH,
+  MAX_POST_WORDS,
   MAX_POST_MEDIA,
   MAX_VIDEO_DURATION_SEC,
   postFormSchema,
@@ -99,11 +101,13 @@ function ShortPostComposer({
     },
   })
 
-  const remaining = MAX_POST_LENGTH - body.length
+  const words = countWords(body)
+  const remaining = MAX_POST_WORDS - words
   const uploading = uploads.some((item) => item.mediaId === null)
   const canSubmit =
     (body.trim() !== "" || uploads.length > 0) &&
     remaining >= 0 &&
+    body.length <= MAX_POST_LENGTH &&
     !uploading &&
     !isSubmitting
 
@@ -203,11 +207,11 @@ function ShortPostComposer({
             aria-live="polite"
             className={cn(
               "mt-1 text-right text-xs tabular-nums text-muted-foreground",
-              remaining < 20 && "font-semibold text-amber-700",
+              remaining < 25 && "font-semibold text-amber-700",
               remaining < 0 && "text-destructive"
             )}
           >
-            {body.length}/{MAX_POST_LENGTH} ký tự
+            {words}/{MAX_POST_WORDS} từ
           </p>
         )}
 
