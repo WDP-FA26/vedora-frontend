@@ -1,4 +1,5 @@
 import { API_URL } from "@/features/auth/lib/api"
+import { blogPath } from "@/features/blogs/blogs-cache"
 
 /**
  * SWR keys for posts. Keys are `[url, accessToken]` tuples fetched with
@@ -28,10 +29,15 @@ export function postPath(id: string) {
   return `/posts/${id}`
 }
 
+/** Blogs open on their own page, which loads the full article. */
+export function permalink(post: { id: string; kind?: string }) {
+  return post.kind === "blog" ? blogPath(post.id) : postPath(post.id)
+}
+
 /** Id of the comment thread on a post's page. */
 export const COMMENTS_ANCHOR = "comments"
 
-/** The comment thread on post `id`'s page. */
-export function commentsPath(id: string) {
-  return `${postPath(id)}#${COMMENTS_ANCHOR}`
+/** The comment thread on a post's page. */
+export function commentsPath(post: { id: string; kind?: string }) {
+  return `${permalink(post)}#${COMMENTS_ANCHOR}`
 }

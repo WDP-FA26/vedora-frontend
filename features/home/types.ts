@@ -1,3 +1,4 @@
+import type { BlogSummary } from "@/features/posts/schemas"
 import type { PlaceholderTone } from "@/features/shared/components/media-placeholder"
 import type { Author } from "@/features/shared/types"
 
@@ -59,4 +60,10 @@ export type PhotoPost = PostBase & {
   photos: { alt: string; tone: PlaceholderTone }[]
 }
 
-export type Post = VideoPost | MediaPost | ArticlePost | PhotoPost | TextPost
+/** A long vedora-api blog, shown as a card that opens the full article. */
+export type BlogPost = PostBase & {
+  kind: "blog"
+  blog: BlogSummary
+}
+
+export type Post = VideoPost | MediaPost | ArticlePost | PhotoPost | TextPost | BlogPost

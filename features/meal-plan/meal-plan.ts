@@ -94,10 +94,20 @@ export const proposalSchema = z.object({
   ),
 })
 
+/** `POST /meal-plan/preview`: what saving would change, and what is wrong with it. Not saved. */
+export const mealPlanPreviewSchema = z.object({
+  days: proposalSchema.shape.days,
+  problems: z.array(problemSchema),
+})
+
+/** The body of a `409 MEAL_PLAN_INVALID` from `PUT /meal-plan/days`. */
+export const mealPlanInvalidSchema = z.object({ problems: z.array(problemSchema) })
+
 export type MealRecipe = z.infer<typeof mealRecipeSchema>
 export type MealPlan = z.infer<typeof mealPlanSchema>
 export type MealPlanProblem = z.infer<typeof problemSchema>
 export type MealPlanProposal = z.infer<typeof proposalSchema>
+export type MealPlanPreview = z.infer<typeof mealPlanPreviewSchema>
 /** The complete new content of one day, as `PUT /meal-plan/days` takes it. */
 export type MealDayInput = {
   day: Weekday
@@ -138,6 +148,14 @@ export function fetchMealPlan([url, token]: readonly [string, string]) {
 export function saveMealDays(token: string, days: MealDayInput[]) {
   return sendJson(mealPlanSchema, `${MEAL_PLAN_KEY}/days`, token, {
     method: "PUT",
+    body: JSON.stringify({ days }),
+  })
+}
+
+/** Takes the same body as `saveMealDays`, so "Áp dụng" can send exactly what was previewed. */
+export function previewMealDays(token: string, days: MealDayInput[]) {
+  return sendJson(mealPlanPreviewSchema, `${MEAL_PLAN_KEY}/preview`, token, {
+    method: "POST",
     body: JSON.stringify({ days }),
   })
 }

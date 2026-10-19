@@ -16,6 +16,11 @@ const castSdk = "https://www.gstatic.com";
 // Dish photos are hot-linked, not stored: only these free-licence hosts may serve them.
 // Keep in sync with DISH_IMAGE_HOSTS in features/recipes/schemas.ts.
 const dishImages = "https://upload.wikimedia.org https://images.unsplash.com https://images.pexels.com";
+// Blog covers and images inside blog Markdown are any HTTPS link the author pastes
+// (the API stores the link, not the file), so images may load from any HTTPS host.
+// Scripts, frames and requests stay restricted; the Markdown renderer drops
+// non-HTTPS image URLs.
+const blogImages = "https:";
 // Cloudflare Turnstile: the script and the challenge iframe of the guest chat.
 const turnstile = "https://challenges.cloudflare.com";
 
@@ -28,7 +33,7 @@ const csp = [
   "default-src 'self'",
   `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ""} ${castSdk} ${turnstile}${toolbar("https://vercel.live")}`,
   `style-src 'self' 'unsafe-inline'${toolbar("https://vercel.live")}`,
-  `img-src 'self' blob: data: ${mux} ${storageOrigin} ${dishImages}${toolbar("https://vercel.live", "https://vercel.com")}`,
+  `img-src 'self' blob: data: ${mux} ${storageOrigin} ${dishImages} ${blogImages}${toolbar("https://vercel.live", "https://vercel.com")}`,
   `font-src 'self'${toolbar("https://vercel.live", "https://assets.vercel.com")}`,
   `connect-src 'self' ${apiOrigin} ${mux} ${muxData} ${storageOrigin}${toolbar("https://vercel.live", "wss://ws-us3.pusher.com")}`,
   `media-src 'self' blob: ${mux}`,

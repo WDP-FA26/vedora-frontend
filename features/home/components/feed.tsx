@@ -21,6 +21,7 @@ import {
 import { Skeleton } from "@/components/ui/skeleton"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useAuth } from "@/features/auth/hooks/use-auth"
+import { useBlogFeed } from "@/features/blogs/hooks/use-blogs"
 import { getFeed } from "@/features/home/data/posts"
 import type { FeedTab, Post } from "@/features/home/types"
 import { WeekPlanButton } from "@/features/meal-plan/components/week-plan-button"
@@ -64,16 +65,26 @@ const emptyCopy = {
 
 export function Feed() {
   const { posts, error, isLoading } = useFeedPosts()
+  const blogFeed = useBlogFeed()
   const { accessToken } = useAuth()
   const { mutate } = useSWRConfig()
   // The list endpoint may include the author's processing posts. Only
   // published content belongs in the public Explore timeline.
-  const published = posts.filter((post) => post.status === "PUBLISHED")
-  const forYou = published.map(toFeedPost)
-  const blogs = published.filter((post) => post.type === "BLOG").map(toFeedPost)
+  const forYou = posts.filter((post) => post.status === "PUBLISHED").map(toFeedPost)
+  const blogs = blogFeed.posts.filter((post) => post.status === "PUBLISHED").map(toFeedPost)
 
   function retry() {
     if (accessToken) void mutate([POSTS_KEY, accessToken])
+  }
+
+  const sources: Partial<Record<FeedTab, { posts: Post[]; isLoading: boolean; hasError: boolean; onRetry: () => void }>> = {
+    "for-you": { posts: forYou, isLoading, hasError: Boolean(error), onRetry: retry },
+    blogs: {
+      posts: blogs,
+      isLoading: blogFeed.isLoading,
+      hasError: Boolean(blogFeed.error),
+      onRetry: () => void blogFeed.retry(),
+    },
   }
 
   return (
@@ -102,11 +113,11 @@ export function Feed() {
         <TabsContent key={tab.value} value={tab.value}>
           <Timeline
             tab={tab.value}
-            livePosts={tab.value === "for-you" ? forYou : tab.value === "blogs" ? blogs : []}
+            livePosts={sources[tab.value]?.posts ?? []}
             mockPosts={getFeed(tab.value)}
-            isLoading={isLoading}
-            hasError={Boolean(error)}
-            onRetry={retry}
+            isLoading={sources[tab.value]?.isLoading ?? false}
+            hasError={sources[tab.value]?.hasError ?? false}
+            onRetry={sources[tab.value]?.onRetry ?? retry}
           />
         </TabsContent>
       ))}

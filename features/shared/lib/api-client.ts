@@ -15,7 +15,9 @@ export class ApiError extends Error {
     readonly status: number,
     /** Machine-readable reason, e.g. `UPLOAD_LIMIT_REACHED`. */
     readonly code: string | undefined,
-    message: string
+    message: string,
+    /** The whole error body, for the extra fields some codes carry. */
+    readonly body: unknown = null
   ) {
     super(message)
     this.name = "ApiError"
@@ -29,11 +31,13 @@ export async function send(url: string, token: string | undefined, init: Request
 
   const response = await fetch(url, { ...init, headers })
   if (!response.ok) {
-    const error = apiErrorSchema.safeParse(await response.json().catch(() => null))
+    const body: unknown = await response.json().catch(() => null)
+    const error = apiErrorSchema.safeParse(body)
     throw new ApiError(
       response.status,
       error.data?.code,
-      error.success ? [error.data.message].flat().join("; ") : response.statusText
+      error.success ? [error.data.message].flat().join("; ") : response.statusText,
+      body
     )
   }
   return response

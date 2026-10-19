@@ -5,16 +5,18 @@ import { useSWRConfig } from "swr"
 
 import { useAuth } from "@/features/auth/hooks/use-auth"
 import { setPostBookmark, setPostLike, setPostRepost } from "@/features/posts/lib/posts-api"
+import { BLOGS_KEY } from "@/features/blogs/blogs-cache"
 import { POSTS_KEY } from "@/features/posts/posts-cache"
 import type { ApiPost, PostPage } from "@/features/posts/schemas"
 
 type PostPatch = (post: ApiPost) => Partial<ApiPost>
 
 // Comment pages live under `/posts/:id/comments` but hold comments, not posts.
+// Blogs are posts too, cached under `/blogs` with the same counters.
 const isPostsKey = (key: unknown) =>
   Array.isArray(key) &&
   typeof key[0] === "string" &&
-  key[0].startsWith(POSTS_KEY) &&
+  (key[0].startsWith(POSTS_KEY) || key[0].startsWith(BLOGS_KEY)) &&
   !key[0].includes("/comments")
 
 /**

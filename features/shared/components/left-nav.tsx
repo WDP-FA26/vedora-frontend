@@ -120,6 +120,7 @@ export function NavLinks({
 export function isNavItemCurrent(pathname: string, href: string, userId?: string) {
   return (
     pathname === href ||
+    (href === "/home/blogs" && pathname.startsWith("/home/blogs/")) ||
     (href === "/home/profile" &&
       (pathname === "/home/dietary" ||
         (userId !== undefined && pathname === profilePath(userId))))

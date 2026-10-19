@@ -33,6 +33,7 @@ import { useAdminPost, useDeleteAdminPost } from "@/features/admin/hooks/use-adm
 import type { AdminMediaDetail, AdminPostDetail } from "@/features/admin/schemas"
 import { toAuthor } from "@/features/auth/lib/to-author"
 import { postPath } from "@/features/posts/posts-cache"
+import { blogPath } from "@/features/blogs/blogs-cache"
 import { profilePath } from "@/features/profiles/profiles-cache"
 import { NEW_RECIPE_PATH } from "@/features/recipes/recipes-cache"
 import { AuthorAvatar } from "@/features/shared/components/author-avatar"
@@ -179,7 +180,7 @@ function PostBody({ post, onDeleted }: { post: AdminPostDetail; onDeleted: () =>
           </Link>
           {post.status === "PUBLISHED" && (
             <Link
-              href={postPath(post.id)}
+              href={post.type === "BLOG" ? blogPath(post.id) : postPath(post.id)}
               target="_blank"
               className={buttonVariants({ variant: "outline" })}
             >

@@ -1,10 +1,12 @@
 import { SproutIcon } from "lucide-react"
 
+import { ClearSignedOutCache } from "@/features/auth/components/clear-signed-out-cache"
 import { Wordmark } from "@/features/shared/components/wordmark"
 
 export default function AuthLayout({ children }: LayoutProps<"/">) {
   return (
     <div className="grid min-h-dvh flex-1 lg:grid-cols-[minmax(0,5fr)_minmax(0,6fr)]">
+      <ClearSignedOutCache />
       <aside className="relative hidden overflow-hidden bg-primary p-12 text-primary-foreground lg:flex lg:flex-col">
         <Wordmark href="/" mono className="w-fit text-primary-foreground" />
         <div className="mt-auto max-w-md">

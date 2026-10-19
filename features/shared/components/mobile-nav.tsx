@@ -93,7 +93,10 @@ export function MobileTopBar() {
 export function MobileBottomNav() {
   const pathname = usePathname()
   const { user } = useAuth()
-  const items = navItems.filter((item) => item.href !== "/home/settings")
+  // The bar has room for five tabs; the rest live in the menu drawer.
+  const items = navItems.filter(
+    (item) => item.href !== "/home/settings" && item.href !== "/home/blogs"
+  )
   const isCurrent = (href: string) => isNavItemCurrent(pathname, href, user?.id)
 
   return (

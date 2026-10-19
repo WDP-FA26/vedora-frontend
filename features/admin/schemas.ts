@@ -49,7 +49,8 @@ const captionTrackSchema = z.object({
 const adminPostSchema = z.object({
   id: z.string(),
   type: z.enum(["POST", "BLOG"]),
-  status: z.enum(["PROCESSING", "PUBLISHED", "FAILED"]),
+  /** `DRAFT` is a blog its author has not published. */
+  status: z.enum(["DRAFT", "PROCESSING", "PUBLISHED", "FAILED"]),
   body: z.string().nullable(),
   publishedAt: z.string().nullable(),
   createdAt: z.string(),

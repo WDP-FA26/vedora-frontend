@@ -4,8 +4,10 @@ import { useId, useState } from "react"
 import Link from "next/link"
 import {
   BookmarkIcon,
+  BookOpenTextIcon,
   ChartNoAxesColumnIcon,
   CheckIcon,
+  ChefHatIcon,
   ClapperboardIcon,
   EllipsisIcon,
   FileTextIcon,
@@ -29,21 +31,22 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { AuthorAvatar } from "@/features/shared/components/author-avatar"
 import { formatCount, formatPostDate, formatPostDateLong } from "@/features/shared/lib/format"
+import { plainExcerpt } from "@/features/blogs/lib/plain-excerpt"
 import { MediaPlaceholder } from "@/features/shared/components/media-placeholder"
-import type { ArticlePost, PhotoPost, Post, VideoPost } from "@/features/home/types"
+import type { ArticlePost, BlogPost, PhotoPost, Post, VideoPost } from "@/features/home/types"
 import { VerifiedBadge } from "@/features/shared/components/verified-badge"
 import { useAuth } from "@/features/auth/hooks/use-auth"
 import { PostMedia } from "@/features/posts/components/post-media"
 import { ReportDialog } from "@/features/posts/components/report-dialog"
 import { usePostInteractions } from "@/features/posts/hooks/use-post-interactions"
 import { usePostView } from "@/features/posts/hooks/use-post-view"
-import { commentsPath, postPath } from "@/features/posts/posts-cache"
+import { commentsPath, permalink } from "@/features/posts/posts-cache"
 
 export function PostCard({ post }: { post: Post }) {
   // Fixture authors have no id, and so no profile to open.
   const profileHref = post.author.id ? `/profile/${post.author.id}` : null
   // Likewise, only API posts have a page of their own.
-  const postHref = post.author.id ? postPath(post.id) : null
+  const postHref = post.author.id ? permalink(post) : null
   const viewRef = usePostView<HTMLElement>(post.author.id ? post.id : null)
   const [expanded, setExpanded] = useState(false)
   const bodyId = useId()
@@ -125,6 +128,7 @@ export function PostCard({ post }: { post: Post }) {
         {post.kind === "media" && <PostMedia post={post} />}
         {post.kind === "article" && <ArticleCard post={post} />}
         {post.kind === "photo" && <PhotoMedia post={post} />}
+        {post.kind === "blog" && <BlogCard post={post} />}
 
         <PostActions post={post} />
       </div>
@@ -173,6 +177,52 @@ function VideoMedia({ post }: { post: VideoPost }) {
         {video.duration}
       </span>
     </MediaPlaceholder>
+  )
+}
+
+/**
+ * A blog in a list: its summary only. The article loads on its own page, and
+ * the excerpt is plain text, never rendered as Markdown.
+ */
+function BlogCard({ post }: { post: BlogPost }) {
+  const [coverFailed, setCoverFailed] = useState(false)
+  const { blog } = post
+  const excerpt = plainExcerpt(blog.excerpt)
+  return (
+    <Link
+      href={permalink(post)}
+      className="mt-3 block overflow-hidden rounded-2xl border border-border transition-colors outline-none hover:bg-muted/40 focus-visible:ring-3 focus-visible:ring-ring/30"
+    >
+      {blog.coverImageUrl && !coverFailed && (
+        // Hot-linked from another site, so the Next image optimizer is not used.
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={blog.coverImageUrl}
+          alt=""
+          loading="lazy"
+          onError={() => setCoverFailed(true)}
+          className="aspect-[1.91/1] w-full border-b border-border object-cover"
+        />
+      )}
+      <span className="block px-3.5 py-3">
+        <span className="flex items-center gap-1.5 text-xs font-semibold text-primary">
+          <BookOpenTextIcon aria-hidden className="size-3.5" />
+          Blog
+        </span>
+        <span className="mt-1 block text-base leading-snug font-bold text-balance">{blog.title}</span>
+        {excerpt && (
+          <span className="mt-1 line-clamp-3 block text-sm leading-relaxed text-muted-foreground">
+            {excerpt}
+          </span>
+        )}
+        {blog.recipes.length > 0 && (
+          <span className="mt-2 flex items-center gap-1.5 text-xs text-muted-foreground">
+            <ChefHatIcon aria-hidden className="size-3.5" />
+            {blog.recipes.length} món trong bài
+          </span>
+        )}
+      </span>
+    </Link>
   )
 }
 
@@ -251,7 +301,7 @@ export function PostMenu({ post }: { post: Post }) {
         <DropdownMenuContent align="end" className="w-56">
           <DropdownMenuItem
             onClick={() => {
-              void copyPostLink(post.id).then(setCopied)
+              void copyPostLink(post).then(setCopied)
             }}
           >
             {copied ? <CheckIcon aria-hidden /> : <LinkIcon aria-hidden />}
@@ -306,7 +356,7 @@ export function PostActions({ post }: { post: Post }) {
   }
 
   async function share() {
-    setCopied(await copyPostLink(post.id))
+    setCopied(await copyPostLink(post))
   }
 
   return (
@@ -321,7 +371,7 @@ export function PostActions({ post }: { post: Post }) {
             label="Bình luận"
             count={post.stats.replies}
             icon={MessageCircleIcon}
-            href={commentsPath(post.id)}
+            href={commentsPath(post)}
           />
           <ActionButton
             label={reposted ? "Hủy đăng lại" : "Đăng lại"}
@@ -371,8 +421,8 @@ export function PostActions({ post }: { post: Post }) {
   )
 }
 
-async function copyPostLink(id: string) {
-  const url = `${window.location.origin}${postPath(id)}`
+async function copyPostLink(post: Post) {
+  const url = `${window.location.origin}${permalink(post)}`
   try {
     await navigator.clipboard.writeText(url)
     return true

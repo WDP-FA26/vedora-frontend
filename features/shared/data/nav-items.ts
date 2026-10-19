@@ -1,5 +1,6 @@
 import {
   BookmarkIcon,
+  BookOpenTextIcon,
   BellIcon,
   CalendarDaysIcon,
   CompassIcon,
@@ -20,6 +21,7 @@ export const navItems: NavItem[] = [
   { href: "/home/notifications", label: "Thông báo", icon: BellIcon },
   { href: "/home/meal-planner", label: "Lên thực đơn", icon: CalendarDaysIcon },
   { href: "/home/bookmarks", label: "Đã lưu", icon: BookmarkIcon },
+  { href: "/home/blogs", label: "Blog của tôi", icon: BookOpenTextIcon },
   { href: "/home/profile", label: "Hồ sơ", icon: UserIcon },
   { href: "/home/settings", label: "Cài đặt", icon: SettingsIcon },
 ]

@@ -18,6 +18,7 @@ const STATUS_BADGES: Record<
   { label: string; variant: "default" | "secondary" | "destructive" }
 > = {
   PUBLISHED: { label: "Đã đăng", variant: "default" },
+  DRAFT: { label: "Nháp", variant: "secondary" },
   PROCESSING: { label: "Đang xử lý", variant: "secondary" },
   FAILED: { label: "Lỗi", variant: "destructive" },
 }
