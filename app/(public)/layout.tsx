@@ -2,8 +2,11 @@ import Link from "next/link"
 import { cookies } from "next/headers"
 
 import { Button } from "@/components/ui/button"
+import { Toaster } from "@/components/ui/toast"
 import { AuthProvider } from "@/features/auth/components/auth-provider"
 import { getAccessToken, getAuth } from "@/features/auth/server/session"
+import { NotificationStream } from "@/features/notifications/components/notification-stream"
+import { MainColumns } from "@/features/shared/components/main-columns"
 import { LeftNav } from "@/features/shared/components/left-nav"
 import { MobileBottomNav } from "@/features/shared/components/mobile-nav"
 import { PetProvider } from "@/features/shared/components/nutrition-pet"
@@ -50,14 +53,13 @@ export default async function PublicLayout({ children }: { children: React.React
   return (
     <PetProvider initial={petPreference}>
       <AuthProvider accessToken={accessToken} user={user}>
-        <div className="mx-auto flex w-full max-w-[79rem] flex-1 justify-center">
+        <NotificationStream />
+        <div className="vedora-main-shell mx-auto flex w-full max-w-[79rem] flex-1 justify-center">
           <LeftNav />
-          <main className="min-h-dvh w-full max-w-[37.5rem] min-w-0 bg-card sm:border-x sm:border-border">
-            {children}
-          </main>
-          <RightRail />
+          <MainColumns rail={<RightRail />}>{children}</MainColumns>
           <MobileBottomNav />
         </div>
+        <Toaster />
       </AuthProvider>
     </PetProvider>
   )

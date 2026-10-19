@@ -27,6 +27,7 @@ import {
   MessageScrollerViewport,
 } from "@/components/ui/message-scroller"
 import { PopoverDescription, PopoverTitle } from "@/components/ui/popover"
+import { AgentSources, AgentTrace, hasTrace } from "@/features/shared/components/agent-trace"
 import { LogoMark } from "@/features/shared/components/wordmark"
 import {
   messageText,
@@ -70,7 +71,7 @@ function AssistantMessage({ children }: { children: ReactNode }) {
 
 /** Body of the pet's chat popover: header, conversation and composer. */
 export function NutritionChatPanel({ onClose }: { onClose: () => void }) {
-  const { messages, busy, thinking, searching, streamingId, error, limit, ready, send, reset } =
+  const { messages, busy, thinking, pendingId, streamingId, error, limit, ready, send, reset } =
     useNutritionChat()
   const [verifyFailed, setVerifyFailed] = useState(false)
   const form = useForm<ChatMessageValues>({
@@ -103,8 +104,9 @@ export function NutritionChatPanel({ onClose }: { onClose: () => void }) {
             <MessageScrollerContent>
               {messages.map((message) => {
                 const text = messageText(message)
+                const pending = message.id === pendingId
                 // the reply's first chunk can be empty; the spinner covers it
-                if (!text) return null
+                if (!text && !pending && !hasTrace(message)) return null
                 return (
                 <MessageScrollerItem
                   key={message.id}
@@ -112,15 +114,19 @@ export function NutritionChatPanel({ onClose }: { onClose: () => void }) {
                 >
                   {message.role === "assistant" ? (
                     <AssistantMessage>
-                      <Streamdown
-                        caret="block"
-                        isAnimating={message.id === streamingId}
-                        controls={false}
-                        disallowedElements={UNSAFE_ELEMENTS}
-                        unwrapDisallowed
-                      >
-                        {text}
-                      </Streamdown>
+                      <AgentTrace message={message} pending={pending} />
+                      {text && (
+                        <Streamdown
+                          caret="block"
+                          isAnimating={message.id === streamingId}
+                          controls={false}
+                          disallowedElements={UNSAFE_ELEMENTS}
+                          unwrapDisallowed
+                        >
+                          {text}
+                        </Streamdown>
+                      )}
+                      {!pending && message.id !== streamingId && <AgentSources message={message} />}
                     </AssistantMessage>
                   ) : (
                     <Message align="end">
@@ -134,11 +140,11 @@ export function NutritionChatPanel({ onClose }: { onClose: () => void }) {
                 </MessageScrollerItem>
                 )
               })}
-              {thinking && (
+              {thinking && !pendingId && (
                 <MessageScrollerItem>
                   <AssistantMessage>
                     <span className="shimmer text-muted-foreground motion-reduce:shimmer-none">
-                      {searching ? "Đang tra cứu tài liệu…" : "Đang suy nghĩ…"}
+                      Đang suy nghĩ…
                     </span>
                   </AssistantMessage>
                 </MessageScrollerItem>

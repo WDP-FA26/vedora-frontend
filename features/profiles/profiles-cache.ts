@@ -29,3 +29,8 @@ export type ProfileListKind = "followers" | "following"
 export function profileListKey(id: string, kind: ProfileListKind) {
   return `${profileKey(id)}/${kind}`
 }
+
+/** The "who to follow" list; always the first `limit` suggestions. */
+export function suggestionsKey(limit: number) {
+  return `${PROFILES_KEY}/suggestions?limit=${limit}`
+}

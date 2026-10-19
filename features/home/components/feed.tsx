@@ -2,7 +2,6 @@
 
 import {
   BookOpenTextIcon,
-  ClapperboardIcon,
   RotateCcwIcon,
   SproutIcon,
   UtensilsCrossedIcon,
@@ -27,9 +26,8 @@ import { WeekPlanButton } from "@/features/meal-plan/components/week-plan-button
 import { useFeedPosts } from "@/features/posts/hooks/use-feed-posts"
 import { toFeedPost } from "@/features/posts/lib/to-feed-post"
 import { POSTS_KEY } from "@/features/posts/posts-cache"
-import { AuthorAvatar } from "@/features/shared/components/author-avatar"
-import { ComposeDialog } from "@/features/shared/components/compose-dialog"
 import { MobileTopBar } from "@/features/shared/components/mobile-nav"
+import { RecipeFeed } from "@/features/recipes/components/recipe-feed"
 import { PostCard } from "./post-card"
 
 const tabs: { value: FeedTab; label: string }[] = [
@@ -96,10 +94,11 @@ export function Feed() {
         </div>
       </div>
 
-      <FeedComposer />
-
       {tabs.map((tab) => (
         <TabsContent key={tab.value} value={tab.value}>
+          {tab.value === "recipes" ? (
+            <RecipeFeed />
+          ) : (
           <Timeline
             tab={tab.value}
             livePosts={tab.value === "for-you" ? forYou : tab.value === "blogs" ? blogs : []}
@@ -108,53 +107,10 @@ export function Feed() {
             hasError={Boolean(error)}
             onRetry={retry}
           />
+          )}
         </TabsContent>
       ))}
     </Tabs>
-  )
-}
-
-function FeedComposer() {
-  const { author } = useAuth()
-
-  return (
-    <section aria-label="Tạo bài viết" className="border-b border-border">
-      <div className="flex items-center gap-2 px-4 py-3 sm:gap-3 sm:px-5">
-        {author ? (
-          <AuthorAvatar author={author} size="lg" />
-        ) : (
-          <span aria-hidden className="size-11 rounded-full bg-secondary" />
-        )}
-        <ComposeDialog
-          trigger={
-            <Button
-              type="button"
-              variant="outline"
-              shape="pill"
-              size="lg"
-              aria-label="Tạo bài viết mới"
-              className="h-11 min-w-0 flex-1 justify-start overflow-hidden text-left"
-            >
-              <span className="min-w-0 truncate font-normal text-muted-foreground">
-                Bạn muốn chia sẻ món chay nào hôm nay?
-              </span>
-            </Button>
-          }
-          mediaTrigger={
-            <Button
-              type="button"
-              variant="tool"
-              size="lg"
-              aria-label="Tạo bài viết và thêm video"
-              className="shrink-0"
-            >
-              <ClapperboardIcon aria-hidden className="size-[1.125rem]" />
-              <span className="hidden sm:inline">Thêm video</span>
-            </Button>
-          }
-        />
-      </div>
-    </section>
   )
 }
 

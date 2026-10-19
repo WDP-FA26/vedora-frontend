@@ -38,6 +38,7 @@ import {
   type MealSection,
   type Weekday,
 } from "@/features/meal-plan/meal-plan"
+import { AgentSources, AgentTrace, hasTrace } from "@/features/shared/components/agent-trace"
 import { LogoMark } from "@/features/shared/components/wordmark"
 
 const UNSAFE_ELEMENTS = ["img", "a"]
@@ -107,7 +108,7 @@ export function PlannerChat({
   onOpenPlanner: (seed?: string) => void
   onFormSent?: () => void
 }) {
-  const { messages, busy, waiting, working, researching, streamingId, error, send, reset } = chat
+  const { messages, busy, waiting, pendingId, streamingId, error, send, reset } = chat
   const [input, setInput] = useState("")
   const [inputError, setInputError] = useState("")
   const [profileOpen, setProfileOpen] = useState(false)
@@ -236,20 +237,23 @@ export function PlannerChat({
           const text = messageText(message)
           const proposals = messageProposals(message)
           const cannotPropose = messageCannotPropose(message)
-          if (!text && proposals.length === 0 && !cannotPropose) return null
+          const pending = message.id === pendingId
+          if (!text && proposals.length === 0 && !cannotPropose && !pending && !hasTrace(message)) return null
           return message.role === "assistant" ? (
             <AssistantMessage key={message.id}>
+              <AgentTrace message={message} pending={pending} />
               {text && <Bubble variant="ghost"><BubbleContent><Streamdown caret="block" isAnimating={message.id === streamingId} controls={false} disallowedElements={UNSAFE_ELEMENTS} unwrapDisallowed>{text}</Streamdown></BubbleContent></Bubble>}
               {proposals.map((proposal) => (
                 <ProposalCard key={proposal.id} proposal={proposal} status={chat.statuses[proposal.id]} superseded={proposal.id !== chat.latestProposalId} onStage={onStage} onDismiss={() => chat.setProposalStatus(proposal.id, "dismissed")} openPlan={openPlan} />
               ))}
+              {!pending && message.id !== streamingId && <AgentSources message={message} />}
               {cannotPropose && !text && <p role="status" className="mt-2 rounded-xl border border-border bg-card px-3 py-2 text-sm">Chưa tìm được đủ món phù hợp với yêu cầu này. Bạn có thể chỉnh yêu cầu và thử lại.</p>}
             </AssistantMessage>
           ) : (
             <Message key={message.id} align="end"><MessageContent><Bubble align="end"><BubbleContent>{text}</BubbleContent></Bubble></MessageContent></Message>
           )
         })}
-        {waiting && <AssistantMessage><span className="shimmer text-sm text-muted-foreground motion-reduce:shimmer-none">{researching ? "Đang tra cứu tài liệu…" : working ? "Đang chọn món và kiểm tra thực đơn…" : "Đang suy nghĩ…"}</span></AssistantMessage>}
+        {waiting && !pendingId && <AssistantMessage><span className="shimmer text-sm text-muted-foreground motion-reduce:shimmer-none">Đang suy nghĩ…</span></AssistantMessage>}
         {error && <AssistantMessage><div role="alert" className="space-y-2 text-sm text-destructive"><p>{error} Tin nhắn vẫn ở ô nhập để bạn thử lại.</p><Button variant="outline" size="sm" onClick={() => submit()} disabled={!input.trim() || busy}><RotateCcwIcon aria-hidden /> Thử lại</Button></div></AssistantMessage>}
 
         {showSuggestions && <BubbleGroup aria-label="Gợi ý">{SUGGESTIONS.map((suggestion, index) => <Bubble key={suggestion} variant="outline"><BubbleContent render={<button type="button" />} onClick={() => chooseSuggestion(index)}>{suggestion}</BubbleContent></Bubble>)}</BubbleGroup>}

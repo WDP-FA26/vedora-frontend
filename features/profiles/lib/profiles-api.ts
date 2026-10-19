@@ -1,8 +1,9 @@
 import { API_URL } from "@/features/auth/lib/api"
 import { send, sendJson } from "@/features/shared/lib/api-client"
-import { MY_PROFILE_KEY, profileKey } from "@/features/profiles/profiles-cache"
+import { MY_PROFILE_KEY, PROFILES_KEY, profileKey } from "@/features/profiles/profiles-cache"
 import {
   apiProfileSchema,
+  followSuggestionListSchema,
   imageUploadSchema,
   profilePageSchema,
   relationshipSchema,
@@ -15,6 +16,10 @@ export function fetchProfile([url, token]: readonly [string, string | undefined]
 
 export function fetchRelationship([url, token]: readonly [string, string]) {
   return sendJson(relationshipSchema, url, token)
+}
+
+export function fetchSuggestions([url, token]: readonly [string, string]) {
+  return sendJson(followSuggestionListSchema, url, token)
 }
 
 export function fetchProfilePage([url, token]: readonly [string, string | undefined]) {
@@ -42,6 +47,10 @@ export async function followProfile(token: string, id: string) {
 
 export async function unfollowProfile(token: string, id: string) {
   await send(`${profileKey(id)}/follow`, token, { method: "DELETE" })
+}
+
+export async function dismissSuggestion(token: string, id: string) {
+  await send(`${PROFILES_KEY}/suggestions/${id}`, token, { method: "DELETE" })
 }
 
 export function requestImageUpload(token: string, kind: ImageKind, file: File) {

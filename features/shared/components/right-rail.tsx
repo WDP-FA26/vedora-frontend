@@ -4,13 +4,15 @@ import { useEffect, useRef, useState } from "react"
 import Image from "next/image"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { ArrowRightIcon, CheckIcon } from "lucide-react"
+import { ArrowRightIcon, CheckIcon, XIcon } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { PostSearchForm } from "@/features/posts/components/post-search-form"
-import { AuthorAvatar } from "@/features/shared/components/author-avatar"
-import { suggestedCreators } from "@/features/shared/data/creators"
-import type { Author } from "@/features/shared/types"
+import { ProfileAvatar } from "@/features/profiles/components/profile-avatar"
+import { useSuggestions } from "@/features/profiles/hooks/use-suggestions"
+import { profilePath } from "@/features/profiles/profiles-cache"
+import type { FollowSuggestion } from "@/features/profiles/schemas"
+import { PROFESSIONAL_LABEL } from "@/features/verification/schemas"
 import { VerifiedBadge } from "@/features/shared/components/verified-badge"
 
 /**
@@ -55,14 +57,7 @@ export function RightRail() {
 
       <UpgradePanel />
 
-      <Panel title="Nhà sáng tạo nên theo dõi">
-        <ul>
-          {suggestedCreators.slice(0, 3).map((creator) => (
-            <CreatorRow key={creator.handle} creator={creator} />
-          ))}
-        </ul>
-        <PanelLink href="#">Khám phá thêm nhà sáng tạo</PanelLink>
-      </Panel>
+      <WhoToFollow />
 
       <nav aria-label="Pháp lý" className="px-4 pb-4">
         <ul className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted-foreground">
@@ -161,42 +156,71 @@ function Panel({
   )
 }
 
-function PanelLink({ href, children }: { href: string; children: React.ReactNode }) {
+const reasonLabel: Record<FollowSuggestion["reason"], (count: number) => string> = {
+  FOLLOWS_YOU: () => "Đã theo dõi bạn",
+  MUTUAL: (count) => `Được ${count} người bạn theo dõi`,
+  ACTIVE: () => "Mới đăng bài gần đây",
+}
+
+/** Real suggestions from the API; hidden for guests and while there is nobody to suggest. */
+function WhoToFollow() {
+  const { suggestions, follow, dismiss } = useSuggestions(3)
+  if (suggestions.length === 0) return null
+
   return (
-    <Link
-      href={href}
-      className="block px-4 py-3 text-sm font-semibold text-primary transition-colors outline-none hover:bg-muted/60 focus-visible:bg-muted"
-    >
-      {children}
-    </Link>
+    <Panel title="Nên theo dõi">
+      <ul>
+        {suggestions.map((profile) => (
+          <SuggestionRow
+            key={profile.id}
+            profile={profile}
+            onFollow={() => follow(profile.id)}
+            onDismiss={() => dismiss(profile.id)}
+          />
+        ))}
+      </ul>
+    </Panel>
   )
 }
 
-function CreatorRow({ creator }: { creator: Author }) {
-  const [following, setFollowing] = useState(false)
-
+function SuggestionRow({
+  profile,
+  onFollow,
+  onDismiss,
+}: {
+  profile: FollowSuggestion
+  onFollow: () => void
+  onDismiss: () => void
+}) {
   return (
-    <li className="flex items-center gap-3 px-4 py-3">
-      <AuthorAvatar author={creator} size="lg" />
-      <span className="min-w-0 flex-1 leading-tight">
-        <span className="flex items-center gap-1">
-          <span className="truncate text-sm font-bold">{creator.name}</span>
-          {creator.verified && <VerifiedBadge label={creator.verified} />}
+    <li className="flex items-center gap-2 px-4 py-3">
+      <Link href={profilePath(profile.id)} className="flex min-w-0 flex-1 items-center gap-2.5">
+        <ProfileAvatar profile={profile} size="lg" />
+        <span className="min-w-0 flex-1 leading-tight">
+          <span className="flex items-center gap-1">
+            <span className="truncate text-sm font-bold">{profile.fullName}</span>
+            {profile.isProfessional && <VerifiedBadge label={PROFESSIONAL_LABEL} />}
+          </span>
+          <span className="block truncate text-xs text-muted-foreground">
+            @{profile.username}
+          </span>
+          <span className="line-clamp-2 text-xs text-muted-foreground">
+            {reasonLabel[profile.reason](profile.mutualCount)}
+          </span>
         </span>
-        <span className="block truncate text-xs text-muted-foreground">
-          @{creator.handle}
-        </span>
-      </span>
+      </Link>
+      <Button size="pill-sm" shape="pill" onClick={onFollow}>
+        Theo dõi
+        <span className="sr-only"> {profile.fullName}</span>
+      </Button>
       <Button
-        size="pill-sm"
+        variant="ghost"
+        size="icon-xs"
         shape="pill"
-        variant={following ? "outline" : "default"}
-        aria-pressed={following}
-        onClick={() => setFollowing((value) => !value)}
-        className="min-w-[5.5rem]"
+        aria-label={`Ẩn gợi ý ${profile.fullName}`}
+        onClick={onDismiss}
       >
-        {following ? "Đang theo dõi" : "Theo dõi"}
-        <span className="sr-only"> {creator.name}</span>
+        <XIcon aria-hidden />
       </Button>
     </li>
   )

@@ -15,27 +15,20 @@ import {
 } from "@/features/admin/lib/admin-api"
 import type { AdminPost, AdminReport } from "@/features/admin/schemas"
 import { useAuth } from "@/features/auth/hooks/use-auth"
+import { useAuthedSWR } from "@/features/auth/hooks/use-authed-swr"
 import { POSTS_KEY } from "@/features/posts/posts-cache"
 
 // TanStack Table rebuilds its row models whenever `data` changes identity.
 const NO_POSTS: AdminPost[] = []
 
 export function useAdminPosts() {
-  const { accessToken } = useAuth()
-  const { data, error, isLoading } = useSWR(
-    accessToken ? ([ADMIN_POSTS_KEY, accessToken] as const) : null,
-    fetchAllPosts
-  )
+  const { data, error, isLoading } = useAuthedSWR(ADMIN_POSTS_KEY, fetchAllPosts)
   return { posts: data ?? NO_POSTS, error, isLoading }
 }
 
 /** One post with its videos' caption tracks. */
 export function useAdminPost(id: string | null) {
-  const { accessToken } = useAuth()
-  const { data, error } = useSWR(
-    id && accessToken ? ([adminPostKey(id), accessToken] as const) : null,
-    fetchAdminPost
-  )
+  const { data, error } = useAuthedSWR(id ? adminPostKey(id) : null, fetchAdminPost)
   return { post: data ?? null, error }
 }
 

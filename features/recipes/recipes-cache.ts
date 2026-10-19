@@ -36,3 +36,10 @@ export type RecipeCatalogTab = (typeof RECIPE_CATALOG_TABS)[number]
 export function isRecipeCatalogTab(value: unknown): value is RecipeCatalogTab {
   return RECIPE_CATALOG_TABS.some((tab) => tab === value)
 }
+
+/** Public, read-only catalog (`GET /recipes`), as opposed to the admin `RECIPES_KEY`. */
+export const PUBLIC_RECIPES_KEY = `${API_URL}/recipes`
+
+export function publicRecipeKey(id: string) {
+  return `${PUBLIC_RECIPES_KEY}/${id}`
+}

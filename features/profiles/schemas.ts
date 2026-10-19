@@ -37,6 +37,15 @@ export const profilePageSchema = z.object({
   nextCursor: z.string().nullable(),
 })
 
+export const followSuggestionSchema = apiProfileSummarySchema.extend({
+  reason: z.enum(["FOLLOWS_YOU", "MUTUAL", "ACTIVE"]),
+  mutualCount: z.number(),
+})
+
+export const followSuggestionListSchema = z.object({
+  items: z.array(followSuggestionSchema),
+})
+
 export const relationshipSchema = z.object({
   isFollowing: z.boolean(),
 })
@@ -60,6 +69,8 @@ export type ImageKind = (typeof IMAGE_KINDS)[number]
 export type ApiProfileSummary = z.infer<typeof apiProfileSummarySchema>
 export type ApiProfile = z.infer<typeof apiProfileSchema>
 export type ProfilePage = z.infer<typeof profilePageSchema>
+export type FollowSuggestion = z.infer<typeof followSuggestionSchema>
+export type FollowSuggestionList = z.infer<typeof followSuggestionListSchema>
 export type Relationship = z.infer<typeof relationshipSchema>
 export type ImageUploadTarget = z.infer<typeof imageUploadSchema>
 export type ProfileFormValues = z.infer<typeof profileFormSchema>

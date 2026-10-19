@@ -114,3 +114,18 @@ export const saveRecipe = (token: string, id: string | undefined, body: RecipeIn
 export async function deleteRow(collection: string, token: string, id: string) {
   await send(`${collection}/${id}`, token, { method: "DELETE" })
 }
+
+const FEED_PAGE_LIMIT = 12
+
+/** The public list is readable signed out; the token is sent only when there is one. */
+export function fetchPublicRecipePage([url, page, token]: readonly [
+  string,
+  number,
+  string | undefined,
+]) {
+  return sendJson(recipePageSchema, `${url}?page=${page}&limit=${FEED_PAGE_LIMIT}`, token)
+}
+
+export function fetchPublicRecipe([url, token]: readonly [string, string | undefined]) {
+  return sendJson(recipeDetailSchema, url, token)
+}

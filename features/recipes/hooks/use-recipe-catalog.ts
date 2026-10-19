@@ -1,6 +1,7 @@
 "use client"
 
 import useSWR, { useSWRConfig } from "swr"
+import useSWRInfinite from "swr/infinite"
 
 import { useAuth } from "@/features/auth/hooks/use-auth"
 import {
@@ -9,12 +10,16 @@ import {
   fetchAllRecipes,
   fetchAllRules,
   fetchConflicts,
+  fetchPublicRecipe,
+  fetchPublicRecipePage,
   fetchRecipe,
 } from "@/features/recipes/lib/recipes-api"
 import {
   INCOMPATIBILITY_RULES_KEY,
   INGREDIENT_GROUPS_KEY,
   INGREDIENTS_KEY,
+  PUBLIC_RECIPES_KEY,
+  publicRecipeKey,
   RECIPE_CATALOG_KEYS,
   RECIPE_CONFLICTS_KEY,
   RECIPES_KEY,
@@ -37,7 +42,8 @@ const NO_CONFLICTS: RecipeConflict[] = []
 
 function useKey(url: string | null) {
   const { accessToken } = useAuth()
-  return url && accessToken ? ([url, accessToken] as const) : null
+  if (!url || !accessToken) return null
+  return [url, accessToken] as const
 }
 
 export function useIngredients() {
@@ -97,4 +103,32 @@ export function useRefreshRecipeCatalog() {
         Array.isArray(key) &&
         RECIPE_CATALOG_KEYS.some((prefix) => String(key[0]).startsWith(prefix))
     )
+}
+
+/** The public recipe feed, one page at a time. */
+export function usePublicRecipes() {
+  const { accessToken } = useAuth()
+  const { data, error, isLoading, isValidating, size, setSize, mutate } = useSWRInfinite(
+    (index) => [PUBLIC_RECIPES_KEY, index + 1, accessToken] as const,
+    fetchPublicRecipePage
+  )
+  const last = data?.at(-1)
+  return {
+    recipes: data?.flatMap((page) => page.items) ?? NO_RECIPES,
+    error,
+    isLoading,
+    isLoadingMore: isValidating && size > (data?.length ?? 0),
+    hasMore: last?.meta.hasNextPage ?? false,
+    loadMore: () => setSize(size + 1),
+    retry: () => mutate(),
+  }
+}
+
+export function usePublicRecipe(id: string | null) {
+  const { accessToken } = useAuth()
+  const { data, error } = useSWR(
+    id ? ([publicRecipeKey(id), accessToken] as const) : null,
+    fetchPublicRecipe
+  )
+  return { recipe: data ?? null, error }
 }

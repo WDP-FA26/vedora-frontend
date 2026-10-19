@@ -1,21 +1,18 @@
 "use client"
 
-import useSWR, { useSWRConfig } from "swr"
+import { useSWRConfig } from "swr"
 
 import { ADMIN_REPORTS_KEY } from "@/features/admin/admin-cache"
 import { fetchAllReports, reviewReport } from "@/features/admin/lib/admin-api"
 import type { AdminReport } from "@/features/admin/schemas"
 import { useAuth } from "@/features/auth/hooks/use-auth"
+import { useAuthedSWR } from "@/features/auth/hooks/use-authed-swr"
 
 // TanStack Table rebuilds its row models whenever `data` changes identity.
 const NO_REPORTS: AdminReport[] = []
 
 export function useAdminReports() {
-  const { accessToken } = useAuth()
-  const { data, error, isLoading } = useSWR(
-    accessToken ? ([ADMIN_REPORTS_KEY, accessToken] as const) : null,
-    fetchAllReports
-  )
+  const { data, error, isLoading } = useAuthedSWR(ADMIN_REPORTS_KEY, fetchAllReports)
   return { reports: data ?? NO_REPORTS, error, isLoading }
 }
 

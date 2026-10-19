@@ -149,17 +149,16 @@ export function useMealPlannerChat() {
     busy && last?.role === "assistant"
       ? last.parts.find((part) => isToolUIPart(part) && part.state !== "output-available")
       : undefined
-  const working = runningTool !== undefined
-  const replying = busy && last?.role === "assistant" && messageText(last) !== "" && !working
+  const replying =
+    busy && last?.role === "assistant" && messageText(last) !== "" && runningTool === undefined
 
   return {
     messages,
     busy,
     /** Nothing readable is streaming yet: the planner is thinking or using a tool. */
     waiting: busy && !replying,
-    working,
-    /** The planner is reading the nutrition documents rather than picking dishes. */
-    researching: runningTool?.type === "tool-searchKnowledge",
+    /** The assistant message whose trace shows the waiting, once the reply has started. */
+    pendingId: busy && !replying && last?.role === "assistant" ? last.id : null,
     streamingId: replying ? last.id : null,
     /** Only the newest proposal can still be applied. */
     latestProposalId: messages.flatMap(messageProposals).at(-1)?.id ?? null,

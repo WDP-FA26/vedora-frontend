@@ -3,17 +3,14 @@
 import useSWR, { useSWRConfig } from "swr"
 
 import { useAuth } from "@/features/auth/hooks/use-auth"
+import { useAuthedSWR } from "@/features/auth/hooks/use-authed-swr"
 import { fetchPost, fetchPostPage } from "@/features/posts/lib/posts-api"
 import { POSTS_KEY, postKey } from "@/features/posts/posts-cache"
 import type { ApiPost, PostPage } from "@/features/posts/schemas"
 
 /** First page of published posts from vedora-api. */
 export function useFeedPosts() {
-  const { accessToken } = useAuth()
-  const { data, error, isLoading } = useSWR(
-    accessToken ? ([POSTS_KEY, accessToken] as const) : null,
-    fetchPostPage
-  )
+  const { data, error, isLoading } = useAuthedSWR(POSTS_KEY, fetchPostPage)
   return { posts: data?.items ?? [], error, isLoading }
 }
 
@@ -57,10 +54,9 @@ export function useUpsertFeedPost() {
  * the first response, so it must keep polling while `latest` is undefined.
  */
 export function useProcessingPost(id: string) {
-  const { accessToken } = useAuth()
   const upsert = useUpsertFeedPost()
 
-  useSWR(accessToken ? ([postKey(id), accessToken] as const) : null, fetchPost, {
+  useAuthedSWR(postKey(id), fetchPost, {
     refreshInterval: (latest) =>
       !latest || latest.status === "PROCESSING" ? 3000 : 0,
     onSuccess: (post) => {

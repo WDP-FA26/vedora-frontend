@@ -1,6 +1,6 @@
 "use client"
 
-import useSWR from "swr"
+import { useAuthedSWR } from "@/features/auth/hooks/use-authed-swr"
 import { BookmarkIcon } from "lucide-react"
 
 import {
@@ -11,7 +11,6 @@ import {
   EmptyTitle,
 } from "@/components/ui/empty"
 import { Spinner } from "@/components/ui/spinner"
-import { useAuth } from "@/features/auth/hooks/use-auth"
 import { PostCard } from "@/features/home/components/post-card"
 import { fetchPostPage } from "@/features/posts/lib/posts-api"
 import { toFeedPost } from "@/features/posts/lib/to-feed-post"
@@ -22,11 +21,7 @@ import { BOOKMARKS_KEY } from "@/features/posts/posts-cache"
  * a slip can be undone, and is gone the next time the page loads.
  */
 export function BookmarksView() {
-  const { accessToken } = useAuth()
-  const { data, error, isLoading } = useSWR(
-    accessToken ? ([BOOKMARKS_KEY, accessToken] as const) : null,
-    fetchPostPage
-  )
+  const { data, error, isLoading } = useAuthedSWR(BOOKMARKS_KEY, fetchPostPage)
   const posts = data?.items ?? []
 
   return (

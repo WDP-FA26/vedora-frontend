@@ -1,9 +1,9 @@
 "use client"
 
-import { useRef, useState } from "react"
+import { useRef } from "react"
 import { Controller, useForm, useWatch } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
-import { ClapperboardIcon, GlobeIcon, PlusIcon, XIcon } from "lucide-react"
+import { ClapperboardIcon, ImageIcon, PlusIcon, XIcon } from "lucide-react"
 import { cn } from "cn"
 
 import { Button } from "@/components/ui/button"
@@ -28,7 +28,6 @@ import {
   MAX_POST_LENGTH,
   MAX_POST_WORDS,
   MAX_POST_MEDIA,
-  MAX_VIDEO_DURATION_SEC,
   postFormSchema,
   type ApiPost,
   type PostFormValues,
@@ -73,7 +72,6 @@ export function Composer({ mode = "post", ...props }: ComposerProps) {
 
 function ShortPostComposer({
   autoFocus,
-  showVideoPickerInitially = false,
   onPosted,
   onDraftChange,
   onSubmittingChange,
@@ -81,7 +79,6 @@ function ShortPostComposer({
   const { author, accessToken } = useAuth()
   const upsertFeedPost = useUpsertFeedPost()
   const fileInput = useRef<HTMLInputElement>(null)
-  const [showVideoPicker, setShowVideoPicker] = useState(showVideoPickerInitially)
 
   const form = useForm<PostFormValues>({
     resolver: zodResolver(postFormSchema),
@@ -148,7 +145,6 @@ function ShortPostComposer({
   }
 
   function chooseVideos() {
-    setShowVideoPicker(true)
     fileInput.current?.click()
   }
 
@@ -159,19 +155,9 @@ function ShortPostComposer({
       className="flex min-h-0 flex-1 flex-col"
     >
       <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 py-5 sm:px-6">
-        {author && (
-          <div className="mb-5 flex items-center gap-3">
-            <AuthorAvatar author={author} size="lg" />
-            <div className="min-w-0">
-              <p className="truncate text-sm font-bold text-foreground">{author.name}</p>
-              <p className="mt-0.5 flex items-center gap-1 text-xs text-muted-foreground">
-                <GlobeIcon aria-hidden className="size-3.5" />
-                Công khai khi bài viết sẵn sàng
-              </p>
-            </div>
-          </div>
-        )}
-
+        <div className="flex items-start gap-3">
+          {author && <AuthorAvatar author={author} size="lg" />}
+          <div className="min-w-0 flex-1">
         <Controller
           name="body"
           control={form.control}
@@ -193,14 +179,16 @@ function ShortPostComposer({
                 id={field.name}
                 autoFocus={autoFocus}
                 aria-invalid={fieldState.invalid}
-                rows={5}
-                placeholder="Chia sẻ món chay, bí quyết nấu ăn hoặc câu chuyện của bạn…"
-                className="field-sizing-content block min-h-36 max-h-64 w-full resize-none bg-transparent text-[1.125rem] leading-relaxed outline-none placeholder:text-muted-foreground/80"
+                rows={3}
+                placeholder="Bạn đang nấu món gì?"
+                className="field-sizing-content block min-h-24 max-h-64 pt-1.5 w-full resize-none bg-transparent text-[1.125rem] leading-relaxed outline-none placeholder:text-muted-foreground/80"
               />
               {fieldState.invalid && <FieldError errors={[fieldState.error]} />}
             </Field>
           )}
         />
+          </div>
+        </div>
 
         {body.length > 0 && (
           <p
@@ -229,39 +217,9 @@ function ShortPostComposer({
           }}
         />
 
-        {(showVideoPicker || uploads.length > 0) && (
+        {uploads.length > 0 && (
           <section aria-label="Video của bài viết" className="mt-4">
-            {uploads.length === 0 ? (
-              <div
-                onDragOver={(event) => event.preventDefault()}
-                onDrop={(event) => {
-                  event.preventDefault()
-                  if (!isSubmitting && event.dataTransfer.files.length > 0) {
-                    void add(Array.from(event.dataTransfer.files))
-                  }
-                }}
-                className="flex min-h-40 flex-col items-center justify-center rounded-2xl border border-dashed border-primary/30 bg-primary/5 px-4 py-5 text-center"
-              >
-                <ClapperboardIcon aria-hidden className="mb-2 size-7 text-primary" />
-                <p className="text-sm font-semibold">Thêm video vào bài viết</p>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  Chọn hoặc kéo video vào đây, tối đa {MAX_POST_MEDIA} video,{" "}
-                  {MAX_VIDEO_DURATION_SEC / 60} phút mỗi video.
-                </p>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  shape="pill"
-                  disabled={isSubmitting}
-                  onClick={chooseVideos}
-                  className="mt-3"
-                >
-                  Chọn video
-                </Button>
-              </div>
-            ) : (
-              <>
+            <>
                 <MediaGrid className="overflow-hidden rounded-2xl">
                   {uploads.map((item, index) => (
                     <div key={item.key} className="relative size-full">
@@ -317,8 +275,7 @@ function ShortPostComposer({
                     Thêm video
                   </Button>
                 )}
-              </>
-            )}
+            </>
           </section>
         )}
 
@@ -327,37 +284,47 @@ function ShortPostComposer({
 
       <div className="shrink-0 border-t border-border/70 bg-card px-5 pt-3 pb-[max(1rem,env(safe-area-inset-bottom))] sm:px-6 sm:pb-5">
         {errors.root && <FieldError className="mb-3" errors={[errors.root]} />}
-        <div className="mb-3 flex items-center justify-between rounded-xl border border-border px-3 py-2">
-          <span className="text-sm font-semibold">Thêm vào bài viết</span>
-          <Tooltip>
-            <TooltipTrigger
-              render={
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-1 text-primary">
+            <Tooltip>
+              <TooltipTrigger render={<span tabIndex={0} className="inline-flex" />}>
                 <Button
                   type="button"
                   variant="tool"
                   size="icon-lg"
                   shape="pill"
-                  aria-label="Thêm video"
-                  disabled={uploads.length >= MAX_POST_MEDIA || isSubmitting}
-                  onClick={chooseVideos}
-                />
-              }
-            >
-              <ClapperboardIcon aria-hidden />
-            </TooltipTrigger>
-            <TooltipContent>Thêm video</TooltipContent>
-          </Tooltip>
+                  aria-label="Thêm ảnh (sắp có)"
+                  disabled
+                >
+                  <ImageIcon aria-hidden />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Ảnh — sắp có</TooltipContent>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger
+                render={
+                  <Button
+                    type="button"
+                    variant="tool"
+                    size="icon-lg"
+                    shape="pill"
+                    aria-label="Thêm video"
+                    disabled={uploads.length >= MAX_POST_MEDIA || isSubmitting}
+                    onClick={chooseVideos}
+                  />
+                }
+              >
+                <ClapperboardIcon aria-hidden />
+              </TooltipTrigger>
+              <TooltipContent>Thêm video</TooltipContent>
+            </Tooltip>
+          </div>
+          <Button type="submit" disabled={!canSubmit} size="lg" shape="pill">
+            {isSubmitting && <Spinner aria-hidden />}
+            {isSubmitting ? "Đang gửi…" : "Đăng"}
+          </Button>
         </div>
-        <Button
-          type="submit"
-          disabled={!canSubmit}
-          size="lg"
-          shape="pill"
-          className="w-full"
-        >
-          {isSubmitting && <Spinner aria-hidden />}
-          {isSubmitting ? "Đang gửi…" : "Đăng bài"}
-        </Button>
       </div>
     </form>
   )

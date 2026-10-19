@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import { useChat } from "@ai-sdk/react"
-import { APICallError, DefaultChatTransport, isToolUIPart, type UIMessage } from "ai"
+import { APICallError, DefaultChatTransport, type UIMessage } from "ai"
 
 import { API_URL } from "@/features/auth/lib/api"
 import {
@@ -99,18 +99,14 @@ export function useNutritionChat() {
   const busy = status === "submitted" || status === "streaming"
   const last = messages.at(-1)
   const replying = busy && last?.role === "assistant" && messageText(last) !== ""
-  const searching =
-    busy &&
-    last?.role === "assistant" &&
-    last.parts.some((part) => isToolUIPart(part) && part.state !== "output-available")
 
   return {
     messages,
     busy,
     /** Waiting for the reply's first text (reasoning models think first). */
     thinking: busy && !replying,
-    /** The assistant is looking up the knowledge base before answering. */
-    searching,
+    /** The assistant message whose trace shows the thinking, once the reply has started. */
+    pendingId: busy && !replying && last?.role === "assistant" ? last.id : null,
     /** The assistant message still streaming in, if any. */
     streamingId: replying ? last.id : null,
     /** Set once the guest has no messages left today; the panel offers sign-up instead. */

@@ -1,9 +1,10 @@
 "use client"
 
 import { useState } from "react"
-import useSWR, { useSWRConfig } from "swr"
+import { useSWRConfig } from "swr"
 
 import { useAuth } from "@/features/auth/hooks/use-auth"
+import { useAuthedSWR } from "@/features/auth/hooks/use-authed-swr"
 import {
   fetchRelationship,
   followProfile,
@@ -21,10 +22,7 @@ export function useFollow(id: string) {
   const { accessToken, user } = useAuth()
   const { mutate } = useSWRConfig()
   const [isPending, setIsPending] = useState(false)
-  const { data, isLoading } = useSWR(
-    accessToken ? ([relationshipKey(id), accessToken] as const) : null,
-    fetchRelationship
-  )
+  const { data, isLoading } = useAuthedSWR(relationshipKey(id), fetchRelationship)
 
   /** Shifts a cached count at once, then refetches the profile to sync with the API. */
   function shift(key: string, field: "followerCount" | "followingCount", by: number) {

@@ -94,7 +94,7 @@ function PostArticle({ post: apiPost }: { post: ApiPost }) {
       </header>
 
       {post.body && (
-        <p className="mt-4 text-[1.0625rem] leading-[1.5] break-words text-pretty whitespace-pre-line">
+        <p className="mt-4 text-[0.9375rem] leading-[1.6] break-words text-pretty whitespace-pre-line">
           {post.body}
         </p>
       )}

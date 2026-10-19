@@ -1,16 +1,11 @@
 "use client"
 
-import useSWR from "swr"
+import { useAuthedSWR } from "@/features/auth/hooks/use-authed-swr"
 
-import { useAuth } from "@/features/auth/hooks/use-auth"
 import { fetchMyVerification } from "@/features/verification/lib/verification-api"
 import { MY_VERIFICATION_KEY } from "@/features/verification/verification-cache"
 
 export function useMyVerification() {
-  const { accessToken } = useAuth()
-  const { data, error, isLoading, mutate } = useSWR(
-    accessToken ? ([MY_VERIFICATION_KEY, accessToken] as const) : null,
-    fetchMyVerification
-  )
+  const { data, error, isLoading, mutate } = useAuthedSWR(MY_VERIFICATION_KEY, fetchMyVerification)
   return { verification: data ?? null, error, isLoading, mutate }
 }

@@ -93,7 +93,7 @@ export function MobileTopBar() {
 export function MobileBottomNav() {
   const pathname = usePathname()
   const { user } = useAuth()
-  const items = navItems.filter((item) => item.href !== "/home/settings")
+  const items = navItems.filter((item) => !item.desktopOnly)
   const isCurrent = (href: string) => isNavItemCurrent(pathname, href, user?.id)
 
   return (

@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
-import useSWR from "swr"
+import { useAuthedSWR } from "@/features/auth/hooks/use-authed-swr"
 import { CalendarDaysIcon, SparklesIcon } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
@@ -86,14 +86,8 @@ export function MealPlannerView() {
   const [requestOpen, setRequestOpen] = useState(false)
   const [formHandoffState, setFormHandoffState] = useState<"editing" | "prepared" | "sent">("editing")
   const [formSentAtCount, setFormSentAtCount] = useState<number | null>(null)
-  const plan = useSWR(
-    accessToken ? ([MEAL_PLAN_KEY, accessToken] as const) : null,
-    fetchMealPlan
-  )
-  const restrictions = useSWR(
-    accessToken ? ([MY_DIETARY_KEY, accessToken] as const) : null,
-    fetchMyDietary
-  )
+  const plan = useAuthedSWR(MEAL_PLAN_KEY, fetchMealPlan)
+  const restrictions = useAuthedSWR(MY_DIETARY_KEY, fetchMyDietary)
   const newestProposal = chat.messages.flatMap(messageProposals).at(-1) ?? null
   const suggestion = newestProposal && !chat.statuses[newestProposal.id] ? newestProposal : null
   const hasSavedMeals = Boolean(plan.data?.days.some(({ sections }) => sections.some(({ recipes }) => recipes.length > 0)))
@@ -248,7 +242,7 @@ export function MealPlannerView() {
             />
           </div>
 
-          <div className={cn("min-w-0 lg:h-full lg:min-h-0 lg:overflow-y-auto lg:border-l lg:border-border", tab !== "plan" && "hidden lg:block")}>
+          <div className={cn("min-w-0 lg:h-full lg:min-h-0 lg:overflow-y-auto lg:border-l lg:border-border [scrollbar-width:none] [&::-webkit-scrollbar]:hidden", tab !== "plan" && "hidden lg:block")}>
             {showRequestForm ? (
               <MealRequestForm
                 savedAvoided={savedAvoided}

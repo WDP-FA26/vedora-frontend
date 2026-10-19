@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import Link from "next/link"
-import useSWR from "swr"
+import { useAuthedSWR } from "@/features/auth/hooks/use-authed-swr"
 import { CalendarDaysIcon, SparklesIcon } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
@@ -14,7 +14,6 @@ import {
   SheetTitle,
   SheetTrigger,
 } from "@/components/ui/sheet"
-import { useAuth } from "@/features/auth/hooks/use-auth"
 import { Timetable } from "@/features/meal-plan/components/timetable"
 import {
   fetchMealPlan,
@@ -24,12 +23,8 @@ import {
 
 /** Header button that shows the saved week in a side sheet, from any page. */
 export function WeekPlanButton() {
-  const { accessToken } = useAuth()
   const [open, setOpen] = useState(false)
-  const plan = useSWR(
-    open && accessToken ? ([MEAL_PLAN_KEY, accessToken] as const) : null,
-    fetchMealPlan
-  )
+  const plan = useAuthedSWR(open ? MEAL_PLAN_KEY : null, fetchMealPlan)
 
   return (
     <Sheet open={open} onOpenChange={setOpen}>

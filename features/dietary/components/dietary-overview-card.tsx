@@ -2,7 +2,7 @@
 
 import Image from "next/image"
 import Link from "next/link"
-import useSWR from "swr"
+import { useAuthedSWR } from "@/features/auth/hooks/use-authed-swr"
 import {
   ArrowRightIcon,
   ShieldCheckIcon,
@@ -10,7 +10,6 @@ import {
   type LucideIcon,
 } from "lucide-react"
 
-import { useAuth } from "@/features/auth/hooks/use-auth"
 import { DIETARY_PATH, fetchMyDietary, MY_DIETARY_KEY } from "@/features/dietary/dietary"
 
 function compactList(values: string[]) {
@@ -20,11 +19,7 @@ function compactList(values: string[]) {
 
 /** The owner's saved dietary profile, summarised on their own profile page. */
 export function DietaryOverviewCard() {
-  const { accessToken } = useAuth()
-  const { data } = useSWR(
-    accessToken ? ([MY_DIETARY_KEY, accessToken] as const) : null,
-    fetchMyDietary
-  )
+  const { data } = useAuthedSWR(MY_DIETARY_KEY, fetchMyDietary)
   const names = (items: { name: string }[] | undefined) => items?.map(({ name }) => name) ?? []
   const avoided = [...names(data?.groups), ...names(data?.ingredients)]
 

@@ -55,7 +55,7 @@ const mealRecipeSchema = z.object({
   steps: z.array(z.string()),
 })
 
-const problemSchema = z.object({
+export const problemSchema = z.object({
   code: z.enum(["UNKNOWN_RECIPE", "AVOIDED_INGREDIENT", "DAY_CONFLICT"]),
   day: daySchema,
   recipes: z.array(z.string()),

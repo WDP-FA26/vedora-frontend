@@ -3,7 +3,7 @@
 import Link from "next/link"
 import { Controller, useForm, useWatch } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
-import useSWR from "swr"
+import { useAuthedSWR } from "@/features/auth/hooks/use-authed-swr"
 import { ArrowLeftIcon } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
@@ -43,14 +43,8 @@ const LIKED_ID = "dietary-liked"
 /** Where a user lists what they do not eat and the ingredients they like. */
 export function DietaryView() {
   const { user, accessToken } = useAuth()
-  const options = useSWR(
-    accessToken ? ([DIETARY_OPTIONS_KEY, accessToken] as const) : null,
-    fetchDietaryOptions
-  )
-  const mine = useSWR(
-    accessToken ? ([MY_DIETARY_KEY, accessToken] as const) : null,
-    fetchMyDietary
-  )
+  const options = useAuthedSWR(DIETARY_OPTIONS_KEY, fetchDietaryOptions)
+  const mine = useAuthedSWR(MY_DIETARY_KEY, fetchMyDietary)
 
   return (
     <section aria-labelledby="dietary-title">

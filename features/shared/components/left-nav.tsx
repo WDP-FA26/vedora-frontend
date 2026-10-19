@@ -19,6 +19,7 @@ import { ComposeDialog } from "@/features/shared/components/compose-dialog"
 import { useAuth } from "@/features/auth/hooks/use-auth"
 import { profilePath } from "@/features/profiles/profiles-cache"
 import { useLogout } from "@/features/auth/hooks/use-logout"
+import { useUnreadCount } from "@/features/notifications/hooks/use-notifications"
 import { navItems } from "@/features/shared/data/nav-items"
 import { Wordmark } from "./wordmark"
 
@@ -62,6 +63,7 @@ export function NavLinks({
 }) {
   const pathname = usePathname()
   const { user } = useAuth()
+  const unread = useUnreadCount()
 
   return (
     <nav aria-label="Điều hướng chính" className={className}>
@@ -88,6 +90,15 @@ export function NavLinks({
                     className="size-[1.375rem] group-aria-[current=page]/nav:text-primary"
                     strokeWidth={current ? 2.25 : 1.75}
                   />
+                  {href === "/home/notifications" && unread > 0 && (
+                    <span
+                      role="status"
+                      aria-label={`${unread} thông báo chưa đọc`}
+                      className="absolute -top-1.5 -right-2 grid min-w-4 place-items-center rounded-full bg-primary px-1 text-[0.625rem] leading-4 font-bold text-primary-foreground ring-2 ring-background"
+                    >
+                      {unread > 99 ? "99+" : unread}
+                    </span>
+                  )}
                   {isNew && !expanded && (
                     <span
                       aria-hidden

@@ -1,9 +1,10 @@
 "use client"
 
 import { useState } from "react"
-import useSWR, { useSWRConfig } from "swr"
+import { useSWRConfig } from "swr"
 
 import { useAuth } from "@/features/auth/hooks/use-auth"
+import { useAuthedSWR } from "@/features/auth/hooks/use-authed-swr"
 import { KNOWLEDGE_DOCUMENTS_KEY } from "@/features/knowledge/knowledge-cache"
 import {
   deleteKnowledgeDocument,
@@ -18,11 +19,8 @@ const isPending = (document: KnowledgeDocument) =>
 const NO_DOCUMENTS: KnowledgeDocument[] = []
 
 export function useKnowledgeDocuments() {
-  const { accessToken } = useAuth()
   const [polling, setPolling] = useState(false)
-  const { data, error, isLoading } = useSWR(
-    accessToken ? ([KNOWLEDGE_DOCUMENTS_KEY, accessToken] as const) : null,
-    fetchKnowledgeDocuments,
+  const { data, error, isLoading } = useAuthedSWR(KNOWLEDGE_DOCUMENTS_KEY, fetchKnowledgeDocuments,
     {
       refreshInterval: polling ? 3000 : 0,
       onSuccess: (documents) => setPolling(documents.some(isPending)),

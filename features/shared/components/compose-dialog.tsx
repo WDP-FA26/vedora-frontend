@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useRef, useState } from "react"
-import { ArrowLeftIcon, BookOpenTextIcon, ChefHatIcon, ClapperboardIcon, FileTextIcon, XIcon } from "lucide-react"
+import { ArrowLeftIcon, BookOpenTextIcon, FileTextIcon, XIcon } from "lucide-react"
 
 import {
   AlertDialog,
@@ -180,22 +180,16 @@ export function ComposeDialog({
             <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 py-6 sm:px-6">
               <p className="mb-5 text-sm leading-6 text-muted-foreground">Bạn muốn chia sẻ điều gì với cộng đồng Vedora?</p>
               <div className="space-y-2.5">
-                <button type="button" onClick={() => { setMode("video"); setShowVideoPicker(true) }} className="group flex w-full items-center gap-4 rounded-2xl border border-primary/20 bg-primary/5 p-4 text-left transition-colors hover:border-primary/40 hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/30">
-                  <span className="flex size-12 shrink-0 items-center justify-center rounded-2xl bg-primary text-primary-foreground"><ClapperboardIcon aria-hidden className="size-6" /></span>
-                  <span className="min-w-0 flex-1"><span className="block font-heading text-base font-bold">Video hướng dẫn</span><span className="mt-1 block text-xs leading-5 text-muted-foreground">Chia sẻ cách nấu bằng video và phần hướng dẫn ngắn.</span></span>
+                <button type="button" onClick={() => setMode("post")} className="group flex w-full items-center gap-4 rounded-2xl border border-primary/20 bg-primary/5 p-4 text-left transition-colors hover:border-primary/40 hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/30">
+                  <span className="flex size-12 shrink-0 items-center justify-center rounded-2xl bg-primary text-primary-foreground"><FileTextIcon aria-hidden className="size-6" /></span>
+                  <span className="min-w-0 flex-1"><span className="block font-heading text-base font-bold">Bài ngắn</span><span className="mt-1 block text-xs leading-5 text-muted-foreground">Chia sẻ nhanh một mẹo, món ăn hay suy nghĩ của bạn.</span></span>
                 </button>
-                <div aria-disabled="true" className="flex items-center gap-4 rounded-2xl border border-border bg-card p-4 opacity-65">
-                  <span className="flex size-12 shrink-0 items-center justify-center rounded-2xl bg-secondary text-primary"><ChefHatIcon aria-hidden className="size-6" /></span>
-                  <span className="min-w-0 flex-1"><span className="block font-heading text-base font-bold">Công thức</span><span className="mt-1 block text-xs text-muted-foreground">Biên tập công thức đầy đủ.</span></span>
-                  <span className="shrink-0 rounded-full bg-muted px-2.5 py-1 text-[0.6875rem] font-semibold text-muted-foreground">Sắp có</span>
-                </div>
                 <div aria-disabled="true" className="flex items-center gap-4 rounded-2xl border border-border bg-card p-4 opacity-65">
                   <span className="flex size-12 shrink-0 items-center justify-center rounded-2xl bg-secondary text-primary"><BookOpenTextIcon aria-hidden className="size-6" /></span>
                   <span className="min-w-0 flex-1"><span className="block font-heading text-base font-bold">Blog</span><span className="mt-1 block text-xs text-muted-foreground">Viết bài dài về bếp chay.</span></span>
                   <span className="shrink-0 rounded-full bg-muted px-2.5 py-1 text-[0.6875rem] font-semibold text-muted-foreground">Sắp có</span>
                 </div>
               </div>
-              <Button type="button" variant="ghost" className="mt-5 w-full" onClick={() => setMode("post")}><FileTextIcon aria-hidden /> Viết bài ngắn</Button>
             </div>
           ) : (
             <Composer

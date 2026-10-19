@@ -10,7 +10,7 @@ import {
   writeTokenCookies,
 } from "@/features/auth/lib/tokens"
 
-const PROTECTED_PREFIXES = ["/home"]
+const PROTECTED_PREFIXES = ["/home", "/blogs"]
 const GUEST_ONLY_PATHS = [
   "/login",
   "/register",

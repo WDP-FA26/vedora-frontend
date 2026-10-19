@@ -81,15 +81,17 @@ export const postPageSchema = z.object({
   nextCursor: z.string().nullable(),
 })
 
+/** A signed direct upload to Cloudinary; the signature expires after an hour. */
+export const signedUploadSchema = z.object({
+  url: z.url(),
+  fields: z.record(z.string(), z.string()),
+  /** Larger files go in chunks of this many bytes. */
+  chunkSize: z.number(),
+})
+
 export const videoUploadSchema = z.object({
   media: apiMediaSchema,
-  /** A signed direct upload to Cloudinary; the signature expires after an hour. */
-  upload: z.object({
-    url: z.url(),
-    fields: z.record(z.string(), z.string()),
-    /** Larger files go in chunks of this many bytes. */
-    chunkSize: z.number(),
-  }),
+  upload: signedUploadSchema,
 })
 
 export const apiCommentSchema = z.object({

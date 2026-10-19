@@ -1,8 +1,9 @@
 "use client"
 
-import useSWR, { useSWRConfig } from "swr"
+import { useSWRConfig } from "swr"
 
 import { useAuth } from "@/features/auth/hooks/use-auth"
+import { useAuthedSWR } from "@/features/auth/hooks/use-authed-swr"
 import {
   fetchAllVerificationRequests,
   fetchVerificationRequest,
@@ -18,20 +19,13 @@ import {
 const NO_REQUESTS: AdminVerificationRequest[] = []
 
 export function useVerificationRequests() {
-  const { accessToken } = useAuth()
-  const { data, error, isLoading } = useSWR(
-    accessToken ? ([VERIFICATION_REQUESTS_KEY, accessToken] as const) : null,
-    fetchAllVerificationRequests
-  )
+  const { data, error, isLoading } = useAuthedSWR(VERIFICATION_REQUESTS_KEY, fetchAllVerificationRequests)
   return { requests: data ?? NO_REQUESTS, error, isLoading }
 }
 
 /** One request with its proof images. The image URLs are signed and expire. */
 export function useVerificationRequest(id: string | null) {
-  const { accessToken } = useAuth()
-  const { data, error, isLoading } = useSWR(
-    id && accessToken ? ([verificationRequestKey(id), accessToken] as const) : null,
-    fetchVerificationRequest,
+  const { data, error, isLoading } = useAuthedSWR(id ? verificationRequestKey(id) : null, fetchVerificationRequest,
     { dedupingInterval: 0 }
   )
   return { request: data ?? null, error, isLoading }
