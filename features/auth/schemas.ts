@@ -32,6 +32,7 @@ export const newUsernameSchema = username.regex(
 export const loginSchema = z.object({
   username,
   password: z.string().min(1, "Nhập mật khẩu"),
+  turnstileToken: z.string().trim().min(1, "Vui lòng hoàn tất xác minh bảo mật").max(2048),
 })
 
 export const registerSchema = z

@@ -53,13 +53,21 @@ export async function login(
   next?: string
 ): Promise<FormErrors<LoginValues>> {
   const parsed = loginSchema.safeParse(values)
-  if (!parsed.success) return { root: INVALID }
+  if (!parsed.success) {
+    if (parsed.error.issues.some((issue) => issue.path[0] === "turnstileToken")) {
+      return { turnstileToken: "Vui lòng hoàn tất xác minh bảo mật" }
+    }
+    return { root: INVALID }
+  }
 
   const response = await postJson("/auth/login", parsed.data).catch(() => null)
   if (!response) return { root: UNREACHABLE }
   if (response.status === 403) {
     // Right password, unverified email: the API has just sent a code.
     const { code, email } = await response.json()
+    if (code === "CAPTCHA_FAILED") {
+      return { turnstileToken: "Xác minh không hợp lệ hoặc đã hết hạn. Vui lòng xác minh lại." }
+    }
     if (code === "EMAIL_NOT_VERIFIED") return redirectToVerification(email, next)
   }
   if (!response.ok) return { root: "Tên đăng nhập hoặc mật khẩu không đúng." }
