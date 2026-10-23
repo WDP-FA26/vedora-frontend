@@ -2,7 +2,7 @@
 
 import { API_URL } from "@/features/auth/lib/api"
 import { useAuthedSWR } from "@/features/auth/hooks/use-authed-swr"
-import { sendJson } from "@/features/shared/lib/api-client"
+import { ApiError, sendJson } from "@/features/shared/lib/api-client"
 import { catalogSchema, overviewSchema, paymentSchema } from "./schema"
 
 const options = { keepPreviousData: false, shouldRetryOnError: false, revalidateOnFocus: true }
@@ -14,6 +14,8 @@ export function useBilling() {
 }
 export function usePayment(id: string) {
   return useAuthedSWR(`${API_URL}/payment-intents/${id}`, ([url, token]) => sendJson(paymentSchema, url, token, { cache: "no-store" }), {
-    ...options, refreshInterval: data => data?.status === "PENDING" ? 4000 : 0,
+    ...options, refreshInterval: data => data?.status === "PENDING" ? 30000 : 0,
+    shouldRetryOnError: error => !(error instanceof ApiError && [401, 403, 404].includes(error.status)),
+    errorRetryInterval: 4000, errorRetryCount: 3,
   })
 }

@@ -13,6 +13,7 @@ import { useAuth } from "@/features/auth/hooks/use-auth"
 import { API_URL } from "@/features/auth/lib/api"
 import { ApiError, sendJson } from "@/features/shared/lib/api-client"
 import { usePayment } from "./hooks"
+import { usePaymentStream } from "./use-payment-stream"
 import { dateTime, money, paymentSchema, planName } from "./schema"
 
 export function PaymentView({ id }: { id: string }) {
@@ -27,6 +28,7 @@ function PaymentContent({ id, token }: { id: string; token?: string }) {
   const request = useRef<AbortController | null>(null)
   useEffect(() => () => request.current?.abort(), [])
   const status = payment.data?.status
+  const realtime = usePaymentStream(id, status === "PENDING")
   useEffect(() => {
     if (status === "SUCCEEDED" && token) void mutate([`${API_URL}/billing/me`, token]).catch(() => undefined)
   }, [status, token, mutate])
@@ -58,7 +60,7 @@ function PaymentContent({ id, token }: { id: string; token?: string }) {
           <dl className="space-y-4 text-sm">{[["Ngân hàng", data.qr.bankGateway], ["Số tài khoản", data.qr.accountNumber], ["Chủ tài khoản", data.qr.accountHolder], ["Số tiền", money(data.amount)], ["Nội dung chuyển khoản", data.qr.transferContent]].map(([label, value]) => <div key={label}><dt className="text-muted-foreground">{label}</dt><dd className="mt-1 break-all font-medium select-all">{value}</dd></div>)}</dl>
         </div> : <p className="text-sm">Thanh toán đang tạm đóng. Không chuyển tiền theo QR đã lưu; hãy quay lại kiểm tra sau.</p>}
       </CardContent></Card>
-      <p role="status" className="text-sm text-muted-foreground">Tự kiểm tra mỗi 4 giây khi đang chờ. Nút bên dưới chỉ đọc trạng thái, không tự xác nhận tiền.</p>
+      <p role="status" className="text-sm text-muted-foreground">{realtime ? "Đang cập nhật trực tiếp. Kết quả sẽ hiện khi hệ thống nhận được xác nhận chuyển khoản." : "Đang kết nối cập nhật trực tiếp; hệ thống vẫn kiểm tra dự phòng. Bạn cũng có thể kiểm tra bằng nút bên dưới."}</p>
       <div className="flex flex-wrap gap-3"><Button disabled={payment.isValidating} onClick={() => { void payment.mutate().catch(() => undefined) }}>{payment.isValidating ? "Đang kiểm tra…" : "Tôi đã thanh toán · Kiểm tra"}</Button><Button variant="outline" disabled={busy || payment.isValidating} onClick={() => { void cancel() }}>{busy ? "Đang hủy…" : "Hủy giao dịch chưa chuyển tiền"}</Button></div>
     </>}
     {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
