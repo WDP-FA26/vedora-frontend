@@ -28,7 +28,7 @@ const csp = [
   "default-src 'self'",
   `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ""} ${cloudinaryPlayer} ${turnstile}${toolbar("https://vercel.live")}`,
   `style-src 'self' 'unsafe-inline'${toolbar("https://vercel.live")}`,
-  `img-src 'self' blob: data: ${cloudinaryCdn} ${storageOrigin} ${dishImages}${toolbar("https://vercel.live", "https://vercel.com")}`,
+  `img-src 'self' blob: data: ${cloudinaryCdn} ${storageOrigin} https://vietqr.app ${dishImages}${toolbar("https://vercel.live", "https://vercel.com")}`,
   // The Cloudinary player's icon font is inlined as a data: URI.
   `font-src 'self' data:${toolbar("https://vercel.live", "https://assets.vercel.com")}`,
   `connect-src 'self' ${apiOrigin} ${cloudinaryUpload} ${cloudinaryCdn} ${storageOrigin}${toolbar("https://vercel.live", "wss://ws-us3.pusher.com")}`,

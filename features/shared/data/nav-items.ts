@@ -5,6 +5,7 @@ import {
   CompassIcon,
   NotebookPenIcon,
   UserIcon,
+  CreditCardIcon,
   type LucideIcon,
 } from "lucide-react"
 
@@ -24,4 +25,5 @@ export const navItems: NavItem[] = [
   { href: "/home/blogs", label: "Blog", icon: NotebookPenIcon, desktopOnly: true },
   { href: "/home/bookmarks", label: "Đã lưu", icon: BookmarkIcon },
   { href: "/home/profile", label: "Hồ sơ", icon: UserIcon },
+  { href: "/billing", label: "Gói của bạn", icon: CreditCardIcon, desktopOnly: true },
 ]
