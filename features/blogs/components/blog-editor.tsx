@@ -48,8 +48,8 @@ function $isDocumentEmpty() {
 /**
  * Full-page blog drafting in the style of a page editor: an icon, a big
  * title, then the text, with a `/` menu for blocks and media. The blog is
- * stored as Markdown, but authors never see it. A writing assistant (a mock for
- * now) takes the right 30% of the screen. `initial` is the saved blog when
+ * stored as Markdown, but authors never see it. The writing assistant takes
+ * the right 30% of the screen. `initial` is the saved blog when
  * editing, `null` for a new one.
  */
 export function BlogEditor({ initial }: { initial: ApiBlog | null }) {
@@ -161,7 +161,7 @@ export function BlogEditor({ initial }: { initial: ApiBlog | null }) {
           </div>
         </div>
 
-        <WritingAgentPanel title={draft.title} onPickTitle={draft.setTitle} />
+        <WritingAgentPanel title={draft.title} blogId={draft.blogId} onPickTitle={draft.setTitle} />
       </div>
 
       <OnChangePlugin ignoreSelectionChange onChange={onDocumentChange} />

@@ -1,16 +1,8 @@
 "use client"
 
 import { useEffect, useRef, useState } from "react"
-import { $generateNodesFromMarkdownString } from "@lexical/markdown"
-import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext"
-import {
-  $getRoot,
-  $getSelection,
-  $isDecoratorNode,
-  $isRangeSelection,
-  $isRootNode,
-  type LexicalNode,
-} from "lexical"
+import { Streamdown } from "streamdown"
+import { getToolName, isToolUIPart, type ToolUIPart, type DynamicToolUIPart } from "ai"
 import { ArrowUpIcon, CheckIcon, RotateCcwIcon, SparklesIcon, XIcon } from "lucide-react"
 
 import { Badge } from "@/components/ui/badge"
@@ -18,168 +10,210 @@ import { Bubble, BubbleContent } from "@/components/ui/bubble"
 import { Button } from "@/components/ui/button"
 import { Message, MessageContent } from "@/components/ui/message"
 import {
-  $findRewriteTarget,
-  $markAsInsertion,
-  $pendingGroups,
-  $resolveSuggestion,
-  $suggestRewrite,
-} from "@/features/blogs/editor/suggestions"
-import { BLOG_TRANSFORMERS } from "@/features/blogs/editor/transformers"
+  useWritingAssistant,
+  type AssistantMessage,
+  type WritingAssistant,
+} from "@/features/blogs/hooks/use-writing-assistant"
 import {
   AGENT_WELCOME,
-  EDIT_PATTERN,
+  EDIT_ERRORS,
+  EDIT_LABELS,
+  editorToolInputs,
+  editorToolOutputSchema,
+  isEditorTool,
+  MAX_ASSISTANT_MESSAGE_LENGTH,
   QUICK_PROMPTS,
-  mockReply,
-  tidyText,
-  type MockReply,
-} from "@/features/blogs/lib/mock-writing-agent"
+  type EditorTool,
+} from "@/features/blogs/lib/writing-assistant"
+import { AgentTrace } from "@/features/shared/components/agent-trace"
 
-type Turn =
-  | { id: string; role: "user"; text: string }
-  | { id: string; role: "assistant"; reply: MockReply; group?: string }
+const UNSAFE_ELEMENTS = ["img", "a"]
 
-const REPLY_DELAY_MS = 700
+type ToolPart = ToolUIPart | DynamicToolUIPart
 
-const EDIT_REPLIES = {
-  done: "Mình đã gạch phần cũ và đề xuất câu mới ngay trong bài. Rê chuột lên phần được đánh dấu để chấp nhận hoặc bỏ.",
-  unchanged: "Đoạn này đã gọn rồi, mình không thấy gì cần sửa thêm.",
-  none: "Mình chưa thấy đoạn nào để chỉnh. Hãy viết vài câu, hoặc đặt con trỏ vào đoạn bạn muốn sửa nhé.",
-} as const
+/** The message without its editor tools, which show as cards instead of trace lines. */
+function serverSteps(message: AssistantMessage): AssistantMessage {
+  return {
+    ...message,
+    parts: message.parts.filter((part) => !(isToolUIPart(part) && isEditorTool(getToolName(part)))),
+  }
+}
 
-const INSERT_REPLY =
-  "Mình đã thêm phần mới vào bài, đánh dấu màu xanh. Rê chuột lên đó để chấp nhận hoặc bỏ."
+/** How the author's decision on an editor tool went, once it has an output. */
+function outcome(part: ToolPart) {
+  if (part.state === "output-error") return "Không áp dụng được"
+  if (part.state !== "output-available") return null
+  const output = editorToolOutputSchema.safeParse(part.output).data
+  if (!output) return null
+  if (output.applied) return "Đã chấp nhận"
+  return output.error ? EDIT_ERRORS[output.error] : "Đã bỏ"
+}
+
+function DecisionButtons({
+  onAccept,
+  onDiscard,
+  acceptLabel = "Chấp nhận",
+}: {
+  onAccept: () => void
+  onDiscard: () => void
+  acceptLabel?: string
+}) {
+  return (
+    <>
+      <Button size="xs" variant="outline" onClick={onAccept}>
+        <CheckIcon data-icon="inline-start" />
+        {acceptLabel}
+      </Button>
+      <Button size="xs" variant="ghost" onClick={onDiscard}>
+        <XIcon data-icon="inline-start" />
+        Bỏ
+      </Button>
+    </>
+  )
+}
+
+/** One change the agent proposed: where it stands and, while pending, its buttons. */
+function EditCard({ part, assistant }: { part: ToolPart; assistant: WritingAssistant }) {
+  const tool = getToolName(part) as EditorTool
+  const done = outcome(part)
+  const streaming = part.state === "input-streaming"
+
+  let detail: React.ReactNode = null
+  let actions: React.ReactNode = null
+  if (tool === "setTitle") {
+    const input = editorToolInputs.setTitle.safeParse(part.input).data
+    if (input) detail = <p className="text-sm font-semibold">{input.title}</p>
+    if (input && part.state === "input-available") {
+      actions = (
+        <DecisionButtons
+          acceptLabel="Dùng tiêu đề này"
+          onAccept={() => assistant.decideTitle(part.toolCallId, input.title, true)}
+          onDiscard={() => assistant.decideTitle(part.toolCallId, input.title, false)}
+        />
+      )
+    }
+  } else if (tool === "insertImage") {
+    const input = editorToolInputs.insertImage.safeParse(part.input).data
+    if (input) {
+      detail = (
+        // eslint-disable-next-line @next/next/no-img-element -- images from the blogs bucket
+        <img src={input.url} alt={input.alt} className="max-h-48 w-full rounded-lg object-cover" />
+      )
+    }
+    if (part.state === "input-available") {
+      actions = (
+        <DecisionButtons
+          acceptLabel="Chèn vào bài"
+          onAccept={() => assistant.decideImage(part.toolCallId, part.input, true)}
+          onDiscard={() => assistant.decideImage(part.toolCallId, part.input, false)}
+        />
+      )
+    }
+  } else {
+    const group = assistant.groupOf(part.toolCallId)
+    if (group && part.state === "input-available" && assistant.isPending(group)) {
+      actions = (
+        <DecisionButtons
+          onAccept={() => assistant.resolve(group, "accept")}
+          onDiscard={() => assistant.resolve(group, "discard")}
+        />
+      )
+    }
+  }
+
+  return (
+    <div className="flex flex-col gap-2 rounded-xl border border-border bg-background p-2 pl-3">
+      <div className="flex items-center gap-2">
+        <p className="min-w-0 flex-1 truncate text-sm font-medium">{EDIT_LABELS[tool]}</p>
+        {streaming && <span className="pr-1 text-xs text-muted-foreground">Đang soạn…</span>}
+        {done && <span className="pr-1 text-xs text-muted-foreground">{done}</span>}
+        {!detail && actions}
+      </div>
+      {detail}
+      {detail && actions && <div className="flex justify-end gap-1">{actions}</div>}
+    </div>
+  )
+}
+
+function AssistantTurn({
+  message,
+  assistant,
+  animating,
+}: {
+  message: AssistantMessage
+  assistant: WritingAssistant
+  animating: boolean
+}) {
+  return (
+    <Message>
+      <MessageContent>
+        <AgentTrace message={serverSteps(message)} pending={animating} />
+        {message.parts.map((part, index) => {
+          if (part.type === "text") {
+            return part.text ? (
+              <Bubble key={index} variant="ghost">
+                <BubbleContent>
+                  <Streamdown
+                    caret="block"
+                    isAnimating={animating}
+                    controls={false}
+                    disallowedElements={UNSAFE_ELEMENTS}
+                    unwrapDisallowed
+                  >
+                    {part.text}
+                  </Streamdown>
+                </BubbleContent>
+              </Bubble>
+            ) : null
+          }
+          if (isToolUIPart(part) && isEditorTool(getToolName(part))) {
+            return <EditCard key={part.toolCallId} part={part} assistant={assistant} />
+          }
+          return null
+        })}
+      </MessageContent>
+    </Message>
+  )
+}
+
+function messageText(message: AssistantMessage) {
+  return message.parts.flatMap((part) => (part.type === "text" ? [part.text] : [])).join("\n\n")
+}
 
 /**
- * The writing assistant beside the editor. A mock for now: replies are canned
- * (see `mock-writing-agent.ts`), but its edits are real. They appear in the
- * post as suggestions (struck-out red text with green replacements) that the
- * author accepts or discards, from the post or from the chat. Lives inside the
+ * The writing assistant beside the editor, talking to vedora-api's blog
+ * agent. Its edits appear in the post as suggestions (struck-out red text
+ * with green replacements) that the author accepts or discards, from the post
+ * or from the chat; titles and images are approved here. Lives inside the
  * `LexicalComposer` to reach the editor.
  */
 export function WritingAgentPanel({
   title,
+  blogId,
   onPickTitle,
 }: {
   title: string
+  blogId: () => string | null
   onPickTitle: (title: string) => void
 }) {
-  const [editor] = useLexicalComposerContext()
-  const [turns, setTurns] = useState<Turn[]>([])
-  const [thinking, setThinking] = useState(false)
+  const assistant = useWritingAssistant({ title, blogId, onPickTitle })
+  const { messages, busy, awaitingAuthor, error, quota } = assistant
   const [draft, setDraft] = useState("")
-  const [pending, setPending] = useState<ReadonlySet<string>>(new Set())
-  const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const end = useRef<HTMLDivElement>(null)
+  const last = messages.at(-1)
 
-  useEffect(() => () => void (timer.current && clearTimeout(timer.current)), [])
   useEffect(() => {
     end.current?.scrollIntoView({ block: "end" })
-  }, [turns, thinking])
-  useEffect(
-    () =>
-      editor.registerUpdateListener(({ editorState, dirtyElements, dirtyLeaves }) => {
-        // Selection-only updates change no suggestions.
-        if (dirtyElements.size === 0 && dirtyLeaves.size === 0) return
-        const next = editorState.read(() => $pendingGroups())
-        setPending((previous) =>
-          previous.size === next.size && [...next].every((group) => previous.has(group)) ? previous : next
-        )
-      }),
-    [editor]
-  )
+  }, [messages, busy])
 
-  /** Marks a rewrite of the block the author is in, and says how it went. */
-  function suggestRewrite(group: string): keyof typeof EDIT_REPLIES {
-    let outcome: keyof typeof EDIT_REPLIES = "none"
-    editor.update(
-      () => {
-        const block = $findRewriteTarget()
-        if (!block) return
-        const from = block.getTextContent()
-        const to = tidyText(from)
-        if (to === from) {
-          outcome = "unchanged"
-          return
-        }
-        $suggestRewrite(block, to, group)
-        outcome = "done"
-      },
-      { discrete: true }
-    )
-    return outcome
-  }
-
-  /** Marks new blocks after the one holding the caret, else at the end of the post. */
-  function suggestInsertion(markdown: string, group: string) {
-    editor.update(
-      () => {
-        const nodes = $generateNodesFromMarkdownString(markdown, BLOG_TRANSFORMERS)
-        $markAsInsertion(nodes, group)
-        const selection = $getSelection()
-        const anchor = $isRangeSelection(selection) ? selection.anchor.getNode() : null
-        if (anchor && !$isRootNode(anchor)) {
-          const block = anchor.getTopLevelElementOrThrow()
-          let previous: LexicalNode = block
-          for (const node of nodes) {
-            previous.insertAfter(node)
-            previous = node
-          }
-          if (block.getTextContent() === "" && !$isDecoratorNode(block)) block.remove()
-        } else {
-          $getRoot().append(...nodes)
-        }
-      },
-      { discrete: true }
-    )
-  }
-
-  function answer(prompt: string): Turn {
-    const id = crypto.randomUUID()
-    const group = crypto.randomUUID()
-    if (EDIT_PATTERN.test(prompt)) {
-      const outcome = suggestRewrite(group)
-      const done = outcome === "done"
-      return {
-        id,
-        role: "assistant",
-        reply: { text: EDIT_REPLIES[outcome], summary: done ? "Chỉnh câu văn" : undefined },
-        group: done ? group : undefined,
-      }
-    }
-    const reply = mockReply(prompt, title)
-    if (reply.proposal) {
-      suggestInsertion(reply.proposal.markdown, group)
-      return {
-        id,
-        role: "assistant",
-        reply: { text: INSERT_REPLY, summary: reply.proposal.summary },
-        group,
-      }
-    }
-    return { id, role: "assistant", reply }
-  }
+  const blocked = busy || awaitingAuthor
+  const remaining = quota ? Math.max(0, quota.messages.limit - quota.messages.used) : null
 
   function send(text: string) {
     const prompt = text.trim()
-    if (!prompt || thinking) return
-    setTurns((all) => [...all, { id: crypto.randomUUID(), role: "user", text: prompt }])
+    if (!prompt || blocked || prompt.length > MAX_ASSISTANT_MESSAGE_LENGTH) return
     setDraft("")
-    setThinking(true)
-    timer.current = setTimeout(() => {
-      const turn = answer(prompt)
-      setTurns((all) => [...all, turn])
-      setThinking(false)
-    }, REPLY_DELAY_MS)
-  }
-
-  function reset() {
-    if (timer.current) clearTimeout(timer.current)
-    setThinking(false)
-    setTurns([])
-  }
-
-  function resolve(group: string, decision: "accept" | "discard") {
-    editor.update(() => $resolveSuggestion(group, decision))
+    assistant.send(prompt)
   }
 
   return (
@@ -190,10 +224,15 @@ export function WritingAgentPanel({
       <header className="flex items-center gap-2 border-b border-border px-4 py-3">
         <SparklesIcon aria-hidden className="size-4 text-primary" />
         <h2 className="flex-1 text-sm font-semibold">Trợ lý viết blog</h2>
-        <Badge variant="secondary" title="Chưa kết nối mô hình AI; câu trả lời là mẫu">
-          Bản thử
-        </Badge>
-        <Button variant="ghost" size="icon-sm" aria-label="Bắt đầu lại" onClick={reset}>
+        {quota && (
+          <Badge
+            variant="secondary"
+            title={`Ảnh minh hoạ: còn ${Math.max(0, quota.images.limit - quota.images.used)}/${quota.images.limit} hôm nay`}
+          >
+            Còn {remaining} lượt
+          </Badge>
+        )}
+        <Button variant="ghost" size="icon-sm" aria-label="Bắt đầu lại" onClick={assistant.reset}>
           <RotateCcwIcon />
         </Button>
       </header>
@@ -207,74 +246,58 @@ export function WritingAgentPanel({
           </MessageContent>
         </Message>
 
-        {turns.map((turn) =>
-          turn.role === "user" ? (
-            <Message key={turn.id} align="end">
+        {messages.map((message) =>
+          message.role === "user" ? (
+            <Message key={message.id} align="end">
               <MessageContent>
                 <Bubble align="end">
-                  <BubbleContent>{turn.text}</BubbleContent>
+                  <BubbleContent>{messageText(message)}</BubbleContent>
                 </Bubble>
               </MessageContent>
             </Message>
           ) : (
-            <Message key={turn.id}>
-              <MessageContent>
-                <Bubble variant="ghost">
-                  <BubbleContent>{turn.reply.text}</BubbleContent>
-                </Bubble>
-                {turn.reply.titles && (
-                  <ul className="flex flex-col gap-1.5">
-                    {turn.reply.titles.map((option) => (
-                      <li key={option}>
-                        <button
-                          type="button"
-                          onClick={() => onPickTitle(option)}
-                          className="w-full rounded-xl border border-border px-3 py-2 text-left text-sm hover:bg-muted"
-                        >
-                          {option}
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-                {turn.group && turn.reply.summary && (
-                  <div className="flex items-center gap-2 rounded-xl border border-border bg-background p-2 pl-3">
-                    <p className="min-w-0 flex-1 truncate text-sm font-medium">{turn.reply.summary}</p>
-                    {pending.has(turn.group) ? (
-                      <>
-                        <Button size="xs" variant="outline" onClick={() => resolve(turn.group!, "accept")}>
-                          <CheckIcon data-icon="inline-start" />
-                          Chấp nhận
-                        </Button>
-                        <Button size="xs" variant="ghost" onClick={() => resolve(turn.group!, "discard")}>
-                          <XIcon data-icon="inline-start" />
-                          Bỏ
-                        </Button>
-                      </>
-                    ) : (
-                      <span className="pr-1 text-xs text-muted-foreground">Đã xử lý</span>
-                    )}
-                  </div>
-                )}
-              </MessageContent>
-            </Message>
+            <AssistantTurn
+              key={message.id}
+              message={message}
+              assistant={assistant}
+              animating={busy && message.id === last?.id}
+            />
           )
         )}
-        {thinking && (
+        {busy && last?.role === "user" && (
           <p role="status" className="text-sm text-muted-foreground">
             Đang suy nghĩ…
           </p>
+        )}
+        {error && (
+          <div role="alert" className="flex items-center gap-2 rounded-xl border border-destructive/40 px-3 py-2 text-sm">
+            <p className="flex-1 text-destructive">{error}</p>
+            <Button size="xs" variant="outline" onClick={assistant.retry}>
+              Thử lại
+            </Button>
+          </div>
         )}
         <div ref={end} />
       </div>
 
       <div className="flex flex-col gap-2 border-t border-border p-3">
-        {turns.length === 0 && (
+        {assistant.selectedText && (
+          <p className="truncate rounded-lg bg-muted px-2 py-1 text-xs text-muted-foreground">
+            Đoạn đang chọn: “{assistant.selectedText}”
+          </p>
+        )}
+        {awaitingAuthor && (
+          <p role="status" className="text-xs text-muted-foreground">
+            Chấp nhận hoặc bỏ đề xuất để trợ lý làm tiếp.
+          </p>
+        )}
+        {messages.length === 0 && (
           <ul className="flex flex-wrap gap-1.5">
             {QUICK_PROMPTS.map((prompt) => (
               <li key={prompt}>
                 <button
                   type="button"
+                  onMouseDown={(event) => event.preventDefault()}
                   onClick={() => send(prompt)}
                   className="rounded-full border border-border px-3 py-1 text-xs hover:bg-muted"
                 >
@@ -301,12 +324,18 @@ export function WritingAgentPanel({
               }
             }}
             rows={2}
-            maxLength={500}
-            placeholder="Nhờ trợ lý giúp bài viết…"
+            maxLength={MAX_ASSISTANT_MESSAGE_LENGTH}
+            placeholder="Bôi đen một đoạn rồi nhờ trợ lý sửa, hoặc hỏi bất cứ điều gì…"
             aria-label="Tin nhắn cho trợ lý"
             className="min-h-0 flex-1 resize-none rounded-xl border border-input bg-background px-3 py-2 text-sm outline-none focus-visible:ring-3 focus-visible:ring-ring/30"
           />
-          <Button type="submit" size="icon" shape="pill" aria-label="Gửi" disabled={thinking || draft.trim() === ""}>
+          <Button
+            type="submit"
+            size="icon"
+            shape="pill"
+            aria-label="Gửi"
+            disabled={blocked || draft.trim() === ""}
+          >
             <ArrowUpIcon />
           </Button>
         </form>

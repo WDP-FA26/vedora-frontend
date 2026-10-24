@@ -13,6 +13,7 @@ import {
   BrainIcon,
   CalendarCheckIcon,
   FileTextIcon,
+  ImageIcon,
   LibraryIcon,
   SearchIcon,
   WrenchIcon,
@@ -38,6 +39,13 @@ const knowledgeHitsSchema = z.array(
 )
 const recipesSchema = z.array(z.object({ id: z.string(), title: z.string() }))
 const proposalCheckSchema = z.object({ ok: z.boolean(), problems: z.array(problemSchema) })
+const imageResultSchema = z.union([z.object({ url: z.string() }), z.object({ error: z.string() })])
+
+const IMAGE_ERRORS: Record<string, string> = {
+  IMAGE_QUOTA_EXCEEDED: "Hết lượt tạo ảnh hôm nay",
+  IMAGE_PROMPT_REFUSED: "Không thể tạo ảnh này",
+  IMAGE_NOT_OWNED: "Chỉ sửa được ảnh của bạn",
+}
 
 type Step = {
   key: string
@@ -121,6 +129,19 @@ function toolStep(part: ToolUIPart | DynamicToolUIPart): Step {
           ))}
         </ul>
       ) : undefined,
+    }
+  }
+
+  if (name === "generateImage" || name === "editImage") {
+    const result = done ? imageResultSchema.safeParse(part.output).data : undefined
+    const error = result && "error" in result ? (IMAGE_ERRORS[result.error] ?? "Tạo ảnh không thành công") : undefined
+    const verb = name === "generateImage" ? "tạo ảnh minh hoạ" : "chỉnh ảnh"
+    return {
+      key,
+      status: error || failed ? "error" : status,
+      icon: <ImageIcon />,
+      title: failed ? `Không ${verb} được` : done ? `Đã ${verb}` : `Đang ${verb}…`,
+      description: error,
     }
   }
 
