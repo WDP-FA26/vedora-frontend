@@ -2,6 +2,7 @@
 
 import { useId, useState } from "react"
 import Link from "next/link"
+import { useRouter } from "next/navigation"
 import {
   BookmarkIcon,
   BookOpenTextIcon,
@@ -14,10 +15,12 @@ import {
   FlagIcon,
   LinkIcon,
   MessageCircleIcon,
+  PencilIcon,
   Repeat2Icon,
   ShareIcon,
   SproutIcon,
   TimerIcon,
+  Trash2Icon,
 } from "lucide-react"
 import { cn } from "cn"
 
@@ -32,6 +35,8 @@ import {
 import { AuthorAvatar } from "@/features/shared/components/author-avatar"
 import { formatCount, formatPostDate, formatPostDateLong } from "@/features/shared/lib/format"
 import { MediaPlaceholder } from "@/features/shared/components/media-placeholder"
+import { editBlogPath } from "@/features/blogs/blogs-cache"
+import { DeleteBlogDialog } from "@/features/blogs/components/delete-blog-dialog"
 import { plainExcerpt } from "@/features/blogs/lib/plain-excerpt"
 import type { ArticlePost, BlogPost, PhotoPost, Post, VideoPost } from "@/features/home/types"
 import { VerifiedBadge } from "@/features/shared/components/verified-badge"
@@ -276,9 +281,13 @@ function PhotoMedia({ post }: { post: PhotoPost }) {
 
 export function PostMenu({ post }: { post: Post }) {
   const { user } = useAuth()
+  const router = useRouter()
   const [reporting, setReporting] = useState(false)
+  const [deleting, setDeleting] = useState(false)
   const [copied, setCopied] = useState(false)
   const reportable = Boolean(user && post.author.id !== user.id)
+  // Authors edit and delete their own blogs from here; short posts have no such actions yet.
+  const ownBlog = post.kind === "blog" && Boolean(user) && post.author.id === user?.id ? post : null
 
   // Illustrative cards have no permalink or server-side menu actions.
   if (!post.author.id) return null
@@ -308,6 +317,19 @@ export function PostMenu({ post }: { post: Post }) {
             {copied ? <CheckIcon aria-hidden /> : <LinkIcon aria-hidden />}
             {copied ? "Đã sao chép liên kết" : "Sao chép liên kết"}
           </DropdownMenuItem>
+          {ownBlog && (
+            <>
+              <DropdownMenuItem onClick={() => router.push(editBlogPath(ownBlog.id))}>
+                <PencilIcon aria-hidden />
+                Sửa blog
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem variant="destructive" onClick={() => setDeleting(true)}>
+                <Trash2Icon aria-hidden />
+                Xoá blog
+              </DropdownMenuItem>
+            </>
+          )}
           {reportable && (
             <>
               <DropdownMenuSeparator />
@@ -319,6 +341,14 @@ export function PostMenu({ post }: { post: Post }) {
           )}
         </DropdownMenuContent>
       </DropdownMenu>
+      {ownBlog && (
+        <DeleteBlogDialog
+          blogId={ownBlog.id}
+          title={ownBlog.blog.title}
+          open={deleting}
+          onOpenChange={setDeleting}
+        />
+      )}
       {reportable && (
         <ReportDialog
           postId={post.id}

@@ -6,7 +6,7 @@ import {
   blogVideoUploadSchema,
   type BlogStatus,
 } from "@/features/blogs/schemas"
-import { sendJson } from "@/features/shared/lib/api-client"
+import { send, sendJson } from "@/features/shared/lib/api-client"
 
 /** SWR fetcher for `[blogKey(id), accessToken]`: the full article, drafts only for their author. */
 export function fetchBlog([url, token]: readonly [string, string | undefined]) {
@@ -32,6 +32,11 @@ export function createBlog(token: string, input: BlogInput) {
 
 export function updateBlog(token: string, id: string, input: BlogInput) {
   return sendJson(apiBlogSchema, blogKey(id), token, { method: "PATCH", body: JSON.stringify(input) })
+}
+
+/** Deletes the caller's own blog, with its comments, likes and recipe links. */
+export async function deleteBlog(token: string, id: string) {
+  await send(blogKey(id), token, { method: "DELETE" })
 }
 
 export function requestBlogImageUpload(token: string, file: File) {
