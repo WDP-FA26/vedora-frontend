@@ -9,6 +9,8 @@ function formatDuration(seconds: number | null) {
 }
 
 const postStatus: Record<ApiPost["status"], MediaPost["status"]> = {
+  // Drafts are blogs, which never take this path.
+  DRAFT: "processing",
   PROCESSING: "processing",
   PUBLISHED: "published",
   FAILED: "failed",
@@ -39,6 +41,8 @@ export function toFeedPost(post: ApiPost): Post {
     reposted: post.isReposted,
     bookmarked: post.isBookmarked,
   }
+  if (post.type === "BLOG" && post.blog) return { ...base, kind: "blog", blog: post.blog }
+
   const videos = post.media.filter((media) => media.type === "VIDEO")
   if (videos.length === 0) return { ...base, kind: "text" }
 

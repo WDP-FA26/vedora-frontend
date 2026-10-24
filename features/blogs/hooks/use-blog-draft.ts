@@ -17,10 +17,18 @@ const MAX_COVER_URL_LENGTH = 2048
 
 export type SaveState = "idle" | "saving" | "saved" | "error"
 
-/** The first image of the post as its cover; the API only accepts HTTPS links. */
+// Same origin the CSP allows images from (next.config.ts).
+const STORAGE_ORIGIN = new URL(process.env.NEXT_PUBLIC_STORAGE_URL ?? "http://localhost:9000").origin
+
+/**
+ * The first image of the post as its cover, uploaded or AI-generated. The API
+ * takes HTTPS links, and images in Vedora's own storage, which serves plain
+ * HTTP outside production.
+ */
 function coverOf(markdown: string) {
-  for (const [, url] of markdown.matchAll(/^!\[[^\]]*\]\((https:\/\/[^\s)]+)\)\s*$/gm)) {
-    if (!isVideoUrl(url) && url.length <= MAX_COVER_URL_LENGTH) return url
+  for (const [, url] of markdown.matchAll(/^!\[[^\]]*\]\((https?:\/\/[^\s)]+)\)\s*$/gm)) {
+    const allowed = url.startsWith("https://") || url.startsWith(`${STORAGE_ORIGIN}/`)
+    if (allowed && !isVideoUrl(url) && url.length <= MAX_COVER_URL_LENGTH) return url
   }
   return null
 }

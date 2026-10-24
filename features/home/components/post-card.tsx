@@ -2,20 +2,25 @@
 
 import { useId, useState } from "react"
 import Link from "next/link"
+import { useRouter } from "next/navigation"
 import {
   BookmarkIcon,
+  BookOpenTextIcon,
   ChartNoAxesColumnIcon,
   CheckIcon,
+  ChefHatIcon,
   ClapperboardIcon,
   EllipsisIcon,
   FileTextIcon,
   FlagIcon,
   LinkIcon,
   MessageCircleIcon,
+  PencilIcon,
   Repeat2Icon,
   ShareIcon,
   SproutIcon,
   TimerIcon,
+  Trash2Icon,
 } from "lucide-react"
 import { cn } from "cn"
 
@@ -30,7 +35,10 @@ import {
 import { AuthorAvatar } from "@/features/shared/components/author-avatar"
 import { formatCount, formatPostDate, formatPostDateLong } from "@/features/shared/lib/format"
 import { MediaPlaceholder } from "@/features/shared/components/media-placeholder"
-import type { ArticlePost, PhotoPost, Post, VideoPost } from "@/features/home/types"
+import { editBlogPath } from "@/features/blogs/blogs-cache"
+import { DeleteBlogDialog } from "@/features/blogs/components/delete-blog-dialog"
+import { plainExcerpt } from "@/features/blogs/lib/plain-excerpt"
+import type { ArticlePost, BlogPost, PhotoPost, Post, VideoPost } from "@/features/home/types"
 import { VerifiedBadge } from "@/features/shared/components/verified-badge"
 import { useAuth } from "@/features/auth/hooks/use-auth"
 import { PostMedia } from "@/features/posts/components/post-media"
@@ -125,6 +133,7 @@ export function PostCard({ post }: { post: Post }) {
         {post.kind === "media" && <PostMedia post={post} />}
         {post.kind === "article" && <ArticleCard post={post} />}
         {post.kind === "photo" && <PhotoMedia post={post} />}
+        {post.kind === "blog" && <BlogCard post={post} />}
 
         <PostActions post={post} />
       </div>
@@ -173,6 +182,53 @@ function VideoMedia({ post }: { post: VideoPost }) {
         {video.duration}
       </span>
     </MediaPlaceholder>
+  )
+}
+
+/**
+ * A blog in a list: its summary only. The post page loads the article, and
+ * the excerpt is plain text, never rendered as Markdown.
+ */
+function BlogCard({ post }: { post: BlogPost }) {
+  const [coverFailed, setCoverFailed] = useState(false)
+  const { blog } = post
+  const excerpt = plainExcerpt(blog.excerpt)
+  return (
+    <Link
+      href={postPath(post.id)}
+      className="mt-3 block overflow-hidden rounded-2xl border border-border transition-colors outline-none hover:bg-muted/40 focus-visible:ring-3 focus-visible:ring-ring/30"
+    >
+      {blog.coverImageUrl && !coverFailed && (
+        // The article's first image, from blog storage or another site, so
+        // the Next image optimizer is not used. A broken link hides itself.
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={blog.coverImageUrl}
+          alt=""
+          loading="lazy"
+          onError={() => setCoverFailed(true)}
+          className="aspect-[1.91/1] w-full border-b border-border object-cover"
+        />
+      )}
+      <span className="block px-3.5 py-3">
+        <span className="flex items-center gap-1.5 text-xs font-semibold text-primary">
+          <BookOpenTextIcon aria-hidden className="size-3.5" />
+          Blog
+        </span>
+        <span className="mt-1 block text-base leading-snug font-bold text-balance">{blog.title}</span>
+        {excerpt && (
+          <span className="mt-1 line-clamp-3 block text-sm leading-relaxed text-muted-foreground">
+            {excerpt}
+          </span>
+        )}
+        {blog.recipes.length > 0 && (
+          <span className="mt-2 flex items-center gap-1.5 text-xs text-muted-foreground">
+            <ChefHatIcon aria-hidden className="size-3.5" />
+            {blog.recipes.length} món trong bài
+          </span>
+        )}
+      </span>
+    </Link>
   )
 }
 
@@ -225,9 +281,13 @@ function PhotoMedia({ post }: { post: PhotoPost }) {
 
 export function PostMenu({ post }: { post: Post }) {
   const { user } = useAuth()
+  const router = useRouter()
   const [reporting, setReporting] = useState(false)
+  const [deleting, setDeleting] = useState(false)
   const [copied, setCopied] = useState(false)
   const reportable = Boolean(user && post.author.id !== user.id)
+  // Authors edit and delete their own blogs from here; short posts have no such actions yet.
+  const ownBlog = post.kind === "blog" && Boolean(user) && post.author.id === user?.id ? post : null
 
   // Illustrative cards have no permalink or server-side menu actions.
   if (!post.author.id) return null
@@ -257,6 +317,19 @@ export function PostMenu({ post }: { post: Post }) {
             {copied ? <CheckIcon aria-hidden /> : <LinkIcon aria-hidden />}
             {copied ? "Đã sao chép liên kết" : "Sao chép liên kết"}
           </DropdownMenuItem>
+          {ownBlog && (
+            <>
+              <DropdownMenuItem onClick={() => router.push(editBlogPath(ownBlog.id))}>
+                <PencilIcon aria-hidden />
+                Sửa blog
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem variant="destructive" onClick={() => setDeleting(true)}>
+                <Trash2Icon aria-hidden />
+                Xoá blog
+              </DropdownMenuItem>
+            </>
+          )}
           {reportable && (
             <>
               <DropdownMenuSeparator />
@@ -268,6 +341,14 @@ export function PostMenu({ post }: { post: Post }) {
           )}
         </DropdownMenuContent>
       </DropdownMenu>
+      {ownBlog && (
+        <DeleteBlogDialog
+          blogId={ownBlog.id}
+          title={ownBlog.blog.title}
+          open={deleting}
+          onOpenChange={setDeleting}
+        />
+      )}
       {reportable && (
         <ReportDialog
           postId={post.id}
