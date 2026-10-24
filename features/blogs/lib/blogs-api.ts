@@ -8,6 +8,11 @@ import {
 } from "@/features/blogs/schemas"
 import { sendJson } from "@/features/shared/lib/api-client"
 
+/** SWR fetcher for `[blogKey(id), accessToken]`: the full article, drafts only for their author. */
+export function fetchBlog([url, token]: readonly [string, string | undefined]) {
+  return sendJson(apiBlogSchema, url, token)
+}
+
 /** SWR fetcher for `[MY_BLOGS_KEY, accessToken]`. */
 export function fetchBlogPage([url, token]: readonly [string, string | undefined]) {
   return sendJson(blogPageSchema, url, token)

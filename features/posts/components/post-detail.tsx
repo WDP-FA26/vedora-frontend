@@ -3,9 +3,14 @@
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { ArrowLeftIcon } from "lucide-react"
+import useSWR from "swr"
 
 import { Button } from "@/components/ui/button"
 import { Spinner } from "@/components/ui/spinner"
+import { useAuth } from "@/features/auth/hooks/use-auth"
+import { blogKey } from "@/features/blogs/blogs-cache"
+import { BlogMarkdown } from "@/features/blogs/components/blog-markdown"
+import { fetchBlog } from "@/features/blogs/lib/blogs-api"
 import { PostActions, PostMenu } from "@/features/home/components/post-card"
 import { PostComments } from "@/features/posts/components/post-comments"
 import { PostMedia } from "@/features/posts/components/post-media"
@@ -93,6 +98,8 @@ function PostArticle({ post: apiPost }: { post: ApiPost }) {
         <PostMenu post={post} />
       </header>
 
+      {post.kind === "blog" && <BlogArticle id={post.id} title={post.blog.title} />}
+
       {post.body && (
         <p className="mt-4 text-[0.9375rem] leading-[1.6] break-words text-pretty whitespace-pre-line">
           {post.body}
@@ -109,5 +116,33 @@ function PostArticle({ post: apiPost }: { post: ApiPost }) {
         <PostActions post={post} />
       </div>
     </article>
+  )
+}
+
+/**
+ * A blog's title and full article. Lists carry only its summary, so the
+ * Markdown loads from `GET /blogs/:id`, rendered without raw HTML.
+ */
+function BlogArticle({ id, title }: { id: string; title: string }) {
+  const { accessToken } = useAuth()
+  const { data, error, isLoading } = useSWR([blogKey(id), accessToken] as const, fetchBlog)
+
+  return (
+    <div className="mt-4">
+      <h2 className="text-2xl leading-tight font-bold text-balance">{title}</h2>
+      {isLoading ? (
+        <div className="flex justify-center p-6">
+          <Spinner aria-label="Đang tải nội dung blog" />
+        </div>
+      ) : data ? (
+        <BlogMarkdown content={data.content} className="mt-4" />
+      ) : (
+        error && (
+          <p role="alert" className="mt-4 text-sm text-destructive">
+            Không tải được nội dung blog. Thử tải lại trang nhé.
+          </p>
+        )
+      )}
+    </div>
   )
 }
