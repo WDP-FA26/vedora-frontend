@@ -3,9 +3,14 @@
 import { useEffect, useRef, useState } from "react"
 import { createPortal } from "react-dom"
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext"
+import { COMMAND_PRIORITY_EDITOR } from "lexical"
 import { CheckIcon, XIcon } from "lucide-react"
 
-import { $resolveSuggestion } from "@/features/blogs/editor/suggestions"
+import {
+  $resolveSuggestion,
+  RESOLVE_SUGGESTION_COMMAND,
+  type SuggestionDecision,
+} from "@/features/blogs/editor/suggestions"
 
 type Hover = { group: string; left: number; top: number }
 
@@ -15,7 +20,8 @@ const CHIP_OFFSET_PX = 30
 /**
  * Hover over a proposed change to get its "Chấp nhận" / "Bỏ" chips, placed
  * above where the change starts. They stay while the pointer is on the change
- * or on the chips, and go away shortly after it leaves both.
+ * or on the chips, and go away shortly after it leaves both. Also applies
+ * every `RESOLVE_SUGGESTION_COMMAND`, whichever button sent it.
  */
 export function SuggestionHoverPlugin() {
   const [editor] = useLexicalComposerContext()
@@ -28,6 +34,19 @@ export function SuggestionHoverPlugin() {
     shown.current = null
     setHover(null)
   }
+
+  useEffect(
+    () =>
+      editor.registerCommand(
+        RESOLVE_SUGGESTION_COMMAND,
+        ({ group, decision }) => {
+          $resolveSuggestion(group, decision)
+          return true
+        },
+        COMMAND_PRIORITY_EDITOR
+      ),
+    [editor]
+  )
 
   useEffect(() => {
     function cancelHide() {
@@ -65,10 +84,10 @@ export function SuggestionHoverPlugin() {
 
   if (!hover) return null
 
-  function resolve(decision: "accept" | "discard") {
+  function resolve(decision: SuggestionDecision) {
     const { group } = hover!
     hide()
-    editor.update(() => $resolveSuggestion(group, decision))
+    editor.dispatchCommand(RESOLVE_SUGGESTION_COMMAND, { group, decision })
   }
 
   return createPortal(

@@ -158,5 +158,7 @@ export function useBlogDraft(initial: ApiBlog | null) {
     /** Takes a public blog back to a draft. */
     unpublish: () => save({ status: "DRAFT" }),
     save: () => save(),
+    /** The blog's id once the first save created it. */
+    blogId: () => id.current,
   }
 }

@@ -1,11 +1,8 @@
 import {
-  $createTextNode,
-  $getRoot,
-  $getSelection,
   $isElementNode,
-  $isRangeSelection,
   $isRootNode,
   $nodesOfType,
+  createCommand,
   ElementNode,
   type LexicalNode,
   type SerializedElementNode,
@@ -14,6 +11,17 @@ import {
 import { $isListNode } from "@lexical/list"
 
 type SuggestionKind = "delete" | "insert"
+
+export type SuggestionDecision = "accept" | "discard"
+
+/**
+ * The author accepting or discarding a proposal, from the post or the chat.
+ * `SuggestionHoverPlugin` applies it; the writing assistant listens first, to
+ * tell the agent what the author decided.
+ */
+export const RESOLVE_SUGGESTION_COMMAND = createCommand<{ group: string; decision: SuggestionDecision }>(
+  "RESOLVE_SUGGESTION_COMMAND"
+)
 
 type SerializedSuggestionNode = Spread<{ kind: SuggestionKind; group: string }, SerializedElementNode>
 
@@ -123,7 +131,7 @@ function $unwrap(node: SuggestionNode) {
 }
 
 /** Accepting keeps what was proposed (drops the struck text); discarding keeps the original. */
-export function $resolveSuggestion(group: string, decision: "accept" | "discard") {
+export function $resolveSuggestion(group: string, decision: SuggestionDecision) {
   for (const node of $nodesOfType(SuggestionNode)) {
     if (node.getGroup() !== group) continue
     const keep = (node.getKind() === "insert") === (decision === "accept")
@@ -150,41 +158,4 @@ export function $markAsInsertion(nodes: LexicalNode[], group: string) {
     node.getChildren().forEach(visit)
   }
   nodes.forEach(visit)
-}
-
-/** Strikes out all of `block`'s text and proposes `text` next to it. */
-export function $suggestRewrite(block: ElementNode, text: string, group: string) {
-  const removed = $createSuggestionNode("delete", group)
-  block.getChildren().forEach((child) => removed.append(child))
-  const added = $createSuggestionNode("insert", group)
-  added.append($createTextNode(text))
-  block.append(removed, added)
-}
-
-/**
- * The block an edit request is about: the one holding the caret, else the
- * last block with text. `null` when the post has no text, or the block
- * already carries an unresolved suggestion.
- */
-export function $findRewriteTarget(): ElementNode | null {
-  const selection = $getSelection()
-  let node: LexicalNode | null = $isRangeSelection(selection) ? selection.anchor.getNode() : null
-  while (node && !($isElementNode(node) && !node.isInline() && !$isRootNode(node) && !$isListNode(node))) {
-    node = node.getParent()
-  }
-  const hasText = (block: LexicalNode | null): block is ElementNode =>
-    $isElementNode(block) && block.getTextContent().trim() !== ""
-  let block: ElementNode | null = hasText(node) ? node : null
-  if (!block) {
-    for (const child of $getRoot().getChildren().reverse()) {
-      if ($isListNode(child)) {
-        const item = child.getLastChild()
-        if (hasText(item)) block = item
-      } else if (hasText(child)) {
-        block = child
-      }
-      if (block) break
-    }
-  }
-  return block && !block.getChildren().some($isSuggestionNode) ? block : null
 }
