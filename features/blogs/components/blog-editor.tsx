@@ -3,6 +3,7 @@
 import { useState, useSyncExternalStore } from "react"
 import Link from "next/link"
 import { LexicalComposer } from "@lexical/react/LexicalComposer"
+import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext"
 import { ContentEditable } from "@lexical/react/LexicalContentEditable"
 import { LexicalErrorBoundary } from "@lexical/react/LexicalErrorBoundary"
 import { HistoryPlugin } from "@lexical/react/LexicalHistoryPlugin"
@@ -138,14 +139,7 @@ export function BlogEditor({ initial }: { initial: ApiBlog | null }) {
             >
               <FileTextIcon className="size-5" />
             </span>
-            <input
-              value={draft.title}
-              onChange={(event) => draft.setTitle(event.target.value)}
-              maxLength={MAX_BLOG_TITLE_LENGTH}
-              placeholder="Tiêu đề"
-              aria-label="Tiêu đề bài viết"
-              className="mt-5 mb-8 w-full bg-transparent text-3xl font-bold tracking-tight outline-none placeholder:text-muted-foreground/50 sm:text-4xl"
-            />
+            <TitleField value={draft.title} onChange={draft.setTitle} />
             <div className="relative">
               <RichTextPlugin
                 contentEditable={
@@ -173,5 +167,25 @@ export function BlogEditor({ initial }: { initial: ApiBlog | null }) {
       <SlashMenuPlugin />
       <SuggestionHoverPlugin />
     </LexicalComposer>
+  )
+}
+
+/** The big title. Enter moves on to the start of the text, as in a page editor. */
+function TitleField({ value, onChange }: { value: string; onChange: (title: string) => void }) {
+  const [editor] = useLexicalComposerContext()
+  return (
+    <input
+      value={value}
+      onChange={(event) => onChange(event.target.value)}
+      onKeyDown={(event) => {
+        if (event.key !== "Enter" || event.nativeEvent.isComposing) return
+        event.preventDefault()
+        editor.focus(() => editor.update(() => $getRoot().selectStart()))
+      }}
+      maxLength={MAX_BLOG_TITLE_LENGTH}
+      placeholder="Tiêu đề"
+      aria-label="Tiêu đề bài viết"
+      className="mt-5 mb-8 w-full bg-transparent text-3xl font-bold tracking-tight outline-none placeholder:text-muted-foreground/50 sm:text-4xl"
+    />
   )
 }
