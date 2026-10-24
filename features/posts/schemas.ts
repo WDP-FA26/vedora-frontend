@@ -49,10 +49,20 @@ export const apiMediaSchema = z.object({
   captions: z.array(captionTrackSchema),
 })
 
+/** The short form of a blog that lists carry; the article itself comes from `GET /blogs/:id`. */
+export const blogSummarySchema = z.object({
+  title: z.string(),
+  coverImageUrl: z.string().nullable(),
+  /** Plain source text, up to 280 characters: show it as text, never as Markdown. */
+  excerpt: z.string(),
+  recipes: z.array(z.object({ id: z.string(), title: z.string(), imageUrl: z.string().nullable() })),
+})
+
 export const apiPostSchema = z.object({
   id: z.string(),
   type: z.enum(["POST", "BLOG"]),
-  status: z.enum(["PROCESSING", "PUBLISHED", "FAILED"]),
+  /** `DRAFT` is for blogs only, and only their author ever sees one. */
+  status: z.enum(["DRAFT", "PROCESSING", "PUBLISHED", "FAILED"]),
   body: z.string().nullable(),
   publishedAt: z.string().nullable(),
   createdAt: z.string(),
@@ -74,6 +84,8 @@ export const apiPostSchema = z.object({
   isBookmarked: z.boolean(),
   /** Saved in batches by the API, so a few seconds behind. */
   viewCount: z.number(),
+  /** `null` on short posts. Absent on API versions from before blogs. */
+  blog: blogSummarySchema.nullable().optional(),
 })
 
 export const postPageSchema = z.object({
@@ -179,6 +191,7 @@ export const postFormSchema = z
 export type ApiMedia = z.infer<typeof apiMediaSchema>
 export type CaptionTrack = z.infer<typeof captionTrackSchema>
 export type ApiPost = z.infer<typeof apiPostSchema>
+export type BlogSummary = z.infer<typeof blogSummarySchema>
 export type PostPage = z.infer<typeof postPageSchema>
 export type VideoUploadTarget = z.infer<typeof videoUploadSchema>
 export type ApiComment = z.infer<typeof apiCommentSchema>

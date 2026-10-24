@@ -87,7 +87,8 @@ export function getFeed(tab: FeedTab): Post[] {
     case "following":
       return posts.filter((post) => following.has(post.author.handle))
     case "blogs":
-      return posts.filter((post) => post.kind === "article")
+      // Real blogs come from the API now; fixture articles have nowhere to open.
+      return []
     case "recipes":
       return posts.filter((post) => post.kind === "video")
     default:
