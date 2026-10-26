@@ -172,6 +172,7 @@ function ReviewBody({
                   <img
                     src={proof.url}
                     alt={`Ảnh minh chứng ${index + 1}, mở cỡ đầy đủ ở thẻ mới`}
+                    referrerPolicy="no-referrer"
                     className="aspect-[4/3] w-full object-cover"
                   />
                 </a>

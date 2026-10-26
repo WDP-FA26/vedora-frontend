@@ -56,6 +56,7 @@ export function BlogGallery({ images }: { images: GalleryImage[] }) {
               src={image.src}
               alt={image.alt}
               loading="lazy"
+              referrerPolicy="no-referrer"
               className="size-full object-cover transition-transform duration-300 hover:scale-[1.03]"
             />
             {hidden > 0 && index === tiles.length - 1 && (
@@ -82,6 +83,7 @@ export function BlogGallery({ images }: { images: GalleryImage[] }) {
                     <img
                       src={image.src}
                       alt={image.alt}
+                      referrerPolicy="no-referrer"
                       className="max-h-[80dvh] w-full object-contain"
                     />
                   </CarouselItem>

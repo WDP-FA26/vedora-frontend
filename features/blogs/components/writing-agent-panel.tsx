@@ -97,7 +97,12 @@ function EditCard({ part, assistant }: { part: ToolPart; assistant: WritingAssis
     if (input) {
       detail = (
         // eslint-disable-next-line @next/next/no-img-element -- images from the blogs bucket
-        <img src={input.url} alt={input.alt} className="max-h-48 w-full rounded-lg object-cover" />
+        <img
+          src={input.url}
+          alt={input.alt}
+          referrerPolicy="no-referrer"
+          className="max-h-48 w-full rounded-lg object-cover"
+        />
       )
     }
     if (part.state === "input-available") {

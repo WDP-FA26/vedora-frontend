@@ -167,7 +167,7 @@ function MediaView({
         <video src={src} controls preload="metadata" className="max-h-[32rem] w-full bg-black" />
       ) : (
         // eslint-disable-next-line @next/next/no-img-element -- arbitrary public hosts
-        <img src={src} alt={alt} className="max-h-[32rem] w-full object-contain" />
+        <img src={src} alt={alt} referrerPolicy="no-referrer" className="max-h-[32rem] w-full object-contain" />
       )}
       <figcaption className="flex items-center gap-2 border-t border-border bg-card px-3 py-1.5">
         <input
