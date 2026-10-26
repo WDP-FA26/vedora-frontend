@@ -29,6 +29,7 @@ import type {
   IncompatibilityRule,
   Ingredient,
   IngredientGroup,
+  PublicRecipe,
   Recipe,
   RecipeConflict,
 } from "@/features/recipes/schemas"
@@ -39,6 +40,7 @@ const NO_GROUPS: IngredientGroup[] = []
 const NO_RULES: IncompatibilityRule[] = []
 const NO_RECIPES: Recipe[] = []
 const NO_CONFLICTS: RecipeConflict[] = []
+const NO_PUBLIC_RECIPES: PublicRecipe[] = []
 
 function useKey(url: string | null) {
   const { accessToken } = useAuth()
@@ -114,7 +116,7 @@ export function usePublicRecipes() {
   )
   const last = data?.at(-1)
   return {
-    recipes: data?.flatMap((page) => page.items) ?? NO_RECIPES,
+    recipes: data?.flatMap((page) => page.items) ?? NO_PUBLIC_RECIPES,
     error,
     isLoading,
     isLoadingMore: isValidating && size > (data?.length ?? 0),

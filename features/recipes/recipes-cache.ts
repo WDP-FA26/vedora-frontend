@@ -53,3 +53,25 @@ export function ratingSummaryKey(id: string) {
 export function myRatingKey(id: string) {
   return `${publicRecipeKey(id)}/rating`
 }
+
+/** The signed-in user's saved recipes; the page number is added by `favoritesKey`. */
+export const FAVORITES_KEY = `${PUBLIC_RECIPES_KEY}/favorites`
+export const FAVORITES_PAGE_LIMIT = 20
+
+export function favoritesKey(page: number) {
+  return `${FAVORITES_KEY}?page=${page}&limit=${FAVORITES_PAGE_LIMIT}`
+}
+
+export function favoriteKey(id: string) {
+  return `${publicRecipeKey(id)}/favorite`
+}
+
+/**
+ * Saved state the user set in this session, by recipe id, under
+ * `[FAVORITE_OVERRIDES_KEY, userId]`. The feed pages live in `useSWRInfinite`,
+ * which a global `mutate` cannot patch, so every card reads its state here first.
+ */
+export const FAVORITE_OVERRIDES_KEY = "recipe-favorite-overrides"
+
+/** The "Công thức" tab of `/home/bookmarks`. */
+export const SAVED_RECIPES_PATH = "/home/bookmarks?tab=recipes"
