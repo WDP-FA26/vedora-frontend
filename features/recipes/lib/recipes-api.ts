@@ -4,6 +4,7 @@ import {
   INCOMPATIBILITY_RULES_KEY,
   INGREDIENT_GROUPS_KEY,
   INGREDIENTS_KEY,
+  myRatingKey,
   RECIPES_KEY,
 } from "@/features/recipes/recipes-cache"
 import {
@@ -13,6 +14,8 @@ import {
   ingredientGroupSchema,
   ingredientPageSchema,
   ingredientSchema,
+  myRatingSchema,
+  ratingSummarySchema,
   recipeConflictsSchema,
   recipeDetailSchema,
   recipePageSchema,
@@ -128,4 +131,21 @@ export function fetchPublicRecipePage([url, page, token]: readonly [
 
 export function fetchPublicRecipe([url, token]: readonly [string, string | undefined]) {
   return sendJson(recipeDetailSchema, url, token)
+}
+
+export function fetchRatingSummary([url]: readonly [string, undefined]) {
+  return sendJson(ratingSummarySchema, url, undefined)
+}
+
+/** The user id rides in the key only so each account gets its own cache entry. */
+export function fetchMyRating([url, token]: readonly [string, string, string]) {
+  return sendJson(myRatingSchema, url, token)
+}
+
+/** Sets the caller's score (1–5), or removes it when `value` is null. */
+export function setRecipeRating(token: string, recipeId: string, value: number | null) {
+  return sendJson(myRatingSchema, myRatingKey(recipeId), token, {
+    method: value === null ? "DELETE" : "PUT",
+    body: value === null ? undefined : JSON.stringify({ value }),
+  })
 }

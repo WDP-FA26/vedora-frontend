@@ -97,6 +97,18 @@ export const recipeDetailSchema = recipeSchema.extend({
   ),
 })
 
+/** `averageRating` is null, not 0, while no one has rated the recipe. */
+export const ratingSummarySchema = z.object({
+  recipeId: z.string(),
+  ratingCount: z.number(),
+  averageRating: z.number().nullable(),
+})
+
+/** The summary plus the caller's own score, null when they have not rated. */
+export const myRatingSchema = ratingSummarySchema.extend({
+  myRating: z.number().nullable(),
+})
+
 export type NamedRef = z.infer<typeof namedRefSchema>
 export type Ingredient = z.infer<typeof ingredientSchema>
 export type IngredientGroup = z.infer<typeof ingredientGroupSchema>
@@ -105,6 +117,8 @@ export type RuleSide = z.infer<typeof ruleSideSchema>
 export type RecipeConflict = z.infer<typeof recipeConflictSchema>
 export type Recipe = z.infer<typeof recipeSchema>
 export type RecipeDetail = z.infer<typeof recipeDetailSchema>
+export type RatingSummary = z.infer<typeof ratingSummarySchema>
+export type MyRating = z.infer<typeof myRatingSchema>
 
 // Forms. Limits match the API DTOs.
 

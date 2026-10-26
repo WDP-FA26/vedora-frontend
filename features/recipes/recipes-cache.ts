@@ -43,3 +43,13 @@ export const PUBLIC_RECIPES_KEY = `${API_URL}/recipes`
 export function publicRecipeKey(id: string) {
   return `${PUBLIC_RECIPES_KEY}/${id}`
 }
+
+/** Count and mean of a recipe's ratings, readable signed out. */
+export function ratingSummaryKey(id: string) {
+  return `${publicRecipeKey(id)}/ratings/summary`
+}
+
+/** The summary plus the signed-in user's own score. */
+export function myRatingKey(id: string) {
+  return `${publicRecipeKey(id)}/rating`
+}
