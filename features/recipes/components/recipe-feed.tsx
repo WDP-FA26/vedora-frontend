@@ -19,6 +19,7 @@ import {
 } from "@/components/ui/empty"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Spinner } from "@/components/ui/spinner"
+import { RecipeRating } from "@/features/recipes/components/recipe-rating"
 import { usePublicRecipe, usePublicRecipes } from "@/features/recipes/hooks/use-recipe-catalog"
 import type { Recipe, RecipeDetail } from "@/features/recipes/schemas"
 import { cn } from "@/lib/utils"
@@ -148,6 +149,7 @@ function RecipeDialog({ id, onClose }: { id: string | null; onClose: () => void 
               {minutes !== null && <span>{minutes} phút</span>}
               <span>{recipe.servings} khẩu phần</span>
             </p>
+            <RecipeRating key={recipe.id} recipeId={recipe.id} />
             {recipe.conflicts.length > 0 && (
               <div role="note" className="rounded-xl border border-amber-500/40 bg-amber-500/10 p-3 text-sm">
                 <p className="font-semibold">Lưu ý nguyên liệu</p>

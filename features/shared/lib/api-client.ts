@@ -3,9 +3,12 @@ import { z } from "zod"
 // Client Components call vedora-api directly with the token from `useAuth()`.
 // Public endpoints are called without one when the visitor is signed out.
 
-/** Nest error body; `code` is set on errors the UI handles specifically. */
+/**
+ * Nest error body; `code` is set on errors the UI handles specifically. An
+ * exception thrown with `{ code, message }` alone has no `statusCode`.
+ */
 const apiErrorSchema = z.object({
-  statusCode: z.number(),
+  statusCode: z.number().optional(),
   code: z.string().optional(),
   message: z.union([z.string(), z.array(z.string())]),
 })
