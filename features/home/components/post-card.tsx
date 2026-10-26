@@ -206,6 +206,7 @@ function BlogCard({ post }: { post: BlogPost }) {
           src={blog.coverImageUrl}
           alt=""
           loading="lazy"
+          referrerPolicy="no-referrer"
           onError={() => setCoverFailed(true)}
           className="aspect-[1.91/1] w-full border-b border-border object-cover"
         />

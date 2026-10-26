@@ -9,9 +9,28 @@ import { BlogGallery, type GalleryImage } from "@/features/blogs/components/blog
 // Blog content is the author's Markdown source. Raw HTML in it is dropped,
 // not rendered: `skipHtml` removes it, and the `raw` plugin that would parse
 // it is left out. Sanitize and harden still run on what Markdown produces.
-const rehypePlugins = Object.entries(defaultRehypePlugins)
-  .filter(([name]) => name !== "raw")
-  .map(([, plugin]) => plugin)
+const rehypePlugins = [
+  ...Object.entries(defaultRehypePlugins)
+    .filter(([name]) => name !== "raw")
+    .map(([, plugin]) => plugin),
+  rehypeNoReferrer,
+]
+
+type HastNode = { type: string; tagName?: string; properties?: Record<string, unknown>; children?: HastNode[] }
+
+/**
+ * Images load without a Referer: storage sits behind Cloudflare hotlink
+ * protection, which rejects requests whose Referer is another site.
+ */
+function rehypeNoReferrer() {
+  const visit = (node: HastNode) => {
+    if (node.type === "element" && node.tagName === "img") {
+      node.properties = { ...node.properties, referrerPolicy: "no-referrer" }
+    }
+    node.children?.forEach(visit)
+  }
+  return visit
+}
 
 const LINK_PROTOCOLS = ["https:", "http:", "mailto:"]
 

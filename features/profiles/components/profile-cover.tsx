@@ -11,7 +11,7 @@ export function ProfileCover({
     <div className="relative isolate aspect-[3/1] w-full overflow-hidden bg-gradient-to-br from-[#dcefd2] via-[#edf6e8] to-[#d5ece8] dark:from-[#203d29] dark:via-[#274632] dark:to-[#22514d]">
       {profile.coverUrl ? (
         // eslint-disable-next-line @next/next/no-img-element
-        <img src={profile.coverUrl} alt="" className="size-full object-cover" />
+        <img src={profile.coverUrl} alt="" referrerPolicy="no-referrer" className="size-full object-cover" />
       ) : (
         <div aria-hidden className="pointer-events-none absolute inset-0 overflow-hidden">
           <div className="absolute -right-10 -top-24 size-72 rounded-full border-[2rem] border-white/20 sm:size-80" />
