@@ -14,6 +14,14 @@ export function authorPostsKey(authorId: string) {
 /** The posts the signed-in user saved, most recently saved first. */
 export const BOOKMARKS_KEY = `${POSTS_KEY}/bookmarks?limit=50`
 
+/** Tabs of the `/home/bookmarks` page, kept in `?tab=`. */
+export const BOOKMARK_TABS = ["posts", "recipes"] as const
+export type BookmarkTab = (typeof BOOKMARK_TABS)[number]
+
+export function isBookmarkTab(value: unknown): value is BookmarkTab {
+  return BOOKMARK_TABS.some((tab) => tab === value)
+}
+
 /** One page of posts matching `q`, best match first; `cursor` comes from the previous page. */
 export function searchPostsKey(q: string, cursor?: string) {
   const params = new URLSearchParams({ q, limit: "20" })

@@ -3,11 +3,14 @@ import type { z } from "zod"
 import {
   INCOMPATIBILITY_RULES_KEY,
   INGREDIENT_GROUPS_KEY,
+  favoriteKey,
   INGREDIENTS_KEY,
   myRatingKey,
   RECIPES_KEY,
 } from "@/features/recipes/recipes-cache"
 import {
+  favoriteRecipePageSchema,
+  favoriteStateSchema,
   incompatibilityRulePageSchema,
   incompatibilityRuleSchema,
   ingredientGroupPageSchema,
@@ -15,6 +18,8 @@ import {
   ingredientPageSchema,
   ingredientSchema,
   myRatingSchema,
+  publicRecipeDetailSchema,
+  publicRecipePageSchema,
   ratingSummarySchema,
   recipeConflictsSchema,
   recipeDetailSchema,
@@ -126,11 +131,11 @@ export function fetchPublicRecipePage([url, page, token]: readonly [
   number,
   string | undefined,
 ]) {
-  return sendJson(recipePageSchema, `${url}?page=${page}&limit=${FEED_PAGE_LIMIT}`, token)
+  return sendJson(publicRecipePageSchema, `${url}?page=${page}&limit=${FEED_PAGE_LIMIT}`, token)
 }
 
 export function fetchPublicRecipe([url, token]: readonly [string, string | undefined]) {
-  return sendJson(recipeDetailSchema, url, token)
+  return sendJson(publicRecipeDetailSchema, url, token)
 }
 
 export function fetchRatingSummary([url]: readonly [string, undefined]) {
@@ -147,5 +152,16 @@ export function setRecipeRating(token: string, recipeId: string, value: number |
   return sendJson(myRatingSchema, myRatingKey(recipeId), token, {
     method: value === null ? "DELETE" : "PUT",
     body: value === null ? undefined : JSON.stringify({ value }),
+  })
+}
+
+export function fetchFavoritePage([url, token]: readonly [string, string]) {
+  return sendJson(favoriteRecipePageSchema, url, token)
+}
+
+/** Saves the recipe (`PUT`) or removes it (`DELETE`); both are idempotent. */
+export function setRecipeFavorite(token: string, recipeId: string, saved: boolean) {
+  return sendJson(favoriteStateSchema, favoriteKey(recipeId), token, {
+    method: saved ? "PUT" : "DELETE",
   })
 }

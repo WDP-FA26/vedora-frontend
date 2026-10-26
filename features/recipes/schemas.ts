@@ -97,6 +97,20 @@ export const recipeDetailSchema = recipeSchema.extend({
   ),
 })
 
+/** The public catalog adds whether the caller saved the recipe; guests get false. */
+export const publicRecipeSchema = recipeSchema.extend({ isFavorite: z.boolean() })
+export const publicRecipePageSchema = page(publicRecipeSchema)
+export const publicRecipeDetailSchema = recipeDetailSchema.extend({ isFavorite: z.boolean() })
+
+/** A saved recipe, newest saved first. */
+export const favoriteRecipeSchema = publicRecipeSchema.extend({ savedAt: z.string() })
+export const favoriteRecipePageSchema = z.object({
+  items: z.array(favoriteRecipeSchema),
+  meta: z.object({ page: z.number(), totalItems: z.number(), totalPages: z.number() }),
+})
+
+export const favoriteStateSchema = z.object({ recipeId: z.string(), isFavorite: z.boolean() })
+
 /** `averageRating` is null, not 0, while no one has rated the recipe. */
 export const ratingSummarySchema = z.object({
   recipeId: z.string(),
@@ -117,6 +131,9 @@ export type RuleSide = z.infer<typeof ruleSideSchema>
 export type RecipeConflict = z.infer<typeof recipeConflictSchema>
 export type Recipe = z.infer<typeof recipeSchema>
 export type RecipeDetail = z.infer<typeof recipeDetailSchema>
+export type PublicRecipe = z.infer<typeof publicRecipeSchema>
+export type PublicRecipeDetail = z.infer<typeof publicRecipeDetailSchema>
+export type FavoriteRecipe = z.infer<typeof favoriteRecipeSchema>
 export type RatingSummary = z.infer<typeof ratingSummarySchema>
 export type MyRating = z.infer<typeof myRatingSchema>
 
