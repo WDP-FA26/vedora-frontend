@@ -23,9 +23,10 @@ import { useAuth } from "@/features/auth/hooks/use-auth"
 import { getFeed } from "@/features/home/data/posts"
 import type { FeedTab, Post } from "@/features/home/types"
 import { WeekPlanButton } from "@/features/meal-plan/components/week-plan-button"
-import { useFeedPosts } from "@/features/posts/hooks/use-feed-posts"
+import { useFeedPosts, useForYouPosts } from "@/features/posts/hooks/use-feed-posts"
 import { toFeedPost } from "@/features/posts/lib/to-feed-post"
-import { POSTS_KEY } from "@/features/posts/posts-cache"
+import { FOR_YOU_KEY, POSTS_KEY } from "@/features/posts/posts-cache"
+import type { ApiPost } from "@/features/posts/schemas"
 import { MobileTopBar } from "@/features/shared/components/mobile-nav"
 import { RecipeFeed } from "@/features/recipes/components/recipe-feed"
 import { PostCard } from "./post-card"
@@ -40,8 +41,8 @@ const tabs: { value: FeedTab; label: string }[] = [
 const emptyCopy = {
   "for-you": {
     icon: SproutIcon,
-    title: "Chưa thấy bài viết công khai",
-    description: "Trong các bài mới tải chưa có chia sẻ công khai. Hãy quay lại sau.",
+    title: "Chưa có bài viết dành cho bạn",
+    description: "Thích, lưu hoặc bình luận vài bài để bảng tin hiểu gu của bạn hơn.",
   },
   following: {
     icon: UsersIcon,
@@ -61,17 +62,21 @@ const emptyCopy = {
 } as const
 
 export function Feed() {
-  const { posts, error, isLoading } = useFeedPosts()
+  const latest = useFeedPosts()
+  const ranked = useForYouPosts()
   const { accessToken } = useAuth()
   const { mutate } = useSWRConfig()
   // The list endpoint may include the author's processing posts. Only
   // published content belongs in the public Explore timeline.
-  const published = posts.filter((post) => post.status === "PUBLISHED")
-  const forYou = published.map(toFeedPost)
-  const blogs = published.filter((post) => post.type === "BLOG").map(toFeedPost)
+  const published = (posts: ApiPost[]) =>
+    posts.filter((post) => post.status === "PUBLISHED")
+  const forYou = published(ranked.posts).map(toFeedPost)
+  const blogs = published(latest.posts)
+    .filter((post) => post.type === "BLOG")
+    .map(toFeedPost)
 
-  function retry() {
-    if (accessToken) void mutate([POSTS_KEY, accessToken])
+  function retry(url: string) {
+    if (accessToken) void mutate([url, accessToken])
   }
 
   return (
@@ -103,9 +108,9 @@ export function Feed() {
             tab={tab.value}
             livePosts={tab.value === "for-you" ? forYou : tab.value === "blogs" ? blogs : []}
             mockPosts={getFeed(tab.value)}
-            isLoading={isLoading}
-            hasError={Boolean(error)}
-            onRetry={retry}
+            isLoading={tab.value === "for-you" ? ranked.isLoading : latest.isLoading}
+            hasError={Boolean(tab.value === "for-you" ? ranked.error : latest.error)}
+            onRetry={() => retry(tab.value === "for-you" ? FOR_YOU_KEY : POSTS_KEY)}
           />
           )}
         </TabsContent>
