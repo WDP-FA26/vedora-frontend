@@ -87,7 +87,8 @@ function PostVideo({
       aspectRatio={video.aspectRatio}
       captions={video.captions}
       label={label}
-      className={cn(fill ? "flex h-full items-center" : "max-h-[32rem]")}
+      className={cn(fill && "flex h-full items-center")}
+      maxHeight={fill ? undefined : "32rem"}
       onError={() => setLoadFailed(true)}
     />
   )
