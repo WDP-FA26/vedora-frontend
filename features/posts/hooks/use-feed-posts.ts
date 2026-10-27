@@ -5,12 +5,21 @@ import useSWR, { useSWRConfig } from "swr"
 import { useAuth } from "@/features/auth/hooks/use-auth"
 import { useAuthedSWR } from "@/features/auth/hooks/use-authed-swr"
 import { fetchPost, fetchPostPage } from "@/features/posts/lib/posts-api"
-import { POSTS_KEY, postKey } from "@/features/posts/posts-cache"
+import { FOR_YOU_KEY, POSTS_KEY, postKey } from "@/features/posts/posts-cache"
 import type { ApiPost, PostPage } from "@/features/posts/schemas"
 
 /** First page of published posts from vedora-api. */
 export function useFeedPosts() {
   const { data, error, isLoading } = useAuthedSWR(POSTS_KEY, fetchPostPage)
+  return { posts: data?.items ?? [], error, isLoading }
+}
+
+/**
+ * First page of "Dành cho bạn": recent posts like the ones the user liked,
+ * saved or commented on, newest posts in between. Never the user's own.
+ */
+export function useForYouPosts() {
+  const { data, error, isLoading } = useAuthedSWR(FOR_YOU_KEY, fetchPostPage)
   return { posts: data?.items ?? [], error, isLoading }
 }
 
@@ -24,24 +33,32 @@ export function usePost(id: string) {
   return { post: data ?? null, error, isLoading }
 }
 
-/** Writes a post into the cached feed: prepends it, or replaces it by id. */
+/**
+ * Writes a post into the cached feeds: prepends it, or replaces it by id.
+ * "Dành cho bạn" never ranks the user's own posts, but a post they just
+ * wrote still shows at its top until the next load.
+ */
 export function useUpsertFeedPost() {
   const { accessToken } = useAuth()
   const { mutate } = useSWRConfig()
 
   return (post: ApiPost) =>
-    mutate(
-      [POSTS_KEY, accessToken],
-      (page: PostPage | undefined): PostPage => {
-        const items = page?.items ?? []
-        return {
-          nextCursor: page?.nextCursor ?? null,
-          items: items.some((item) => item.id === post.id)
-            ? items.map((item) => (item.id === post.id ? post : item))
-            : [post, ...items],
-        }
-      },
-      { revalidate: false }
+    Promise.all(
+      [POSTS_KEY, FOR_YOU_KEY].map((url) =>
+        mutate(
+          [url, accessToken],
+          (page: PostPage | undefined): PostPage => {
+            const items = page?.items ?? []
+            return {
+              nextCursor: page?.nextCursor ?? null,
+              items: items.some((item) => item.id === post.id)
+                ? items.map((item) => (item.id === post.id ? post : item))
+                : [post, ...items],
+            }
+          },
+          { revalidate: false }
+        )
+      )
     )
 }
 
