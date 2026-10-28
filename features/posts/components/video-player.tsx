@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useRef } from "react"
+import { useEffect, useRef, useState } from "react"
 import { CldVideoPlayer } from "next-cloudinary"
 // CldVideoPlayer injects its stylesheet with `next/head`, which the App Router ignores.
 import "next-cloudinary/dist/cld-video-player.css"
@@ -19,6 +19,7 @@ export function VideoPlayer({
   captions,
   label,
   className,
+  maxHeight,
   videoRef,
   onTimeUpdate,
   onError,
@@ -29,6 +30,12 @@ export function VideoPlayer({
   captions: CaptionTrack[]
   label: string
   className?: string
+  /**
+   * A CSS length the player never grows past, e.g. "32rem". The player is
+   * narrowed to the width that fits it, so a portrait video shows whole,
+   * centered on black, instead of being cropped by its container.
+   */
+  maxHeight?: string
   /** The underlying `<video>`, e.g. to seek from a transcript. */
   videoRef?: React.RefObject<HTMLVideoElement | null>
   onTimeUpdate?: (seconds: number) => void
@@ -36,7 +43,8 @@ export function VideoPlayer({
 }) {
   const ownRef = useRef<HTMLVideoElement | null>(null)
   const video = videoRef ?? ownRef
-  const [width, height] = (aspectRatio ?? "16:9").split(":").map(Number)
+  const [measured, setMeasured] = useState<[number, number] | null>(null)
+  const [width, height] = measured ?? (aspectRatio ?? "16:9").split(":").map(Number)
 
   useEffect(() => {
     const element = video.current
@@ -48,32 +56,46 @@ export function VideoPlayer({
 
   return (
     <div aria-label={label} className={cn("w-full bg-black", className)}>
-      <CldVideoPlayer
-        src={publicId}
-        width={width * 100}
-        height={height * 100}
-        videoRef={video}
-        sourceTypes={["hls"]}
-        transformation={{ streaming_profile: "auto" }}
-        // The default `q_auto` can't combine with `sp_auto`; `null` skips it.
-        quality={null as unknown as undefined}
-        // The first frame; the player drops the extension of a full poster URL.
-        poster={{ src: publicId, assetType: "video", format: "jpg", rawTransformations: ["so_0"] }}
-        logo={false}
-        colors={{ accent: "#75b65c", base: "#000000", text: "#ffffff" }}
-        textTracks={
-          captions.length > 0
-            ? {
-                subtitles: captions.map((track) => ({
-                  label: track.name,
-                  language: track.languageCode,
-                  url: track.url,
-                })),
-              }
-            : undefined
-        }
-        onError={onError}
-      />
+      <div
+        className="mx-auto w-full"
+        // Media events don't bubble, so catch the video's metadata on the way
+        // down. Its real size beats the stored ratio, which can be wrong for
+        // a rotated phone video.
+        onLoadedMetadataCapture={(event) => {
+          const { videoWidth, videoHeight } = event.target as HTMLVideoElement
+          if (videoWidth && videoHeight) setMeasured([videoWidth, videoHeight])
+        }}
+        style={maxHeight ? { maxWidth: `calc(${maxHeight} * ${width / height})` } : undefined}
+      >
+        <CldVideoPlayer
+          // The player reads its size once, so a measured ratio remounts it.
+          key={`${width}x${height}`}
+          src={publicId}
+          width={width * 100}
+          height={height * 100}
+          videoRef={video}
+          sourceTypes={["hls"]}
+          transformation={{ streaming_profile: "auto" }}
+          // The default `q_auto` can't combine with `sp_auto`; `null` skips it.
+          quality={null as unknown as undefined}
+          // The first frame; the player drops the extension of a full poster URL.
+          poster={{ src: publicId, assetType: "video", format: "jpg", rawTransformations: ["so_0"] }}
+          logo={false}
+          colors={{ accent: "#75b65c", base: "#000000", text: "#ffffff" }}
+          textTracks={
+            captions.length > 0
+              ? {
+                  subtitles: captions.map((track) => ({
+                    label: track.name,
+                    language: track.languageCode,
+                    url: track.url,
+                  })),
+                }
+              : undefined
+          }
+          onError={onError}
+        />
+      </div>
     </div>
   )
 }

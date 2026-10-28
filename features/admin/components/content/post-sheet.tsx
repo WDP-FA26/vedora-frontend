@@ -235,7 +235,7 @@ export function PostVideo({
               aspectRatio={media.aspectRatio}
               captions={media.captions}
               label={label}
-              className="max-h-96"
+              maxHeight="24rem"
               videoRef={player}
               onTimeUpdate={setTime}
             />
