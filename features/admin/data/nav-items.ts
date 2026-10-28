@@ -1,13 +1,9 @@
 import {
   BadgeCheckIcon,
-  BellIcon,
   BookOpenIcon,
   ChartColumnIcon,
-  CircleHelpIcon,
   FileTextIcon,
   LibraryIcon,
-  MenuIcon,
-  SettingsIcon,
   ShieldAlertIcon,
   UsersIcon,
   type LucideIcon,
@@ -30,9 +26,7 @@ export const ADMIN_HOME = "/admin/users"
 export const adminNavItems: AdminNavItem[] = [
   { href: "/admin/users", label: "Người dùng", icon: UsersIcon },
   { href: "/admin/verification", label: "Xác minh chuyên gia", icon: BadgeCheckIcon },
-  { href: "/admin/notifications", label: "Thông báo", icon: BellIcon },
   { href: "/admin/insights", label: "Thống kê", icon: ChartColumnIcon },
-  { href: "/admin/tools", label: "Tất cả công cụ", icon: MenuIcon },
 ]
 
 export const adminNavSections: AdminNavSection[] = [
@@ -47,15 +41,9 @@ export const adminNavSections: AdminNavSection[] = [
   },
 ]
 
-export const adminFooterItems: AdminNavItem[] = [
-  { href: "/admin/settings", label: "Cài đặt", icon: SettingsIcon },
-  { href: "/admin/help", label: "Trợ giúp", icon: CircleHelpIcon },
-]
-
 export const allAdminNavItems = [
   ...adminNavItems,
   ...adminNavSections.flatMap((section) => section.items),
-  ...adminFooterItems,
 ]
 
 export function isAdminNavActive(href: string, pathname: string) {

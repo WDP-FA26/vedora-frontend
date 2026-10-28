@@ -38,7 +38,6 @@ import { AuthorAvatar } from "@/features/shared/components/author-avatar"
 import { Logo } from "@/features/shared/components/wordmark"
 import {
   ADMIN_HOME,
-  adminFooterItems,
   adminNavItems,
   adminNavSections,
   isAdminNavActive,
@@ -47,7 +46,7 @@ import {
 
 /**
  * Admin navigation: brand on top, the main tools, labelled sections, then
- * appearance, settings and the account at the bottom. Slides
+ * appearance and the account at the bottom. Slides
  * fully away when collapsed and becomes a sheet on phones.
  */
 export function AdminSidebar() {
@@ -79,7 +78,6 @@ export function AdminSidebar() {
         <nav aria-label="Hỗ trợ">
           <SidebarMenu>
             <ThemeMenu />
-            <NavItems items={adminFooterItems} />
           </SidebarMenu>
         </nav>
         <SidebarSeparator />
