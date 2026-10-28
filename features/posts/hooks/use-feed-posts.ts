@@ -5,7 +5,7 @@ import useSWR, { useSWRConfig } from "swr"
 import { useAuth } from "@/features/auth/hooks/use-auth"
 import { useAuthedSWR } from "@/features/auth/hooks/use-authed-swr"
 import { fetchPost, fetchPostPage } from "@/features/posts/lib/posts-api"
-import { FOR_YOU_KEY, POSTS_KEY, postKey } from "@/features/posts/posts-cache"
+import { FOLLOWING_KEY, FOR_YOU_KEY, POSTS_KEY, postKey } from "@/features/posts/posts-cache"
 import type { ApiPost, PostPage } from "@/features/posts/schemas"
 
 /** First page of published posts from vedora-api. */
@@ -20,6 +20,12 @@ export function useFeedPosts() {
  */
 export function useForYouPosts() {
   const { data, error, isLoading } = useAuthedSWR(FOR_YOU_KEY, fetchPostPage)
+  return { posts: data?.items ?? [], error, isLoading }
+}
+
+/** First page of published posts from accounts the user follows, newest first. */
+export function useFollowingPosts() {
+  const { data, error, isLoading } = useAuthedSWR(FOLLOWING_KEY, fetchPostPage)
   return { posts: data?.items ?? [], error, isLoading }
 }
 

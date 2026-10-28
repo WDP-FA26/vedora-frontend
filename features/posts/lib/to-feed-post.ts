@@ -34,10 +34,10 @@ export function toFeedPost(post: ApiPost): Post {
     stats: {
       replies: post.commentCount,
       reposts: post.repostCount,
-      sprouts: post.likeCount,
+      likes: post.likeCount,
       views: post.viewCount,
     },
-    sprouted: post.isLiked,
+    liked: post.isLiked,
     reposted: post.isReposted,
     bookmarked: post.isBookmarked,
   }

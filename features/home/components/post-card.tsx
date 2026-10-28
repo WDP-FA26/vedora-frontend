@@ -13,12 +13,12 @@ import {
   EllipsisIcon,
   FileTextIcon,
   FlagIcon,
+  HeartIcon,
   LinkIcon,
   MessageCircleIcon,
   PencilIcon,
   Repeat2Icon,
   ShareIcon,
-  SproutIcon,
   TimerIcon,
   Trash2Icon,
 } from "lucide-react"
@@ -42,6 +42,7 @@ import type { ArticlePost, BlogPost, PhotoPost, Post, VideoPost } from "@/featur
 import { VerifiedBadge } from "@/features/shared/components/verified-badge"
 import { useAuth } from "@/features/auth/hooks/use-auth"
 import { PostMedia } from "@/features/posts/components/post-media"
+import { DeletePostDialog } from "@/features/posts/components/delete-post-dialog"
 import { ReportDialog } from "@/features/posts/components/report-dialog"
 import { usePostInteractions } from "@/features/posts/hooks/use-post-interactions"
 import { usePostView } from "@/features/posts/hooks/use-post-view"
@@ -285,10 +286,12 @@ export function PostMenu({ post }: { post: Post }) {
   const router = useRouter()
   const [reporting, setReporting] = useState(false)
   const [deleting, setDeleting] = useState(false)
+  const [deletingPost, setDeletingPost] = useState(false)
   const [copied, setCopied] = useState(false)
   const reportable = Boolean(user && post.author.id !== user.id)
-  // Authors edit and delete their own blogs from here; short posts have no such actions yet.
+  // Authors edit and delete their own blogs; they delete their other posts from here too.
   const ownBlog = post.kind === "blog" && Boolean(user) && post.author.id === user?.id ? post : null
+  const ownPost = Boolean(user) && post.kind !== "blog" && post.author.id === user?.id
 
   // Illustrative cards have no permalink or server-side menu actions.
   if (!post.author.id) return null
@@ -331,6 +334,15 @@ export function PostMenu({ post }: { post: Post }) {
               </DropdownMenuItem>
             </>
           )}
+          {ownPost && (
+            <>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem variant="destructive" onClick={() => setDeletingPost(true)}>
+                <Trash2Icon aria-hidden />
+                Xoá bài viết
+              </DropdownMenuItem>
+            </>
+          )}
           {reportable && (
             <>
               <DropdownMenuSeparator />
@@ -342,6 +354,9 @@ export function PostMenu({ post }: { post: Post }) {
           )}
         </DropdownMenuContent>
       </DropdownMenu>
+      {ownPost && (
+        <DeletePostDialog postId={post.id} open={deletingPost} onOpenChange={setDeletingPost} />
+      )}
       {ownBlog && (
         <DeleteBlogDialog
           blogId={ownBlog.id}
@@ -371,12 +386,12 @@ export function PostActions({ post }: { post: Post }) {
   } = usePostInteractions()
   const [copied, setCopied] = useState(false)
 
-  const sprouted = post.sprouted ?? false
+  const liked = post.liked ?? false
   const reposted = post.reposted ?? false
   const bookmarked = post.bookmarked ?? false
 
-  function toggleSprout() {
-    void setLiked(post.id, !sprouted)
+  function toggleLike() {
+    void setLiked(post.id, !liked)
   }
 
   function toggleRepost() {
@@ -414,20 +429,20 @@ export function PostActions({ post }: { post: Post }) {
             onClick={toggleRepost}
           />
           <ActionButton
-            label={sprouted ? "Bỏ thả mầm" : "Thả mầm"}
-            count={post.stats.sprouts}
-            icon={SproutIcon}
-            active={sprouted}
+            label={liked ? "Bỏ thích" : "Thích"}
+            count={post.stats.likes}
+            icon={HeartIcon}
+            active={liked}
             toggle
-            onClick={toggleSprout}
-            activeIconClassName="animate-sprout-pop fill-primary/25"
+            onClick={toggleLike}
+            activeIconClassName="animate-like-pop fill-primary/25"
           />
         </>
       ) : (
         <>
           <ActionStat label="Bình luận" count={post.stats.replies} icon={MessageCircleIcon} />
           <ActionStat label="Đăng lại" count={post.stats.reposts} icon={Repeat2Icon} />
-          <ActionStat label="Thả mầm" count={post.stats.sprouts} icon={SproutIcon} />
+          <ActionStat label="Thích" count={post.stats.likes} icon={HeartIcon} />
         </>
       )}
       <ActionStat label="Lượt xem" count={post.stats.views} icon={ChartNoAxesColumnIcon} className="hidden sm:inline-flex" />

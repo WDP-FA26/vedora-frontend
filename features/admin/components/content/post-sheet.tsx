@@ -140,7 +140,7 @@ function PostBody({ post, onDeleted }: { post: AdminPostDetail; onDeleted: () =>
         <dl className="flex flex-wrap gap-x-6 gap-y-1 border-y py-3">
           {[
             { label: "lượt xem", value: post.viewCount },
-            { label: "lượt thả mầm", value: post.likeCount },
+            { label: "lượt thích", value: post.likeCount },
             { label: "đăng lại", value: post.repostCount },
             { label: "bình luận", value: post.commentCount },
           ].map(({ label, value }) => (
@@ -196,7 +196,7 @@ function PostBody({ post, onDeleted }: { post: AdminPostDetail; onDeleted: () =>
           <AlertDialogHeader>
             <AlertDialogTitle>Xoá bài đăng này?</AlertDialogTitle>
             <AlertDialogDescription>
-              Bài đăng của {author.fullName} cùng video, bình luận và lượt thả mầm sẽ bị
+              Bài đăng của {author.fullName} cùng video, bình luận và lượt thích sẽ bị
               xoá vĩnh viễn. Không hoàn tác được.
             </AlertDialogDescription>
           </AlertDialogHeader>

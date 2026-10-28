@@ -22,9 +22,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useAuth } from "@/features/auth/hooks/use-auth"
 import type { FeedTab, Post } from "@/features/home/types"
 import { WeekPlanButton } from "@/features/meal-plan/components/week-plan-button"
-import { useFeedPosts, useForYouPosts } from "@/features/posts/hooks/use-feed-posts"
+import { useFeedPosts, useFollowingPosts, useForYouPosts } from "@/features/posts/hooks/use-feed-posts"
 import { toFeedPost } from "@/features/posts/lib/to-feed-post"
-import { FOR_YOU_KEY, POSTS_KEY } from "@/features/posts/posts-cache"
+import { FOLLOWING_KEY, FOR_YOU_KEY, POSTS_KEY } from "@/features/posts/posts-cache"
 import type { ApiPost } from "@/features/posts/schemas"
 import { MobileTopBar } from "@/features/shared/components/mobile-nav"
 import { RecipeFeed } from "@/features/recipes/components/recipe-feed"
@@ -45,8 +45,8 @@ const emptyCopy = {
   },
   following: {
     icon: UsersIcon,
-    title: "Bảng tin Đang theo dõi chưa khả dụng",
-    description: "Trang Khám phá hiện chưa có dữ liệu bài viết từ những người bạn theo dõi.",
+    title: "Chưa có bài viết từ người bạn theo dõi",
+    description: "Theo dõi thêm người nấu ăn để bài của họ hiện ở đây.",
   },
   blogs: {
     icon: BookOpenTextIcon,
@@ -63,6 +63,7 @@ const emptyCopy = {
 export function Feed() {
   const latest = useFeedPosts()
   const ranked = useForYouPosts()
+  const following = useFollowingPosts()
   const { accessToken } = useAuth()
   const { mutate } = useSWRConfig()
   // The list endpoint may include the author's processing posts. Only
@@ -70,9 +71,17 @@ export function Feed() {
   const published = (posts: ApiPost[]) =>
     posts.filter((post) => post.status === "PUBLISHED")
   const forYou = published(ranked.posts).map(toFeedPost)
+  const followingPosts = published(following.posts).map(toFeedPost)
   const blogs = published(latest.posts)
     .filter((post) => post.type === "BLOG")
     .map(toFeedPost)
+
+  // One entry per tab that loads from the API; the recipes tab renders its own feed.
+  const sources: Partial<Record<FeedTab, { posts: Post[]; isLoading: boolean; error: unknown; key: string }>> = {
+    "for-you": { posts: forYou, isLoading: ranked.isLoading, error: ranked.error, key: FOR_YOU_KEY },
+    following: { posts: followingPosts, isLoading: following.isLoading, error: following.error, key: FOLLOWING_KEY },
+    blogs: { posts: blogs, isLoading: latest.isLoading, error: latest.error, key: POSTS_KEY },
+  }
 
   function retry(url: string) {
     if (accessToken) void mutate([url, accessToken])
@@ -105,10 +114,10 @@ export function Feed() {
           ) : (
           <Timeline
             tab={tab.value}
-            livePosts={tab.value === "for-you" ? forYou : tab.value === "blogs" ? blogs : []}
-            isLoading={tab.value === "for-you" ? ranked.isLoading : latest.isLoading}
-            hasError={Boolean(tab.value === "for-you" ? ranked.error : latest.error)}
-            onRetry={() => retry(tab.value === "for-you" ? FOR_YOU_KEY : POSTS_KEY)}
+            livePosts={sources[tab.value]?.posts ?? []}
+            isLoading={sources[tab.value]?.isLoading ?? false}
+            hasError={Boolean(sources[tab.value]?.error)}
+            onRetry={() => retry(sources[tab.value]?.key ?? POSTS_KEY)}
           />
           )}
         </TabsContent>
@@ -130,7 +139,7 @@ function Timeline({
   hasError: boolean
   onRetry: () => void
 }) {
-  const hasApiSource = tab === "for-you" || tab === "blogs"
+  const hasApiSource = tab === "for-you" || tab === "following" || tab === "blogs"
 
   if (livePosts.length === 0 && !isLoading && !hasError) {
     const { icon: Icon, title, description } = emptyCopy[tab]

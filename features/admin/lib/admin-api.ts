@@ -1,4 +1,4 @@
-import { ADMIN_REPORTS_KEY, adminPostKey } from "@/features/admin/admin-cache"
+import { ADMIN_REPORTS_KEY, ADMIN_USERS_KEY, adminPostKey } from "@/features/admin/admin-cache"
 import { parseVtt } from "@/features/admin/lib/vtt"
 import {
   adminPostDetailSchema,
@@ -73,6 +73,21 @@ export async function fetchAllReports([url, token]: readonly [string, string]) {
     reports.push(...items)
     if (!meta.hasNextPage) return reports
   }
+}
+
+export type AccountStatusChange = {
+  status: "ACTIVE" | "SUSPENDED"
+  reason: string
+  /** The target's `accountVersion` when the admin read it. */
+  expectedVersion: number
+}
+
+/** Suspends or reactivates an account; the API refuses a stale version. */
+export async function updateUserStatus(token: string, id: string, change: AccountStatusChange) {
+  await send(`${ADMIN_USERS_KEY}/${id}/status`, token, {
+    method: "PATCH",
+    body: JSON.stringify(change),
+  })
 }
 
 export function reviewReport(token: string, id: string, status: "RESOLVED" | "DISMISSED") {

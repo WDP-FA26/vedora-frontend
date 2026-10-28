@@ -67,7 +67,7 @@ export function DeleteBlogDialog({
         <AlertDialogHeader>
           <AlertDialogTitle>Xoá blog này?</AlertDialogTitle>
           <AlertDialogDescription>
-            “{title}” cùng bình luận, lượt thả mầm và công thức gắn kèm sẽ bị xoá vĩnh viễn.
+            “{title}” cùng bình luận, lượt thích và công thức gắn kèm sẽ bị xoá vĩnh viễn.
             Không hoàn tác được.
           </AlertDialogDescription>
         </AlertDialogHeader>

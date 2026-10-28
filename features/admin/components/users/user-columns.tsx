@@ -2,17 +2,10 @@
 
 import Link from "next/link"
 import { createColumnHelper, Subscribe } from "@tanstack/react-table"
-import { CopyIcon, MoreHorizontalIcon, UserRoundIcon } from "lucide-react"
 
 import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
+import { UserRowMenu } from "@/features/admin/components/users/user-row-menu"
 import { DataTableColumnHeader } from "@/features/admin/components/data-table/data-table-column-header"
 import type { DataTableFeatures } from "@/features/admin/components/data-table/data-table-features"
 import type { AdminUser } from "@/features/admin/schemas"
@@ -131,33 +124,7 @@ export const userColumns = helper.columns([
   }),
   helper.display({
     id: "actions",
-    cell: ({ row }) => {
-      const user = row.original
-      return (
-        <DropdownMenu>
-          <DropdownMenuTrigger
-            render={
-<Button variant="action" size="icon-sm" />
-            }
-          >
-            <span className="sr-only">Thao tác với {user.fullName}</span>
-            <MoreHorizontalIcon aria-hidden />
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-44">
-            <DropdownMenuItem render={<Link href={profilePath(user.id)} />}>
-              <UserRoundIcon aria-hidden />
-              Xem hồ sơ
-            </DropdownMenuItem>
-            <DropdownMenuItem
-              onClick={() => navigator.clipboard.writeText(user.email)}
-            >
-              <CopyIcon aria-hidden />
-              Sao chép email
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      )
-    },
+    cell: ({ row }) => <UserRowMenu user={row.original} />,
     meta: { className: "w-10" },
   }),
 ])
