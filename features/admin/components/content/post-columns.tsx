@@ -17,6 +17,7 @@ const STATUS_BADGES: Record<
   AdminPost["status"],
   { label: string; variant: "default" | "secondary" | "destructive" }
 > = {
+  DRAFT: { label: "Bản nháp", variant: "secondary" },
   PUBLISHED: { label: "Đã đăng", variant: "default" },
   PROCESSING: { label: "Đang xử lý", variant: "secondary" },
   FAILED: { label: "Lỗi", variant: "destructive" },

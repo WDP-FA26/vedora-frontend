@@ -6,6 +6,7 @@ import {
   CircleCheckIcon,
   FileTextIcon,
   HourglassIcon,
+  PencilLineIcon,
   TriangleAlertIcon,
   VideoIcon,
 } from "lucide-react"
@@ -39,6 +40,12 @@ const VIEWS: DataTableView[] = [
     label: "Đã đăng",
     icon: CircleCheckIcon,
     columnFilters: [{ id: "status", value: "PUBLISHED" }],
+  },
+  {
+    id: "draft",
+    label: "Bản nháp",
+    icon: PencilLineIcon,
+    columnFilters: [{ id: "status", value: "DRAFT" }],
   },
   {
     id: "processing",

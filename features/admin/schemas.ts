@@ -33,7 +33,7 @@ const adminMediaSchema = apiMediaSchema.extend({
 const adminPostSchema = z.object({
   id: z.string(),
   type: z.enum(["POST", "BLOG"]),
-  status: z.enum(["PROCESSING", "PUBLISHED", "FAILED"]),
+  status: z.enum(["DRAFT", "PROCESSING", "PUBLISHED", "FAILED"]),
   body: z.string().nullable(),
   publishedAt: z.string().nullable(),
   createdAt: z.string(),
