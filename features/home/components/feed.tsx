@@ -20,7 +20,6 @@ import {
 import { Skeleton } from "@/components/ui/skeleton"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useAuth } from "@/features/auth/hooks/use-auth"
-import { getFeed } from "@/features/home/data/posts"
 import type { FeedTab, Post } from "@/features/home/types"
 import { WeekPlanButton } from "@/features/meal-plan/components/week-plan-button"
 import { useFeedPosts, useForYouPosts } from "@/features/posts/hooks/use-feed-posts"
@@ -107,7 +106,6 @@ export function Feed() {
           <Timeline
             tab={tab.value}
             livePosts={tab.value === "for-you" ? forYou : tab.value === "blogs" ? blogs : []}
-            mockPosts={getFeed(tab.value)}
             isLoading={tab.value === "for-you" ? ranked.isLoading : latest.isLoading}
             hasError={Boolean(tab.value === "for-you" ? ranked.error : latest.error)}
             onRetry={() => retry(tab.value === "for-you" ? FOR_YOU_KEY : POSTS_KEY)}
@@ -122,21 +120,19 @@ export function Feed() {
 function Timeline({
   tab,
   livePosts,
-  mockPosts,
   isLoading,
   hasError,
   onRetry,
 }: {
   tab: FeedTab
   livePosts: Post[]
-  mockPosts: Post[]
   isLoading: boolean
   hasError: boolean
   onRetry: () => void
 }) {
   const hasApiSource = tab === "for-you" || tab === "blogs"
 
-  if (livePosts.length === 0 && mockPosts.length === 0 && !isLoading && !hasError) {
+  if (livePosts.length === 0 && !isLoading && !hasError) {
     const { icon: Icon, title, description } = emptyCopy[tab]
     return (
       <div className="px-3 py-6">
@@ -170,9 +166,6 @@ function Timeline({
         )}
         {livePosts.map((post) => (
           <PostCard key={post.id} post={post} />
-        ))}
-        {mockPosts.map((post) => (
-          <PostCard key={`static-${post.id}`} post={post} />
         ))}
         <div aria-hidden className="h-24 sm:h-0" />
       </div>
