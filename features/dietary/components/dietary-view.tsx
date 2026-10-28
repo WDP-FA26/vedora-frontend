@@ -19,6 +19,7 @@ import {
 } from "@/components/ui/field"
 import { Spinner } from "@/components/ui/spinner"
 import { useAuth } from "@/features/auth/hooks/use-auth"
+import { ApiError } from "@/features/shared/lib/api-client"
 import {
   DIETARY_OPTIONS_KEY,
   dietaryFormSchema,
@@ -132,9 +133,6 @@ function DietaryForm({
     keywords: item.aliases.join(" "),
   }))
 
-  const without = (ids: string[] | undefined) =>
-    ingredientChoices.filter((option) => !ids?.includes(option.id))
-
   // Ingredients picked one by one that a ticked group already covers.
   const chosenGroups = groups.filter((group) => chosen.groupIds?.includes(group.id))
   const covered = options.ingredients
@@ -151,11 +149,30 @@ function DietaryForm({
     .filter((item) => chosenGroups.some((group) => group.ingredients.includes(item.name)))
     .map((item) => item.name)
 
+  const likedAndAvoided = options.ingredients
+    .filter((item) => chosen.likedIngredientIds?.includes(item.id))
+    .filter((item) => chosen.ingredientIds?.includes(item.id))
+    .map((item) => item.name)
+
+  function likedNote(direct: string[], grouped: string[]): string {
+    if (direct.length > 0) {
+      return `Không thể vừa thích vừa tránh: ${direct.join(", ")}. Bỏ một trong hai để lưu.`
+    }
+    if (grouped.length > 0) {
+      return `Đang nằm trong nhóm bạn không ăn nên sẽ không được gợi ý: ${grouped.join(", ")}.`
+    }
+    return "Trợ lý Vedora ưu tiên món có những nguyên liệu này khi gợi ý."
+  }
+
   async function onSubmit(values: DietaryFormValues) {
     try {
       await save(values)
       form.reset(values)
-    } catch {
+    } catch (error: unknown) {
+      if (error instanceof ApiError && error.code === "CONFLICTING_PREFERENCE") {
+        form.setError("root", { message: "Một nguyên liệu không thể vừa thích vừa tránh. Bỏ một trong hai rồi lưu lại." })
+        return
+      }
       form.setError("root", { message: "Không lưu được. Thử lại nhé." })
     }
   }
@@ -214,7 +231,7 @@ function DietaryForm({
                   <FieldLabel htmlFor={PICKER_ID}>Nguyên liệu riêng lẻ</FieldLabel>
                   <NamedMultiSelect
                     id={PICKER_ID}
-                    options={without(chosen.likedIngredientIds)}
+                    options={ingredientChoices}
                     value={field.value}
                     onChange={field.onChange}
                     placeholder="Tìm nguyên liệu, ví dụ: đậu phộng"
@@ -242,16 +259,14 @@ function DietaryForm({
               <FieldLabel htmlFor={LIKED_ID}>Nguyên liệu tôi thích</FieldLabel>
               <NamedMultiSelect
                 id={LIKED_ID}
-                options={without(chosen.ingredientIds)}
+                options={ingredientChoices}
                 value={field.value}
                 onChange={field.onChange}
                 placeholder="Tìm nguyên liệu bạn thích"
                 invalid={fieldState.invalid}
               />
               <FieldDescription>
-                {likedButAvoided.length > 0
-                  ? `Đang nằm trong nhóm bạn không ăn nên sẽ không được gợi ý: ${likedButAvoided.join(", ")}.`
-                  : "Trợ lý Vedora ưu tiên món có những nguyên liệu này khi gợi ý."}
+                {likedNote(likedAndAvoided, likedButAvoided)}
               </FieldDescription>
               {fieldState.invalid && <FieldError errors={[fieldState.error]} />}
             </Field>
@@ -259,7 +274,7 @@ function DietaryForm({
         />
 
         <div className="flex flex-wrap items-center gap-3">
-          <Button type="submit" disabled={isSubmitting || !isDirty}>
+          <Button type="submit" disabled={isSubmitting || !isDirty || likedAndAvoided.length > 0}>
             {isSubmitting && <Spinner aria-hidden />}
             Lưu
           </Button>

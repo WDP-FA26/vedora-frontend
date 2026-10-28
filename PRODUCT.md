@@ -32,7 +32,7 @@ A social feed that treats food content as craft: recipe reels, peer-reviewed nut
 - Next.js 16 App Router, React 19, Tailwind v4, and shadcn (base-nova style, Base UI primitives), with lucide icons. Use shadcn components for consistency.
 - Feed content is fixed mock data kept in code (`features/*/data/`), with placeholder images. There is no fetching or backend API yet; SWR is set up for later.
 - **Verification is a badge only.** Everyone can post every content type, and verification is a trust signal next to the name.
-- Terminology: a like is a **Sprout**, and the publish button is **Sprout**.
+- Terminology: a like is a **Thích**, and the publish button is **Đăng**.
 - Light and dark themes, following the system by default. Users switch between Light, Dark, and System in the account menu (desktop) or the menu drawer (phone).
 
 ## Brand Commitments

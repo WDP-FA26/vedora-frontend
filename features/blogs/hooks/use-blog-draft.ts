@@ -11,6 +11,7 @@ import { isVideoUrl } from "@/features/blogs/editor/media-node"
 import { markdownOf } from "@/features/blogs/editor/markdown"
 import { MAX_BLOG_CONTENT_LENGTH, type ApiBlog, type BlogStatus } from "@/features/blogs/schemas"
 import { ApiError } from "@/features/shared/lib/api-client"
+import { PUBLIC_ENV } from "@/lib/env"
 
 const AUTOSAVE_DELAY_MS = 2500
 const MAX_COVER_URL_LENGTH = 2048
@@ -18,7 +19,7 @@ const MAX_COVER_URL_LENGTH = 2048
 export type SaveState = "idle" | "saving" | "saved" | "error"
 
 // Same origin the CSP allows images from (next.config.ts).
-const STORAGE_ORIGIN = new URL(process.env.NEXT_PUBLIC_STORAGE_URL ?? "http://localhost:9000").origin
+const STORAGE_ORIGIN = new URL(PUBLIC_ENV.storageUrl).origin
 
 /**
  * The first image of the post as its cover, uploaded or AI-generated. The API

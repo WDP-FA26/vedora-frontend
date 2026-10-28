@@ -51,6 +51,8 @@ export function useNotificationStream() {
         // Expired while the page sat open: re-render the layout so the proxy
         // rotates the pair; the new token reopens the stream.
         if (response.status === 401) router.refresh()
+        // Server errors are transient: throw a retryable error so the library reconnects.
+        if (response.status >= 500) throw new Error(`GET /notifications/sse failed (${response.status})`)
         throw new FatalStreamError(`GET /notifications/sse failed (${response.status})`)
       },
       onmessage(event) {

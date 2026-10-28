@@ -4,13 +4,16 @@ import { z } from "zod"
 // Public endpoints are called without one when the visitor is signed out.
 
 /**
- * Nest error body; `code` is set on errors the UI handles specifically. An
- * exception thrown with `{ code, message }` alone has no `statusCode`.
+ * The API error body: `{ statusCode, code, message, details? }`. `code` is a
+ * machine-readable reason the UI can branch on; `details` carries code-specific
+ * fields, such as `email` on EMAIL_NOT_VERIFIED. A proxy or framework error may
+ * omit them, so every field stays optional here.
  */
-const apiErrorSchema = z.object({
+export const apiErrorSchema = z.object({
   statusCode: z.number().optional(),
   code: z.string().optional(),
-  message: z.union([z.string(), z.array(z.string())]),
+  message: z.string(),
+  details: z.record(z.string(), z.unknown()).optional(),
 })
 
 export class ApiError extends Error {
@@ -18,7 +21,8 @@ export class ApiError extends Error {
     readonly status: number,
     /** Machine-readable reason, e.g. `UPLOAD_LIMIT_REACHED`. */
     readonly code: string | undefined,
-    message: string
+    message: string,
+    readonly details: Record<string, unknown> | undefined
   ) {
     super(message)
     this.name = "ApiError"
@@ -33,11 +37,8 @@ export async function send(url: string, token: string | undefined, init: Request
   const response = await fetch(url, { ...init, headers })
   if (!response.ok) {
     const error = apiErrorSchema.safeParse(await response.json().catch(() => null))
-    throw new ApiError(
-      response.status,
-      error.data?.code,
-      error.success ? [error.data.message].flat().join("; ") : response.statusText
-    )
+    if (!error.success) throw new ApiError(response.status, undefined, response.statusText, undefined)
+    throw new ApiError(response.status, error.data.code, error.data.message, error.data.details)
   }
   return response
 }

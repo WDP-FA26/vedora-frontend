@@ -1,9 +1,10 @@
 import type { AuthTokens } from "@/features/auth/types"
+import { PUBLIC_ENV } from "@/lib/env"
 
 // Server-side calls to vedora-api (Server Actions, `getAuth`, the proxy).
 // Client Components call the API directly with the token from `useAuth()`.
 
-export const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000/api/v1"
+export const API_URL = PUBLIC_ENV.apiUrl
 
 export function apiFetch(path: string, init?: RequestInit) {
   return fetch(`${API_URL}${path}`, { ...init, cache: "no-store" })

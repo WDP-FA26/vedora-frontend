@@ -13,6 +13,8 @@ const adminUserSchema = z.object({
   fullName: z.string(),
   email: z.string(),
   role: z.enum(["USER", "ADMIN"]),
+  status: z.enum(["PENDING_EMAIL", "ACTIVE", "SUSPENDED", "DELETED"]),
+  accountVersion: z.number().int().nonnegative(),
   createdAt: z.string(),
   updatedAt: z.string(),
 })

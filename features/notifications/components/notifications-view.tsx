@@ -1,7 +1,7 @@
 "use client"
 
 import Link from "next/link"
-import { BellIcon, CheckCheckIcon, MessageCircleIcon, Repeat2Icon, SproutIcon, UserPlusIcon } from "lucide-react"
+import { BellIcon, CheckCheckIcon, MessageCircleIcon, HeartIcon, Repeat2Icon, UserPlusIcon } from "lucide-react"
 import { cn } from "cn"
 
 import { Button } from "@/components/ui/button"
@@ -22,7 +22,7 @@ import type { ApiNotification } from "@/features/notifications/schemas"
 import { profilePath } from "@/features/profiles/profiles-cache"
 
 const ICONS = {
-  LIKE: SproutIcon,
+  LIKE: HeartIcon,
   COMMENT: MessageCircleIcon,
   REPOST: Repeat2Icon,
   FOLLOW: UserPlusIcon,
@@ -66,7 +66,7 @@ export function NotificationsView() {
             </EmptyMedia>
             <EmptyTitle>Chưa có thông báo</EmptyTitle>
             <EmptyDescription>
-              Khi có người gửi Sprout, bình luận hoặc theo dõi bạn, bạn sẽ thấy ở đây.
+              Khi có người thích, bình luận hoặc theo dõi bạn, bạn sẽ thấy ở đây.
             </EmptyDescription>
           </EmptyHeader>
         </Empty>

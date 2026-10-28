@@ -3,6 +3,7 @@
 import useSWR, { useSWRConfig } from "swr"
 import useSWRInfinite from "swr/infinite"
 
+import { uniqueNonEmpty } from "@/features/shared/lib/unique"
 import { useAuth } from "@/features/auth/hooks/use-auth"
 import {
   fetchAllIngredientGroups,
@@ -82,7 +83,7 @@ export function useRecipe(id: string | null) {
 /** The pairs among these ingredients that a rule forbids, kept while the set changes. */
 export function useConflicts(ingredientIds: string[]) {
   const { accessToken } = useAuth()
-  const ids = [...new Set(ingredientIds.filter(Boolean))].sort()
+  const ids = uniqueNonEmpty(ingredientIds).sort()
   const { data } = useSWR(
     accessToken && ids.length > 1
       ? ([RECIPE_CONFLICTS_KEY, accessToken, ids.join(",")] as const)

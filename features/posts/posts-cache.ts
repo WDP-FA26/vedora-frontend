@@ -9,6 +9,9 @@ export const POSTS_KEY = `${API_URL}/posts`
 /** First page of the signed-in user's "Dành cho bạn" feed, ranked by the API. */
 export const FOR_YOU_KEY = `${POSTS_KEY}/feed?limit=20`
 
+/** First page of published posts from accounts the signed-in user follows. */
+export const FOLLOWING_KEY = `${POSTS_KEY}/following?limit=20`
+
 /** First page of one author's published posts. */
 export function authorPostsKey(authorId: string) {
   return `${POSTS_KEY}?authorId=${authorId}&limit=20`

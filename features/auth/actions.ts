@@ -3,7 +3,10 @@
 import { cookies } from "next/headers"
 import { redirect } from "next/navigation"
 
+import { z } from "zod"
+
 import { postJson } from "@/features/auth/lib/api"
+import { apiErrorSchema } from "@/features/shared/lib/api-client"
 import {
   clearPendingEmail,
   getPendingEmail,
@@ -34,6 +37,9 @@ const UNREACHABLE = "Không kết nối được máy chủ. Vui lòng thử l�
 const INVALID = "Thông tin chưa hợp lệ. Vui lòng kiểm tra lại."
 const VERIFICATION_EXPIRED = "Phiên xác minh đã hết hạn. Vui lòng đăng nhập lại."
 const RESET_EXPIRED = "Phiên đặt lại mật khẩu đã hết hạn. Vui lòng yêu cầu mã mới."
+/** `details` of an EMAIL_NOT_VERIFIED response. */
+const emailDetailsSchema = z.object({ email: z.string() })
+
 const TOO_MANY_GUESSES =
   "Bạn đã nhập sai mã quá nhiều lần. Vui lòng thử lại sau 24 giờ hoặc đăng nhập bằng Google."
 
@@ -64,11 +70,14 @@ export async function login(
   if (!response) return { root: UNREACHABLE }
   if (response.status === 403) {
     // Right password, unverified email: the API has just sent a code.
-    const { code, email } = await response.json()
-    if (code === "CAPTCHA_FAILED") {
+    const failure = apiErrorSchema.safeParse(await response.json().catch(() => null))
+    if (failure.success && failure.data.code === "CAPTCHA_FAILED") {
       return { turnstileToken: "Xác minh không hợp lệ hoặc đã hết hạn. Vui lòng xác minh lại." }
     }
-    if (code === "EMAIL_NOT_VERIFIED") return redirectToVerification(email, next)
+    if (failure.success && failure.data.code === "EMAIL_NOT_VERIFIED") {
+      const verification = emailDetailsSchema.safeParse(failure.data.details)
+      if (verification.success) return redirectToVerification(verification.data.email, next)
+    }
   }
   if (!response.ok) return { root: "Tên đăng nhập hoặc mật khẩu không đúng." }
 

@@ -15,7 +15,7 @@ import { OnChangePlugin } from "@lexical/react/LexicalOnChangePlugin"
 import { RichTextPlugin } from "@lexical/react/LexicalRichTextPlugin"
 import { $convertFromMarkdownString } from "@lexical/markdown"
 import { $createParagraphNode, $getRoot, $isParagraphNode, type EditorState } from "lexical"
-import { ArrowLeftIcon, FileTextIcon, SproutIcon } from "lucide-react"
+import { ArrowLeftIcon, FileTextIcon, SendIcon } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { toast } from "@/components/ui/toast"
@@ -125,8 +125,8 @@ export function BlogEditor({ initial }: { initial: ApiBlog | null }) {
                   disabled={busy || empty || draft.title.trim() === ""}
                   onClick={() => void publish()}
                 >
-                  <SproutIcon data-icon="inline-start" />
-                  Sprout
+                  <SendIcon data-icon="inline-start" />
+                  Đăng
                 </Button>
               )}
             </div>

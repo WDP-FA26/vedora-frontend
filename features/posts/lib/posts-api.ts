@@ -91,6 +91,10 @@ export function updateComment(token: string, postId: string, commentId: string, 
   })
 }
 
+export async function deletePost(token: string, id: string) {
+  await send(postKey(id), token, { method: "DELETE" })
+}
+
 export async function deleteComment(token: string, postId: string, commentId: string) {
   await send(`${postKey(postId)}/comments/${commentId}`, token, { method: "DELETE" })
 }

@@ -12,8 +12,8 @@ type PostBase = {
   /** Rendered as hashtags after the body, without the leading "#". */
   tags: string[]
   author: Author
-  stats: { replies: number; reposts: number; sprouts: number; views: number }
-  sprouted?: boolean
+  stats: { replies: number; reposts: number; likes: number; views: number }
+  liked?: boolean
   reposted?: boolean
   bookmarked?: boolean
 }
