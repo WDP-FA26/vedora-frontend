@@ -13,7 +13,8 @@ const apiOrigin = new URL(PUBLIC_ENV.apiUrl).origin;
 // and caption files (res.cloudinary.com).
 const cloudinaryUpload = "https://api.cloudinary.com";
 const cloudinaryCdn = "https://res.cloudinary.com";
-// CldVideoPlayer loads its pinned player build from unpkg.
+// CldVideoPlayer loads its pinned player build from unpkg. Its source map is
+// fetched through connect-src, so the same path is allowed there too.
 const cloudinaryPlayer = "https://unpkg.com/cloudinary-video-player@1.11.1/";
 const storageOrigin = new URL(PUBLIC_ENV.storageUrl).origin;
 // Dish photos are hot-linked, not stored: only these free-licence hosts may serve them.
@@ -34,7 +35,7 @@ const csp = [
   `img-src 'self' blob: data: ${cloudinaryCdn} ${storageOrigin} https://vietqr.app ${dishImages}${toolbar("https://vercel.live", "https://vercel.com")}`,
   // The Cloudinary player's icon font is inlined as a data: URI.
   `font-src 'self' data:${toolbar("https://vercel.live", "https://assets.vercel.com")}`,
-  `connect-src 'self' ${apiOrigin} ${cloudinaryUpload} ${cloudinaryCdn} ${storageOrigin}${toolbar("https://vercel.live", "wss://ws-us3.pusher.com")}`,
+  `connect-src 'self' ${apiOrigin} ${cloudinaryUpload} ${cloudinaryCdn} ${storageOrigin} ${cloudinaryPlayer}${toolbar("https://vercel.live", "wss://ws-us3.pusher.com")}`,
   `media-src 'self' blob: ${cloudinaryCdn}`,
   "worker-src 'self' blob:",
   `frame-src 'self' ${turnstile}${toolbar("https://vercel.live")}`,
