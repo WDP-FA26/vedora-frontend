@@ -15,6 +15,7 @@ import {
 import { Button } from "@/components/ui/button"
 import { DIETARY_PATH } from "@/features/dietary/dietary"
 import { MEAL_SECTIONS, SECTION_LABELS, type MealSection } from "@/features/meal-plan/meal-plan"
+import { uniqueNonEmpty } from "@/features/shared/lib/unique"
 
 const MAX_CHAT_MESSAGE_LENGTH = 4000
 const MAX_EXTRA_ITEMS = 20
@@ -108,8 +109,8 @@ export function MealRequestForm({
   const lastSeedNonce = useRef<number | null>(null)
 
   const profileReady = !profileLoading && !profileError
-  const avoidedNames = [...new Set(savedAvoided.map(clean).filter(Boolean))]
-  const likedNames = [...new Set(savedLiked.map(clean).filter(Boolean))]
+  const avoidedNames = uniqueNonEmpty(savedAvoided.map(clean))
+  const likedNames = uniqueNonEmpty(savedLiked.map(clean))
   const profileSignature = JSON.stringify([avoidedNames, likedNames])
   const profileConfirmed = profileReady && confirmedSignature === profileSignature
 

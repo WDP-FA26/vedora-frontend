@@ -24,8 +24,10 @@ BE. Public key được nhúng khi build FE nên cần rebuild sau khi đổi ke
 Không cần dependency mới; CSP đã cho phép challenges.cloudflare.com.
 
 Development tự dùng test site key nếu chưa cấu hình; BE cũng có test secret
-ngoài production. Production FE không tự dùng test key và sẽ khóa đăng nhập
-mật khẩu nếu thiếu public key. Cấu hình key thật trước khi deploy.
+ngoài production. Production yêu cầu key thật: thiếu biến `NEXT_PUBLIC_*` bắt
+buộc nào thì `next dev`, `next build` và `next start` dừng ngay khi nạp cấu
+hình (xem `lib/env.ts`), không đợi đến trang đầu tiên. Cấu hình key thật trước
+khi deploy.
 
 ## Hành vi
 

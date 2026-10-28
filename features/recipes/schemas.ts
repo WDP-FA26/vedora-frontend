@@ -1,4 +1,5 @@
 import { z } from "zod"
+import { uniqueNonEmpty } from "@/features/shared/lib/unique"
 
 // Mirrors vedora-api's `/admin/ingredients`, `/admin/ingredient-groups`,
 // `/admin/incompatibility-rules` and `/admin/recipes` (admin only).
@@ -151,7 +152,7 @@ const name = z
 
 /** "đậu phụ, tofu" → ["đậu phụ", "tofu"], without blanks or repeats. */
 export function parseAliases(text: string) {
-  return [...new Set(text.split(",").map((alias) => alias.trim()).filter(Boolean))]
+  return uniqueNonEmpty(text.split(",").map((alias) => alias.trim()))
 }
 
 export const ingredientFormSchema = z.object({

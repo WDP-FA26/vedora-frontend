@@ -1,18 +1,21 @@
 import type { NextConfig } from "next";
 
+// Validates the public environment when the server starts (see lib/env.ts).
+import { PUBLIC_ENV } from "./lib/env";
+
 const isDev = process.env.NODE_ENV === "development";
 // Vercel preview deployments inject the Vercel Toolbar (comments, feedback).
 const isPreview = process.env.VERCEL_ENV === "preview";
 const toolbar = (...sources: string[]) => (isPreview ? ` ${sources.join(" ")}` : "");
 // Client Components call vedora-api directly (see `useAuth()`).
-const apiOrigin = new URL(process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000/api/v1").origin;
+const apiOrigin = new URL(PUBLIC_ENV.apiUrl).origin;
 // Cloudinary: signed direct uploads (api.cloudinary.com); HLS streams, posters
 // and caption files (res.cloudinary.com).
 const cloudinaryUpload = "https://api.cloudinary.com";
 const cloudinaryCdn = "https://res.cloudinary.com";
 // CldVideoPlayer loads its pinned player build from unpkg.
 const cloudinaryPlayer = "https://unpkg.com/cloudinary-video-player@1.11.1/";
-const storageOrigin = new URL(process.env.NEXT_PUBLIC_STORAGE_URL ?? "http://localhost:9000").origin;
+const storageOrigin = new URL(PUBLIC_ENV.storageUrl).origin;
 // Dish photos are hot-linked, not stored: only these free-licence hosts may serve them.
 // Keep in sync with DISH_IMAGE_HOSTS in features/recipes/schemas.ts.
 const dishImages = "https://upload.wikimedia.org https://images.unsplash.com https://images.pexels.com";

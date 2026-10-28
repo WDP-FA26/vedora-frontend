@@ -5,13 +5,12 @@ import { z } from "zod"
 
 import { API_URL } from "@/features/auth/lib/api"
 import { sendJson } from "@/features/shared/lib/api-client"
+import { PUBLIC_ENV } from "@/lib/env"
 
 // The nutrition chat is open to guests: a Turnstile check buys a guest session
 // from vedora-api, kept in this browser until it expires.
 
-export const TURNSTILE_SITE_KEY =
-  // Cloudflare's always-pass test key, for local development
-  process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY || "1x00000000000000000000AA"
+export const TURNSTILE_SITE_KEY = PUBLIC_ENV.turnstileSiteKey
 
 const STORAGE_KEY = "vedora-guest-session"
 const EXPIRY_LEEWAY_MS = 60_000
