@@ -7,6 +7,7 @@ import {
 } from "next/font/google";
 import { ThemeProvider } from "@/components/theme-provider";
 import { SWRProvider } from "@/components/swr-provider";
+import { SITE_LOCALE, SITE_NAME, SITE_URL } from "@/lib/site";
 import "./globals.css";
 import { TooltipProvider } from "@/components/ui/tooltip";
 
@@ -32,10 +33,17 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
+const title = "Vedora · Sống xanh có ý thức";
+const description =
+  "Mạng xã hội cho người nấu ăn chay và các đầu bếp thuần thực vật đã xác minh, nơi chia sẻ công thức, video và blog.";
+
 export const metadata: Metadata = {
-  title: "Vedora · Sống xanh có ý thức",
-  description:
-    "Mạng xã hội cho người nấu ăn chay và các đầu bếp thuần thực vật đã xác minh, nơi chia sẻ công thức, video và blog.",
+  // Resolves the relative URLs of every page's canonical and Open Graph links.
+  metadataBase: new URL(SITE_URL),
+  title,
+  description,
+  openGraph: { type: "website", siteName: SITE_NAME, locale: SITE_LOCALE, title, description },
+  twitter: { card: "summary", title, description },
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
