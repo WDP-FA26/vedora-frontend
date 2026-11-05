@@ -14,6 +14,7 @@ const rehypePlugins = [
     .filter(([name]) => name !== "raw")
     .map(([, plugin]) => plugin),
   rehypeNoReferrer,
+  rehypeDemoteH1,
 ]
 
 type HastNode = { type: string; tagName?: string; properties?: Record<string, unknown>; children?: HastNode[] }
@@ -27,6 +28,18 @@ function rehypeNoReferrer() {
     if (node.type === "element" && node.tagName === "img") {
       node.properties = { ...node.properties, referrerPolicy: "no-referrer" }
     }
+    node.children?.forEach(visit)
+  }
+  return visit
+}
+
+/**
+ * The blog's title is the page's only h1. The editor writes h2 and h3, but
+ * Markdown typed or pasted as `# ` would add another, so it becomes an h2.
+ */
+function rehypeDemoteH1() {
+  const visit = (node: HastNode) => {
+    if (node.type === "element" && node.tagName === "h1") node.tagName = "h2"
     node.children?.forEach(visit)
   }
   return visit
