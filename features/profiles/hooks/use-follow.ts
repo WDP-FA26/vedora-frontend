@@ -2,6 +2,7 @@
 
 import { useState } from "react"
 import { useSWRConfig } from "swr"
+import { invalidateMessaging } from "@/features/messaging/lib/invalidate-messaging"
 
 import { useAuth } from "@/features/auth/hooks/use-auth"
 import { useAuthedSWR } from "@/features/auth/hooks/use-authed-swr"
@@ -51,6 +52,7 @@ export function useFollow(id: string) {
         { optimisticData: next, rollbackOnError: true, revalidate: false }
       )
       await Promise.all([
+        invalidateMessaging(mutate, accessToken),
         shift(profileKey(id), "followerCount", by),
         shift(MY_PROFILE_KEY, "followingCount", by),
         user && shift(profileKey(user.id), "followingCount", by),
