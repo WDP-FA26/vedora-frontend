@@ -18,6 +18,20 @@ export const ROLE_LABELS: Record<AdminUser["role"], string> = {
   USER: "Thành viên",
 }
 
+const STATUS_BADGES: Record<
+  AdminUser["status"],
+  { label: string; variant: "default" | "secondary" | "destructive" | "outline" }
+> = {
+  ACTIVE: { label: "Hoạt động", variant: "default" },
+  SUSPENDED: { label: "Đình chỉ", variant: "destructive" },
+  PENDING_EMAIL: { label: "Chờ xác minh email", variant: "secondary" },
+  DELETED: { label: "Đã xoá", variant: "outline" },
+}
+
+export const STATUS_LABELS = Object.fromEntries(
+  Object.entries(STATUS_BADGES).map(([status, { label }]) => [status, label])
+) as Record<AdminUser["status"], string>
+
 const joinedDate = new Intl.DateTimeFormat("vi", {
   dateStyle: "long",
   timeZone: "UTC",
@@ -121,6 +135,29 @@ export const userColumns = helper.columns([
     filterFn: "equalsString",
     enableGlobalFilter: false,
     meta: { label: "Vai trò" },
+  }),
+  helper.accessor("status", {
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title="Trạng thái" />
+    ),
+    cell: ({ row }) => {
+      const { label, variant } = STATUS_BADGES[row.original.status]
+      return (
+        <div className="flex items-center gap-2">
+          <Badge variant={variant}>{label}</Badge>
+          {/* The version role and status changes must send back. */}
+          <span
+            title="Phiên bản tài khoản"
+            className="text-xs text-muted-foreground tabular-nums"
+          >
+            v{row.original.accountVersion}
+          </span>
+        </div>
+      )
+    },
+    sortFn: "text",
+    enableGlobalFilter: false,
+    meta: { label: "Trạng thái" },
   }),
   helper.display({
     id: "actions",

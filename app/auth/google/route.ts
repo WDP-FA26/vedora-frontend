@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server"
 
+import { ACCOUNT_BLOCK_PARAM, accountBlockOf } from "@/features/auth/lib/account-block"
 import { postJson } from "@/features/auth/lib/api"
 import {
   GOOGLE_STATE_COOKIE,
@@ -80,6 +81,11 @@ async function finish(request: NextRequest) {
     codeVerifier: saved.codeVerifier,
   }).catch(() => null)
   if (!response) return fail("google_unavailable")
+  const block = await accountBlockOf(response)
+  if (block) {
+    const next = saved.next ? `&next=${encodeURIComponent(saved.next)}` : ""
+    return redirectTo(`/login?${ACCOUNT_BLOCK_PARAM}=${block}${next}`)
+  }
   if (!response.ok) return fail("google_failed")
 
   const redirect = redirectTo(safeRedirectPath(saved.next))

@@ -1,5 +1,6 @@
 "use client"
 
+import { useEffect, useState } from "react"
 import {
   CircleAlertIcon,
   CopyIcon,
@@ -10,15 +11,21 @@ import {
 
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
+import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select"
 import { Skeleton } from "@/components/ui/skeleton"
+import { Spinner } from "@/components/ui/spinner"
 import {
   DataTable,
   type DataTableView,
 } from "@/features/admin/components/data-table/data-table"
-import { userColumns } from "@/features/admin/components/users/user-columns"
+import { STATUS_LABELS, userColumns } from "@/features/admin/components/users/user-columns"
 import { useAdminUsers } from "@/features/admin/hooks/use-admin-users"
-import type { AdminUser } from "@/features/admin/schemas"
+import { ACCOUNT_STATUSES, type AdminUser } from "@/features/admin/schemas"
 import { ApiError } from "@/features/shared/lib/api-client"
+
+/** The API's limit on `q`. */
+const MAX_QUERY_LENGTH = 100
+const SEARCH_DELAY_MS = 300
 
 const VIEWS: DataTableView[] = [
   { id: "all", label: "Tất cả", icon: UsersIcon, columnFilters: [] },
@@ -38,9 +45,22 @@ const VIEWS: DataTableView[] = [
 
 const getUserId = (user: AdminUser) => user.id
 
-/** Every account on Vedora, for admins. */
+/** Every account on Vedora, for admins. The API searches and filters by status. */
 export function UsersTable() {
-  const { users, error, isLoading } = useAdminUsers()
+  const [search, setSearch] = useState("")
+  const [q, setQ] = useState("")
+  const [status, setStatus] = useState<AdminUser["status"] | "">("")
+
+  // One request once typing pauses, not one per keystroke.
+  useEffect(() => {
+    const timer = setTimeout(() => setQ(search.trim()), SEARCH_DELAY_MS)
+    return () => clearTimeout(timer)
+  }, [search])
+
+  const { users, error, isLoading, isRefreshing } = useAdminUsers({
+    q: q || undefined,
+    status: status || undefined,
+  })
 
   if (isLoading) {
     return (
@@ -73,7 +93,29 @@ export function UsersTable() {
       data={users}
       getRowId={getUserId}
       views={VIEWS}
-      searchPlaceholder="Tìm theo tên hoặc email"
+      searchPlaceholder="Tìm theo tên, username hoặc email"
+      search={{
+        value: search,
+        onChange: (value) => setSearch(value.slice(0, MAX_QUERY_LENGTH)),
+      }}
+      actions={
+        <>
+          {isRefreshing && <Spinner aria-label="Đang tải danh sách" />}
+          <NativeSelect
+            size="sm"
+            aria-label="Lọc theo trạng thái"
+            value={status}
+            onChange={(event) => setStatus(event.target.value as AdminUser["status"] | "")}
+          >
+            <NativeSelectOption value="">Mọi trạng thái</NativeSelectOption>
+            {ACCOUNT_STATUSES.map((value) => (
+              <NativeSelectOption key={value} value={value}>
+                {STATUS_LABELS[value]}
+              </NativeSelectOption>
+            ))}
+          </NativeSelect>
+        </>
+      }
       emptyMessage="Không có người dùng nào khớp."
       selectionActions={(table) => (
         <Button

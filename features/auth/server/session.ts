@@ -4,6 +4,11 @@ import { cache } from "react"
 import { cookies } from "next/headers"
 import { redirect } from "next/navigation"
 
+import {
+  ACCOUNT_BLOCK_PARAM,
+  accountBlockOf,
+  type AccountBlock,
+} from "@/features/auth/lib/account-block"
 import { apiFetch } from "@/features/auth/lib/api"
 import { ACCESS_TOKEN_COOKIE } from "@/features/auth/lib/tokens"
 import type { CurrentUser } from "@/features/auth/types"
@@ -14,30 +19,46 @@ export async function getAccessToken(): Promise<string | undefined> {
 }
 
 /**
+ * The signed-in user, or `null` with the reason when the API turned the
+ * account itself away (a token minted before a suspension is still fresh).
+ */
+const getSession = cache(
+  async (): Promise<{ user: CurrentUser | null; block: AccountBlock | null }> => {
+    const accessToken = await getAccessToken()
+    if (!accessToken) return { user: null, block: null }
+
+    const response = await apiFetch("/auth/me", {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    })
+    if (response.status === 401 || response.status === 404) {
+      return { user: null, block: await accountBlockOf(response) }
+    }
+    if (!response.ok) throw new Error(`GET /auth/me failed (${response.status})`)
+    return { user: await response.json(), block: null }
+  }
+)
+
+/**
  * The signed-in user, or `null`. Use in Server Components, Server Actions and
  * Route Handlers. Deduplicated per request, so layouts and pages can both call it.
  */
-export const getAuth = cache(async (): Promise<CurrentUser | null> => {
-  const accessToken = await getAccessToken()
-  if (!accessToken) return null
-
-  const response = await apiFetch("/auth/me", {
-    headers: { Authorization: `Bearer ${accessToken}` },
-  })
-  if (response.status === 401 || response.status === 404) return null
-  if (!response.ok) throw new Error(`GET /auth/me failed (${response.status})`)
-  return response.json()
-})
+export async function getAuth(): Promise<CurrentUser | null> {
+  return (await getSession()).user
+}
 
 /**
  * Like `getAuth`, but sends signed-out visitors to `/login`. A token the API
- * rejects goes through `/auth/session-expired`, which clears the cookies first.
+ * rejects goes through `/auth/session-expired`, which clears the cookies first
+ * and, for a suspended account, says so on the login page.
  */
 export async function requireAuth(returnTo?: string): Promise<CurrentUser> {
-  const user = await getAuth()
+  const { user, block } = await getSession()
   if (!user) {
-    const query = returnTo ? `?next=${encodeURIComponent(returnTo)}` : ""
-    redirect(`/auth/session-expired${query}`)
+    const params = new URLSearchParams()
+    if (returnTo) params.set("next", returnTo)
+    if (block) params.set(ACCOUNT_BLOCK_PARAM, block)
+    const query = params.toString()
+    redirect(`/auth/session-expired${query ? `?${query}` : ""}`)
   }
   return user
 }
