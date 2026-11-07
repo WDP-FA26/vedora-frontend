@@ -56,6 +56,7 @@ export function DataTable<TData extends RowData>({
   views = [],
   defaultView,
   searchPlaceholder = "Tìm kiếm",
+  search,
   emptyMessage = "Không có kết quả.",
   selectionActions,
   actions,
@@ -67,6 +68,11 @@ export function DataTable<TData extends RowData>({
   /** Id of the view applied on first render; none means unfiltered. */
   defaultView?: string
   searchPlaceholder?: string
+  /**
+   * Hands the search box to the page, for a search the API runs. Without it
+   * the box filters the loaded rows in the browser.
+   */
+  search?: { value: string; onChange: (value: string) => void }
   emptyMessage?: ReactNode
   /** Shown in the bar while rows are selected. */
   selectionActions?: (table: ReactTable<DataTableFeatures, TData>) => ReactNode
@@ -131,8 +137,12 @@ export function DataTable<TData extends RowData>({
               type="search"
               aria-label={searchPlaceholder}
               placeholder={searchPlaceholder}
-              value={table.state.globalFilter ?? ""}
-              onChange={(event) => table.setGlobalFilter(event.target.value)}
+              value={search ? search.value : (table.state.globalFilter ?? "")}
+              onChange={(event) =>
+                search
+                  ? search.onChange(event.target.value)
+                  : table.setGlobalFilter(event.target.value)
+              }
             />
           </InputGroup>
           <DataTableViewOptions table={table} />

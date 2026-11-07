@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server"
 
+import { ACCOUNT_BLOCK_PARAM, type AccountBlock } from "@/features/auth/lib/account-block"
 import { rotateRefreshToken } from "@/features/auth/lib/api"
 import { safeRedirectPath } from "@/features/auth/lib/redirect"
 import {
@@ -27,8 +28,10 @@ export async function proxy(request: NextRequest) {
   const signedIn = Boolean(request.cookies.get(ACCESS_TOKEN_COOKIE)?.value)
 
   // Forwarding `request.headers` passes the updated cookies on to this render.
+  const block = refresh?.kind === "rejected" ? refresh.block : null
   const response =
-    redirectFor(request, signedIn) ?? NextResponse.next({ request: { headers: request.headers } })
+    redirectFor(request, signedIn, block) ??
+    NextResponse.next({ request: { headers: request.headers } })
 
   if (refresh?.kind === "rotated") writeTokenCookies(response.cookies, refresh.tokens)
   if (refresh?.kind === "rejected") clearTokenCookies(response.cookies)
@@ -51,7 +54,8 @@ async function refreshSession(request: NextRequest) {
   return result
 }
 
-function redirectFor(request: NextRequest, signedIn: boolean) {
+/** `block` is set when the refresh just failed because of the account, e.g. a suspension. */
+function redirectFor(request: NextRequest, signedIn: boolean, block: AccountBlock | null) {
   if (request.method !== "GET" && request.method !== "HEAD") return
 
   const { pathname, search, searchParams } = request.nextUrl
@@ -59,6 +63,7 @@ function redirectFor(request: NextRequest, signedIn: boolean) {
   if (!signedIn && matchesAny(pathname, PROTECTED_PREFIXES)) {
     const loginUrl = new URL("/login", request.url)
     loginUrl.searchParams.set("next", `${pathname}${search}`)
+    if (block) loginUrl.searchParams.set(ACCOUNT_BLOCK_PARAM, block)
     return NextResponse.redirect(loginUrl)
   }
   if (signedIn && matchesAny(pathname, GUEST_ONLY_PATHS)) {

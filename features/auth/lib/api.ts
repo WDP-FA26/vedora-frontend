@@ -1,3 +1,4 @@
+import { accountBlockOf, type AccountBlock } from "@/features/auth/lib/account-block"
 import type { AuthTokens } from "@/features/auth/types"
 import { PUBLIC_ENV } from "@/lib/env"
 
@@ -20,8 +21,11 @@ export function postJson(path: string, body: unknown) {
 
 export type RefreshResult =
   | { kind: "rotated"; tokens: AuthTokens }
-  /** The API rejected the token (expired, revoked or reused): sign out. */
-  | { kind: "rejected" }
+  /**
+   * The API rejected the token (expired, revoked or reused): sign out. `block`
+   * says when it was the account itself, such as a suspension.
+   */
+  | { kind: "rejected"; block: AccountBlock | null }
   /** Network or 5xx failure: keep the cookies and try again next request. */
   | { kind: "failed" }
 
@@ -47,7 +51,7 @@ export function rotateRefreshToken(refreshToken: string): Promise<RefreshResult>
       const response = await postJson("/auth/refresh", { refreshToken })
       if (response.ok) return { kind: "rotated", tokens: await response.json() }
       return response.status === 400 || response.status === 401
-        ? { kind: "rejected" }
+        ? { kind: "rejected", block: await accountBlockOf(response) }
         : { kind: "failed" }
     } catch {
       return { kind: "failed" }
