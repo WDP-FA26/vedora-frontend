@@ -39,6 +39,13 @@ export function useMessagingStream() {
           () => undefined,
         )
     }
+    const offline = () => {
+      health(false)
+      controller.abort()
+    }
+    const online = () => setRetry((value) => value + 1)
+    window.addEventListener("offline", offline)
+    window.addEventListener("online", online)
     const watchdog = setInterval(() => {
       if (Date.now() - lastFrame > 35_000) {
         health(false)
@@ -123,6 +130,8 @@ export function useMessagingStream() {
       .catch(() => health(false))
       .finally(() => clearInterval(watchdog))
     return () => {
+      window.removeEventListener("offline", offline)
+      window.removeEventListener("online", online)
       clearInterval(watchdog)
       controller.abort()
       void mutate([MESSAGING_CONNECTION_KEY, accessToken], false, {

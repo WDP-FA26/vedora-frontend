@@ -51,11 +51,9 @@ export function useConversations(box: Inbox) {
       return [
         inboxPageKey(box, previous?.nextCursor ?? undefined),
         accessToken,
-        revision,
       ] as const
     },
-    ([url, token]: readonly [string, string, number]) =>
-      fetchConversations([url, token]),
+    fetchConversations,
     {
       persistSize: false,
       shouldRetryOnError: false,
@@ -65,6 +63,17 @@ export function useConversations(box: Inbox) {
       },
     },
   )
+  const { setSize, mutate: revalidate } = result
+  useEffect(() => {
+    let active = true
+    // Reuse cache keys; activity must not create a new cache generation per event.
+    void setSize(1)
+      .then(() => (active ? revalidate() : undefined))
+      .catch(() => undefined)
+    return () => {
+      active = false
+    }
+  }, [revision, setSize, revalidate])
   const pages = result.data ?? []
   return {
     conversations: [
@@ -77,7 +86,7 @@ export function useConversations(box: Inbox) {
     isLoading: result.isLoading,
     isValidating: result.isValidating,
     error: result.error,
-    retry: result.mutate,
+    retry: () => setSize(1).then(() => revalidate()),
   }
 }
 
