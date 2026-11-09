@@ -52,6 +52,7 @@ export const adminNavSections: AdminNavSection[] = [
     label: "Hệ thống",
     items: [
       { href: "/admin/ai-costs", label: "Chi phí AI", icon: ChartColumnIcon },
+      { href: "/admin/payments", label: "Thanh toán", icon: ChartColumnIcon },
       {
         href: "/admin/settings",
         label: "Cài đặt kiểm duyệt",
