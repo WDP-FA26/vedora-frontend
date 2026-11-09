@@ -26,6 +26,7 @@ import {
 import { Skeleton } from "@/components/ui/skeleton"
 import { Spinner } from "@/components/ui/spinner"
 import { PostStatusBadge } from "@/features/admin/components/content/post-columns"
+import { ModerationPanel } from "@/features/admin/components/content/moderation-panel"
 import { Transcript } from "@/features/admin/components/content/transcript"
 import { useAdminPost, useDeleteAdminPost } from "@/features/admin/hooks/use-admin-posts"
 import type { AdminMediaDetail, AdminPostDetail } from "@/features/admin/schemas"
@@ -130,6 +131,19 @@ function PostBody({ post, onDeleted }: { post: AdminPostDetail; onDeleted: () =>
           </div>
           <PostStatusBadge status={post.status} />
         </div>
+
+        {post.blog && (
+          <div className="flex flex-col gap-2">
+            <h3 className="text-lg font-semibold">{post.blog.title}</h3>
+            {post.blog.coverImageUrl && (
+              // eslint-disable-next-line @next/next/no-img-element -- an arbitrary https cover the admin must see as posted
+              <img src={post.blog.coverImageUrl} alt="" className="max-h-64 w-full rounded-xl object-cover" />
+            )}
+            <p className="leading-7 break-words whitespace-pre-line">{post.blog.excerpt}</p>
+          </div>
+        )}
+
+        <ModerationPanel post={post} />
 
         {post.body ? (
           <p className="text-base leading-7 break-words whitespace-pre-line">{post.body}</p>

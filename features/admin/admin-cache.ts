@@ -13,3 +13,6 @@ export function adminPostKey(id: string) {
 
 /** Every post report: `[url, accessToken]`, fetched with `fetchAllReports`. */
 export const ADMIN_REPORTS_KEY = `${API_URL}/admin/reports`
+
+/** The content moderation policy: `[url, accessToken]`, fetched with `fetchModerationSettings`. */
+export const MODERATION_SETTINGS_KEY = `${API_URL}/admin/moderation/settings`

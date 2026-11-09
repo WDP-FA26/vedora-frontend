@@ -4,6 +4,7 @@ import {
   ChartColumnIcon,
   FileTextIcon,
   LibraryIcon,
+  SettingsIcon,
   ShieldAlertIcon,
   UsersIcon,
   type LucideIcon,
@@ -38,6 +39,10 @@ export const adminNavSections: AdminNavSection[] = [
       { href: "/admin/recipes", label: "Công thức", icon: BookOpenIcon },
       { href: "/admin/knowledge", label: "Tài liệu kiến thức", icon: LibraryIcon },
     ],
+  },
+  {
+    label: "Hệ thống",
+    items: [{ href: "/admin/settings", label: "Cài đặt kiểm duyệt", icon: SettingsIcon }],
   },
 ]
 

@@ -1,4 +1,9 @@
-import { ADMIN_REPORTS_KEY, ADMIN_USERS_KEY, adminPostKey } from "@/features/admin/admin-cache"
+import {
+  ADMIN_REPORTS_KEY,
+  ADMIN_USERS_KEY,
+  adminPostKey,
+  MODERATION_SETTINGS_KEY,
+} from "@/features/admin/admin-cache"
 import { parseVtt } from "@/features/admin/lib/vtt"
 import {
   adminPostDetailSchema,
@@ -6,6 +11,9 @@ import {
   adminReportPageSchema,
   adminReportSchema,
   adminUserPageSchema,
+  moderationSettingsSchema,
+  moderationTestResultSchema,
+  type ModerationPolicyDraft,
   type AdminPost,
   type AdminReport,
   type AdminUser,
@@ -48,6 +56,19 @@ export async function fetchAllPosts([url, token]: readonly [string, string]) {
 
 export function fetchAdminPost([url, token]: readonly [string, string]) {
   return sendJson(adminPostDetailSchema, url, token)
+}
+
+/** Approves or rejects a post held for review, or overturns a rejection. */
+export function moderateAdminPost(
+  token: string,
+  id: string,
+  decision: "APPROVE" | "REJECT",
+  note: string
+) {
+  return sendJson(adminPostDetailSchema, `${adminPostKey(id)}/moderation`, token, {
+    method: "POST",
+    body: JSON.stringify(note ? { decision, note } : { decision }),
+  })
 }
 
 export async function deleteAdminPost(token: string, id: string) {
@@ -94,5 +115,31 @@ export function reviewReport(token: string, id: string, status: "RESOLVED" | "DI
   return sendJson(adminReportSchema, `${ADMIN_REPORTS_KEY}/${id}/review`, token, {
     method: "POST",
     body: JSON.stringify({ status }),
+  })
+}
+
+export function fetchModerationSettings([url, token]: readonly [string, string]) {
+  return sendJson(moderationSettingsSchema, url, token)
+}
+
+/** Replaces the policy; `version` is the one that was loaded, so a stale save answers 409. */
+export function saveModerationSettings(token: string, draft: ModerationPolicyDraft, version: number) {
+  return sendJson(moderationSettingsSchema, MODERATION_SETTINGS_KEY, token, {
+    method: "PUT",
+    body: JSON.stringify({ ...draft, version }),
+  })
+}
+
+export function resetModerationSettings(token: string) {
+  return sendJson(moderationSettingsSchema, `${MODERATION_SETTINGS_KEY}/reset`, token, {
+    method: "POST",
+  })
+}
+
+/** Tries a text against a draft policy without saving it. */
+export function testModeration(token: string, text: string, draft: ModerationPolicyDraft) {
+  return sendJson(moderationTestResultSchema, `${MODERATION_SETTINGS_KEY}/test`, token, {
+    method: "POST",
+    body: JSON.stringify({ text, settings: draft }),
   })
 }
