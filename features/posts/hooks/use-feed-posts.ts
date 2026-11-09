@@ -83,7 +83,14 @@ export function useProcessingPost(id: string) {
     refreshInterval: (latest) =>
       !latest || latest.status === "PROCESSING" ? 3000 : 0,
     onSuccess: (post) => {
-      if (post.status !== "PROCESSING") void upsert(post)
+      // A rejected post is never shown in the feed.
+      if (
+        post.status !== "PROCESSING" &&
+        post.status !== "PENDING_REVIEW" &&
+        post.status !== "REJECTED"
+      ) {
+        void upsert(post)
+      }
     },
   })
 }

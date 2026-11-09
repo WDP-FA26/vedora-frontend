@@ -14,6 +14,8 @@ const postStatus: Record<ApiPost["status"], MediaPost["status"]> = {
   PROCESSING: "processing",
   PUBLISHED: "published",
   FAILED: "failed",
+  PENDING_REVIEW: "processing",
+  REJECTED: "failed",
 }
 
 const mediaStatus: Record<ApiMedia["status"], CloudinaryVideo["status"]> = {

@@ -57,6 +57,8 @@ function writeError(error: unknown) {
     if (error.status === 401) return "Phiên đăng nhập đã hết hạn. Tải lại trang rồi thử lại nhé."
     if (error.status === 403) return "Bạn không có quyền làm việc này."
     if (error.status === 404) return "Bài viết hoặc bình luận này không còn nữa."
+    if (error.code === "CONTENT_REJECTED") return "Bình luận này vi phạm tiêu chuẩn cộng đồng nên không được đăng."
+    if (error.status === 503) return "Chưa kiểm duyệt được bình luận lúc này. Thử lại sau giây lát."
   }
   return "Không lưu được. Thử lại nhé."
 }

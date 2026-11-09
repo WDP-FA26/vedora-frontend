@@ -128,6 +128,16 @@ export function useBlogDraft(initial: ApiBlog | null) {
         window.history.replaceState(null, "", editBlogPath(blog.id))
       }
       setStatus(blog.status)
+      if (blog.status === "PENDING_REVIEW") {
+        setSaveState("error")
+        setError("Bài viết đang chờ quản trị viên xem xét và sẽ được đăng nếu được duyệt.")
+        return false
+      }
+      if (blog.status === "REJECTED") {
+        setSaveState("error")
+        setError("Bài viết vi phạm tiêu chuẩn cộng đồng nên chưa được đăng. Hãy chỉnh sửa rồi thử lại.")
+        return false
+      }
       const unchanged = revision.current === savedRevision
       setSaveState(unchanged ? "saved" : "idle")
       if (unchanged) setDirty(false)

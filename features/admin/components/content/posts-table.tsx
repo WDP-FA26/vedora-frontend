@@ -7,6 +7,8 @@ import {
   FileTextIcon,
   HourglassIcon,
   PencilLineIcon,
+  ShieldAlertIcon,
+  ShieldXIcon,
   TriangleAlertIcon,
   VideoIcon,
 } from "lucide-react"
@@ -52,6 +54,18 @@ const VIEWS: DataTableView[] = [
     label: "Đang xử lý",
     icon: HourglassIcon,
     columnFilters: [{ id: "status", value: "PROCESSING" }],
+  },
+  {
+    id: "pending-review",
+    label: "Chờ duyệt",
+    icon: ShieldAlertIcon,
+    columnFilters: [{ id: "status", value: "PENDING_REVIEW" }],
+  },
+  {
+    id: "rejected",
+    label: "Bị từ chối",
+    icon: ShieldXIcon,
+    columnFilters: [{ id: "status", value: "REJECTED" }],
   },
   {
     id: "failed",

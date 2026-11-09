@@ -11,7 +11,7 @@ export const MAX_BLOG_IMAGE_MB = 5
 export const MAX_BLOG_VIDEO_MB = 100
 export const BLOG_IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp", "image/gif"] as const
 
-const blogStatusSchema = z.enum(["DRAFT", "PUBLISHED"])
+const blogStatusSchema = z.enum(["DRAFT", "PROCESSING", "PENDING_REVIEW", "PUBLISHED", "FAILED", "REJECTED"])
 
 export const apiBlogSchema = z.object({
   id: z.string(),

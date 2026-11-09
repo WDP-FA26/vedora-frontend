@@ -12,6 +12,7 @@ import {
   fetchAdminPost,
   fetchAllPosts,
   fetchTranscript,
+  moderateAdminPost,
 } from "@/features/admin/lib/admin-api"
 import type { AdminPost, AdminReport } from "@/features/admin/schemas"
 import { useAuth } from "@/features/auth/hooks/use-auth"
@@ -58,6 +59,24 @@ export function useDeleteAdminPost() {
       (reports) => reports?.filter((report) => report.postId !== id),
       { revalidate: false }
     )
+    void mutate((key) => Array.isArray(key) && String(key[0]).startsWith(POSTS_KEY))
+  }
+}
+
+/** Settles a held or rejected post, then updates the admin list and detail and refreshes the feeds. */
+export function useModerateAdminPost() {
+  const { accessToken } = useAuth()
+  const { mutate } = useSWRConfig()
+
+  return async (id: string, decision: "APPROVE" | "REJECT", note: string) => {
+    if (!accessToken) throw new Error("Not signed in")
+    const updated = await moderateAdminPost(accessToken, id, decision, note)
+    await mutate<AdminPost[]>(
+      [ADMIN_POSTS_KEY, accessToken],
+      (posts) => posts?.map((post) => (post.id === id ? updated : post)),
+      { revalidate: false }
+    )
+    await mutate([adminPostKey(id), accessToken], updated, { revalidate: false })
     void mutate((key) => Array.isArray(key) && String(key[0]).startsWith(POSTS_KEY))
   }
 }

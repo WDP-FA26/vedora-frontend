@@ -21,6 +21,8 @@ const STATUS_BADGES: Record<
   PUBLISHED: { label: "Đã đăng", variant: "default" },
   PROCESSING: { label: "Đang xử lý", variant: "secondary" },
   FAILED: { label: "Lỗi", variant: "destructive" },
+  PENDING_REVIEW: { label: "Chờ duyệt", variant: "secondary" },
+  REJECTED: { label: "Bị từ chối", variant: "destructive" },
 }
 
 export function PostStatusBadge({ status }: { status: AdminPost["status"] }) {

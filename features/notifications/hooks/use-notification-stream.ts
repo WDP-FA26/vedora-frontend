@@ -7,7 +7,7 @@ import { EventStreamContentType, fetchEventSource } from "@microsoft/fetch-event
 
 import { toast } from "@/components/ui/toast"
 import { useAuth } from "@/features/auth/hooks/use-auth"
-import { NOTIFICATION_TEXT } from "@/features/notifications/lib/notification-text"
+import { describeNotification } from "@/features/notifications/lib/notification-text"
 import {
   NOTIFICATION_STREAM_URL,
   NOTIFICATIONS_PAGE_KEY,
@@ -62,9 +62,10 @@ export function useNotificationStream() {
         const incoming = parsed.data
         // The list on /home/notifications already shows it arriving.
         if (window.location.pathname !== "/home/notifications") {
+          const { from, text } = describeNotification(incoming)
           toast.add({
-            title: incoming.actor.fullName,
-            description: NOTIFICATION_TEXT[incoming.type],
+            title: from,
+            description: text,
             timeout: 5000,
           })
         }

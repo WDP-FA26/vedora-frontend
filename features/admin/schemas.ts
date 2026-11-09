@@ -38,8 +38,23 @@ const adminMediaSchema = apiMediaSchema.extend({
 const adminPostSchema = z.object({
   id: z.string(),
   type: z.enum(["POST", "BLOG"]),
-  status: z.enum(["DRAFT", "PROCESSING", "PUBLISHED", "FAILED"]),
+  status: z.enum(["DRAFT", "PROCESSING", "PENDING_REVIEW", "PUBLISHED", "FAILED", "REJECTED"]),
   body: z.string().nullable(),
+  blog: z
+    .object({ title: z.string(), coverImageUrl: z.string().nullable(), excerpt: z.string() })
+    .nullable(),
+  /** The automated content check; `scores` is Jev's chance for each category. */
+  moderation: z
+    .object({
+      verdict: z.string(),
+      violationScore: z.number().nullable(),
+      scores: z.record(z.string(), z.number()).nullable(),
+      checkedAt: z.string(),
+      reviewedById: z.string().nullable(),
+      reviewedAt: z.string().nullable(),
+      reviewNote: z.string().nullable(),
+    })
+    .nullable(),
   publishedAt: z.string().nullable(),
   createdAt: z.string(),
   author: z.object({
@@ -97,3 +112,40 @@ export type CaptionStatus = (typeof CAPTION_STATUSES)[number]
 export type AdminPost = z.infer<typeof adminPostSchema>
 export type AdminPostDetail = z.infer<typeof adminPostDetailSchema>
 export type AdminMediaDetail = AdminPostDetail["media"][number]
+
+const moderationChoiceSchema = z.object({
+  key: z.string(),
+  label: z.string(),
+  reasonText: z.string(),
+  description: z.string(),
+})
+
+/** Mirrors `GET /admin/moderation/settings`: the content policy admins edit. */
+export const moderationSettingsSchema = z.object({
+  instructions: z.string(),
+  allowDescription: z.string(),
+  choices: z.array(moderationChoiceSchema),
+  rejectThreshold: z.number(),
+  reviewThreshold: z.number(),
+  /** 0 while the built-in defaults are in force. */
+  version: z.number().int().nonnegative(),
+  updatedAt: z.string().nullable(),
+  updatedById: z.string().nullable(),
+  isDefault: z.boolean(),
+})
+
+export const moderationTestResultSchema = z.object({
+  decision: z.enum(["publish", "review", "reject"]),
+  category: z.string().nullable(),
+  violationScore: z.number(),
+  scores: z.record(z.string(), z.number()).nullable(),
+})
+
+export type ModerationChoice = z.infer<typeof moderationChoiceSchema>
+export type ModerationSettings = z.infer<typeof moderationSettingsSchema>
+/** The part of the settings an admin edits and the test endpoint accepts. */
+export type ModerationPolicyDraft = Pick<
+  ModerationSettings,
+  "instructions" | "allowDescription" | "choices" | "rejectThreshold" | "reviewThreshold"
+>
+export type ModerationTestResult = z.infer<typeof moderationTestResultSchema>
