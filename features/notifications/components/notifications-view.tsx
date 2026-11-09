@@ -1,7 +1,17 @@
 "use client"
 
 import Link from "next/link"
-import { BellIcon, CheckCheckIcon, MessageCircleIcon, HeartIcon, Repeat2Icon, UserPlusIcon } from "lucide-react"
+import {
+  BellIcon,
+  CheckCheckIcon,
+  CircleCheckIcon,
+  HeartIcon,
+  HourglassIcon,
+  MessageCircleIcon,
+  Repeat2Icon,
+  ShieldAlertIcon,
+  UserPlusIcon,
+} from "lucide-react"
 import { cn } from "cn"
 
 import { Button } from "@/components/ui/button"
@@ -16,7 +26,8 @@ import { Spinner } from "@/components/ui/spinner"
 import { toAuthor } from "@/features/auth/lib/to-author"
 import { AuthorAvatar } from "@/features/shared/components/author-avatar"
 import { formatPostDate, formatPostDateLong } from "@/features/shared/lib/format"
-import { NOTIFICATION_TEXT } from "@/features/notifications/lib/notification-text"
+import { describeNotification } from "@/features/notifications/lib/notification-text"
+import { editBlogPath } from "@/features/blogs/blogs-cache"
 import { useNotifications, useUnreadCount } from "@/features/notifications/hooks/use-notifications"
 import type { ApiNotification } from "@/features/notifications/schemas"
 import { profilePath } from "@/features/profiles/profiles-cache"
@@ -26,12 +37,17 @@ const ICONS = {
   COMMENT: MessageCircleIcon,
   REPOST: Repeat2Icon,
   FOLLOW: UserPlusIcon,
+  POST_PENDING_REVIEW: HourglassIcon,
+  POST_APPROVED: CircleCheckIcon,
+  POST_REJECTED: ShieldAlertIcon,
 } as const
 
 function hrefFor(notification: ApiNotification) {
-  return notification.postId
-    ? `/posts/${notification.postId}`
-    : profilePath(notification.actor.id)
+  const { postId, type, postType, actor } = notification
+  // A blocked blog is fixed in the editor; everything else opens the post.
+  if (postId && type === "POST_REJECTED" && postType === "BLOG") return editBlogPath(postId)
+  if (postId) return `/posts/${postId}`
+  return actor ? profilePath(actor.id) : "/home"
 }
 
 export function NotificationsView() {
@@ -75,6 +91,7 @@ export function NotificationsView() {
           <ul>
             {notifications.map((notification) => {
               const Icon = ICONS[notification.type]
+              const { from, text } = describeNotification(notification)
               return (
                 <li key={notification.id} className="border-b border-border">
                   <Link
@@ -87,10 +104,15 @@ export function NotificationsView() {
                   >
                     <Icon aria-hidden className="mt-1 size-5 shrink-0 text-primary" />
                     <div className="min-w-0 flex-1">
-                      <AuthorAvatar author={toAuthor(notification.actor)} size="sm" />
-                      <p className="mt-1.5 text-sm">
-                        <span className="font-bold">{notification.actor.fullName}</span> {NOTIFICATION_TEXT[notification.type]}
+                      {notification.actor && <AuthorAvatar author={toAuthor(notification.actor)} size="sm" />}
+                      <p className={cn("text-sm", notification.actor && "mt-1.5")}>
+                        <span className="font-bold">{from}</span> {text}
                       </p>
+                      {notification.note && (
+                        <p className="mt-1 text-sm text-muted-foreground">
+                          Ghi chú từ quản trị viên: {notification.note}
+                        </p>
+                      )}
                       <time
                         dateTime={notification.createdAt}
                         title={formatPostDateLong(notification.createdAt)}

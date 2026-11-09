@@ -97,9 +97,21 @@ export function ComposeDialog({
       )
     }
     close()
+    if (post.status === "PENDING_REVIEW") {
+      setNotice(
+        `${wasVideo ? "Video" : "Bài viết"} đang chờ quản trị viên xem xét và sẽ hiển thị nếu được duyệt.`
+      )
+      return
+    }
+    if (post.status === "REJECTED") {
+      setNotice(
+        `${wasVideo ? "Video" : "Bài viết"} vi phạm tiêu chuẩn cộng đồng nên không được đăng.`
+      )
+      return
+    }
     setNotice(
       post.status === "PROCESSING"
-        ? `${wasVideo ? "Video" : "Bài viết"} đang được xử lý và sẽ hiển thị nếu xử lý thành công.`
+        ? `${wasVideo ? "Video" : "Bài viết"} đang được xử lý và kiểm duyệt, sẽ hiển thị nếu đạt.`
         : `${wasVideo ? "Video" : "Bài viết"} đã đăng.`
     )
   }

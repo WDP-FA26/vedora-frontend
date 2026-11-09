@@ -10,8 +10,18 @@ import { useAuthedSWR } from "@/features/auth/hooks/use-authed-swr"
 import { MY_BLOGS_KEY, NEW_BLOG_PATH, editBlogPath } from "@/features/blogs/blogs-cache"
 import { fetchBlogPage } from "@/features/blogs/lib/blogs-api"
 import { formatPostDate } from "@/features/shared/lib/format"
+import type { ApiPost } from "@/features/posts/schemas"
 
 /** The author's blogs, drafts first in the order the API returns them (newest created). */
+const STATUS_BADGES: Record<ApiPost["status"], { label: string; variant: "default" | "secondary" | "destructive" }> = {
+  DRAFT: { label: "Nháp", variant: "secondary" },
+  PROCESSING: { label: "Đang kiểm duyệt", variant: "secondary" },
+  PENDING_REVIEW: { label: "Chờ quản trị viên", variant: "secondary" },
+  PUBLISHED: { label: "Đã đăng", variant: "default" },
+  FAILED: { label: "Lỗi", variant: "destructive" },
+  REJECTED: { label: "Bị từ chối", variant: "destructive" },
+}
+
 export function MyBlogsView() {
   const { data, error, isLoading } = useAuthedSWR(MY_BLOGS_KEY, fetchBlogPage)
 
@@ -43,8 +53,8 @@ export function MyBlogsView() {
             <Link href={editBlogPath(item.id)} className="flex flex-col gap-1 px-4 py-3 hover:bg-muted/40">
               <span className="flex items-center gap-2">
                 <span className="truncate font-medium">{item.blog.title}</span>
-                <Badge variant={item.status === "PUBLISHED" ? "default" : "secondary"}>
-                  {item.status === "PUBLISHED" ? "Đã đăng" : "Nháp"}
+                <Badge variant={STATUS_BADGES[item.status].variant}>
+                  {STATUS_BADGES[item.status].label}
                 </Badge>
               </span>
               {item.blog.excerpt && (

@@ -13,6 +13,7 @@ import { BlogMarkdown } from "@/features/blogs/components/blog-markdown"
 import { fetchBlog } from "@/features/blogs/lib/blogs-api"
 import { PostActions, PostMenu } from "@/features/home/components/post-card"
 import { PostComments } from "@/features/posts/components/post-comments"
+import { ModerationNotice } from "@/features/posts/components/moderation-notice"
 import { PostMedia } from "@/features/posts/components/post-media"
 import { usePost } from "@/features/posts/hooks/use-feed-posts"
 import { usePostView } from "@/features/posts/hooks/use-post-view"
@@ -85,6 +86,7 @@ function PostArticle({ post: apiPost }: { post: ApiPost }) {
       aria-label={`Bài viết của ${author.name}`}
       className="px-4 pt-4 pb-2"
     >
+      <ModerationNotice post={apiPost} />
       <header className="flex items-center gap-3">
         <Link href={profileHref} aria-label={`Hồ sơ của ${author.name}`} className="rounded-full">
           <AuthorAvatar author={author} size="lg" />

@@ -92,7 +92,7 @@ function MyVideoCard({ post }: { post: ApiPost }) {
   const title = post.body?.split("\n").find((line) => line.trim())?.trim() || "Video hướng dẫn"
   const date = post.publishedAt ?? post.createdAt
   const formattedDate = new Intl.DateTimeFormat("vi-VN", { day: "2-digit", month: "2-digit", year: "numeric" }).format(new Date(date))
-  const status = post.status === "PUBLISHED" ? "Đã đăng" : post.status === "PROCESSING" ? "Đang xử lý" : "Lỗi xử lý"
+  const status = post.status === "PUBLISHED" ? "Đã đăng" : post.status === "PROCESSING" ? "Đang kiểm duyệt" : post.status === "PENDING_REVIEW" ? "Chờ duyệt" : post.status === "REJECTED" ? "Bị từ chối" : "Lỗi xử lý"
 
   return <article className="min-w-0 overflow-hidden rounded-2xl border border-border bg-card shadow-sm">
     <div className="aspect-video overflow-hidden bg-secondary [container-type:size]">
