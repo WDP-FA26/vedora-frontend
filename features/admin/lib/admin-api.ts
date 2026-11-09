@@ -11,6 +11,7 @@ import {
   adminReportPageSchema,
   adminReportSchema,
   adminUserPageSchema,
+  adminUserSchema,
   moderationSettingsSchema,
   moderationTestResultSchema,
   type ModerationPolicyDraft,
@@ -24,17 +25,17 @@ import { send, sendJson } from "@/features/shared/lib/api-client"
 const PAGE_LIMIT = 50
 
 /**
- * Every user, newest first. `GET /users` only pages, so the table sorts,
- * filters and paginates in the browser and needs the whole list.
+ * Every user matching `url`'s `q`/`status` (see `adminUsersKey`), newest
+ * first. The API filters; the table sorts and paginates in the browser, so it
+ * needs every matching row.
  */
 export async function fetchAllUsers([url, token]: readonly [string, string]) {
   const users: AdminUser[] = []
   for (let page = 1; ; page++) {
-    const { items, meta } = await sendJson(
-      adminUserPageSchema,
-      `${url}?page=${page}&limit=${PAGE_LIMIT}`,
-      token
-    )
+    const pageUrl = new URL(url)
+    pageUrl.searchParams.set("page", String(page))
+    pageUrl.searchParams.set("limit", String(PAGE_LIMIT))
+    const { items, meta } = await sendJson(adminUserPageSchema, pageUrl.toString(), token)
     users.push(...items)
     if (!meta.hasNextPage) return users
   }
@@ -96,16 +97,27 @@ export async function fetchAllReports([url, token]: readonly [string, string]) {
   }
 }
 
-export type AccountStatusChange = {
-  status: "ACTIVE" | "SUSPENDED"
+/** What every role or status change carries, recorded in the API's audit log. */
+type AccountOperation = {
   reason: string
   /** The target's `accountVersion` when the admin read it. */
   expectedVersion: number
 }
 
-/** Suspends or reactivates an account; the API refuses a stale version. */
-export async function updateUserStatus(token: string, id: string, change: AccountStatusChange) {
-  await send(`${ADMIN_USERS_KEY}/${id}/status`, token, {
+export type AccountStatusChange = AccountOperation & { status: "ACTIVE" | "SUSPENDED" }
+export type AccountRoleChange = AccountOperation & { role: AdminUser["role"] }
+
+/** Suspends or reactivates an account; the API refuses a stale version. Returns the account. */
+export function updateUserStatus(token: string, id: string, change: AccountStatusChange) {
+  return sendJson(adminUserSchema, `${ADMIN_USERS_KEY}/${id}/status`, token, {
+    method: "PATCH",
+    body: JSON.stringify(change),
+  })
+}
+
+/** Grants or removes admin rights; the API refuses a stale version. Returns the account. */
+export function updateUserRole(token: string, id: string, change: AccountRoleChange) {
+  return sendJson(adminUserSchema, `${ADMIN_USERS_KEY}/${id}/role`, token, {
     method: "PATCH",
     body: JSON.stringify(change),
   })

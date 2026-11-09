@@ -12,6 +12,8 @@ const publicEnvSchema = z.object({
   NEXT_PUBLIC_API_URL: z.string().url(),
   NEXT_PUBLIC_STORAGE_URL: z.string().url(),
   NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME: z.string().min(1),
+  // Origin of this site, for absolute links in metadata, the sitemap and robots.txt.
+  NEXT_PUBLIC_SITE_URL: z.string().url().optional(),
   // Optional in development; a production build must ship a real site key.
   NEXT_PUBLIC_TURNSTILE_SITE_KEY: z.string().min(1).optional(),
 })
@@ -33,6 +35,7 @@ function readPublicEnv() {
     NEXT_PUBLIC_API_URL: process.env.NEXT_PUBLIC_API_URL,
     NEXT_PUBLIC_STORAGE_URL: process.env.NEXT_PUBLIC_STORAGE_URL,
     NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME: process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME,
+    NEXT_PUBLIC_SITE_URL: process.env.NEXT_PUBLIC_SITE_URL || undefined,
     // An empty value in .env.local means "not configured", not an empty key.
     NEXT_PUBLIC_TURNSTILE_SITE_KEY: process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY || undefined,
   })
@@ -54,9 +57,20 @@ function readPublicEnv() {
 
 const data = readPublicEnv()
 
+/**
+ * Vercel names the production domain at build time; elsewhere, without
+ * NEXT_PUBLIC_SITE_URL, links point at the local dev server.
+ */
+function siteUrl() {
+  if (data.NEXT_PUBLIC_SITE_URL) return data.NEXT_PUBLIC_SITE_URL.replace(/\/+$/, "")
+  const vercel = process.env.VERCEL_PROJECT_PRODUCTION_URL
+  return vercel ? `https://${vercel}` : "http://localhost:3000"
+}
+
 export const PUBLIC_ENV = {
   apiUrl: data.NEXT_PUBLIC_API_URL,
   storageUrl: data.NEXT_PUBLIC_STORAGE_URL,
   cloudinaryCloudName: data.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME,
+  siteUrl: siteUrl(),
   turnstileSiteKey: data.NEXT_PUBLIC_TURNSTILE_SITE_KEY ?? TURNSTILE_TEST_SITE_KEY,
 }

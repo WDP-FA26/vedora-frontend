@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useSyncExternalStore } from "react"
+import { useLayoutEffect, useRef, useState, useSyncExternalStore } from "react"
 import Link from "next/link"
 import { LexicalComposer } from "@lexical/react/LexicalComposer"
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext"
@@ -170,13 +170,33 @@ export function BlogEditor({ initial }: { initial: ApiBlog | null }) {
   )
 }
 
-/** The big title. Enter moves on to the start of the text, as in a page editor. */
+/**
+ * The big title. Long titles wrap and the field grows to fit them; it stays a
+ * single line of text, so Enter moves on to the start of the text, as in a page
+ * editor, and pasted line breaks become spaces.
+ */
 function TitleField({ value, onChange }: { value: string; onChange: (title: string) => void }) {
   const [editor] = useLexicalComposerContext()
+  const ref = useRef<HTMLTextAreaElement>(null)
+
+  useLayoutEffect(() => {
+    const field = ref.current
+    if (!field) return
+    const fit = () => {
+      field.style.height = "auto"
+      field.style.height = `${field.scrollHeight}px`
+    }
+    fit()
+    window.addEventListener("resize", fit)
+    return () => window.removeEventListener("resize", fit)
+  }, [value])
+
   return (
-    <input
+    <textarea
+      ref={ref}
+      rows={1}
       value={value}
-      onChange={(event) => onChange(event.target.value)}
+      onChange={(event) => onChange(event.target.value.replace(/\s*[\r\n]+\s*/g, " "))}
       onKeyDown={(event) => {
         if (event.key !== "Enter" || event.nativeEvent.isComposing) return
         event.preventDefault()
@@ -185,7 +205,7 @@ function TitleField({ value, onChange }: { value: string; onChange: (title: stri
       maxLength={MAX_BLOG_TITLE_LENGTH}
       placeholder="Tiêu đề"
       aria-label="Tiêu đề bài viết"
-      className="mt-5 mb-8 w-full bg-transparent text-3xl font-bold tracking-tight outline-none placeholder:text-muted-foreground/50 sm:text-4xl"
+      className="mt-5 mb-8 block w-full resize-none overflow-hidden bg-transparent text-3xl font-bold tracking-tight outline-none placeholder:text-muted-foreground/50 sm:text-4xl"
     />
   )
 }

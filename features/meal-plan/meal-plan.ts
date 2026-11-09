@@ -10,6 +10,7 @@ export const MEAL_PLANNER_PATH = "/home/meal-planner"
 /** The SWR key is `[url, accessToken]`. */
 export const MEAL_PLAN_KEY = `${API_URL}/meal-plan`
 export const MEAL_PLANNER_CHAT_URL = `${API_URL}/meal-plan/chat`
+export const SHOPPING_LIST_KEY = `${API_URL}/meal-plan/shopping-list`
 
 export const WEEKDAYS = ["MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"] as const
 export const MEAL_SECTIONS = ["BREAKFAST", "LUNCH", "DINNER", "OTHER"] as const
@@ -94,10 +95,43 @@ export const proposalSchema = z.object({
   ),
 })
 
+/**
+ * `GET /meal-plan/shopping-list`: the saved plan's ingredients, summed per
+ * ingredient and unit. Quantities are decimal text; each time a recipe is on
+ * the plan it adds its full quantities, not scaled per person.
+ */
+export const shoppingListSchema = z.object({
+  days: z.array(daySchema),
+  quantityBasis: z.literal("RECIPE_PER_OCCURRENCE"),
+  items: z.array(
+    z.object({
+      ingredientId: z.string(),
+      name: z.string(),
+      unit: z.string().nullable(),
+      /** Only the known part when `hasUnknownQuantity`; null if no source has one. */
+      knownQuantity: z.string().nullable(),
+      hasUnknownQuantity: z.boolean(),
+      contributions: z.array(
+        z.object({
+          recipeId: z.string(),
+          recipeTitle: z.string(),
+          day: daySchema,
+          section: sectionSchema,
+          servings: z.number(),
+          quantity: z.string().nullable(),
+          note: z.string().nullable(),
+        })
+      ),
+    })
+  ),
+})
+
 export type MealRecipe = z.infer<typeof mealRecipeSchema>
 export type MealPlan = z.infer<typeof mealPlanSchema>
 export type MealPlanProblem = z.infer<typeof problemSchema>
 export type MealPlanProposal = z.infer<typeof proposalSchema>
+export type ShoppingList = z.infer<typeof shoppingListSchema>
+export type ShoppingItem = ShoppingList["items"][number]
 /** The complete new content of one day, as `PUT /meal-plan/days` takes it. */
 export type MealDayInput = {
   day: Weekday
@@ -140,4 +174,23 @@ export function saveMealDays(token: string, days: MealDayInput[]) {
     method: "PUT",
     body: JSON.stringify({ days }),
   })
+}
+
+/** The list for `days`, in week order; all seven is the API default, so no query. */
+export function shoppingListKey(days: readonly Weekday[]) {
+  const picked = WEEKDAYS.filter((day) => days.includes(day))
+  return picked.length === WEEKDAYS.length
+    ? SHOPPING_LIST_KEY
+    : `${SHOPPING_LIST_KEY}?days=${picked.join(",")}`
+}
+
+export function fetchShoppingList([url, token]: readonly [string, string]) {
+  return sendJson(shoppingListSchema, url, token)
+}
+
+/** "100.25" → "100,25", "2.00" → "2": Vietnamese decimals without trailing zeros. */
+export function formatQuantity(quantity: string) {
+  const [whole, fraction = ""] = quantity.split(".")
+  const trimmed = fraction.replace(/0+$/, "")
+  return trimmed ? `${whole},${trimmed}` : whole
 }

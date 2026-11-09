@@ -5,6 +5,7 @@ import { redirect } from "next/navigation"
 
 import { z } from "zod"
 
+import { ACCOUNT_BLOCK_MESSAGES, accountBlockOf } from "@/features/auth/lib/account-block"
 import { postJson } from "@/features/auth/lib/api"
 import { apiErrorSchema } from "@/features/shared/lib/api-client"
 import {
@@ -79,6 +80,9 @@ export async function login(
       if (verification.success) return redirectToVerification(verification.data.email, next)
     }
   }
+  // Right password, suspended account: say so instead of "wrong password".
+  const block = await accountBlockOf(response)
+  if (block) return { root: ACCOUNT_BLOCK_MESSAGES[block] }
   if (!response.ok) return { root: "Tên đăng nhập hoặc mật khẩu không đúng." }
 
   writeTokenCookies(await cookies(), await response.json())

@@ -13,6 +13,7 @@ import { fetchMyDietary, MY_DIETARY_KEY } from "@/features/dietary/dietary"
 import { PlannerChat } from "@/features/meal-plan/components/planner-chat"
 import { MealRequestForm } from "@/features/meal-plan/components/meal-request-form"
 import { Timetable } from "@/features/meal-plan/components/timetable"
+import { ShoppingListButton } from "@/features/meal-plan/components/shopping-list-button"
 import {
   messageProposals,
   useMealPlannerChat,
@@ -90,7 +91,12 @@ export function MealPlannerView() {
   const restrictions = useAuthedSWR(MY_DIETARY_KEY, fetchMyDietary)
   const newestProposal = chat.messages.flatMap(messageProposals).at(-1) ?? null
   const suggestion = newestProposal && !chat.statuses[newestProposal.id] ? newestProposal : null
-  const hasSavedMeals = Boolean(plan.data?.days.some(({ sections }) => sections.some(({ recipes }) => recipes.length > 0)))
+  const plannedDays = plan.data
+    ? plan.data.days
+        .filter(({ sections }) => sections.some(({ recipes }) => recipes.length > 0))
+        .map(({ day }) => day)
+    : undefined
+  const hasSavedMeals = Boolean(plannedDays?.length)
   const showRequestForm = requestOpen || Boolean(plan.data && !hasSavedMeals && !draft && !suggestion)
   const savedAvoided = [
     ...(restrictions.data?.groups.map(({ name }) => name) ?? []),
@@ -271,7 +277,12 @@ export function MealPlannerView() {
               }}
               onStart={() => startPlanning()}
               onForm={() => startPlanning()}
-              action={<Button variant="outline" size="sm" onClick={() => startPlanning()}>Lên thực đơn</Button>}
+              action={
+                <div className="flex flex-wrap gap-2">
+                  <ShoppingListButton hasUnsavedChanges={Boolean(draft || suggestion)} plannedDays={plannedDays} />
+                  <Button variant="outline" size="sm" onClick={() => startPlanning()}>Lên thực đơn</Button>
+                </div>
+              }
               draft={draft}
               onSaveDraft={saveDraft}
               onDiscardDraft={discardDraft}

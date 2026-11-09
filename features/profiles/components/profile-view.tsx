@@ -4,6 +4,7 @@ import Link from "next/link"
 import { BadgeCheckIcon, CalendarDaysIcon, LeafIcon } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
+import { messagingPath } from "@/features/messaging/messaging-cache"
 import { useAuth } from "@/features/auth/hooks/use-auth"
 import { DietaryOverviewCard } from "@/features/dietary/components/dietary-overview-card"
 import { EditProfileDialog } from "@/features/profiles/components/edit-profile-dialog"
@@ -94,8 +95,9 @@ export function ProfileView({ id }: { id: string }) {
               }
             />
           ) : (
-            <div className="mt-3">
+            <div className="mt-3 flex flex-wrap gap-2">
               <FollowButton id={profile.id} />
+              <Button variant="outline" shape="pill" nativeButton={false} render={<Link href={accessToken ? messagingPath({to: profile.id}) : `/login?next=${encodeURIComponent(messagingPath({to: profile.id}))}`} />}>Nhắn tin</Button>
             </div>
           ))}
         </div>

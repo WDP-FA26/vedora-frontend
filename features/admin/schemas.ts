@@ -7,13 +7,16 @@ export type { CaptionTrack } from "@/features/posts/schemas"
 // Mirrors vedora-api's `GET /users`, `/admin/posts` and `/admin/reports` (admin only): rows in
 // a page-based `PaginatedResponseDto`.
 
-const adminUserSchema = z.object({
+export const ACCOUNT_STATUSES = ["PENDING_EMAIL", "ACTIVE", "SUSPENDED", "DELETED"] as const
+
+export const adminUserSchema = z.object({
   id: z.string(),
   username: z.string(),
   fullName: z.string(),
   email: z.string(),
   role: z.enum(["USER", "ADMIN"]),
-  status: z.enum(["PENDING_EMAIL", "ACTIVE", "SUSPENDED", "DELETED"]),
+  status: z.enum(ACCOUNT_STATUSES),
+  /** Goes up by one with every role or status change; those updates must send it back. */
   accountVersion: z.number().int().nonnegative(),
   createdAt: z.string(),
   updatedAt: z.string(),

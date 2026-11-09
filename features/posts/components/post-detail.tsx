@@ -28,6 +28,8 @@ import { formatPostDateLong } from "@/features/shared/lib/format"
 export function PostDetail({ id }: { id: string }) {
   const router = useRouter()
   const { post, error, isLoading } = usePost(id)
+  // A blog's own title is the page's h1; this bar only names the page.
+  const TitleTag = post?.blog ? "p" : "h1"
 
   return (
     <section aria-labelledby="post-detail-title">
@@ -42,16 +44,13 @@ export function PostDetail({ id }: { id: string }) {
         >
           <ArrowLeftIcon aria-hidden />
         </Button>
-        <h1 id="post-detail-title" className="font-sans text-lg font-bold">
+        <TitleTag id="post-detail-title" className="font-sans text-lg font-bold">
           Bài viết
-        </h1>
+        </TitleTag>
       </header>
 
-      {isLoading ? (
-        <div className="flex justify-center p-6">
-          <Spinner aria-label="Đang tải bài viết" />
-        </div>
-      ) : post ? (
+      {/* Data first: SWR still reports loading while it holds the server's copy. */}
+      {post ? (
         <>
           <PostArticle post={post} />
           {/* The API takes comments on published posts only. */}
@@ -63,6 +62,10 @@ export function PostDetail({ id }: { id: string }) {
             />
           )}
         </>
+      ) : isLoading ? (
+        <div className="flex justify-center p-6">
+          <Spinner aria-label="Đang tải bài viết" />
+        </div>
       ) : (
         <p role="alert" className="p-4 text-sm text-destructive sm:px-5">
           {error instanceof ApiError && (error.status === 404 || error.status === 400)
@@ -131,13 +134,13 @@ function BlogArticle({ id, title }: { id: string; title: string }) {
 
   return (
     <div className="mt-4">
-      <h2 className="text-2xl leading-tight font-bold text-balance">{title}</h2>
-      {isLoading ? (
+      <h1 className="text-2xl leading-tight font-bold text-balance">{title}</h1>
+      {data ? (
+        <BlogMarkdown content={data.content} className="mt-4" />
+      ) : isLoading ? (
         <div className="flex justify-center p-6">
           <Spinner aria-label="Đang tải nội dung blog" />
         </div>
-      ) : data ? (
-        <BlogMarkdown content={data.content} className="mt-4" />
       ) : (
         error && (
           <p role="alert" className="mt-4 text-sm text-destructive">
