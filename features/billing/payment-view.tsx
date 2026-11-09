@@ -14,7 +14,7 @@ import { API_URL } from "@/features/auth/lib/api"
 import { ApiError, sendJson } from "@/features/shared/lib/api-client"
 import { usePayment } from "./hooks"
 import { usePaymentStream } from "./use-payment-stream"
-import { dateTime, money, paymentSchema, planName } from "./schema"
+import { dateTime, money, paymentSchema } from "./schema"
 
 export function PaymentView({ id }: { id: string }) {
   const { accessToken } = useAuth()
@@ -49,14 +49,14 @@ function PaymentContent({ id, token }: { id: string; token?: string }) {
   if (!payment.data) return <div role="status" aria-label="Đang tải giao dịch"><Skeleton className="h-96" /></div>
   const data = payment.data
   return <div className="space-y-5">
-    <div><h1 className="font-heading text-2xl font-semibold">Thanh toán {planName(data.planCode)}</h1><p className="mt-2 break-all text-xs text-muted-foreground">{data.invoiceNumber}</p></div>
-    {data.status === "SUCCEEDED" ? <Card><CardHeader><CardTitle>Đã xác nhận thanh toán</CardTitle><CardDescription>{money(data.amount)} · {planName(data.planCode)} · {data.durationDays} ngày</CardDescription></CardHeader><CardContent><div className="space-y-4"><p className="text-sm">{data.capturedAt && `Gói được kích hoạt từ ${dateTime(data.capturedAt)} (UTC+7). `}Pro và Premium hiện chưa có đặc quyền bổ sung.</p><Button render={<Link href="/billing" />}>Xem gói hiện tại</Button></div></CardContent></Card>
+    <div><h1 className="font-heading text-2xl font-semibold">Thanh toán {data.purchasedPlanName}</h1><p className="mt-2 break-all text-xs text-muted-foreground">{data.invoiceNumber}</p></div>
+    {data.status === "SUCCEEDED" ? <Card><CardHeader><CardTitle>Đã xác nhận thanh toán</CardTitle><CardDescription>{money(data.amount)} · {data.purchasedPlanName} · {data.durationDays} ngày</CardDescription></CardHeader><CardContent><div className="space-y-4"><p className="text-sm">{data.capturedAt && `Gói được kích hoạt từ ${dateTime(data.capturedAt)} (UTC+7). `}Hạn mức AI của chu kỳ mới đã sẵn sàng. Xem gói hiện tại để kiểm tra số lượt còn lại.</p><Button render={<Link href="/billing" />}>Xem gói hiện tại</Button></div></CardContent></Card>
     : data.status === "CANCELLED" ? <Alert><AlertDescription><p>Giao dịch đã hủy. Không chuyển tiền theo QR cũ. Nếu đã chuyển, hãy cung cấp mã giao dịch cho quản trị viên để đối soát; hệ thống không tự hoàn tiền.</p><Link href="/billing" className="underline">Về gói của bạn</Link></AlertDescription></Alert>
     : <>
       <Alert><AlertDescription>Gói mới có hiệu lực ngay sau khi webhook được xác nhận, thay thế thời hạn cũ và không cộng dồn. Chỉ chuyển đúng số tiền và nội dung bên dưới.</AlertDescription></Alert>
       <Card><CardHeader><CardTitle>Chờ chuyển khoản</CardTitle><CardDescription>{money(data.amount)} · {data.durationDays} ngày</CardDescription></CardHeader><CardContent>
         {data.qr ? <div className="grid items-start gap-6 sm:grid-cols-[256px_1fr]">
-          <div className="space-y-3"><Image unoptimized src={data.qr.imageUrl} alt={`QR chuyển khoản ${money(data.amount)} cho gói ${planName(data.planCode)}`} width={256} height={300} className="h-auto w-full rounded-xl border bg-white" /><a className="block text-center text-sm underline" href={data.qr.downloadUrl} target="_blank" rel="noreferrer">Mở / tải ảnh QR</a></div>
+          <div className="space-y-3"><Image unoptimized src={data.qr.imageUrl} alt={`QR chuyển khoản ${money(data.amount)} cho gói ${data.purchasedPlanName}`} width={256} height={300} className="h-auto w-full rounded-xl border bg-white" /><a className="block text-center text-sm underline" href={data.qr.downloadUrl} target="_blank" rel="noreferrer">Mở / tải ảnh QR</a></div>
           <dl className="space-y-4 text-sm">{[["Ngân hàng", data.qr.bankGateway], ["Số tài khoản", data.qr.accountNumber], ["Chủ tài khoản", data.qr.accountHolder], ["Số tiền", money(data.amount)], ["Nội dung chuyển khoản", data.qr.transferContent]].map(([label, value]) => <div key={label}><dt className="text-muted-foreground">{label}</dt><dd className="mt-1 break-all font-medium select-all">{value}</dd></div>)}</dl>
         </div> : <p className="text-sm">Thanh toán đang tạm đóng. Không chuyển tiền theo QR đã lưu; hãy quay lại kiểm tra sau.</p>}
       </CardContent></Card>

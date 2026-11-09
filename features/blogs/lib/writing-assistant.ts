@@ -11,7 +11,13 @@ export const MAX_ASSISTANT_MESSAGE_LENGTH = 4000
 export const MAX_SELECTION_LENGTH = 4000
 
 /** Tools the agent calls but the browser runs, on the author's say-so. */
-export const EDITOR_TOOLS = ["replaceSelection", "replaceText", "insertMarkdown", "setTitle", "insertImage"] as const
+export const EDITOR_TOOLS = [
+  "replaceSelection",
+  "replaceText",
+  "insertMarkdown",
+  "setTitle",
+  "insertImage",
+] as const
 export type EditorTool = (typeof EDITOR_TOOLS)[number]
 
 export function isEditorTool(name: string): name is EditorTool {
@@ -46,7 +52,12 @@ export const editorToolOutputSchema = z.object({
 })
 export type EditorToolOutput = z.infer<typeof editorToolOutputSchema>
 
-const usageSchema = z.object({ used: z.number(), limit: z.number(), resetsAt: z.string() })
+const usageSchema = z.object({
+  used: z.number(),
+  limit: z.number(),
+  resetsAt: z.string(),
+  period: z.enum(["DAY", "CYCLE"]),
+})
 export const quotaSchema = z.object({ messages: usageSchema, images: usageSchema })
 export type AssistantQuota = z.infer<typeof quotaSchema>
 

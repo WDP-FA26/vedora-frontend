@@ -1,5 +1,7 @@
 "use client"
 
+import Link from "next/link"
+
 import { useEffect, useRef, useState } from "react"
 import { Streamdown } from "streamdown"
 import { getToolName, isToolUIPart, type ToolUIPart, type DynamicToolUIPart } from "ai"
@@ -230,12 +232,19 @@ export function WritingAgentPanel({
         <SparklesIcon aria-hidden className="size-4 text-primary" />
         <h2 className="flex-1 text-sm font-semibold">Trợ lý viết blog</h2>
         {quota && (
-          <Badge
-            variant="secondary"
-            title={`Ảnh minh hoạ: còn ${Math.max(0, quota.images.limit - quota.images.used)}/${quota.images.limit} hôm nay`}
+          <Link
+            href="/billing"
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label="Xem gói và hạn mức AI"
           >
-            Còn {remaining} lượt
-          </Badge>
+            <Badge
+              variant="secondary"
+              title={`Ảnh minh hoạ: còn ${Math.max(0, quota.images.limit - quota.images.used)}/${quota.images.limit}; đặt lại ${new Date(quota.images.resetsAt).toLocaleString("vi-VN", { timeZone: "Asia/Bangkok" })}`}
+            >
+              Còn {remaining} lượt
+            </Badge>
+          </Link>
         )}
         <Button variant="ghost" size="icon-sm" aria-label="Bắt đầu lại" onClick={assistant.reset}>
           <RotateCcwIcon />
@@ -275,7 +284,10 @@ export function WritingAgentPanel({
           </p>
         )}
         {error && (
-          <div role="alert" className="flex items-center gap-2 rounded-xl border border-destructive/40 px-3 py-2 text-sm">
+          <div
+            role="alert"
+            className="flex items-center gap-2 rounded-xl border border-destructive/40 px-3 py-2 text-sm"
+          >
             <p className="flex-1 text-destructive">{error}</p>
             <Button size="xs" variant="outline" onClick={assistant.retry}>
               Thử lại

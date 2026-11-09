@@ -51,9 +51,7 @@ export function messageProposals(message: UIMessage): Proposal[] {
   return message.parts.flatMap((part) => {
     if (part.type !== "tool-proposeMealPlan" || part.state !== "output-available") return []
     const proposal = proposalSchema.safeParse(part.output)
-    return proposal.success && proposal.data.ok
-      ? [{ ...proposal.data, id: part.toolCallId }]
-      : []
+    return proposal.success && proposal.data.ok ? [{ ...proposal.data, id: part.toolCallId }] : []
   })
 }
 
@@ -85,9 +83,9 @@ function contextText(message: UIMessage, statuses: Statuses) {
         ? "người dùng đã lưu thực đơn"
         : statuses[proposal.id] === "staged"
           ? "người dùng đã đưa vào bản nháp, chưa lưu"
-        : statuses[proposal.id] === "dismissed"
-          ? "người dùng đã bỏ qua"
-          : "chưa áp dụng"
+          : statuses[proposal.id] === "dismissed"
+            ? "người dùng đã bỏ qua"
+            : "chưa áp dụng"
     return `[Đề xuất (${status}): ${meals}]`
   })
   return [messageText(message), ...notes].filter(Boolean).join("\n").slice(0, MAX_TEXT_LENGTH)
@@ -107,6 +105,7 @@ const transport = new DefaultChatTransport<PlannerMessage>({
     return {
       headers,
       body: {
+        requestId: messages.filter((message) => message.role === "user").at(-1)?.id,
         messages: withoutRefusals(messages.filter((message) => message.id !== WELCOME.id))
           .map((message) => ({ role: message.role, text: contextText(message, statuses) }))
           .filter((message) => message.text)
@@ -118,11 +117,15 @@ const transport = new DefaultChatTransport<PlannerMessage>({
 
 function errorMessage(error: Error) {
   if (APICallError.isInstance(error) && error.statusCode === 429) {
+    if (error.responseBody?.includes("AI_QUOTA_EXCEEDED"))
+      return "Bạn đã dùng hết lượt AI. Xem gói của bạn để biết thời gian đặt lại hoặc chọn gói mới."
     return "Bạn gửi hơi nhanh. Đợi một chút rồi nhắn tiếp nhé."
   }
   if (APICallError.isInstance(error) && error.statusCode === 503) {
     return "Trợ lý đang tạm nghỉ. Bạn quay lại sau nhé."
   }
+  if (APICallError.isInstance(error) && error.statusCode === 409)
+    return "Yêu cầu này đã được xử lý hoặc đang xử lý. Kiểm tra kết quả trước khi gửi yêu cầu mới."
   if (error.message === "RATE_LIMITED") {
     return "Trợ lý đang quá tải. Bạn thử lại sau ít phút nhé."
   }
@@ -135,13 +138,14 @@ export function useMealPlannerChat() {
   const { accessToken } = useAuth()
   const [statuses, setStatuses] = useState<Statuses>({})
 
-  const { messages, status, error, sendMessage, setMessages, stop, clearError } = useChat<PlannerMessage>({
-    transport,
-    messages: [WELCOME],
-    onError: (error) => {
-      if (APICallError.isInstance(error) && error.statusCode === 401) router.refresh()
-    },
-  })
+  const { messages, status, error, sendMessage, setMessages, stop, clearError } =
+    useChat<PlannerMessage>({
+      transport,
+      messages: [WELCOME],
+      onError: (error) => {
+        if (APICallError.isInstance(error) && error.statusCode === 401) router.refresh()
+      },
+    })
 
   const busy = status === "submitted" || status === "streaming"
   const last = messages.at(-1)

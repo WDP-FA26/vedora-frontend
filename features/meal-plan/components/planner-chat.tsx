@@ -254,7 +254,7 @@ export function PlannerChat({
           )
         })}
         {waiting && !pendingId && <AssistantMessage><span className="shimmer text-sm text-muted-foreground motion-reduce:shimmer-none">Đang suy nghĩ…</span></AssistantMessage>}
-        {error && <AssistantMessage><div role="alert" className="space-y-2 text-sm text-destructive"><p>{error} Tin nhắn vẫn ở ô nhập để bạn thử lại.</p><Button variant="outline" size="sm" onClick={() => submit()} disabled={!input.trim() || busy}><RotateCcwIcon aria-hidden /> Thử lại</Button></div></AssistantMessage>}
+        {error && <AssistantMessage><div role="alert" className="space-y-2 text-sm text-destructive"><p>{error} Tin nhắn vẫn ở ô nhập để bạn thử lại.</p><Link href="/billing" target="_blank" rel="noopener noreferrer" className="inline-block text-primary underline underline-offset-4">Xem gói và hạn mức AI</Link><Button variant="outline" size="sm" onClick={() => submit()} disabled={!input.trim() || busy}><RotateCcwIcon aria-hidden /> Thử lại</Button></div></AssistantMessage>}
 
         {showSuggestions && <BubbleGroup aria-label="Gợi ý">{SUGGESTIONS.map((suggestion, index) => <Bubble key={suggestion} variant="outline"><BubbleContent render={<button type="button" />} onClick={() => chooseSuggestion(index)}>{suggestion}</BubbleContent></Bubble>)}</BubbleGroup>}
 
