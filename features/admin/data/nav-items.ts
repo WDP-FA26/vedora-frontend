@@ -8,27 +8,31 @@ import {
   ShieldAlertIcon,
   UsersIcon,
   type LucideIcon,
-} from "lucide-react"
+} from "lucide-react";
 
 export type AdminNavItem = {
-  href: string
-  label: string
-  icon: LucideIcon
-}
+  href: string;
+  label: string;
+  icon: LucideIcon;
+};
 
 export type AdminNavSection = {
-  label: string
-  items: AdminNavItem[]
-}
+  label: string;
+  items: AdminNavItem[];
+};
 
 /** Where `/admin` lands. */
-export const ADMIN_HOME = "/admin/users"
+export const ADMIN_HOME = "/admin/users";
 
 export const adminNavItems: AdminNavItem[] = [
   { href: "/admin/users", label: "Người dùng", icon: UsersIcon },
-  { href: "/admin/verification", label: "Xác minh chuyên gia", icon: BadgeCheckIcon },
+  {
+    href: "/admin/verification",
+    label: "Xác minh chuyên gia",
+    icon: BadgeCheckIcon,
+  },
   { href: "/admin/insights", label: "Thống kê", icon: ChartColumnIcon },
-]
+];
 
 export const adminNavSections: AdminNavSection[] = [
   {
@@ -37,20 +41,31 @@ export const adminNavSections: AdminNavSection[] = [
       { href: "/admin/content", label: "Bài đăng", icon: FileTextIcon },
       { href: "/admin/reports", label: "Kiểm duyệt", icon: ShieldAlertIcon },
       { href: "/admin/recipes", label: "Công thức", icon: BookOpenIcon },
-      { href: "/admin/knowledge", label: "Tài liệu kiến thức", icon: LibraryIcon },
+      {
+        href: "/admin/knowledge",
+        label: "Tài liệu kiến thức",
+        icon: LibraryIcon,
+      },
     ],
   },
   {
     label: "Hệ thống",
-    items: [{ href: "/admin/settings", label: "Cài đặt kiểm duyệt", icon: SettingsIcon }],
+    items: [
+      { href: "/admin/ai-costs", label: "Chi phí AI", icon: ChartColumnIcon },
+      {
+        href: "/admin/settings",
+        label: "Cài đặt kiểm duyệt",
+        icon: SettingsIcon,
+      },
+    ],
   },
-]
+];
 
 export const allAdminNavItems = [
   ...adminNavItems,
   ...adminNavSections.flatMap((section) => section.items),
-]
+];
 
 export function isAdminNavActive(href: string, pathname: string) {
-  return pathname === href || pathname.startsWith(`${href}/`)
+  return pathname === href || pathname.startsWith(`${href}/`);
 }
