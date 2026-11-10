@@ -77,7 +77,7 @@ const transport = new DefaultChatTransport<AssistantMessage>({
 function errorMessage(error: Error) {
   if (APICallError.isInstance(error) && error.statusCode === 429) {
     return error.responseBody?.includes("AI_QUOTA_EXCEEDED")
-      ? "Bạn đã dùng hết lượt trợ lý hôm nay. Quay lại sau 0 giờ nhé."
+      ? "Bạn đã dùng hết lượt AI dùng chung. Xem gói của bạn để biết thời gian đặt lại hoặc chọn gói mới."
       : "Bạn gửi hơi nhanh. Đợi một chút rồi nhắn tiếp nhé."
   }
   if (APICallError.isInstance(error) && error.statusCode === 503) {
@@ -86,6 +86,8 @@ function errorMessage(error: Error) {
   if (APICallError.isInstance(error) && error.statusCode === 400) {
     return "Cuộc trò chuyện bị lỗi. Bấm “Bắt đầu lại” để tiếp tục."
   }
+  if (APICallError.isInstance(error) && error.statusCode === 409)
+    return "Yêu cầu đã được xử lý hoặc phiên tiếp nối đã hết hạn. Kiểm tra kết quả hoặc bắt đầu yêu cầu mới."
   if (error.message === "RATE_LIMITED") {
     return "Trợ lý đang quá tải. Bạn thử lại sau ít phút nhé."
   }
@@ -197,7 +199,8 @@ export function useWritingAssistant({
         () => {
           if (tool === "replaceSelection") {
             const input = editorToolInputs.replaceSelection.safeParse(toolCall.input)
-            if (input.success) error = $applyReplaceSelection(captured.current, input.data.markdown, group)
+            if (input.success)
+              error = $applyReplaceSelection(captured.current, input.data.markdown, group)
           } else if (tool === "replaceText") {
             const input = editorToolInputs.replaceText.safeParse(toolCall.input)
             if (input.success) error = $applyReplaceText(input.data.find, input.data.replace, group)
@@ -273,7 +276,8 @@ export function useWritingAssistant({
   const awaitingAuthor =
     last?.role === "assistant" &&
     last.parts.some(
-      (part) => isToolUIPart(part) && isEditorTool(getToolName(part)) && part.state === "input-available"
+      (part) =>
+        isToolUIPart(part) && isEditorTool(getToolName(part)) && part.state === "input-available"
     )
 
   return {
