@@ -24,6 +24,7 @@ import {
 import { NEW_BLOG_PATH } from "@/features/blogs/blogs-cache"
 import { MyBlogsList } from "@/features/blogs/components/my-blogs-view"
 import { PostCard } from "@/features/home/components/post-card"
+import { DeletePostDialog } from "@/features/posts/components/delete-post-dialog"
 import { EditPostDialog } from "@/features/posts/components/edit-post-dialog"
 import { VideoPlayer } from "@/features/posts/components/video-player"
 import { postPath } from "@/features/posts/posts-cache"
@@ -104,6 +105,7 @@ export function ProfilePosts({ id, count }: { id: string; count: number }) {
 
 function MyVideoCard({ post }: { post: ApiPost }) {
   const [editing, setEditing] = useState(false)
+  const [deleting, setDeleting] = useState(false)
   const video = post.media.find((media) => media.type === "VIDEO")
   const title = post.body?.split("\n").find((line) => line.trim())?.trim() || "Video hướng dẫn"
   const date = post.publishedAt ?? post.createdAt
@@ -115,9 +117,10 @@ function MyVideoCard({ post }: { post: ApiPost }) {
       {video?.status === "READY" ? <VideoPlayer publicId={video.publicId} aspectRatio={video.aspectRatio} captions={video.captions} label={title} className="flex h-full items-center" maxHeight="100cqh" /> : <div className="flex h-full items-center justify-center text-primary"><ClapperboardIcon aria-hidden className="size-9" /></div>}
     </div>
     <div className="space-y-3 p-4">
-      <div className="flex items-start justify-between gap-2"><div className="min-w-0"><h3 className="line-clamp-2 text-sm font-bold leading-5">{title}</h3><p className="mt-1 text-xs text-muted-foreground">{post.publishedAt ? "Ngày đăng" : "Ngày tạo"}: {formattedDate}</p></div><DropdownMenu><DropdownMenuTrigger render={<Button type="button" variant="ghost" size="icon-sm" aria-label={`Tùy chọn cho ${title}`} />}><EllipsisIcon aria-hidden /></DropdownMenuTrigger><DropdownMenuContent align="end"><DropdownMenuItem onClick={() => setEditing(true)}>Chỉnh sửa</DropdownMenuItem><DropdownMenuItem disabled>Xóa bài viết · Sắp có</DropdownMenuItem></DropdownMenuContent></DropdownMenu></div>
+      <div className="flex items-start justify-between gap-2"><div className="min-w-0"><h3 className="line-clamp-2 text-sm font-bold leading-5">{title}</h3><p className="mt-1 text-xs text-muted-foreground">{post.publishedAt ? "Ngày đăng" : "Ngày tạo"}: {formattedDate}</p></div><DropdownMenu><DropdownMenuTrigger render={<Button type="button" variant="ghost" size="icon-sm" aria-label={`Tùy chọn cho ${title}`} />}><EllipsisIcon aria-hidden /></DropdownMenuTrigger><DropdownMenuContent align="end"><DropdownMenuItem onClick={() => setEditing(true)}>Chỉnh sửa</DropdownMenuItem><DropdownMenuItem variant="destructive" onClick={() => setDeleting(true)}>Xóa bài viết</DropdownMenuItem></DropdownMenuContent></DropdownMenu></div>
       <div className="flex items-center justify-between gap-2"><Badge variant="secondary">{status}</Badge>{post.status === "PUBLISHED" && <Link href={postPath(post.id)} className="rounded-sm text-xs font-semibold text-primary underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-ring">Xem bài viết</Link>}</div>
     </div>
     <EditPostDialog postId={post.id} open={editing} onOpenChange={setEditing} />
+    <DeletePostDialog postId={post.id} open={deleting} onOpenChange={setDeleting} />
   </article>
 }
