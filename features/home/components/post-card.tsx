@@ -33,7 +33,8 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { AuthorAvatar } from "@/features/shared/components/author-avatar"
-import { formatCount, formatPostDate, formatPostDateLong } from "@/features/shared/lib/format"
+import { formatCount, formatPostDateLong } from "@/features/shared/lib/format"
+import { RelativeTime } from "@/features/shared/components/relative-time"
 import { MediaPlaceholder } from "@/features/shared/components/media-placeholder"
 import { editBlogPath } from "@/features/blogs/blogs-cache"
 import { DeleteBlogDialog } from "@/features/blogs/components/delete-blog-dialog"
@@ -144,15 +145,7 @@ export function PostCard({ post }: { post: Post }) {
 }
 
 function PostTime({ post, href }: { post: Post; href: string | null }) {
-  const time = (
-    <time
-      dateTime={post.publishedAt}
-      title={formatPostDateLong(post.publishedAt)}
-      className="tabular-nums"
-    >
-      {formatPostDate(post.publishedAt)}
-    </time>
-  )
+  const time = <RelativeTime iso={post.publishedAt} className="tabular-nums" />
   return href ? (
     <Link
       href={href}

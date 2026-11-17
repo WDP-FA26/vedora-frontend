@@ -25,7 +25,7 @@ import {
 import { Spinner } from "@/components/ui/spinner"
 import { toAuthor } from "@/features/auth/lib/to-author"
 import { AuthorAvatar } from "@/features/shared/components/author-avatar"
-import { formatPostDate, formatPostDateLong } from "@/features/shared/lib/format"
+import { RelativeTime } from "@/features/shared/components/relative-time"
 import { describeNotification } from "@/features/notifications/lib/notification-text"
 import { editBlogPath } from "@/features/blogs/blogs-cache"
 import { useNotifications, useUnreadCount } from "@/features/notifications/hooks/use-notifications"
@@ -113,13 +113,7 @@ export function NotificationsView() {
                           Ghi chú từ quản trị viên: {notification.note}
                         </p>
                       )}
-                      <time
-                        dateTime={notification.createdAt}
-                        title={formatPostDateLong(notification.createdAt)}
-                        className="text-xs text-muted-foreground"
-                      >
-                        {formatPostDate(notification.createdAt)}
-                      </time>
+                      <RelativeTime iso={notification.createdAt} className="text-xs text-muted-foreground" />
                     </div>
                     {!notification.readAt && (
                       <span aria-label="Chưa đọc" className="mt-2 size-2 shrink-0 rounded-full bg-primary" />

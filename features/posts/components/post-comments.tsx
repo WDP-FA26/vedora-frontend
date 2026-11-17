@@ -47,7 +47,8 @@ import {
 import { profilePath } from "@/features/profiles/profiles-cache"
 import { AuthorAvatar } from "@/features/shared/components/author-avatar"
 import { ApiError } from "@/features/shared/lib/api-client"
-import { formatCount, formatPostDate, formatPostDateLong } from "@/features/shared/lib/format"
+import { formatCount } from "@/features/shared/lib/format"
+import { RelativeTime } from "@/features/shared/components/relative-time"
 
 /** Saves within this long of creation are the create itself, not an edit. */
 const EDIT_GRACE_MS = 1000
@@ -208,13 +209,7 @@ function CommentItem({
             <span aria-hidden className="text-muted-foreground">
               ·
             </span>
-            <time
-              dateTime={comment.createdAt}
-              title={formatPostDateLong(comment.createdAt)}
-              className="text-muted-foreground"
-            >
-              {formatPostDate(comment.createdAt)}
-            </time>
+            <RelativeTime iso={comment.createdAt} className="text-muted-foreground" />
             {edited && <span className="text-xs text-muted-foreground">(đã sửa)</span>}
           </p>
 

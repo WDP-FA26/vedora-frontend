@@ -11,7 +11,7 @@ import { useAuthedSWR } from "@/features/auth/hooks/use-authed-swr"
 import { DeleteBlogDialog } from "@/features/blogs/components/delete-blog-dialog"
 import { MY_BLOGS_KEY, NEW_BLOG_PATH, editBlogPath } from "@/features/blogs/blogs-cache"
 import { fetchBlogPage } from "@/features/blogs/lib/blogs-api"
-import { formatPostDate } from "@/features/shared/lib/format"
+import { RelativeTime } from "@/features/shared/components/relative-time"
 import type { ApiPost } from "@/features/posts/schemas"
 
 /** The author's blogs, drafts first in the order the API returns them (newest created). */
@@ -86,7 +86,7 @@ function MyBlogRow({ item }: { item: MyBlogItem }) {
         {item.blog.excerpt && (
           <span className="line-clamp-2 text-sm text-muted-foreground">{item.blog.excerpt}</span>
         )}
-        <span className="text-xs text-muted-foreground">{formatPostDate(item.createdAt)}</span>
+        <RelativeTime iso={item.createdAt} className="text-xs text-muted-foreground" />
       </Link>
       <Button
         type="button"
