@@ -9,27 +9,23 @@ import { editBlogPath } from "@/features/blogs/blogs-cache"
 import { createBlog, updateBlog, type BlogInput } from "@/features/blogs/lib/blogs-api"
 import { isVideoUrl } from "@/features/blogs/editor/media-node"
 import { markdownOf } from "@/features/blogs/editor/markdown"
+import { isSystemBlogImageUrl } from "@/features/blogs/lib/media-upload"
 import { MAX_BLOG_CONTENT_LENGTH, type ApiBlog, type BlogStatus } from "@/features/blogs/schemas"
 import { ApiError } from "@/features/shared/lib/api-client"
-import { PUBLIC_ENV } from "@/lib/env"
 
 const AUTOSAVE_DELAY_MS = 2500
 const MAX_COVER_URL_LENGTH = 2048
 
 export type SaveState = "idle" | "saving" | "saved" | "error"
 
-// Same origin the CSP allows images from (next.config.ts).
-const STORAGE_ORIGIN = new URL(PUBLIC_ENV.storageUrl).origin
-
 /**
- * The first image of the post as its cover, uploaded or AI-generated. The API
- * takes HTTPS links, and images in Vedora's own storage, which serves plain
- * HTTP outside production.
+ * The first uploaded or AI-generated image of the post as its cover.
  */
 function coverOf(markdown: string) {
   for (const [, url] of markdown.matchAll(/^!\[[^\]]*\]\((https?:\/\/[^\s)]+)\)\s*$/gm)) {
-    const allowed = url.startsWith("https://") || url.startsWith(`${STORAGE_ORIGIN}/`)
-    if (allowed && !isVideoUrl(url) && url.length <= MAX_COVER_URL_LENGTH) return url
+    if (isSystemBlogImageUrl(url) && !isVideoUrl(url) && url.length <= MAX_COVER_URL_LENGTH) {
+      return url
+    }
   }
   return null
 }
@@ -37,6 +33,9 @@ function coverOf(markdown: string) {
 function failureMessage(error: unknown) {
   if (error instanceof ApiError) {
     if (error.code === "BLOG_CONTENT_REQUIRED") return "Hãy viết nội dung trước khi đăng."
+    if (error.code === "BLOG_COVER_NOT_ALLOWED" || error.code === "BLOG_MEDIA_NOT_ALLOWED") {
+      return "Chỉ dùng được ảnh hoặc video đã tải lên hệ thống."
+    }
     if (error.status === 401) return "Phiên đăng nhập đã hết hạn. Thử lại sau giây lát."
     if (error.status === 404) return "Không tìm thấy bài viết này."
   }

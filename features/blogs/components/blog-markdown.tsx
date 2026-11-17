@@ -5,6 +5,7 @@ import { defaultRehypePlugins, Streamdown, type UrlTransform } from "streamdown"
 import { cn } from "cn"
 
 import { BlogGallery, type GalleryImage } from "@/features/blogs/components/blog-gallery"
+import { isAllowedBlogMediaUrl } from "@/features/blogs/lib/media-upload"
 
 // Blog content is the author's Markdown source. Raw HTML in it is dropped,
 // not rendered: `skipHtml` removes it, and the `raw` plugin that would parse
@@ -64,12 +65,7 @@ export const safeUrl: UrlTransform = (url, key) => {
 }
 
 function safeImageSrc(url: string) {
-  try {
-    const { protocol } = new URL(url)
-    return protocol === "https:" || protocol === "http:" ? url : null
-  } catch {
-    return null
-  }
+  return isAllowedBlogMediaUrl(url) ? url : null
 }
 
 /** `![alt](url)` alone on a line, as the editor writes images. */

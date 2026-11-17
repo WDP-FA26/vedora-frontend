@@ -13,11 +13,14 @@ import { toast } from "@/components/ui/toast"
 import { useAuth } from "@/features/auth/hooks/use-auth"
 import { $createMediaNode } from "@/features/blogs/editor/media-node"
 import {
+  isAllowedBlogMediaUrl,
   MediaRejectedError,
   mediaKindOf,
   uploadBlogImage,
   uploadBlogVideo,
 } from "@/features/blogs/lib/media-upload"
+
+const MARKDOWN_IMAGE_PASTE = /^!\[[^\]]*\]\(\s*<?(https?:\/\/[^\s)>]+)>?[^)]*\)$/
 import { ApiError } from "@/features/shared/lib/api-client"
 
 export type MediaProgress = { fileName: string; percent: number | null }
@@ -78,7 +81,28 @@ export function useMediaInsert() {
     }
     const offPaste = editor.registerCommand(
       PASTE_COMMAND,
-      (event) => event instanceof ClipboardEvent && take(event, event.clipboardData?.files),
+      (event) => {
+        if (!(event instanceof ClipboardEvent)) return false
+        if (take(event, event.clipboardData?.files)) return true
+        const plain = event.clipboardData?.getData("text/plain")?.trim() ?? ""
+        const mdMatch = MARKDOWN_IMAGE_PASTE.exec(plain)
+        if (mdMatch?.[1] && !isAllowedBlogMediaUrl(mdMatch[1])) {
+          event.preventDefault()
+          toast.add({
+            title: "Không hỗ trợ chèn link ảnh ngoài.",
+            description: "Hãy tải ảnh từ máy hoặc dùng tính năng tạo ảnh AI.",
+          })
+          return true
+        }
+        const html = event.clipboardData?.getData("text/html") ?? ""
+        if (/<img\b/i.test(html)) {
+          toast.add({
+            title: "Không hỗ trợ dán ảnh từ link ngoài.",
+            description: "Hãy lưu ảnh rồi tải lên hoặc kéo thả tệp ảnh vào bài.",
+          })
+        }
+        return false
+      },
       COMMAND_PRIORITY_LOW
     )
     const offDrop = editor.registerCommand(
