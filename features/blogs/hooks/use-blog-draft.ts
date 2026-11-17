@@ -60,6 +60,7 @@ export function useBlogDraft(initial: ApiBlog | null) {
   const [error, setError] = useState<string | null>(null)
 
   const id = useRef(initial?.id ?? null)
+  const statusRef = useRef<BlogStatus>(initial?.status ?? "DRAFT")
   const titleRef = useRef(title)
   const editorState = useRef<EditorState | null>(null)
   const revision = useRef(0)
@@ -72,7 +73,10 @@ export function useBlogDraft(initial: ApiBlog | null) {
     setDirty(true)
     setSaveState((state) => (state === "saved" || state === "error" ? "idle" : state))
     if (timer.current) clearTimeout(timer.current)
-    timer.current = titleRef.current.trim()
+    // Saving a public blog sends it back through moderation and hides it until
+    // the verdict, so its changes are only saved when the author asks for it.
+    const autosave = statusRef.current === "DRAFT" || statusRef.current === "REJECTED"
+    timer.current = titleRef.current.trim() && autosave
       ? setTimeout(() => void latestSave.current(), AUTOSAVE_DELAY_MS)
       : null
   }
@@ -127,7 +131,14 @@ export function useBlogDraft(initial: ApiBlog | null) {
         // Same page, now addressable; a router navigation would remount the editor.
         window.history.replaceState(null, "", editBlogPath(blog.id))
       }
+      statusRef.current = blog.status
       setStatus(blog.status)
+      if (blog.status === "PROCESSING") {
+        setSaveState("saved")
+        setDirty(false)
+        setError("Đã lưu. Blog đang được kiểm duyệt lại, chỉ bạn thấy cho đến khi xong.")
+        return true
+      }
       if (blog.status === "PENDING_REVIEW") {
         setSaveState("error")
         setError("Bài viết đang chờ quản trị viên xem xét và sẽ được đăng nếu được duyệt.")

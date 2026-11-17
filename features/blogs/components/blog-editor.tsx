@@ -60,7 +60,8 @@ export function BlogEditor({ initial }: { initial: ApiBlog | null }) {
   // state, no selection), so the editor only exists in the browser.
   const mounted = useSyncExternalStore(subscribeNever, () => true, () => false)
 
-  const published = draft.status === "PUBLISHED"
+  // A public blog being checked again after an edit is still a public blog.
+  const published = draft.status === "PUBLISHED" || draft.status === "PROCESSING" || draft.status === "PENDING_REVIEW"
   const busy = draft.saveState === "saving"
 
   function onDocumentChange(state: EditorState) {
@@ -107,7 +108,7 @@ export function BlogEditor({ initial }: { initial: ApiBlog | null }) {
               }
             >
               {draft.error ?? SAVE_LABEL[draft.saveState]}
-              {published && draft.saveState !== "error" && " · Đã đăng"}
+              {draft.status === "PUBLISHED" && draft.saveState !== "error" && " · Đã đăng"}
             </p>
             <div className="ml-auto flex items-center gap-2">
               <Button variant="ghost" size="sm" disabled={busy} onClick={() => void draft.save()}>

@@ -43,6 +43,7 @@ import { VerifiedBadge } from "@/features/shared/components/verified-badge"
 import { useAuth } from "@/features/auth/hooks/use-auth"
 import { PostMedia } from "@/features/posts/components/post-media"
 import { DeletePostDialog } from "@/features/posts/components/delete-post-dialog"
+import { EditPostDialog } from "@/features/posts/components/edit-post-dialog"
 import { ReportDialog } from "@/features/posts/components/report-dialog"
 import { usePostInteractions } from "@/features/posts/hooks/use-post-interactions"
 import { usePostView } from "@/features/posts/hooks/use-post-view"
@@ -287,6 +288,7 @@ export function PostMenu({ post }: { post: Post }) {
   const [reporting, setReporting] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [deletingPost, setDeletingPost] = useState(false)
+  const [editingPost, setEditingPost] = useState(false)
   const [copied, setCopied] = useState(false)
   const reportable = Boolean(user && post.author.id !== user.id)
   // Authors edit and delete their own blogs; they delete their other posts from here too.
@@ -337,6 +339,10 @@ export function PostMenu({ post }: { post: Post }) {
           {ownPost && (
             <>
               <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={() => setEditingPost(true)}>
+                <PencilIcon aria-hidden />
+                Sửa bài viết
+              </DropdownMenuItem>
               <DropdownMenuItem variant="destructive" onClick={() => setDeletingPost(true)}>
                 <Trash2Icon aria-hidden />
                 Xoá bài viết
@@ -355,7 +361,16 @@ export function PostMenu({ post }: { post: Post }) {
         </DropdownMenuContent>
       </DropdownMenu>
       {ownPost && (
-        <DeletePostDialog postId={post.id} open={deletingPost} onOpenChange={setDeletingPost} />
+        <>
+          <EditPostDialog
+            postId={post.id}
+            initialBody={post.body}
+            hasVideo={post.kind === "media"}
+            open={editingPost}
+            onOpenChange={setEditingPost}
+          />
+          <DeletePostDialog postId={post.id} open={deletingPost} onOpenChange={setDeletingPost} />
+        </>
       )}
       {ownBlog && (
         <DeleteBlogDialog

@@ -42,6 +42,17 @@ export function createPost(token: string, input: { body?: string; mediaIds?: str
   })
 }
 
+/**
+ * Edits the text of the caller's own post. The API moderates changed text
+ * again, so the returned post may be `PROCESSING` until the verdict.
+ */
+export function updatePost(token: string, id: string, body: string) {
+  return sendJson(apiPostSchema, postKey(id), token, {
+    method: "PATCH",
+    body: JSON.stringify({ body }),
+  })
+}
+
 /** All three are idempotent: PUT sets the state, DELETE clears it. */
 export function setPostLike(token: string, id: string, liked: boolean) {
   return sendJson(postLikeSchema, `${postKey(id)}/like`, token, {
