@@ -44,6 +44,19 @@ export const users = {
     createdAt: "2025-02-14T08:00:00.000Z",
     updatedAt: "2025-02-14T08:00:00.000Z",
   },
+  photo: {
+    id: "u-photo",
+    username: "anhdaidien",
+    fullName: "Phạm Ảnh Đại",
+    email: "photo@example.com",
+    // On the storage origin (NEXT_PUBLIC_STORAGE_URL in playwright.config.ts),
+    // the only origin the CSP allows for avatars. Specs serve it with page.route.
+    avatarUrl: "http://localhost:9000/vedora/avatars/u-photo.png",
+    role: "USER",
+    status: "ACTIVE",
+    createdAt: "2025-03-01T08:00:00.000Z",
+    updatedAt: "2025-03-01T08:00:00.000Z",
+  },
 }
 
 /** `PublicUser` as returned by `GET /auth/me`. */

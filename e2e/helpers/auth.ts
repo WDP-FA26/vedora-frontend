@@ -2,7 +2,7 @@ import type { BrowserContext } from "@playwright/test"
 
 import { makeAccessToken, makeRefreshToken, users } from "../fixtures/data.mjs"
 
-export type Persona = "member" | "admin" | "chef"
+export type Persona = "member" | "admin" | "chef" | "photo"
 
 // Same names as features/auth/lib/tokens.ts.
 const ACCESS_TOKEN_COOKIE = "vedora_at"

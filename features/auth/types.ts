@@ -4,6 +4,7 @@ export type CurrentUser = {
   username: string
   fullName: string
   email: string
+  avatarUrl: string | null
   role: "USER" | "ADMIN"
   createdAt: string
   updatedAt: string
