@@ -78,22 +78,30 @@ announcer (which is also an alert and breaks strict locators).
 
 ```
 e2e/
-  auth/     login, register, verify-email, forgot/reset password, route protection
-  home/     feed, navigation shell, search, notifications, bookmarks
-  public/   landing, post detail, profile
-  blogs/    new/edit blog editor
-  admin/    admin users table, admin access
-  fixtures/ data.mjs (users, posts, notifications, token helpers)
-  helpers/  test.ts, auth.ts, api.ts
-  mock-api/ server.mjs
+  auth/         login, register, verify-email, forgot/reset password, route protection
+  home/         feed, navigation shell, search, notifications, bookmarks
+  public/       landing, post detail, profile
+  blogs/        new/edit blog editor
+  messages/     inbox, conversation, sending
+  planner/      meal planner (+ dev preview) and dietary profile
+  billing/      plans, purchase flow, payment status page
+  recipes/      member recipe views, admin catalog and recipe editor
+  verification/ professional verification request and admin review
+  knowledge/    admin knowledge documents and OCR review page
+  admin/        users, content, moderation queue, settings, insights, AI costs, payments
+  fixtures/     data.mjs (users, posts, ...), data-extra.mjs (everything else)
+  helpers/      test.ts, auth.ts, api.ts
+  mock-api/     server.mjs (core routes) and extra-routes.mjs (the rest)
 ```
 
 ## Known limitations
 
-- Messaging, meal planner, billing, recipes, verification, knowledge and most
-  other admin screens are not covered yet.
 - The mock API's SSE endpoints (`*/sse`, `*/events`) only send a keep-alive;
-  live push (toasts, unread-count updates) is not tested.
+  live push (toasts, unread-count updates, payment status pushes) is not tested.
 - Video upload/playback (Cloudinary) is not covered.
-- `test.fail` marks known app bugs (see `auth/route-protection.spec.ts`);
-  remove the marker when the bug is fixed.
+- The meal planner's AI chat stream (`/meal-plan/chat`), the blog writing
+  assistant and the nutrition chat are not exercised.
+- Forms that are native-submitted if clicked before hydration (admin date
+  filters) are retried with `expect(...).toPass`; guest auth pages use
+  `gotoReady()`.
+- `test.fail` marks known app bugs; remove the marker when the bug is fixed.

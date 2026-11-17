@@ -32,7 +32,23 @@ const MEMBER_ROUTES = [
   "/admin/ai-costs",
 ]
 
-const ADMIN_ROUTES = ["/admin", "/admin/users", "/admin/payments"]
+const ADMIN_ROUTES = [
+  "/admin",
+  "/admin/users",
+  "/admin/payments",
+  "/admin/payments/44444444-4444-4444-8444-444444444444",
+  "/admin/content",
+  "/admin/reports",
+  "/admin/settings",
+  "/admin/insights",
+  "/admin/ai-costs",
+  "/admin/verification",
+  "/admin/knowledge",
+  "/admin/knowledge/k0000000-0000-4000-8000-000000000001",
+  "/admin/recipes",
+  "/admin/recipes/new",
+  "/admin/recipes/e0000000-0000-4000-8000-000000000001",
+]
 
 async function warm(baseURL: string, path: string, cookie?: string) {
   try {
