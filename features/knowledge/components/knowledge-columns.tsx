@@ -1,6 +1,7 @@
 "use client"
 
 import { createContext, use, useState } from "react"
+import Link from "next/link"
 import { createColumnHelper } from "@tanstack/react-table"
 import { FileTextIcon, Trash2Icon } from "lucide-react"
 
@@ -31,7 +32,7 @@ const FAILURE_MESSAGES: Record<
   ENCRYPTED: "PDF được đặt mật khẩu.",
   NO_TEXT: "Tệp không có chữ hay hình ảnh nào.",
   EXTRACTION_FAILED: "Đọc nội dung tệp thất bại hoặc bị gián đoạn.",
-  INDEXING_FAILED: "Lưu vào kho tìm kiếm thất bại. Hãy xóa và tải lên lại.",
+  INDEXING_FAILED: "Lưu vào kho tìm kiếm thất bại. Mở tài liệu và duyệt lại.",
 }
 
 const sizeFormat = new Intl.NumberFormat("vi", { maximumFractionDigits: 1 })
@@ -54,15 +55,18 @@ function formatSections({
 
 const STATUS_BADGES: Record<
   KnowledgeDocument["status"],
-  { label: string; variant: "default" | "secondary" | "destructive"; pending?: true }
+  { label: string; variant: "default" | "secondary" | "destructive" | "outline"; pending?: true }
 > = {
   WAITING_UPLOAD: { label: "Đang tải lên", variant: "secondary", pending: true },
   PROCESSING: { label: "Đang trích xuất", variant: "secondary", pending: true },
+  AWAITING_REVIEW: { label: "Chờ duyệt", variant: "outline" },
+  INDEXING: { label: "Đang lập chỉ mục", variant: "secondary", pending: true },
   READY: { label: "Sẵn sàng", variant: "default" },
+  REJECTED: { label: "Đã từ chối", variant: "secondary" },
   FAILED: { label: "Lỗi", variant: "destructive" },
 }
 
-function StatusBadge({ status }: { status: KnowledgeDocument["status"] }) {
+export function StatusBadge({ status }: { status: KnowledgeDocument["status"] }) {
   const { label, variant, pending } = STATUS_BADGES[status]
   return (
     <Badge variant={variant}>
@@ -135,9 +139,13 @@ export const knowledgeColumns = helper.columns([
               aria-hidden
               className="size-4 shrink-0 text-muted-foreground"
             />
-            <span className="truncate font-medium" title={title}>
+            <Link
+              href={`/admin/knowledge/${row.original.id}`}
+              className="truncate font-medium hover:underline"
+              title={title}
+            >
               {title}
-            </span>
+            </Link>
           </div>
           {failureReason && (
             <p className="mt-1 pl-6 text-xs whitespace-normal text-destructive">

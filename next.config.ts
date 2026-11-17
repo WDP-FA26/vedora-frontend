@@ -38,7 +38,7 @@ const csp = [
   `connect-src 'self' ${apiOrigin} ${cloudinaryUpload} ${cloudinaryCdn} ${storageOrigin} ${cloudinaryPlayer}${toolbar("https://vercel.live", "wss://ws-us3.pusher.com")}`,
   `media-src 'self' blob: ${cloudinaryCdn}`,
   "worker-src 'self' blob:",
-  `frame-src 'self' ${turnstile}${toolbar("https://vercel.live")}`,
+  `frame-src 'self' ${storageOrigin} ${turnstile}${toolbar("https://vercel.live")}`,
   "object-src 'none'",
   "base-uri 'self'",
   "form-action 'self'",

@@ -3,7 +3,9 @@
 import { useState } from "react"
 import { useDropzone } from "react-dropzone"
 import {
+  BanIcon,
   CircleAlertIcon,
+  ClipboardCheckIcon,
   CircleCheckIcon,
   FileUpIcon,
   LibraryIcon,
@@ -43,10 +45,24 @@ const VIEWS: DataTableView[] = [
     columnFilters: [{ id: "status", value: ["READY"] }],
   },
   {
+    id: "review",
+    label: "Chờ duyệt",
+    icon: ClipboardCheckIcon,
+    columnFilters: [{ id: "status", value: ["AWAITING_REVIEW"] }],
+  },
+  {
     id: "pending",
     label: "Đang xử lý",
     icon: LoaderIcon,
-    columnFilters: [{ id: "status", value: ["WAITING_UPLOAD", "PROCESSING"] }],
+    columnFilters: [
+      { id: "status", value: ["WAITING_UPLOAD", "PROCESSING", "INDEXING"] },
+    ],
+  },
+  {
+    id: "rejected",
+    label: "Đã từ chối",
+    icon: BanIcon,
+    columnFilters: [{ id: "status", value: ["REJECTED"] }],
   },
   {
     id: "failed",

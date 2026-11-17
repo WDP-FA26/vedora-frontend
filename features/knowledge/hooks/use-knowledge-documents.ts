@@ -13,7 +13,9 @@ import {
 import type { KnowledgeDocument } from "@/features/knowledge/schemas"
 
 const isPending = (document: KnowledgeDocument) =>
-  document.status === "WAITING_UPLOAD" || document.status === "PROCESSING"
+  document.status === "WAITING_UPLOAD" ||
+  document.status === "PROCESSING" ||
+  document.status === "INDEXING"
 
 // TanStack Table rebuilds its row models whenever `data` changes identity.
 const NO_DOCUMENTS: KnowledgeDocument[] = []
