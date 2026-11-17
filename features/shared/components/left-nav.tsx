@@ -64,11 +64,13 @@ export function NavLinks({
   const pathname = usePathname()
   const { user } = useAuth()
   const unread = useUnreadCount()
+  const isAdmin = user?.role === "ADMIN"
+  const visibleItems = navItems.filter((item) => !item.adminOnly || isAdmin)
 
   return (
     <nav aria-label="Điều hướng chính" className={className}>
       <ul className="flex flex-col gap-1">
-        {navItems.map(({ href, label, icon: Icon, isNew }) => {
+        {visibleItems.map(({ href, label, icon: Icon, isNew }) => {
           const current = isNavItemCurrent(pathname, href, user?.id)
           return (
             <li key={href}>
