@@ -12,6 +12,8 @@
 
 import http from "node:http"
 
+import { handleExtra } from "./extra-routes.mjs"
+
 import {
   API_PORT,
   VALID_PASSWORD,
@@ -222,7 +224,6 @@ async function handle(req, res, url, body) {
   if (path === "/notifications/read" && method === "POST") return send(res, 204)
   if (/^\/notifications\/[^/]+\/read$/.test(path) && method === "POST") return send(res, 204)
   if (path === "/notifications") return send(res, 200, pageOf(notifications))
-  if (path === "/messaging/conversations") return send(res, 200, pageOf([]))
 
   // --- admin --------------------------------------------------------------
   if (path === "/users" && method === "GET") {
@@ -241,10 +242,7 @@ async function handle(req, res, url, body) {
     return send(res, 200, adminPage(rows))
   }
 
-  // --- misc, harmless empties ---------------------------------------------
-  if (path.startsWith("/dietary/") || path.startsWith("/recipes") || path.startsWith("/billing/")) {
-    return send(res, 200, pageOf([]))
-  }
+  if (await handleExtra({ path, method, body, q, me, res, send, error })) return
 
   console.warn(`[mock-api] unhandled ${method} ${url.pathname}${url.search}`)
   return error(res, 404, "NOT_FOUND", `Mock API has no handler for ${method} ${url.pathname}`)
