@@ -56,6 +56,12 @@ const FLAG_MESSAGES: Record<KnowledgePage["flags"][number], string> = {
 
 const NOTE_MAX = 500
 
+const EXTRACTING: ReadonlySet<KnowledgeDocument["status"]> = new Set([
+  "WAITING_UPLOAD",
+  "PROCESSING",
+  "FAILED",
+])
+
 function hasFlags(page: KnowledgePage) {
   return page.flags.length > 0
 }
@@ -67,7 +73,10 @@ function hasFlags(page: KnowledgePage) {
 export function KnowledgeReview({ id }: { id: string }) {
   const { data: document, error: loadError } = useKnowledgeDocumentDetail(id)
   const hasFile = document !== undefined && document.status !== "WAITING_UPLOAD"
-  const { data: pages } = useKnowledgePages(id, !hasFile)
+  // Pages exist only once extraction is done; asking earlier would cache an
+  // empty list that is never refreshed.
+  const hasPages = document !== undefined && !EXTRACTING.has(document.status)
+  const { data: pages } = useKnowledgePages(id, !hasPages)
   const { data: file } = useKnowledgeFileUrl(id, !hasFile)
 
   if (loadError) {
@@ -92,7 +101,7 @@ export function KnowledgeReview({ id }: { id: string }) {
     <ReviewBody
       document={document}
       pages={pages ?? []}
-      pagesLoaded={pages !== undefined}
+      pagesLoaded={pages !== undefined || !hasPages}
       fileUrl={file?.url ?? null}
     />
   )
@@ -181,11 +190,12 @@ function ReviewBody({
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <div className="flex flex-wrap items-center gap-2 border-b p-3">
+      <div className="sticky top-12 z-10 flex flex-wrap items-center gap-2 border-b bg-background p-3">
         <Button
           variant="ghost"
           size="icon-sm"
           aria-label="Về danh sách tài liệu"
+          nativeButton={false}
           render={<Link href="/admin/knowledge" />}
         >
           <ArrowLeftIcon aria-hidden />
@@ -228,7 +238,7 @@ function ReviewBody({
       )}
 
       <div className="grid min-h-0 flex-1 gap-3 p-3 lg:grid-cols-2">
-        <div className="min-h-96 overflow-hidden rounded-xl border bg-muted/30">
+        <div className="min-h-96 overflow-hidden rounded-xl border bg-muted/30 lg:sticky lg:top-32 lg:h-[calc(100svh-9rem)] lg:self-start">
           {fileUrl ? (
             <iframe
               title="PDF gốc"
@@ -246,12 +256,10 @@ function ReviewBody({
           {!pagesLoaded ? (
             <Skeleton className="h-64 w-full" />
           ) : !current ? (
-            <p className="text-sm text-muted-foreground">
-              Tài liệu này không có bản xem lại, vì nó được tải lên trước khi có bước duyệt.
-            </p>
+            <p className="text-sm text-muted-foreground">{emptyMessage(document)}</p>
           ) : (
             <>
-              <div className="flex flex-wrap items-center gap-2">
+              <div className="sticky top-32 z-10 flex flex-wrap items-center gap-2 bg-background py-1">
                 <Button
                   variant="outline"
                   size="icon-sm"
@@ -289,6 +297,19 @@ function ReviewBody({
                     Trang cần xem ({flaggedCount})
                   </Button>
                 )}
+                {editable && (
+                  <div className="ml-auto flex items-center gap-2">
+                    {draftCount > 0 && (
+                      <Button size="sm" variant="ghost" disabled={busy} onClick={() => setDrafts(new Map())}>
+                        Bỏ thay đổi
+                      </Button>
+                    )}
+                    <Button size="sm" disabled={busy || draftCount === 0} onClick={save}>
+                      {busy && <Spinner aria-hidden />}
+                      Lưu chỉnh sửa{draftCount > 0 ? ` (${draftCount} trang)` : ""}
+                    </Button>
+                  </div>
+                )}
               </div>
 
               {current.flags.map((flag) => (
@@ -307,19 +328,6 @@ function ReviewBody({
                 onChange={(event) => editText(current.page, event.target.value, current.text)}
               />
 
-              {editable && (
-                <div className="flex items-center gap-2">
-                  <Button size="sm" disabled={busy || draftCount === 0} onClick={save}>
-                    {busy && <Spinner aria-hidden />}
-                    Lưu chỉnh sửa{draftCount > 0 ? ` (${draftCount} trang)` : ""}
-                  </Button>
-                  {draftCount > 0 && (
-                    <Button size="sm" variant="ghost" disabled={busy} onClick={() => setDrafts(new Map())}>
-                      Bỏ thay đổi
-                    </Button>
-                  )}
-                </div>
-              )}
             </>
           )}
         </div>
@@ -384,6 +392,14 @@ function ReviewBody({
       </Dialog>
     </div>
   )
+}
+
+function emptyMessage({ status }: KnowledgeDocument) {
+  if (status === "WAITING_UPLOAD" || status === "PROCESSING") {
+    return "Đang trích xuất văn bản. Trang sẽ tự cập nhật khi xong."
+  }
+  if (status === "FAILED") return "Không trích xuất được văn bản của tài liệu này."
+  return "Tài liệu này không có bản xem lại, vì nó được tải lên trước khi có bước duyệt."
 }
 
 function StatusNotice({ document }: { document: KnowledgeDocument }) {

@@ -1,5 +1,6 @@
 "use client"
 
+import { useState } from "react"
 import { useSWRConfig } from "swr"
 
 import { useAuth } from "@/features/auth/hooks/use-auth"
@@ -21,13 +22,21 @@ import type { KnowledgeDocument, KnowledgePage } from "@/features/knowledge/sche
 
 const INDEXING_POLL_MS = 3000
 
-/** The document under review. Polls while the API is indexing it. */
+const isBusy = (document: KnowledgeDocument) =>
+  document.status === "INDEXING" ||
+  document.status === "PROCESSING" ||
+  document.status === "WAITING_UPLOAD"
+
+/**
+ * The document under review. Polls while the API still works on it. The
+ * interval is state, not a function of the data: SWR arms its timer only when
+ * the option changes, so a callback would never start it.
+ */
 export function useKnowledgeDocumentDetail(id: string) {
+  const [polling, setPolling] = useState(false)
   return useAuthedSWR(knowledgeDocumentKey(id), fetchKnowledgeDocument, {
-    refreshInterval: (document) =>
-      document?.status === "INDEXING" || document?.status === "PROCESSING"
-        ? INDEXING_POLL_MS
-        : 0,
+    refreshInterval: polling ? INDEXING_POLL_MS : 0,
+    onSuccess: (document) => setPolling(isBusy(document)),
   })
 }
 
@@ -68,7 +77,11 @@ export function useKnowledgeReviewActions(id: string) {
   async function review(action: "approve" | "reject" | "reopen", note: string | null) {
     if (!accessToken) throw new Error("Not signed in")
     const document = await reviewKnowledgeDocument(accessToken, id, action, note)
-    await mutate([knowledgeDocumentKey(id), accessToken], document, { revalidate: false })
+    // SWR starts its refresh timer after a fetch, so an INDEXING document must
+    // be fetched once more for the polling to begin.
+    await mutate([knowledgeDocumentKey(id), accessToken], document, {
+      revalidate: document.status === "INDEXING",
+    })
     await mutate(
       [KNOWLEDGE_DOCUMENTS_KEY, accessToken],
       (documents: KnowledgeDocument[] = []) =>
