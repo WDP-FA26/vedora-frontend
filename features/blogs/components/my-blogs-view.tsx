@@ -23,8 +23,6 @@ const STATUS_BADGES: Record<ApiPost["status"], { label: string; variant: "defaul
 }
 
 export function MyBlogsView() {
-  const { data, error, isLoading } = useAuthedSWR(MY_BLOGS_KEY, fetchBlogPage)
-
   return (
     <section className="mx-auto w-full max-w-3xl">
       <header className="flex items-center justify-between gap-3 border-b border-border px-4 py-3">
@@ -34,7 +32,17 @@ export function MyBlogsView() {
           Viết blog
         </Button>
       </header>
+      <MyBlogsList />
+    </section>
+  )
+}
 
+/** The signed-in author's blogs with their status; shared by the blogs page and the profile tab. */
+export function MyBlogsList() {
+  const { data, error, isLoading } = useAuthedSWR(MY_BLOGS_KEY, fetchBlogPage)
+
+  return (
+    <>
       {isLoading && (
         <div className="flex flex-col gap-3 p-4">
           <Skeleton className="h-16 w-full" />
@@ -65,6 +73,6 @@ export function MyBlogsView() {
           </li>
         ))}
       </ul>
-    </section>
+    </>
   )
 }

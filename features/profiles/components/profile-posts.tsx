@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { useState } from "react"
-import { ClapperboardIcon, EllipsisIcon, SproutIcon } from "lucide-react"
+import { BookOpenTextIcon, ClapperboardIcon, EllipsisIcon, PenLineIcon, SproutIcon } from "lucide-react"
 
 import { useAuth } from "@/features/auth/hooks/use-auth"
 import { Badge } from "@/components/ui/badge"
@@ -21,6 +21,8 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import { NEW_BLOG_PATH } from "@/features/blogs/blogs-cache"
+import { MyBlogsList } from "@/features/blogs/components/my-blogs-view"
 import { PostCard } from "@/features/home/components/post-card"
 import { VideoPlayer } from "@/features/posts/components/video-player"
 import { postPath } from "@/features/posts/posts-cache"
@@ -33,7 +35,7 @@ import { useProfilePosts } from "@/features/profiles/hooks/use-profile-posts"
 export function ProfilePosts({ id, count }: { id: string; count: number }) {
   const { user } = useAuth()
   const isOwn = user?.id === id
-  const [tab, setTab] = useState<"posts" | "videos">("posts")
+  const [tab, setTab] = useState<"posts" | "videos" | "blogs">("posts")
   const activeTab = isOwn ? tab : "posts"
   const { posts, error, isLoading, retry } = useProfilePosts(id)
   const videos = posts.filter((post) => post.media.some((media) => media.type === "VIDEO"))
@@ -46,6 +48,7 @@ export function ProfilePosts({ id, count }: { id: string; count: number }) {
           Bài viết <span className="font-medium tabular-nums">{formatCount(count)}</span>
         </button>
         {isOwn && <button type="button" onClick={() => setTab("videos")} aria-current={activeTab === "videos" ? "page" : undefined} className="inline-flex items-center gap-2 border-b-2 border-transparent py-3 text-sm font-bold text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring aria-[current=page]:border-primary aria-[current=page]:text-primary"><ClapperboardIcon aria-hidden className="size-4" /> Video của tôi</button>}
+        {isOwn && <button type="button" onClick={() => setTab("blogs")} aria-current={activeTab === "blogs" ? "page" : undefined} className="inline-flex items-center gap-2 border-b-2 border-transparent py-3 text-sm font-bold text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring aria-[current=page]:border-primary aria-[current=page]:text-primary"><BookOpenTextIcon aria-hidden className="size-4" /> Blog của tôi</button>}
       </div>
 
       {activeTab === "videos" && <div className="border-b border-border bg-secondary/30 px-4 py-3 sm:px-5">
@@ -56,7 +59,18 @@ export function ProfilePosts({ id, count }: { id: string; count: number }) {
         <p className="mt-2 text-xs leading-5 text-muted-foreground">Hiển thị video trong các bài viết gần đây của bạn.</p>
       </div>}
 
-      {isLoading && posts.length === 0 ? (
+      {activeTab === "blogs" ? (
+        <>
+          <div className="flex items-center justify-between gap-3 border-b border-border bg-secondary/30 px-4 py-3 sm:px-5">
+            <p className="text-xs leading-5 text-muted-foreground">Blog nháp, đang chờ duyệt và đã đăng của bạn.</p>
+            <Button nativeButton={false} render={<Link href={NEW_BLOG_PATH} />} variant="outline" size="sm" shape="pill">
+              <PenLineIcon data-icon="inline-start" />
+              Viết blog
+            </Button>
+          </div>
+          <MyBlogsList />
+        </>
+      ) : isLoading && posts.length === 0 ? (
         <div className="flex justify-center p-6">
           <Spinner aria-label="Đang tải bài viết" />
         </div>
