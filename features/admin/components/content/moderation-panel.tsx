@@ -20,6 +20,7 @@ export const CATEGORY_LABELS: Record<string, string> = {
   self_harm: "Tự hại",
   illegal: "Bất hợp pháp",
   spam: "Spam",
+  provider_blocked: "Model từ chối đọc nội dung (nghi vi phạm nặng)",
 }
 
 function percent(score: number) {
