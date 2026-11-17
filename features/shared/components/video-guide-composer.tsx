@@ -10,7 +10,6 @@ import {
   GlobeIcon,
   LockKeyholeIcon,
   RotateCcwIcon,
-  SmileIcon,
   UsersIcon,
   XIcon,
 } from "lucide-react"
@@ -352,9 +351,6 @@ export function VideoGuideComposer({
                         <p className="border-t border-border/70 px-2 pt-2 text-xs text-muted-foreground">Đối tượng xem và trạng thái xử lý video là hai thông tin riêng.</p>
                       </PopoverContent>
                     </Popover>
-                    <Button type="button" variant="outline" size="xs" shape="pill" disabled title="Cảm xúc chưa thể lưu cùng bài viết">
-                      <SmileIcon aria-hidden className="size-3.5" /> Cảm xúc · Sắp có
-                    </Button>
                   </div>
                 </div>
               </div>
