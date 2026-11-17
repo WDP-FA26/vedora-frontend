@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useRef, useState } from "react"
+import Link from "next/link"
 import { ArrowLeftIcon, BookOpenTextIcon, FileTextIcon, XIcon } from "lucide-react"
 
 import {
@@ -21,6 +22,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
+import { NEW_BLOG_PATH } from "@/features/blogs/blogs-cache"
 import { useProcessingPost } from "@/features/posts/hooks/use-feed-posts"
 import type { ApiPost } from "@/features/posts/schemas"
 import { cn } from "@/lib/utils"
@@ -196,11 +198,10 @@ export function ComposeDialog({
                   <span className="flex size-12 shrink-0 items-center justify-center rounded-2xl bg-primary text-primary-foreground"><FileTextIcon aria-hidden className="size-6" /></span>
                   <span className="min-w-0 flex-1"><span className="block font-heading text-base font-bold">Bài ngắn</span><span className="mt-1 block text-xs leading-5 text-muted-foreground">Chia sẻ nhanh một mẹo, món ăn hay suy nghĩ của bạn.</span></span>
                 </button>
-                <div aria-disabled="true" className="flex items-center gap-4 rounded-2xl border border-border bg-card p-4 opacity-65">
+                <Link href={NEW_BLOG_PATH} onClick={close} className="group flex w-full items-center gap-4 rounded-2xl border border-border bg-card p-4 text-left transition-colors hover:border-primary/40 hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/30">
                   <span className="flex size-12 shrink-0 items-center justify-center rounded-2xl bg-secondary text-primary"><BookOpenTextIcon aria-hidden className="size-6" /></span>
-                  <span className="min-w-0 flex-1"><span className="block font-heading text-base font-bold">Blog</span><span className="mt-1 block text-xs text-muted-foreground">Viết bài dài về bếp chay.</span></span>
-                  <span className="shrink-0 rounded-full bg-muted px-2.5 py-1 text-[0.6875rem] font-semibold text-muted-foreground">Sắp có</span>
-                </div>
+                  <span className="min-w-0 flex-1"><span className="block font-heading text-base font-bold">Blog</span><span className="mt-1 block text-xs leading-5 text-muted-foreground">Viết bài dài về bếp chay.</span></span>
+                </Link>
               </div>
             </div>
           ) : (
