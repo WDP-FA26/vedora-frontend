@@ -7,6 +7,8 @@ import { usePathname } from "next/navigation"
 import { ArrowRightIcon, CheckIcon, XIcon } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
+import { useBilling, useCatalog } from "@/features/billing/hooks"
+import { dateTime, money } from "@/features/billing/schema"
 import { PostSearchForm } from "@/features/posts/components/post-search-form"
 import { ProfileAvatar } from "@/features/profiles/components/profile-avatar"
 import { useSuggestions } from "@/features/profiles/hooks/use-suggestions"
@@ -59,18 +61,7 @@ export function RightRail() {
 
       <WhoToFollow />
 
-      <nav aria-label="Pháp lý" className="px-4 pb-4">
-        <ul className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted-foreground">
-          {["Điều khoản", "Quyền riêng tư", "Tiêu chuẩn cộng đồng", "Trợ năng"].map((label) => (
-            <li key={label}>
-              <Link href="#" className="hover:underline">
-                {label}
-              </Link>
-            </li>
-          ))}
-          <li>© 2026 Vedora</li>
-        </ul>
-      </nav>
+      <p className="px-4 pb-4 text-xs text-muted-foreground">© 2026 Vedora</p>
     </aside>
   )
 }
@@ -100,13 +91,26 @@ function AiPanel() {
   )
 }
 
-const upgradePerks = [
-  "Trợ lý không giới hạn",
-  "Thực đơn tuần tự động",
-  "Video dài đến 30 phút",
-]
-
+/**
+ * Plan perks come from the billing catalog, so they match /billing. Members on
+ * a paid plan see their own plan instead of an upgrade pitch. Hidden until the
+ * catalog loads (and for guests, who can't open /billing anyway).
+ */
 function UpgradePanel() {
+  const { data: catalog } = useCatalog()
+  const { data: billing } = useBilling()
+  const membership = billing?.membership
+  const current =
+    membership && membership.planCode !== "FREE" ? membership.planCode : null
+  const plan = catalog?.plans.find((item) => item.code === (current ?? "PLUS"))
+  if (!plan) return null
+
+  const perks = [
+    `${plan.textLimit} lượt AI văn bản/chu kỳ`,
+    `${plan.imageLimit} lượt tạo hoặc chỉnh ảnh/chu kỳ`,
+    "AI dinh dưỡng, thực đơn và viết blog",
+  ]
+
   return (
     <section
       aria-labelledby="upgrade-title"
@@ -116,10 +120,15 @@ function UpgradePanel() {
         id="upgrade-title"
         className="text-[1.0625rem] font-bold tracking-[-0.02em]"
       >
-        Vedora Plus
+        Vedora {plan.name}
       </h2>
+      <p className="mt-1 text-xs text-muted-foreground">
+        {current && membership?.expiresAt
+          ? `Gói của bạn · hiệu lực đến ${dateTime(membership.expiresAt)}`
+          : `${money(plan.priceVnd)} / ${plan.durationDays} ngày`}
+      </p>
       <ul className="mt-3 space-y-1.5 text-sm">
-        {upgradePerks.map((perk) => (
+        {perks.map((perk) => (
           <li key={perk} className="flex items-start gap-2">
             <CheckIcon aria-hidden className="mt-0.5 size-4 shrink-0 text-primary" />
             {perk}
@@ -129,11 +138,12 @@ function UpgradePanel() {
       <Button
         size="pill-sm"
         shape="pill"
+        variant={current ? "outline" : "default"}
         className="mt-4"
         render={<Link href="/billing" />}
         nativeButton={false}
       >
-        Nâng cấp
+        {current ? "Xem gói của bạn" : "Nâng cấp"}
       </Button>
     </section>
   )
