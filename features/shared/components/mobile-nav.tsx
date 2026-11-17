@@ -11,7 +11,6 @@ import { Button } from "@/components/ui/button"
 import { Sheet, SheetContent, SheetTitle, SheetTrigger } from "@/components/ui/sheet"
 import { ThemeSwitcher } from "@/components/theme-switcher"
 import { AuthorAvatar } from "@/features/shared/components/author-avatar"
-import { NutritionPet } from "@/features/shared/components/nutrition-pet"
 import { ComposeDialog } from "@/features/shared/components/compose-dialog"
 import { useAuth } from "@/features/auth/hooks/use-auth"
 import { useLogout } from "@/features/auth/hooks/use-logout"
@@ -121,13 +120,7 @@ export function MobileBottomNav() {
             />
           </div>
         </li>
-        {items.slice(2, 4).map((item) => (
-          <MobileNavItem key={item.href} item={item} current={isCurrent(item.href)} />
-        ))}
-        <li className="flex flex-1 items-center justify-center">
-          <NutritionPet compact inline />
-        </li>
-        {items.slice(4).map((item) => (
+        {items.slice(2).map((item) => (
           <MobileNavItem key={item.href} item={item} current={isCurrent(item.href)} />
         ))}
       </ul>
