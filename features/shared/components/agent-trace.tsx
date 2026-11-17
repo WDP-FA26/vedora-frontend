@@ -34,9 +34,16 @@ import { problemSchema, problemText } from "@/features/meal-plan/meal-plan"
 
 // Mirror the inputs and outputs of vedora-api's agent tools.
 const queryInputSchema = z.object({ query: z.string().optional() })
-const knowledgeHitsSchema = z.array(
-  z.object({ title: z.string(), page: z.number(), text: z.string() })
-)
+const knowledgeHitSchema = z.object({ title: z.string(), page: z.number(), text: z.string() })
+// The tool answers `{ status: "ok", hits }`, or `{ status: "unavailable" }` when the search failed.
+const knowledgeSearchSchema = z.discriminatedUnion("status", [
+  z.object({ status: z.literal("ok"), hits: z.array(knowledgeHitSchema) }),
+  z.object({ status: z.literal("unavailable") }),
+])
+
+function knowledgeSearchOf(output: unknown) {
+  return knowledgeSearchSchema.safeParse(output).data
+}
 const recipesSchema = z.array(z.object({ id: z.string(), title: z.string() }))
 const proposalCheckSchema = z.object({ ok: z.boolean(), problems: z.array(problemSchema) })
 const imageResultSchema = z.union([z.object({ url: z.string() }), z.object({ error: z.string() })])
@@ -69,17 +76,23 @@ function toolStep(part: ToolUIPart | DynamicToolUIPart): Step {
   const key = part.toolCallId
 
   if (name === "searchKnowledge") {
-    const hits = done ? (knowledgeHitsSchema.safeParse(part.output).data ?? []) : []
+    const result = done ? knowledgeSearchOf(part.output) : undefined
+    const hits = result?.status === "ok" ? result.hits : []
+    // A search that could not run is not the same as one that found nothing.
+    const unavailable = failed || result?.status === "unavailable"
+    let title = `Đang tra cứu tài liệu${quoted(query)}`
+    if (unavailable) title = `Không tra cứu được${quoted(query)}`
+    else if (done) title = `Đã tra cứu tài liệu${quoted(query)}`
+
+    let description: string | undefined
+    if (done && !unavailable) description = hits.length > 0 ? `${hits.length} đoạn` : "Không có kết quả"
+
     return {
       key,
-      status,
+      status: unavailable ? "error" : status,
       icon: <BookOpenIcon />,
-      title: failed
-        ? `Không tra cứu được${quoted(query)}`
-        : done
-          ? `Đã tra cứu tài liệu${quoted(query)}`
-          : `Đang tra cứu tài liệu${quoted(query)}`,
-      description: done ? (hits.length > 0 ? `${hits.length} đoạn` : "Không có kết quả") : undefined,
+      title,
+      description,
       detail:
         hits.length > 0 ? (
           <ul className="flex flex-col gap-1">
@@ -218,7 +231,9 @@ function messageSources(message: UIMessage) {
   for (const part of message.parts) {
     if (!isToolUIPart(part) || getToolName(part) !== "searchKnowledge") continue
     if (part.state !== "output-available") continue
-    for (const { title, page } of knowledgeHitsSchema.safeParse(part.output).data ?? []) {
+    const result = knowledgeSearchOf(part.output)
+    if (result?.status !== "ok") continue
+    for (const { title, page } of result.hits) {
       pages.set(title, (pages.get(title) ?? new Set()).add(page))
     }
   }
