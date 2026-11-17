@@ -11,7 +11,6 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Button, buttonVariants } from "@/components/ui/button"
 import {
   Field,
-  FieldDescription,
   FieldError,
   FieldGroup,
   FieldLabel,
@@ -25,6 +24,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { useAuth } from "@/features/auth/hooks/use-auth"
 import { IngredientDialog } from "@/features/recipes/components/ingredient-dialog"
 import { NamedSelect, type SelectOption } from "@/features/recipes/components/named-select"
+import { RecipeImageField } from "@/features/recipes/components/recipe-image-field"
 import { RecipeSource } from "@/features/recipes/components/recipe-source"
 import {
   useConflicts,
@@ -233,23 +233,11 @@ function RecipeForm({
               name="imageUrl"
               control={form.control}
               render={({ field, fieldState }) => (
-                <Field data-invalid={fieldState.invalid}>
-                  <FieldLabel htmlFor={field.name}>Ảnh món (không bắt buộc)</FieldLabel>
-                  <Input
-                    {...field}
-                    id={field.name}
-                    type="url"
-                    inputMode="url"
-                    autoComplete="off"
-                    aria-invalid={fieldState.invalid}
-                    placeholder="https://upload.wikimedia.org/…"
-                  />
-                  <FieldDescription>
-                    Dán đường dẫn ảnh từ Wikimedia Commons, Unsplash hoặc Pexels. Ảnh được hiển thị
-                    trực tiếp từ đó, Vedora không lưu lại.
-                  </FieldDescription>
-                  {fieldState.invalid && <FieldError errors={[fieldState.error]} />}
-                </Field>
+                <RecipeImageField
+                  value={field.value}
+                  onChange={field.onChange}
+                  error={fieldState.error}
+                />
               )}
             />
             <div className="grid gap-4 sm:grid-cols-3">

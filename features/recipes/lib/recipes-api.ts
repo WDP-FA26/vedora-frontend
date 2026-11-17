@@ -23,6 +23,7 @@ import {
   ratingSummarySchema,
   recipeConflictsSchema,
   recipeDetailSchema,
+  recipeImageUploadSchema,
   recipePageSchema,
   type RuleSide,
 } from "@/features/recipes/schemas"
@@ -164,4 +165,8 @@ export function setRecipeFavorite(token: string, recipeId: string, saved: boolea
   return sendJson(favoriteStateSchema, favoriteKey(recipeId), token, {
     method: saved ? "PUT" : "DELETE",
   })
+}
+
+export function requestRecipeImageUpload(token: string) {
+  return sendJson(recipeImageUploadSchema, `${RECIPES_KEY}/image-uploads`, token, { method: "POST" })
 }

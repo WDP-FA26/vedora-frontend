@@ -1,4 +1,5 @@
 import { z } from "zod"
+import { signedUploadSchema } from "@/features/posts/schemas"
 import { uniqueNonEmpty } from "@/features/shared/lib/unique"
 
 // Mirrors vedora-api's `/admin/ingredients`, `/admin/ingredient-groups`,
@@ -53,8 +54,26 @@ const recipeConflictSchema = z.object({
 })
 export const recipeConflictsSchema = z.array(recipeConflictSchema)
 
-/** Hosts the CSP in `next.config.ts` lets dish photos load from. */
-export const DISH_IMAGE_HOSTS = ["upload.wikimedia.org", "images.unsplash.com", "images.pexels.com"]
+export const MAX_RECIPE_IMAGE_MB = 10
+export const RECIPE_IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp"] as const
+
+/** Response of `POST /admin/recipes/image-uploads`. */
+export const recipeImageUploadSchema = z.object({
+  upload: signedUploadSchema,
+  /** Public Cloudinary URL once uploaded. */
+  url: z.url(),
+})
+
+/**
+ * Hosts the CSP in `next.config.ts` lets dish photos load from. New photos are
+ * uploaded to Cloudinary; the other hosts only keep older hot-linked recipes valid.
+ */
+export const DISH_IMAGE_HOSTS = [
+  "res.cloudinary.com",
+  "upload.wikimedia.org",
+  "images.unsplash.com",
+  "images.pexels.com",
+]
 
 function isDishImageUrl(text: string) {
   try {
@@ -224,7 +243,7 @@ export const recipeFormSchema = z.object({
     .trim()
     .max(2048, "Đường dẫn dài tối đa 2048 ký tự.")
     .refine((text) => text === "" || isDishImageUrl(text), {
-      message: "Dùng đường dẫn ảnh https từ Wikimedia Commons, Unsplash hoặc Pexels.",
+      message: "Ảnh món phải được tải lên từ máy.",
     }),
   servings: wholeNumber(100, "Nhập số khẩu phần từ 1 đến 100.").refine(
     (text) => Number(text) >= 1,
