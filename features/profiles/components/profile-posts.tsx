@@ -118,6 +118,6 @@ function MyVideoCard({ post }: { post: ApiPost }) {
       <div className="flex items-start justify-between gap-2"><div className="min-w-0"><h3 className="line-clamp-2 text-sm font-bold leading-5">{title}</h3><p className="mt-1 text-xs text-muted-foreground">{post.publishedAt ? "Ngày đăng" : "Ngày tạo"}: {formattedDate}</p></div><DropdownMenu><DropdownMenuTrigger render={<Button type="button" variant="ghost" size="icon-sm" aria-label={`Tùy chọn cho ${title}`} />}><EllipsisIcon aria-hidden /></DropdownMenuTrigger><DropdownMenuContent align="end"><DropdownMenuItem onClick={() => setEditing(true)}>Chỉnh sửa</DropdownMenuItem><DropdownMenuItem disabled>Xóa bài viết · Sắp có</DropdownMenuItem></DropdownMenuContent></DropdownMenu></div>
       <div className="flex items-center justify-between gap-2"><Badge variant="secondary">{status}</Badge>{post.status === "PUBLISHED" && <Link href={postPath(post.id)} className="rounded-sm text-xs font-semibold text-primary underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-ring">Xem bài viết</Link>}</div>
     </div>
-    <EditPostDialog postId={post.id} initialBody={post.body ?? ""} hasVideo open={editing} onOpenChange={setEditing} />
+    <EditPostDialog postId={post.id} open={editing} onOpenChange={setEditing} />
   </article>
 }

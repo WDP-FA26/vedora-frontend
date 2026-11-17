@@ -362,13 +362,7 @@ export function PostMenu({ post }: { post: Post }) {
       </DropdownMenu>
       {ownPost && (
         <>
-          <EditPostDialog
-            postId={post.id}
-            initialBody={post.body}
-            hasVideo={post.kind === "media"}
-            open={editingPost}
-            onOpenChange={setEditingPost}
-          />
+          <EditPostDialog postId={post.id} open={editingPost} onOpenChange={setEditingPost} />
           <DeletePostDialog postId={post.id} open={deletingPost} onOpenChange={setDeletingPost} />
         </>
       )}

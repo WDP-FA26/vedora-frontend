@@ -72,8 +72,11 @@ function readDuration(file: File): Promise<number | null> {
  */
 export function useMediaUploads({
   onChange,
+  reserved = 0,
 }: {
   onChange: (mediaIds: string[], count: number) => void
+  /** Videos already on the post, which count toward the limit but are not uploaded here. */
+  reserved?: number
 }) {
   const { accessToken } = useAuth()
   const entries = useRef<Entry[]>([])
@@ -195,7 +198,7 @@ export function useMediaUploads({
   async function add(files: File[]) {
     if (!accessToken) return
     setError(null)
-    const room = MAX_POST_MEDIA - entries.current.length
+    const room = MAX_POST_MEDIA - reserved - entries.current.length
     if (files.length > room) {
       setError(`Mỗi bài đăng có tối đa ${MAX_POST_MEDIA} video.`)
     }

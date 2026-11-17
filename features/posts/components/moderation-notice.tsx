@@ -31,6 +31,14 @@ export function ModerationNotice({ post }: { post: ApiPost }) {
       </Notice>
     )
   }
+  if (post.status === "FAILED") {
+    return (
+      <Notice tone="destructive">
+        <ShieldAlertIcon aria-hidden className="size-4 shrink-0" />
+        Video của bài viết xử lý không thành công nên bài chưa được đăng. Hãy sửa bài để thay video khác.
+      </Notice>
+    )
+  }
   return null
 }
 

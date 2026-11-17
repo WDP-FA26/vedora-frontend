@@ -43,13 +43,15 @@ export function createPost(token: string, input: { body?: string; mediaIds?: str
 }
 
 /**
- * Edits the text of the caller's own post. The API moderates changed text
- * again, so the returned post may be `PROCESSING` until the verdict.
+ * Edits the caller's own post. `mediaIds` is the final ordered list of videos:
+ * ones already on the post to keep, plus newly uploaded ones. The API
+ * moderates changed content again, so the returned post may be `PROCESSING`
+ * until every new video is ready and the verdict is in.
  */
-export function updatePost(token: string, id: string, body: string) {
+export function updatePost(token: string, id: string, input: { body: string; mediaIds: string[] }) {
   return sendJson(apiPostSchema, postKey(id), token, {
     method: "PATCH",
-    body: JSON.stringify({ body }),
+    body: JSON.stringify(input),
   })
 }
 
