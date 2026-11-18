@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { EllipsisIcon, LogOutIcon, SettingsIcon, PenLineIcon } from "lucide-react"
+import { EllipsisIcon, LogOutIcon, PenLineIcon } from "lucide-react"
 import { cn } from "cn"
 
 import { Button } from "@/components/ui/button"
@@ -166,10 +166,6 @@ function AccountMenu() {
       <DropdownMenuContent side="top" align="start" className="w-60">
         <ThemeMenuGroup />
         <DropdownMenuSeparator />
-        <DropdownMenuItem render={<Link href="/home/settings" />}>
-          <SettingsIcon aria-hidden />
-          Cài đặt
-        </DropdownMenuItem>
         <DropdownMenuItem onClick={logout} disabled={pending}>
           <LogOutIcon aria-hidden />
           Đăng xuất
