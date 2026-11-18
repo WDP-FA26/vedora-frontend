@@ -21,6 +21,7 @@ import {
 } from "../hooks/use-messaging"
 import { messagingPath } from "../messaging-cache"
 import { messagingError } from "../lib/messaging-api"
+import { SharedPostCard } from "./shared-post-card"
 import {
   MAX_MESSAGE_LENGTH,
   type Conversation,
@@ -389,14 +390,14 @@ function Thread({
                 mine ? "items-end" : "items-start",
               )}
             >
-              <p
+              {message.sharedPostId ? <SharedPostCard message={message} /> : <p
                 className={cn(
                   "max-w-[85%] whitespace-pre-wrap wrap-anywhere rounded-2xl px-4 py-2 text-sm",
                   mine ? "bg-primary text-primary-foreground" : "bg-muted",
                 )}
               >
                 {message.body}
-              </p>
+              </p>}
               <span className="mt-1 text-[0.65rem] text-muted-foreground">
                 {new Date(message.createdAt).toLocaleTimeString("vi-VN", {
                   hour: "2-digit",
