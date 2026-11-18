@@ -27,6 +27,7 @@ import { useProcessingPost } from "@/features/posts/hooks/use-feed-posts"
 import type { ApiPost } from "@/features/posts/schemas"
 import { cn } from "@/lib/utils"
 import { Composer, EMPTY_DRAFT, type ComposerDraft } from "./composer"
+import { POST_DRAFTS_PATH } from "@/features/post-drafts/schemas"
 
 type ComposeMode = "choose" | "video" | "post"
 
@@ -66,6 +67,12 @@ export function ComposeDialog({
 
   function requestLeave(next: ComposeMode | null) {
     if (submittingRef.current) return
+    if (mode === "video" || draft.mediaCount > 0) {
+      if (next) setMode(next)
+      else close()
+      setNotice("Đã giữ bản nháp. Video tiếp tục tải; bạn có thể mở Bản nháp để xem và đăng sau.")
+      return
+    }
     if (draft.hasText || draft.mediaCount > 0) {
       setDiscardTo(next)
       setConfirmDiscard(true)
@@ -194,6 +201,7 @@ export function ComposeDialog({
             <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 py-6 sm:px-6">
               <p className="mb-5 text-sm leading-6 text-muted-foreground">Bạn muốn chia sẻ điều gì với cộng đồng Vedora?</p>
               <div className="space-y-2.5">
+                <Link href={POST_DRAFTS_PATH} onClick={close} className="block rounded-xl border border-border px-4 py-3 text-sm font-medium text-primary hover:bg-muted">Mở bản nháp đã lưu</Link>
                 <button type="button" onClick={() => setMode("post")} className="group flex w-full items-center gap-4 rounded-2xl border border-primary/20 bg-primary/5 p-4 text-left transition-colors hover:border-primary/40 hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/30">
                   <span className="flex size-12 shrink-0 items-center justify-center rounded-2xl bg-primary text-primary-foreground"><FileTextIcon aria-hidden className="size-6" /></span>
                   <span className="min-w-0 flex-1"><span className="block font-heading text-base font-bold">Bài ngắn</span><span className="mt-1 block text-xs leading-5 text-muted-foreground">Chia sẻ nhanh một mẹo, món ăn hay suy nghĩ của bạn.</span></span>
@@ -219,6 +227,7 @@ export function ComposeDialog({
                 setDraft((previous) =>
                   previous.hasText === next.hasText &&
                   previous.mediaCount === next.mediaCount
+                  && previous.id === next.id
                     ? previous
                     : next
                 )

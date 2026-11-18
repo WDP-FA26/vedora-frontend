@@ -37,8 +37,7 @@ import { Progress } from "@/components/ui/progress"
 import { Spinner } from "@/components/ui/spinner"
 import { useAuth } from "@/features/auth/hooks/use-auth"
 import { useUpsertFeedPost } from "@/features/posts/hooks/use-feed-posts"
-import { useMediaUploads } from "@/features/posts/hooks/use-media-uploads"
-import { createPost } from "@/features/posts/lib/posts-api"
+import { usePostDraft } from "@/features/post-drafts/use-post-draft"
 import { VideoPreview } from "@/features/posts/components/video-preview"
 import {
   countWords,
@@ -113,11 +112,13 @@ function durationLabel(seconds: number | null) {
 }
 
 export function VideoGuideComposer({
+  draftId,
   autoFocus,
   onPosted,
   onDraftChange,
   onSubmittingChange,
 }: {
+  draftId?: string
   autoFocus?: boolean
   onPosted?: (post: ApiPost) => void
   onDraftChange?: (draft: ComposerDraft) => void
@@ -128,8 +129,6 @@ export function VideoGuideComposer({
   const inputRef = useRef<HTMLInputElement>(null)
   const draftTextRef = useRef({ title: "", description: "" })
   const sawReplacementRef = useRef(false)
-  const [title, setTitle] = useState("")
-  const [description, setDescription] = useState("")
   const [mediaIds, setMediaIds] = useState<string[]>([])
   const [fieldErrors, setFieldErrors] = useState<{ title?: string; description?: string; video?: string }>({})
   const [submitError, setSubmitError] = useState<string | null>(null)
@@ -140,16 +139,22 @@ export function VideoGuideComposer({
   const [undoDescription, setUndoDescription] = useState<string | null>(null)
   const [replaceOriginalKey, setReplaceOriginalKey] = useState<string | null>(null)
 
-  const { uploads, error: uploadError, add, remove, release, retry } = useMediaUploads({
+  const durable = usePostDraft({
+    kind: "VIDEO", draftId,
     onChange: (ids, count) => {
       setMediaIds(ids)
       const draftText = draftTextRef.current
       onDraftChange?.({
         hasText: Boolean(draftText.title || draftText.description),
         mediaCount: count,
+        id: durable.id,
       })
     },
   })
+  const { uploads, error: uploadError, add, remove, release, retry } = durable
+  const title = durable.draft?.title ?? ""
+  const description = durable.draft?.description ?? ""
+  useEffect(() => { draftTextRef.current = { title, description } }, [title, description])
 
   const currentBody = composeBody(title, description)
   const currentWords = countWords(currentBody)
@@ -173,13 +178,13 @@ export function VideoGuideComposer({
 
   function updateText(nextTitle: string, nextDescription: string) {
     draftTextRef.current = { title: nextTitle, description: nextDescription }
-    setTitle(nextTitle)
-    setDescription(nextDescription)
+    durable.update({ title: nextTitle, description: nextDescription, body: composeBody(nextTitle, nextDescription) })
     setFieldErrors({})
     setSubmitError(null)
     onDraftChange?.({
       hasText: Boolean(nextTitle || nextDescription),
       mediaCount: uploads.length,
+      id: durable.id,
     })
   }
 
@@ -258,17 +263,13 @@ export function VideoGuideComposer({
     let postedPost: ApiPost | null = null
     try {
       // The API accepts only type POST, body and media IDs. Guide structure is plain text.
-      const post = await createPost(accessToken, {
-        body: values.data.body.trim(),
-        mediaIds: values.data.mediaIds,
-      })
+      const post = await durable.publish()
       if (post.status === "FAILED") {
         setSubmitError("Hệ thống chưa xử lý được video. Nội dung vẫn được giữ để bạn thử lại.")
         return
       }
       if (post.status === "PUBLISHED") void upsertFeedPost(post).catch(() => undefined)
       release()
-      updateText("", "")
       onDraftChange?.({ hasText: false, mediaCount: 0 })
       postedPost = post
     } catch (error) {
@@ -283,6 +284,8 @@ export function VideoGuideComposer({
     }
     if (postedPost) onPosted?.(postedPost)
   }
+
+  if (!durable.draft) return <div className="p-6 text-sm text-muted-foreground">Đang mở nháp trên thiết bị…</div>
 
   return (
     <form noValidate onSubmit={submit} className="flex min-h-0 flex-1 flex-col bg-card">
@@ -419,7 +422,7 @@ export function VideoGuideComposer({
                     </div>
                   ))}
                   <Button type="button" variant="outline" size="sm" shape="pill" onClick={selectVideo} disabled={isSubmitting || uploads.length > 1}>{replaceOriginalKey ? "Chọn video khác" : "Thay video"}</Button>
-                  {replaceOriginalKey && <p className="text-xs text-muted-foreground">Video cũ được giữ cho đến khi video mới tải lên xong.</p>}
+                  {replaceOriginalKey && <p className="text-xs text-muted-foreground">Đang lưu video thay thế vào bản nháp trên thiết bị.</p>}
                 </div>
               )}
               {(fieldErrors.video || uploadError) && <FieldError>{fieldErrors.video ?? uploadError}</FieldError>}

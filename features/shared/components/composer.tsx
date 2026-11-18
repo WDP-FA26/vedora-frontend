@@ -1,6 +1,6 @@
 "use client"
 
-import { useRef } from "react"
+import { useEffect, useRef } from "react"
 import { Controller, useForm, useWatch } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { ClapperboardIcon, ImageIcon, PlusIcon, XIcon } from "lucide-react"
@@ -20,7 +20,7 @@ import { useAuth } from "@/features/auth/hooks/use-auth"
 import { useUpsertFeedPost } from "@/features/posts/hooks/use-feed-posts"
 import { MediaGrid } from "@/features/posts/components/media-grid"
 import { VideoPreview } from "@/features/posts/components/video-preview"
-import { useMediaUploads } from "@/features/posts/hooks/use-media-uploads"
+import { usePostDraft } from "@/features/post-drafts/use-post-draft"
 import { createPost } from "@/features/posts/lib/posts-api"
 import { ApiError } from "@/features/shared/lib/api-client"
 import {
@@ -35,7 +35,7 @@ import {
 import { VideoGuideComposer } from "./video-guide-composer"
 
 /** What leaving the composer would throw away. */
-export type ComposerDraft = { hasText: boolean; mediaCount: number }
+export type ComposerDraft = { hasText: boolean; mediaCount: number; id?: string }
 
 export const EMPTY_DRAFT: ComposerDraft = { hasText: false, mediaCount: 0 }
 
@@ -55,6 +55,7 @@ function submitErrorMessage(error: unknown) {
 }
 
 type ComposerProps = {
+  draftId?: string
   mode?: "post" | "video"
   autoFocus?: boolean
   showVideoPickerInitially?: boolean
@@ -71,6 +72,7 @@ export function Composer({ mode = "post", ...props }: ComposerProps) {
 }
 
 function ShortPostComposer({
+  draftId,
   autoFocus,
   onPosted,
   onDraftChange,
@@ -87,16 +89,27 @@ function ShortPostComposer({
   const { isSubmitting, errors } = form.formState
   const body = useWatch({ control: form.control, name: "body" })
 
-  const { uploads, error: uploadError, add, retry, remove, release } = useMediaUploads({
+  const durable = usePostDraft({
+    kind: "POST", draftId,
     onChange: (ids, count) => {
       form.setValue("mediaIds", ids)
       form.clearErrors("root")
       onDraftChange?.({
         hasText: form.getValues("body").length > 0,
         mediaCount: count,
+        id: durable.id,
       })
+      if (count && !draftId) durable.update({ body: form.getValues("body") })
     },
   })
+  const { uploads, error: uploadError, add, retry, remove, release } = durable
+  const restored = useRef<string | null>(null)
+  useEffect(() => {
+    if (durable.draft && restored.current !== durable.id) {
+      restored.current = durable.id
+      if (draftId) form.reset({ body: durable.draft.body, mediaIds: [] })
+    }
+  }, [durable.id, durable.draft, draftId, form])
 
   const words = countWords(body)
   const remaining = MAX_POST_WORDS - words
@@ -117,7 +130,7 @@ function ShortPostComposer({
     onSubmittingChange?.(true)
     let postedPost: ApiPost | null = null
     try {
-      const post = await createPost(accessToken, {
+      const post = durable.hasDraft ? await durable.publish() : await createPost(accessToken, {
         body: values.body.trim() || undefined,
         mediaIds: values.mediaIds.length > 0 ? values.mediaIds : undefined,
       })
@@ -170,10 +183,12 @@ function ShortPostComposer({
                 {...field}
                 onChange={(event) => {
                   field.onChange(event)
+                  if (durable.hasDraft) durable.update({ body: event.target.value })
                   form.clearErrors("root")
                   onDraftChange?.({
                     hasText: event.target.value.length > 0,
                     mediaCount: uploads.length,
+                    id: durable.id,
                   })
                 }}
                 id={field.name}
@@ -283,6 +298,7 @@ function ShortPostComposer({
       </div>
 
       <div className="shrink-0 border-t border-border/70 bg-card px-5 pt-3 pb-[max(1rem,env(safe-area-inset-bottom))] sm:px-6 sm:pb-5">
+        {uploads.length > 0 && <p className="mb-3 text-xs text-muted-foreground">Bạn có thể đóng form để tiếp tục lướt. Video được giữ ở Bản nháp và chỉ đăng khi bạn bấm Đăng.</p>}
         {errors.root && <FieldError className="mb-3" errors={[errors.root]} />}
         <div className="flex items-center justify-between gap-3">
           <div className="flex items-center gap-1 text-primary">

@@ -3,6 +3,7 @@
 import { useTransition } from "react"
 
 import { logout } from "@/features/auth/actions"
+import { useDisconnectPostDrafts } from "@/features/post-drafts/provider"
 
 /**
  * Revokes the session on the API, clears the cookies, then goes to `/login`.
@@ -11,8 +12,9 @@ import { logout } from "@/features/auth/actions"
  */
 export function useLogout() {
   const [pending, startTransition] = useTransition()
+  const disconnectDrafts = useDisconnectPostDrafts()
   return {
     pending,
-    logout: () => startTransition(() => logout()),
+    logout: () => { disconnectDrafts?.(); startTransition(() => logout()) },
   }
 }

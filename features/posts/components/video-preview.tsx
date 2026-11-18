@@ -36,7 +36,7 @@ export function VideoPreview({
     >
       <video
         slot="media"
-        src={src}
+        src={src || undefined}
         muted
         playsInline
         preload="metadata"

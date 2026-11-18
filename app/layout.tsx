@@ -10,6 +10,7 @@ import { SWRProvider } from "@/components/swr-provider";
 import { SITE_LOCALE, SITE_NAME, SITE_URL } from "@/lib/site";
 import "./globals.css";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { PostDraftProvider } from "@/features/post-drafts/provider";
 
 const sourceSans = Source_Sans_3({
   variable: "--font-sans",
@@ -61,7 +62,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
           disableTransitionOnChange
         >
           <SWRProvider>
-            <TooltipProvider>{children}</TooltipProvider>
+            <PostDraftProvider><TooltipProvider>{children}</TooltipProvider></PostDraftProvider>
           </SWRProvider>
         </ThemeProvider>
       </body>

@@ -61,7 +61,7 @@ export const blogSummarySchema = z.object({
 export const apiPostSchema = z.object({
   id: z.string(),
   type: z.enum(["POST", "BLOG"]),
-  /** `DRAFT` is for blogs only, and only their author ever sees one. */
+  /** `DRAFT` belongs to its author and is never included in the public feed. */
   status: z.enum(["DRAFT", "PROCESSING", "PENDING_REVIEW", "PUBLISHED", "FAILED", "REJECTED"]),
   /** Why a `REJECTED` post was blocked by content moderation. */
   moderationVerdict: z.string().nullable().optional(),
