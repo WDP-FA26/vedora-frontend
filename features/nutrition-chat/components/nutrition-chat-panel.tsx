@@ -31,7 +31,7 @@ import { AgentSources, AgentTrace, hasTrace } from "@/features/shared/components
 import { LogoMark } from "@/features/shared/components/wordmark"
 import {
   messageText,
-  useNutritionChat,
+  type useNutritionChat,
 } from "@/features/nutrition-chat/hooks/use-nutrition-chat"
 import {
   startGuestSession,
@@ -70,9 +70,14 @@ function AssistantMessage({ children }: { children: ReactNode }) {
 }
 
 /** Body of the pet's chat popover: header, conversation and composer. */
-export function NutritionChatPanel({ onClose }: { onClose: () => void }) {
-  const { messages, busy, thinking, pendingId, streamingId, error, limit, ready, send, reset } =
-    useNutritionChat()
+export function NutritionChatPanel({
+  onClose,
+  chat,
+}: {
+  onClose: () => void
+  chat: ReturnType<typeof useNutritionChat>
+}) {
+  const { messages, busy, thinking, pendingId, streamingId, error, limit, ready, send, reset } = chat
   const [verifyFailed, setVerifyFailed] = useState(false)
   const form = useForm<ChatMessageValues>({
     resolver: zodResolver(chatMessageSchema),
@@ -87,7 +92,8 @@ export function NutritionChatPanel({ onClose }: { onClose: () => void }) {
   })
 
   return (
-    <div className="flex h-full min-h-0 flex-col gap-4">
+    // Let wheel/touch events scroll the transcript natively instead of driving landing-page Lenis.
+    <div data-lenis-prevent className="flex h-full min-h-0 flex-col gap-4">
       <header className="-mx-2.5 flex items-center gap-2 border-b border-border px-2.5 pb-2.5">
         <PopoverTitle className="min-w-0 flex-1">Trợ lý Vedora</PopoverTitle>
         <Button variant="ghost" size="icon-sm" aria-label="Bắt đầu lại" onClick={reset}>
@@ -100,7 +106,7 @@ export function NutritionChatPanel({ onClose }: { onClose: () => void }) {
 
       <MessageScrollerProvider autoScroll defaultScrollPosition="end">
         <MessageScroller className="flex-1">
-          <MessageScrollerViewport aria-label="Cuộc trò chuyện" scrollbar="hidden">
+          <MessageScrollerViewport aria-label="Cuộc trò chuyện" tabIndex={0} scrollbar="hidden">
             <MessageScrollerContent>
               {messages.map((message) => {
                 const text = messageText(message)
@@ -241,7 +247,7 @@ export function NutritionChatPanel({ onClose }: { onClose: () => void }) {
                   placeholder="Hỏi về dinh dưỡng…"
                   maxLength={MAX_CHAT_MESSAGE_LENGTH}
                   rows={1}
-                  className="max-h-28 min-h-0"
+                  className="max-h-28 min-h-0 overscroll-contain"
                   onKeyDown={(event) => {
                     if (event.key !== "Enter" || event.shiftKey || event.nativeEvent.isComposing) return
                     event.preventDefault()
