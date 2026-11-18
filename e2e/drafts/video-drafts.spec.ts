@@ -133,7 +133,7 @@ async function draftApi(context: BrowserContext) {
           status: "PUBLISHED",
           createdAt: new Date().toISOString(),
           publishedAt: new Date().toISOString(),
-          author: users.member,
+          author: { ...users.member, isProfessional: false },
           media: draft.media,
           commentCount: 0,
           likeCount: 0,
