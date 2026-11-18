@@ -8,9 +8,16 @@ import {
   fetchEventSource,
 } from "@microsoft/fetch-event-source"
 import { useAuth } from "@/features/auth/hooks/use-auth"
-import { MESSAGING_CONNECTION_KEY } from "../messaging-cache"
+import {
+  MESSAGING_CONNECTION_KEY,
+  MESSAGING_PATH,
+  messagingPath,
+} from "../messaging-cache"
 import { MESSAGING_STREAM_URL } from "../lib/messaging-api"
-import { invalidateMessaging } from "../lib/invalidate-messaging"
+import {
+  forgetMessageRequest,
+  invalidateMessaging,
+} from "../lib/invalidate-messaging"
 import { messagingEventSchema } from "../schemas"
 
 class FatalStreamError extends Error {}
@@ -104,11 +111,29 @@ export function useMessagingStream() {
               "message.created",
               "conversation.read",
               "relationship.changed",
+              "request.accepted",
+              "request.deleted",
             ].includes(event.event)
           )
             return
           const parsed = messagingEventSchema.safeParse(JSON.parse(event.data))
-          if (parsed.success)
+          if (
+            parsed.success &&
+            event.event === "request.deleted" &&
+            parsed.data.conversationId
+          ) {
+            const id = parsed.data.conversationId
+            void forgetMessageRequest(mutate, accessToken, id)
+              .then(() => refresh(id))
+              .catch(() => undefined)
+            if (
+              window.location.pathname === MESSAGING_PATH &&
+              new URLSearchParams(window.location.search).get(
+                "conversation",
+              ) === id
+            )
+              router.replace(messagingPath({ box: "requests" }))
+          } else if (parsed.success)
             refresh(
               parsed.data.conversationId ?? undefined,
               event.event === "message.created",
