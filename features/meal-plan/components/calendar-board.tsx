@@ -87,8 +87,6 @@ type CalendarBoardProps = {
   suggestion?: MealPlanProposal | null
   /** Brings the chat, where the proposal's card is, into view. */
   onOpenChat?: () => void
-  /** A failure from outside the grid, such as copying last week. */
-  weekError?: string | null
   /** Applies the new content of one or more meal slots; rejects with a user-facing message. */
   onChange: (changes: SlotChange[]) => Promise<void>
   onAsk?: (recipe: RecipeRef, day: Weekday, section: MealSection) => void
@@ -128,7 +126,6 @@ export function CalendarBoard({
   failed,
   suggestion = null,
   onOpenChat,
-  weekError = null,
   onChange,
   onAsk,
   onSuggestSlot,
@@ -155,7 +152,6 @@ export function CalendarBoard({
 
   const overlay = suggestion
   const locked = overlay !== null
-  const shownError = error ?? weekError
   const view = displayDays(plan, overlay)
   const warnings = plan && !locked ? dishWarnings(plan.problems) : new Map<string, string[]>()
 
@@ -294,10 +290,10 @@ export function CalendarBoard({
           </Alert>
         </div>
       )}
-      {shownError && (
+      {error && (
         <div className="px-4 pt-4 sm:px-5">
           <p role="alert" className="rounded-xl border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
-            {shownError}
+            {error}
           </p>
         </div>
       )}

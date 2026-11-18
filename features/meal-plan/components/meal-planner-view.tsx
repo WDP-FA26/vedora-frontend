@@ -23,7 +23,6 @@ import {
   type Proposal,
 } from "@/features/meal-plan/hooks/use-meal-planner-chat"
 import {
-  copyMealWeek,
   DAY_LABELS,
   discardMealDraft,
   formatDayMonth,
@@ -136,17 +135,6 @@ function calendarErrorMessage(error: unknown) {
   return "Không lưu được thay đổi. Hãy thử lại."
 }
 
-/** What went wrong copying a week, in words the user can act on. */
-function copyErrorMessage(error: unknown) {
-  if (error instanceof ApiError && error.code === "MEAL_DAY_LOCKED") return "Các ngày của tuần này đã qua nên không sao chép được."
-  if (error instanceof ApiError && error.code === "MEAL_WEEK_NOT_EMPTY") return "Tuần này đã có món. Hãy thử sao chép lại."
-  const problems = error instanceof ApiError ? z.array(problemSchema).safeParse(error.details?.problems) : null
-  if (problems?.success && problems.data.length > 0) {
-    return `Tuần trước có món bạn không ăn được: ${problems.data.map(problemText).join(" ")} Hãy sửa món đó rồi sao chép lại.`
-  }
-  return "Không sao chép được thực đơn. Hãy thử lại."
-}
-
 /** True when `onlyEmpty` was requested and every target slot already has at least one dish. */
 function allRequestedSlotsFilled(plan: MealPlan | undefined, request: GenerateInput): boolean {
   if (!request.onlyEmpty || !plan) return false
@@ -181,14 +169,12 @@ export function MealPlannerView() {
   const [applyErrors, setApplyErrors] = useState<Record<string, string>>({})
   /** Passed days a saved proposal could not keep, by proposal id. */
   const [skippedDays, setSkippedDays] = useState<Record<string, string[]>>({})
-  const [weekError, setWeekError] = useState<string | null>(null)
   const [askContext, setAskContext] = useState<AskContext | null>(null)
   const [prefill, setPrefill] = useState<{ text: string; nonce: number; fromForm?: boolean } | null>(null)
   const [formSeed, setFormSeed] = useState<{ text: string; nonce: number } | null>(null)
   const [requestOpen, setRequestOpen] = useState(false)
   const [formHandoffState, setFormHandoffState] = useState<"editing" | "prepared" | "sent">("editing")
   const [formSentAtCount, setFormSentAtCount] = useState<number | null>(null)
-  const [copying, setCopying] = useState(false)
   const restrictions = useAuthedSWR(MY_DIETARY_KEY, fetchMyDietary)
   // The calendar previews what a card would change in the week on screen.
   const chatSuggestion = chat.pendingProposals.find((proposal) => proposal.weekStart === weekStart) ?? null
@@ -234,33 +220,10 @@ export function MealPlannerView() {
   /** Proposals live in the chat and keep their own week, so switching weeks loses nothing. */
   function showWeek(next: string) {
     if (next !== weekStart) {
-      setWeekError(null)
       setRequestOpen(false)
       writeWeek(next === plan.data?.currentWeekStart ? undefined : next)
     }
     setTab("calendar")
-  }
-
-  async function copyFromPreviousWeek() {
-    const current = plan.data
-    if (!accessToken || !current || copying) return
-    const source = shiftWeek(current.weekStart, -1)
-    // Only days that may still change count: the server leaves the others alone.
-    const overwrite = current.days.some(
-      ({ editable, sections }) => editable && sections.some(({ recipes }) => recipes.length > 0)
-    )
-    if (overwrite && !window.confirm("Tuần này đã có món. Thay bằng thực đơn của tuần trước?")) return
-    setCopying(true)
-    setWeekError(null)
-    try {
-      const copied = await copyMealWeek(accessToken, source, current.weekStart, overwrite)
-      await plan.mutate(copied, { revalidate: false })
-    } catch (error) {
-      if (error instanceof ApiError && error.status === 401) router.refresh()
-      setWeekError(copyErrorMessage(error))
-    } finally {
-      setCopying(false)
-    }
   }
 
   async function generate(request: GenerateInput): Promise<string | null> {
@@ -501,7 +464,6 @@ export function MealPlannerView() {
                 failed={Boolean(plan.error)}
                 suggestion={suggestion}
                 onOpenChat={openChat}
-                weekError={weekError}
                 onChange={changeCalendar}
                 onRetry={() => void plan.mutate()}
                 onAsk={askAboutRecipe}
@@ -513,8 +475,6 @@ export function MealPlannerView() {
                     onPrevious={() => plan.data && showWeek(shiftWeek(plan.data.weekStart, -1))}
                     onNext={() => plan.data && showWeek(shiftWeek(plan.data.weekStart, 1))}
                     onToday={() => plan.data && showWeek(plan.data.currentWeekStart)}
-                    onCopyPrevious={() => void copyFromPreviousWeek()}
-                    copying={copying}
                   />
                 }
                 leading={

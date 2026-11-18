@@ -356,22 +356,9 @@ export function saveMealDays(token: string, weekStart: string, days: MealDayInpu
   })
 }
 
-/** `POST /meal-plan/copy`: refused with `MEAL_WEEK_NOT_EMPTY` unless `overwrite` replaces the target's dishes. */
 /** `DELETE /meal-plan/draft`: drops the assistant's unsaved draft of one week. */
 export async function discardMealDraft(token: string, weekStart: string) {
   await send(`${MEAL_PLAN_URL}/draft?weekStart=${weekStart}`, token, { method: "DELETE" })
-}
-
-export function copyMealWeek(
-  token: string,
-  fromWeekStart: string,
-  toWeekStart: string,
-  overwrite: boolean
-) {
-  return sendJson(mealPlanSchema, `${MEAL_PLAN_URL}/copy`, token, {
-    method: "POST",
-    body: JSON.stringify({ fromWeekStart, toWeekStart, overwrite }),
-  })
 }
 
 /** The list of one week for `days`, in week order; all seven days is the API default, so no `days` query. */

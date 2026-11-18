@@ -1,6 +1,6 @@
 "use client"
 
-import { ChevronLeftIcon, ChevronRightIcon, CopyIcon } from "lucide-react"
+import { ChevronLeftIcon, ChevronRightIcon } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Spinner } from "@/components/ui/spinner"
@@ -14,17 +14,13 @@ type WeekNavProps = {
   onPrevious: () => void
   onNext: () => void
   onToday: () => void
-  /** Copies the week before this one onto it. */
-  onCopyPrevious: () => void
-  copying: boolean
 }
 
 /** Moves between weeks within the range the server allows; never decides that range itself. */
-export function WeekNav({ plan, loading, onPrevious, onNext, onToday, onCopyPrevious, copying }: WeekNavProps) {
+export function WeekNav({ plan, loading, onPrevious, onNext, onToday }: WeekNavProps) {
   const isCurrent = plan !== undefined && plan.weekStart === plan.currentWeekStart
   const canGoBack = plan !== undefined && plan.weekStart > plan.minWeekStart
   const canGoForward = plan !== undefined && plan.weekStart < plan.maxWeekStart
-  const canCopy = plan !== undefined && plan.editable
 
   return (
     <nav aria-label="Chọn tuần" className="flex w-full min-w-0 flex-wrap items-center gap-2">
@@ -56,12 +52,6 @@ export function WeekNav({ plan, loading, onPrevious, onNext, onToday, onCopyPrev
         </Button>
       )}
       {isCurrent && <span className="rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">Tuần này</span>}
-      {canCopy && (
-        <Button variant="outline" size="sm" className="ml-auto" disabled={copying} onClick={onCopyPrevious}>
-          {copying ? <Spinner aria-hidden /> : <CopyIcon aria-hidden />}
-          Sao chép từ tuần trước
-        </Button>
-      )}
     </nav>
   )
 }
