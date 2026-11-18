@@ -5,11 +5,14 @@ import {
   BellIcon,
   CheckCheckIcon,
   CircleCheckIcon,
+  FlagIcon,
+  FlagOffIcon,
   HeartIcon,
   HourglassIcon,
   MessageCircleIcon,
   Repeat2Icon,
   ShieldAlertIcon,
+  Trash2Icon,
   UserPlusIcon,
 } from "lucide-react"
 import { cn } from "cn"
@@ -40,7 +43,18 @@ const ICONS = {
   POST_PENDING_REVIEW: HourglassIcon,
   POST_APPROVED: CircleCheckIcon,
   POST_REJECTED: ShieldAlertIcon,
+  POST_REMOVED: Trash2Icon,
+  REPORT_RESOLVED: FlagIcon,
+  REPORT_DISMISSED: FlagOffIcon,
+  REPORTED_POST_REMOVED: FlagIcon,
 } as const
+
+/** Only moderation results carry an admin's note; removals carry the post excerpt instead. */
+const ADMIN_NOTE_TYPES = new Set<ApiNotification["type"]>([
+  "POST_PENDING_REVIEW",
+  "POST_APPROVED",
+  "POST_REJECTED",
+])
 
 function hrefFor(notification: ApiNotification) {
   const { postId, type, postType, actor } = notification
@@ -108,7 +122,7 @@ export function NotificationsView() {
                       <p className={cn("text-sm", notification.actor && "mt-1.5")}>
                         <span className="font-bold">{from}</span> {text}
                       </p>
-                      {notification.note && (
+                      {notification.note && ADMIN_NOTE_TYPES.has(notification.type) && (
                         <p className="mt-1 text-sm text-muted-foreground">
                           Ghi chú từ quản trị viên: {notification.note}
                         </p>
