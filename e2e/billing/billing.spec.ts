@@ -176,6 +176,49 @@ test.describe("payment page", () => {
     await expect(page.getByText("Chờ chuyển khoản")).toBeVisible()
   })
 
+  test("counts down using the server deadline and keeps the same deadline after reload", async ({ page }) => {
+    const serverTime = new Date().toISOString()
+    const expiresAt = new Date(Date.parse(serverTime) + 90_000).toISOString()
+    await mockApi(page, `/payment-intents/${PAYMENT_IDS.pending}`, () => ({
+      body: { ...payment("PENDING", PAYMENT_IDS.pending), serverTime: new Date().toISOString(), expiresAt },
+    }))
+    await page.goto(`/payment/${PAYMENT_IDS.pending}`)
+    const timer = page.getByRole("timer")
+    await expect(timer).toHaveText(/01:[0-3]\d/)
+    await expect(timer).not.toHaveText("01:30", { timeout: 5000 })
+    await page.reload()
+    await expect(timer).toHaveText(/01:[0-2]\d/)
+  })
+
+  test("hides the QR and refreshes payment status when the countdown reaches zero", async ({ page }) => {
+    let deadline: string | undefined
+    const checks = await mockApi(page, `/payment-intents/${PAYMENT_IDS.pending}`, () => {
+      deadline ??= new Date(Date.now() + 5000).toISOString()
+      const expired = Date.now() >= Date.parse(deadline)
+      return { body: {
+        ...payment(expired ? "CANCELLED" : "PENDING", PAYMENT_IDS.pending),
+        expiresAt: deadline,
+        cancellationReason: expired ? "EXPIRED" : null,
+      } }
+    })
+    await page.goto(`/payment/${PAYMENT_IDS.pending}`)
+    await expect(page.getByRole("timer")).toBeVisible()
+    await expect(page.getByText(/Đơn thanh toán đã hết hạn sau 30 phút/)).toBeVisible({ timeout: 10_000 })
+    await expect(page.getByRole("img", { name: /QR chuyển khoản/ })).toHaveCount(0)
+    await expect(page.getByRole("link", { name: "Tạo đơn thanh toán mới" })).toHaveAttribute("href", "/billing")
+    expect(checks.length).toBeGreaterThan(1)
+  })
+
+  test("uses server time when the browser clock is incorrect", async ({ page }) => {
+    await page.clock.setFixedTime(new Date("2035-01-01T00:00:00Z"))
+    await mockApi(page, `/payment-intents/${PAYMENT_IDS.pending}`, () => ({
+      body: payment("PENDING", PAYMENT_IDS.pending),
+    }))
+    await page.goto(`/payment/${PAYMENT_IDS.pending}`)
+    await expect(page.getByRole("timer")).toHaveText(/19:\d{2}|20:00/)
+    await expect(page.getByRole("img", { name: /QR chuyển khoản/ })).toBeVisible()
+  })
+
   test("a pending payment flips to confirmed once the status poll sees it", async ({ page }) => {
     // The live stream is only a keep-alive in the mock, so the page falls back to polling.
     let paid = false
