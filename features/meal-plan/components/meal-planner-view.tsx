@@ -280,7 +280,7 @@ export function MealPlannerView() {
               action={
                 <div className="flex flex-wrap gap-2">
                   <ShoppingListButton hasUnsavedChanges={Boolean(draft || suggestion)} plannedDays={plannedDays} />
-                  <Button variant="outline" size="sm" onClick={() => startPlanning()}>Lên thực đơn</Button>
+                  <Button variant="outline" size="sm" onClick={() => startPlanning()}><CalendarDaysIcon aria-hidden /> Lên thực đơn</Button>
                 </div>
               }
               draft={draft}
