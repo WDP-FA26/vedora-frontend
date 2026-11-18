@@ -16,6 +16,10 @@ const cloudinaryCdn = "https://res.cloudinary.com";
 // CldVideoPlayer loads its pinned player build from unpkg. Its source map is
 // fetched through connect-src, so the same path is allowed there too.
 const cloudinaryPlayer = "https://unpkg.com/cloudinary-video-player@1.11.1/";
+// The player also loads its stylesheet from unpkg (style-src) and reports
+// playback analytics and resolves its source through this API (connect-src).
+const cloudinaryPlayerStyles = "https://unpkg.com/cloudinary-video-player@1.11.1/dist/cld-video-player.min.css";
+const cloudinaryAnalytics = "https://analytics-api-s.cloudinary.com";
 const storageOrigin = new URL(PUBLIC_ENV.storageUrl).origin;
 // Dish photos are hot-linked, not stored: only these free-licence hosts may serve them.
 // Keep in sync with DISH_IMAGE_HOSTS in features/recipes/schemas.ts.
@@ -31,11 +35,11 @@ const turnstile = "https://challenges.cloudflare.com";
 const csp = [
   "default-src 'self'",
   `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ""} ${cloudinaryPlayer} ${turnstile}${toolbar("https://vercel.live")}`,
-  `style-src 'self' 'unsafe-inline'${toolbar("https://vercel.live")}`,
+  `style-src 'self' 'unsafe-inline' ${cloudinaryPlayerStyles}${toolbar("https://vercel.live")}`,
   `img-src 'self' blob: data: ${cloudinaryCdn} ${storageOrigin} https://vietqr.app ${dishImages}${toolbar("https://vercel.live", "https://vercel.com")}`,
   // The Cloudinary player's icon font is inlined as a data: URI.
   `font-src 'self' data:${toolbar("https://vercel.live", "https://assets.vercel.com")}`,
-  `connect-src 'self' ${apiOrigin} ${cloudinaryUpload} ${cloudinaryCdn} ${storageOrigin} ${cloudinaryPlayer}${toolbar("https://vercel.live", "wss://ws-us3.pusher.com")}`,
+  `connect-src 'self' ${apiOrigin} ${cloudinaryUpload} ${cloudinaryCdn} ${cloudinaryAnalytics} ${storageOrigin} ${cloudinaryPlayer}${toolbar("https://vercel.live", "wss://ws-us3.pusher.com")}`,
   `media-src 'self' blob: ${cloudinaryCdn}`,
   "worker-src 'self' blob:",
   `frame-src 'self' ${storageOrigin} ${turnstile}${toolbar("https://vercel.live")}`,
