@@ -17,6 +17,7 @@ import { useLogout } from "@/features/auth/hooks/use-logout"
 import { isNavItemCurrent, NavLinks } from "./left-nav"
 import { navItems } from "@/features/shared/data/nav-items"
 import { Wordmark } from "./wordmark"
+import { UnreadMessagesBadge } from "@/features/messaging/components/unread-messages-badge"
 
 /** Phone-only header row: account drawer, mark, search. */
 export function MobileTopBar() {
@@ -147,7 +148,10 @@ function MobileNavItem({
           current && "text-primary"
         )}
       >
-        <Icon aria-hidden className="size-6" strokeWidth={current ? 2.25 : 1.75} />
+        <span className="relative">
+          <Icon aria-hidden className="size-6" strokeWidth={current ? 2.25 : 1.75} />
+          {item.href === "/home/messages" && <UnreadMessagesBadge />}
+        </span>
       </Link>
     </li>
   )
