@@ -8,11 +8,18 @@ import { send, sendJson } from "@/features/shared/lib/api-client"
 
 export const MEAL_PLANNER_PATH = "/meal-planner"
 
-/** The SWR key is `[url, accessToken]`. */
-export const MEAL_PLAN_KEY = `${API_URL}/meal-plan`
+const MEAL_PLAN_URL = `${API_URL}/meal-plan`
+
+/**
+ * The SWR key is `[url, accessToken]`. A week is its Monday as `YYYY-MM-DD`;
+ * without one the API answers for the current week, so the key has no query.
+ */
+export function mealPlanKey(weekStart?: string) {
+  return weekStart ? `${MEAL_PLAN_URL}?weekStart=${weekStart}` : MEAL_PLAN_URL
+}
 export const MEAL_PLANNER_CHAT_URL = `${API_URL}/meal-plan/chat`
 export const MEAL_PLANNER_CHAT_THREADS_KEY = `${API_URL}/meal-plan/chat/threads`
-export const SHOPPING_LIST_KEY = `${API_URL}/meal-plan/shopping-list`
+const SHOPPING_LIST_URL = `${API_URL}/meal-plan/shopping-list`
 
 export const WEEKDAYS = ["MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"] as const
 export const MEAL_SECTIONS = ["BREAKFAST", "LUNCH", "DINNER", "OTHER"] as const
@@ -70,9 +77,25 @@ export const problemSchema = z.object({
 })
 
 const mealPlanSchema = z.object({
+  /** Monday of this week. */
+  weekStart: z.string(),
+  /** Monday of the week that holds today. */
+  currentWeekStart: z.string(),
+  /** Today in the app time zone, `YYYY-MM-DD`. */
+  today: z.string(),
+  /** Earliest week worth browsing back to. */
+  minWeekStart: z.string(),
+  /** Last week a plan may be made for. */
+  maxWeekStart: z.string(),
+  /** False once the whole week is over. */
+  editable: z.boolean(),
   days: z.array(
     z.object({
       day: daySchema,
+      /** Calendar date of this day, `YYYY-MM-DD`. */
+      date: z.string(),
+      /** False for a day before today: it can only be read. */
+      editable: z.boolean(),
       sections: z.array(
         z.object({ section: sectionSchema, recipes: z.array(mealRecipeSchema) })
       ),
@@ -89,6 +112,8 @@ const recipeRefSchema = z.object({
 
 /** Output of the planner's `proposeMealPlan` tool: checked, not saved. */
 export const proposalSchema = z.object({
+  /** The week the proposal is for. Missing on proposals saved before plans were weekly. */
+  weekStart: z.string().optional(),
   ok: z.boolean(),
   days: z.array(
     z.object({
@@ -110,6 +135,7 @@ export const proposalSchema = z.object({
  * the plan it adds its full quantities, not scaled per person.
  */
 export const shoppingListSchema = z.object({
+  weekStart: z.string(),
   days: z.array(daySchema),
   quantityBasis: z.literal("RECIPE_PER_OCCURRENCE"),
   items: z.array(
@@ -139,6 +165,7 @@ export type MealRecipe = z.infer<typeof mealRecipeSchema>
 export type MealPlan = z.infer<typeof mealPlanSchema>
 export type MealPlanProblem = z.infer<typeof problemSchema>
 export type MealPlanProposal = z.infer<typeof proposalSchema>
+export type PlannedDay = MealPlan["days"][number]
 export type ShoppingList = z.infer<typeof shoppingListSchema>
 export type ShoppingItem = ShoppingList["items"][number]
 /** The complete new content of one day, as `PUT /meal-plan/days` takes it. */
@@ -243,12 +270,12 @@ export function planAfterChanges(plan: MealPlan, changes: SlotChange[]): MealPla
     }
   }
 
-  const days = WEEKDAYS.map((day) => {
+  const days = plan.days.map((planned) => {
     const sections = MEAL_SECTIONS.map((section) => ({
       section,
-      recipes: recipesAt(plan, { day, section }),
+      recipes: recipesAt(plan, { day: planned.day, section }),
     }))
-    return { day, sections }
+    return { ...planned, sections }
   })
 
   for (const change of changes) {
@@ -263,7 +290,7 @@ export function planAfterChanges(plan: MealPlan, changes: SlotChange[]): MealPla
     if (!section) return null
     section.recipes = recipes
   }
-  return { days, problems: plan.problems }
+  return { ...plan, days }
 }
 
 const recipeSearchSchema = z.object({
@@ -293,6 +320,8 @@ export function fetchMealPlan([url, token]: readonly [string, string]) {
 
 /** Mirrors `GenerateMealDaysDto`: the algorithm picks one dish per chosen slot. */
 export type GenerateRequest = {
+  /** Monday of the week to fill. */
+  weekStart: string
   days: Weekday[]
   sections: MealSection[]
   /** Keep every slot that already has a dish. */
@@ -302,6 +331,9 @@ export type GenerateRequest = {
   query?: string
 }
 
+/** What the form asks for; the week it applies to is added when it is sent. */
+export type GenerateInput = Omit<GenerateRequest, "weekStart">
+
 export const MAX_GENERATE_QUERY_LENGTH = 100
 
 const generatedSchema = proposalSchema
@@ -310,26 +342,39 @@ const generatedSchema = proposalSchema
 
 /** `POST /meal-plan/generate`: a checked preview, nothing saved. `days` is empty when no dish fits. */
 export async function generateMealDays(token: string, request: GenerateRequest) {
-  const preview = await sendJson(generatedSchema, `${MEAL_PLAN_KEY}/generate`, token, {
+  const preview = await sendJson(generatedSchema, `${MEAL_PLAN_URL}/generate`, token, {
     method: "POST",
     body: JSON.stringify(request),
   })
   return { days: preview.days, ok: preview.problems.length === 0 }
 }
 
-export function saveMealDays(token: string, days: MealDayInput[]) {
-  return sendJson(mealPlanSchema, `${MEAL_PLAN_KEY}/days`, token, {
+export function saveMealDays(token: string, weekStart: string, days: MealDayInput[]) {
+  return sendJson(mealPlanSchema, `${MEAL_PLAN_URL}/days`, token, {
     method: "PUT",
-    body: JSON.stringify({ days }),
+    body: JSON.stringify({ weekStart, days }),
   })
 }
 
-/** The list for `days`, in week order; all seven is the API default, so no query. */
-export function shoppingListKey(days: readonly Weekday[]) {
+/** `POST /meal-plan/copy`: refused with `MEAL_WEEK_NOT_EMPTY` unless `overwrite` replaces the target's dishes. */
+export function copyMealWeek(
+  token: string,
+  fromWeekStart: string,
+  toWeekStart: string,
+  overwrite: boolean
+) {
+  return sendJson(mealPlanSchema, `${MEAL_PLAN_URL}/copy`, token, {
+    method: "POST",
+    body: JSON.stringify({ fromWeekStart, toWeekStart, overwrite }),
+  })
+}
+
+/** The list of one week for `days`, in week order; all seven days is the API default, so no `days` query. */
+export function shoppingListKey(weekStart: string, days: readonly Weekday[]) {
   const picked = WEEKDAYS.filter((day) => days.includes(day))
-  return picked.length === WEEKDAYS.length
-    ? SHOPPING_LIST_KEY
-    : `${SHOPPING_LIST_KEY}?days=${picked.join(",")}`
+  const params = new URLSearchParams({ weekStart })
+  if (picked.length !== WEEKDAYS.length) params.set("days", picked.join(","))
+  return `${SHOPPING_LIST_URL}?${params.toString()}`
 }
 
 export function fetchShoppingList([url, token]: readonly [string, string]) {
@@ -428,4 +473,43 @@ export async function deleteChatThread(token: string, threadId: string) {
   await send(`${MEAL_PLANNER_CHAT_THREADS_KEY}/${threadId}`, token, {
     method: "DELETE",
   })
+}
+
+/** `2026-11-16` → `16/11`. */
+export function formatDayMonth(date: string) {
+  const [, month, day] = date.split("-")
+  return `${Number(day)}/${Number(month)}`
+}
+
+/** Day of the month of a `YYYY-MM-DD` date. */
+export function dayOfMonth(date: string) {
+  return Number(date.split("-")[2])
+}
+
+/** `16/11 – 22/11/2026` for a week's seven days. */
+export function weekRangeLabel(plan: MealPlan) {
+  const first = plan.days[0]
+  const last = plan.days[plan.days.length - 1]
+  if (!first || !last) return ""
+  return `${formatDayMonth(first.date)} – ${formatDayMonth(last.date)}/${last.date.split("-")[0]}`
+}
+
+/** Monday of the week `weeks` after (or before, when negative) the week starting `weekStart`. */
+export function shiftWeek(weekStart: string, weeks: number) {
+  const [year, month, day] = weekStart.split("-").map(Number)
+  const shifted = new Date(Date.UTC(year, month - 1, day + weeks * 7))
+  return shifted.toISOString().slice(0, 10)
+}
+
+/** The weekday of `plan` that is today, or undefined when today is not in this week. */
+export function todayOf(plan: MealPlan): Weekday | undefined {
+  return plan.days.find(({ date }) => date === plan.today)?.day
+}
+
+export function editableDaysOf(plan: MealPlan): Weekday[] {
+  return plan.days.filter(({ editable }) => editable).map(({ day }) => day)
+}
+
+export function isDayEditable(plan: MealPlan, day: Weekday) {
+  return plan.days.find((item) => item.day === day)?.editable ?? false
 }

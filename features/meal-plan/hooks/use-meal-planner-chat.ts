@@ -61,7 +61,7 @@ export function mergeProposals(open: Proposal[]): Proposal | null {
       mergedIds.push(id)
     }
   }
-  return { id: last.id, ok: true, days: last.days, mergedIds }
+  return { id: last.id, ok: true, weekStart: last.weekStart, days: last.days, mergedIds }
 }
 
 /** The planner's tools whose output is a proposal card. */
@@ -228,6 +228,7 @@ const transport = new DefaultChatTransport<PlannerMessage>({
     return {
       headers,
       body: {
+        weekStart: body?.weekStart,
         ...(threadId ? { threadId } : {}),
         requestId: messages.filter((message) => message.role === "user").at(-1)?.id,
         messages: withoutRefusals(messages.filter((message) => message.id !== WELCOME.id))
@@ -256,8 +257,12 @@ function errorMessage(error: Error) {
   return "Mình chưa trả lời được. Thử lại nhé."
 }
 
-/** The conversation with vedora-api's `POST /meal-plan/chat` and persisted threads. */
-export function useMealPlannerChat() {
+/**
+ * The conversation with vedora-api's `POST /meal-plan/chat` and persisted threads.
+ * It plans one week, `weekStart` (Monday, `YYYY-MM-DD`): undefined while that week is
+ * still loading, and then nothing can be sent.
+ */
+export function useMealPlannerChat(weekStart: string | undefined) {
   const router = useRouter()
   const { accessToken } = useAuth()
   const [threadId, setThreadId] = useState<string>(() => crypto.randomUUID())
@@ -436,14 +441,18 @@ export function useMealPlannerChat() {
   const replying =
     busy && last?.role === "assistant" && messageText(last) !== "" && runningTool === undefined
 
+  // Only a proposal made for the week on screen can be applied to it.
   const merged = mergeProposals(
-    messages.flatMap(messageProposals).filter((proposal) => !statuses[proposal.id])
+    messages
+      .flatMap(messageProposals)
+      .filter((proposal) => !statuses[proposal.id] && proposal.weekStart === weekStart)
   )
   const pendingProposal = merged && merged.days.length > 0 ? merged : null
   const threadList: ChatThreadSummary[] = threads.data?.items ?? []
   const activeThread = threadList.find((item) => item.id === threadId) ?? null
 
   return {
+    weekStart,
     threadId,
     activeThread,
     threads: threadList,
@@ -469,6 +478,7 @@ export function useMealPlannerChat() {
     },
     error: error ? errorMessage(error) : null,
     send: (text: string) => {
+      if (!weekStart) return
       manualActionRef.current = true
       clearError()
       setHistoryError(null)
@@ -476,7 +486,7 @@ export function useMealPlannerChat() {
         { text },
         {
           headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : undefined,
-          body: { statuses, threadId },
+          body: { statuses, threadId, weekStart },
         }
       )
     },

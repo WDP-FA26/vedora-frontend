@@ -74,13 +74,16 @@ function dayNames(days: readonly Weekday[]) {
 }
 
 /**
- * Header button of the saved week: the ingredients to buy for the chosen days,
+ * Header button of one saved week: the ingredients to buy for the chosen days,
  * in a side sheet. Read-only; it never changes the plan.
  */
 export function ShoppingListButton({
+  weekStart,
   hasUnsavedChanges = false,
   plannedDays,
 }: {
+  /** Monday of the week to shop for. Days before today are left out by the API. */
+  weekStart: string
   hasUnsavedChanges?: boolean
   /** Days of the saved plan with at least one dish; unknown while it loads. */
   plannedDays?: readonly Weekday[]
@@ -94,7 +97,7 @@ export function ShoppingListButton({
   const nothingPlanned = plannedDays !== undefined && days.every((day) => !plannedDays.includes(day))
   // No `keepPreviousData`: after switching days, the old day's list must not
   // linger as if it were the new one's.
-  const list = useAuthedSWR(open && !nothingPlanned ? shoppingListKey(days) : null, fetchShoppingList, {
+  const list = useAuthedSWR(open && !nothingPlanned ? shoppingListKey(weekStart, days) : null, fetchShoppingList, {
     onError: (error) => {
       // Lets the proxy rotate the token pair; the retry uses the new one.
       if (error instanceof ApiError && error.status === 401) router.refresh()

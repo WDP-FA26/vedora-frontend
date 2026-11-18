@@ -23,9 +23,11 @@ import { Spinner } from "@/components/ui/spinner"
 import { MealArt } from "@/features/meal-plan/components/meal-art"
 import {
   DAY_LABELS,
+  dayOfMonth,
   dishKey,
   dishWarnings,
   SECTION_LABELS,
+  todayOf,
   WEEKDAYS,
   type MealPlan,
   type MealPlanProposal,
@@ -61,11 +63,6 @@ type TimetableProps = {
   suggestion?: MealPlanProposal | null
 }
 
-export function todayWeekday(): Weekday {
-  const day = new Date().getDay()
-  return WEEKDAYS[day === 0 ? 6 : day - 1]
-}
-
 export const DAY_SHORT: Record<Weekday, string> = {
   MON: "T2",
   TUE: "T3",
@@ -74,15 +71,6 @@ export const DAY_SHORT: Record<Weekday, string> = {
   FRI: "T6",
   SAT: "T7",
   SUN: "CN",
-}
-
-/** Day of the month for each weekday of the current week, Monday first. */
-export function thisWeekDates(): number[] {
-  const now = new Date()
-  const monday = now.getDate() - ((now.getDay() + 6) % 7)
-  return WEEKDAYS.map((_, index) =>
-    new Date(now.getFullYear(), now.getMonth(), monday + index).getDate()
-  )
 }
 
 export function recipeTime(recipe: MealRecipe | undefined) {
@@ -125,7 +113,7 @@ export function displayDays(plan: MealPlan | undefined, draft: MealPlanProposal 
   }))
 }
 
-/** Saved recurring week, with optional proposals and a separately staged draft. */
+/** One saved week, with optional proposals and a separately staged draft. */
 export function Timetable({
   plan,
   failed,
@@ -145,8 +133,9 @@ export function Timetable({
 }: TimetableProps) {
   const [selectedDay, setSelectedDay] = useState<Weekday | null>(null)
   const [opened, setOpened] = useState<OpenedRecipe | null>(null)
-  const [today] = useState<Weekday>(todayWeekday)
-  const [weekDates] = useState(thisWeekDates)
+  // Today and the dates come from the server so that the browser clock and time zone cannot disagree with it.
+  const today = plan ? todayOf(plan) : undefined
+  const weekDates = plan ? plan.days.map(({ date }) => dayOfMonth(date)) : []
   const days = displayDays(plan, suggestion ?? draft)
   const activeDay = days.find(({ day }) => day === (selectedDay ?? today)) ?? days[0]
   const hasMeals = days.some(({ sections }) => sections.some(({ recipes }) => recipes.length > 0))

@@ -45,6 +45,7 @@ import {
 } from "@/features/meal-plan/hooks/use-meal-planner-chat"
 import {
   DAY_LABELS,
+  formatDayMonth,
   SECTION_LABELS,
   type MealSection,
   type Weekday,
@@ -105,6 +106,7 @@ export function PlannerChat({
   prefill,
   clearAskContext,
   onFormSent,
+  onOpenWeek,
   leading,
   trailing,
   handle,
@@ -126,6 +128,8 @@ export function PlannerChat({
   clearAskContext?: () => void
   onOpenPlanner?: (seed?: string) => void
   onFormSent?: () => void
+  /** Shows the week an older proposal was made for. */
+  onOpenWeek?: (weekStart: string) => void
 }) {
   const { messages, busy, waiting, pendingId, streamingId, error, send, reset } = chat
   const [input, setInput] = useState("")
@@ -195,7 +199,8 @@ export function PlannerChat({
 
   function submit(event?: FormEvent<HTMLFormElement>) {
     event?.preventDefault()
-    if (busy) return
+    // The assistant plans one week, so it waits until the week on screen has loaded.
+    if (busy || !chat.weekStart) return
     const text = input.trim()
     if (!text) {
       setInputError("Nhập câu hỏi")
@@ -310,7 +315,7 @@ export function PlannerChat({
               <AgentTrace message={message} pending={pending} />
               {text && <Bubble variant="ghost"><BubbleContent><Streamdown caret="block" isAnimating={message.id === streamingId} controls={false} disallowedElements={UNSAFE_ELEMENTS} unwrapDisallowed>{text}</Streamdown></BubbleContent></Bubble>}
               {proposals.map((proposal) => (
-                <ProposalCard key={proposal.id} proposal={proposal} status={chat.statuses[proposal.id]} superseded={proposal.id !== chat.pendingProposal?.id} onStage={onStage} onDismiss={() => chat.setProposalsStatus(proposalIds(proposal), "dismissed")} openPlan={openPlan} />
+                <ProposalCard key={proposal.id} proposal={proposal} status={chat.statuses[proposal.id]} superseded={proposal.id !== chat.pendingProposal?.id} currentWeek={chat.weekStart} onOpenWeek={onOpenWeek} onStage={onStage} onDismiss={() => chat.setProposalsStatus(proposalIds(proposal), "dismissed")} openPlan={openPlan} />
               ))}
               {!pending && message.id !== streamingId && <AgentSources message={message} />}
               {cannotPropose && !text && <p role="status" className="mt-2 rounded-xl border border-border bg-card px-3 py-2 text-sm">Chưa tìm được đủ món phù hợp với yêu cầu này. Bạn có thể chỉnh yêu cầu và thử lại.</p>}
@@ -333,7 +338,7 @@ export function PlannerChat({
         <form onSubmit={submit}>
           <InputGroup>
             <InputGroupTextarea ref={textarea} value={input} onChange={(event) => { setInput(event.target.value); setInputError("") }} aria-label="Tin nhắn cho trợ lý" aria-invalid={Boolean(inputError)} placeholder="Hỏi về món chay hoặc yêu cầu đổi món…" maxLength={MAX_PLANNER_MESSAGE_LENGTH} rows={1} className="max-h-32 min-h-12" onKeyDown={(event) => { if (event.key !== "Enter" || event.shiftKey || event.nativeEvent.isComposing || event.keyCode === 229) return; event.preventDefault(); submit() }} />
-            <InputGroupAddon align="inline-end"><InputGroupButton type="submit" size="icon-sm" variant="default" aria-label="Gửi" disabled={busy || !input.trim()}>{busy ? <Spinner aria-hidden /> : <ArrowUpIcon aria-hidden />}</InputGroupButton></InputGroupAddon>
+            <InputGroupAddon align="inline-end"><InputGroupButton type="submit" size="icon-sm" variant="default" aria-label="Gửi" disabled={busy || !chat.weekStart || !input.trim()}>{busy ? <Spinner aria-hidden /> : <ArrowUpIcon aria-hidden />}</InputGroupButton></InputGroupAddon>
           </InputGroup>
           {inputError && <p role="alert" className="mt-1 text-xs text-destructive">{inputError}</p>}
         </form>
@@ -443,10 +448,13 @@ export function PlannerChat({
   )
 }
 
-function ProposalCard({ proposal, status, superseded, onStage, onDismiss, openPlan }: {
+function ProposalCard({ proposal, status, superseded, currentWeek, onOpenWeek, onStage, onDismiss, openPlan }: {
   proposal: Proposal
   status: ProposalStatus | undefined
   superseded: boolean
+  /** The week on screen: a proposal is only applied to the week it was made for. */
+  currentWeek: string | undefined
+  onOpenWeek?: (weekStart: string) => void
   onStage: (proposal: Proposal) => void
   onDismiss: () => void
   openPlan: () => void
@@ -461,6 +469,9 @@ function ProposalCard({ proposal, status, superseded, onStage, onDismiss, openPl
     }))
     .filter(({ sections }) => sections.length > 0)
   const changed = changedDays.flatMap(({ sections }) => sections)
+  const proposalWeek = proposal.weekStart
+  const otherWeek = proposalWeek !== undefined && proposalWeek !== currentWeek
+  const unknownWeek = proposalWeek === undefined
   return (
     <article aria-label="Đề xuất thực đơn" className="mt-2 w-full rounded-xl border border-border bg-card px-4 py-3">
       <h3 className="text-sm font-semibold">
@@ -488,7 +499,8 @@ function ProposalCard({ proposal, status, superseded, onStage, onDismiss, openPl
           </dl>
         </section>
       ))}
-      {status === "saved" ? <p role="status" className="mt-3 text-sm text-primary">Đã lưu vào thực đơn.</p> : status === "staged" ? <div className="mt-3 flex flex-wrap items-center gap-2"><p role="status" className="text-sm">Đã thêm vào bản nháp, chưa lưu.</p><Button variant="link" size="sm" onClick={openPlan}>Xem bản nháp</Button></div> : status === "dismissed" ? <p role="status" className="mt-3 text-sm text-muted-foreground">Đã bỏ đề xuất.</p> : superseded ? <p className="mt-3 text-sm text-muted-foreground">Đã gộp vào đề xuất hiện tại trên lịch.</p> : changed.length > 0 ? <><div className="mt-3 flex flex-wrap gap-2 lg:hidden"><Button size="sm" onClick={() => onStage(proposal)}>Áp dụng vào bản nháp</Button><Button variant="outline" size="sm" onClick={onDismiss}>Bỏ đề xuất</Button></div><p className="mt-3 hidden text-sm text-muted-foreground lg:block">Đề xuất đang hiện trên lịch. Bấm “Áp dụng vào bản nháp” ở phía trên lịch.</p></> : null}
+      {proposalWeek && <p className="mt-0.5 text-xs text-muted-foreground">Cho tuần bắt đầu {formatDayMonth(proposalWeek)}</p>}
+      {status === undefined && unknownWeek ? <p className="mt-3 text-sm text-muted-foreground">Đề xuất này từ trước khi thực đơn chia theo tuần nên không rõ dành cho tuần nào. Hãy nhờ trợ lý đề xuất lại.</p> : status === undefined && otherWeek ? <div className="mt-3 flex flex-wrap items-center gap-2"><p className="text-sm text-muted-foreground">Đề xuất này dành cho một tuần khác với tuần đang mở.</p>{onOpenWeek && proposalWeek && <Button variant="link" size="sm" onClick={() => onOpenWeek(proposalWeek)}>Mở tuần đó</Button>}</div> : status === "saved" ? <p role="status" className="mt-3 text-sm text-primary">Đã lưu vào thực đơn.</p> : status === "staged" ? <div className="mt-3 flex flex-wrap items-center gap-2"><p role="status" className="text-sm">Đã thêm vào bản nháp, chưa lưu.</p><Button variant="link" size="sm" onClick={openPlan}>Xem bản nháp</Button></div> : status === "dismissed" ? <p role="status" className="mt-3 text-sm text-muted-foreground">Đã bỏ đề xuất.</p> : superseded ? <p className="mt-3 text-sm text-muted-foreground">Đã gộp vào đề xuất hiện tại trên lịch.</p> : changed.length > 0 ? <><div className="mt-3 flex flex-wrap gap-2 lg:hidden"><Button size="sm" onClick={() => onStage(proposal)}>Áp dụng vào bản nháp</Button><Button variant="outline" size="sm" onClick={onDismiss}>Bỏ đề xuất</Button></div><p className="mt-3 hidden text-sm text-muted-foreground lg:block">Đề xuất đang hiện trên lịch. Bấm “Áp dụng vào bản nháp” ở phía trên lịch.</p></> : null}
     </article>
   )
 }

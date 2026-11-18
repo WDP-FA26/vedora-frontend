@@ -46,19 +46,21 @@ import { RecipeSheet, type OpenedDish } from "@/features/meal-plan/components/re
 import {
   DAY_SHORT,
   displayDays,
-  thisWeekDates,
-  todayWeekday,
   type RecipeRef,
 } from "@/features/meal-plan/components/timetable"
 import {
   DAY_LABELS,
+  dayOfMonth,
   dishKey,
   dishWarnings,
+  editableDaysOf,
+  isDayEditable,
   MAX_DISHES_PER_SECTION,
   MEAL_SECTIONS,
   recipesAt,
   SECTION_LABELS,
   searchRecipeOptions,
+  todayOf,
   WEEKDAYS,
   type MealPlan,
   type MealPlanProposal,
@@ -72,6 +74,7 @@ import { useAuth } from "@/features/auth/hooks/use-auth"
 import { cn } from "@/lib/utils"
 
 const DRAG_TYPE = "application/x-vedora-meal"
+const PAST_DAY_MESSAGE = "Ngày đã qua nên không thể thay đổi."
 
 type Dragged = SlotRef & { recipeId: string }
 
@@ -140,9 +143,12 @@ export function CalendarBoard({
   action,
   leading,
 }: CalendarBoardProps) {
-  const [today] = useState(todayWeekday)
-  const [selectedDay, setSelectedDay] = useState<Weekday>(today)
-  const [weekDates] = useState(thisWeekDates)
+  // Today, the dates and which days may change all come from the server's answer.
+  const today = plan ? todayOf(plan) : undefined
+  const weekDates = plan ? plan.days.map(({ date }) => dayOfMonth(date)) : []
+  const [pickedDay, setPickedDay] = useState<Weekday | null>(null)
+  const selectedDay: Weekday = pickedDay ?? today ?? (plan ? editableDaysOf(plan)[0] : undefined) ?? "MON"
+  const setSelectedDay = setPickedDay
   const [opened, setOpened] = useState<OpenedDish | null>(null)
   const [sheetOpen, setSheetOpen] = useState(false)
   const [adding, setAdding] = useState<SlotRef | null>(null)
@@ -150,6 +156,9 @@ export function CalendarBoard({
   const [dropTarget, setDropTarget] = useState<SlotRef | null>(null)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  /** A day before today can only be read. */
+  const dayEditable = (day: Weekday) => (plan ? isDayEditable(plan, day) : false)
 
   const overlay = suggestion ?? draft ?? null
   const locked = overlay !== null
@@ -185,6 +194,7 @@ export function CalendarBoard({
 
   function planMove(from: Dragged, to: SlotRef): SlotChange[] | string {
     if (from.day === to.day && from.section === to.section) return []
+    if (!dayEditable(from.day) || !dayEditable(to.day)) return PAST_DAY_MESSAGE
     const targetIds = idsAt(to)
     if (targetIds.includes(from.recipeId)) return "Món này đã có trong bữa đó."
     if (targetIds.length >= MAX_DISHES_PER_SECTION) {
@@ -206,10 +216,18 @@ export function CalendarBoard({
   }
 
   function remove(from: Dragged) {
+    if (!dayEditable(from.day)) {
+      setError(PAST_DAY_MESSAGE)
+      return
+    }
     void apply([{ day: from.day, section: from.section, recipeIds: idsAt(from).filter((id) => id !== from.recipeId) }])
   }
 
   function add(slot: SlotRef, recipeId: string) {
+    if (!dayEditable(slot.day)) {
+      setError(PAST_DAY_MESSAGE)
+      return
+    }
     const ids = idsAt(slot)
     if (ids.includes(recipeId)) {
       setError("Món này đã có trong bữa đó.")
@@ -338,7 +356,8 @@ export function CalendarBoard({
                 onClick={() => setSelectedDay(day)}
                 className={cn(
                   "relative flex flex-col items-center gap-1 rounded-xl py-1.5 outline-none transition-colors focus-visible:ring-3 focus-visible:ring-ring/30",
-                  selected ? "bg-primary/10" : "hover:bg-accent/60"
+                  selected ? "bg-primary/10" : "hover:bg-accent/60",
+                  !dayEditable(day) && !selected && "opacity-60"
                 )}
               >
                 <span
@@ -384,6 +403,9 @@ export function CalendarBoard({
               {selectedDay === today && (
                 <span className="ml-2 text-xs font-medium text-primary">Hôm nay</span>
               )}
+              {!dayEditable(selectedDay) && (
+                <span className="ml-2 text-xs font-medium text-muted-foreground">Đã qua, chỉ xem</span>
+              )}
             </h3>
           </div>
           {MEAL_SECTIONS.map((section) => {
@@ -424,7 +446,7 @@ export function CalendarBoard({
                           recipeId={recipe.id}
                           warnings={warnings.get(dishKey(selectedDay, recipe.id)) ?? []}
                           isNew={isNew}
-                          disabled={locked || saving}
+                          disabled={locked || saving || !dayEditable(selectedDay)}
                           onOpen={() => {
                             setOpened({
                               recipeId: recipe.id,
@@ -458,7 +480,7 @@ export function CalendarBoard({
                     {recipe.title}
                   </p>
                 ))}
-                {!locked && (
+                {!locked && dayEditable(selectedDay) && (
                   <div className="flex flex-wrap items-center gap-2 pt-0.5">
                     {recipes.length < MAX_DISHES_PER_SECTION && (
                       <Button
@@ -538,7 +560,7 @@ export function CalendarBoard({
                     role="cell"
                     aria-label={slotLabel(slot)}
                     onDragOver={(event) => {
-                      if (locked || saving) return
+                      if (locked || saving || !dayEditable(day)) return
                       event.preventDefault()
                       setDropTarget(slot)
                     }}
@@ -547,6 +569,7 @@ export function CalendarBoard({
                     className={cn(
                       "flex min-h-24 flex-col gap-1.5 bg-card p-1.5 transition-colors",
                       day === today && "bg-secondary/30",
+                      !dayEditable(day) && "bg-muted/50",
                       targeted && "bg-primary/10 ring-2 ring-inset ring-primary/40"
                     )}
                   >
@@ -562,7 +585,7 @@ export function CalendarBoard({
                           recipeId={recipe.id}
                           warnings={warnings.get(dishKey(day, recipe.id)) ?? []}
                           isNew={isNew}
-                          disabled={locked || saving}
+                          disabled={locked || saving || !dayEditable(day)}
                           onOpen={() => {
                             setOpened({ recipeId: recipe.id, title: recipe.title, day, section, detail })
                             setSheetOpen(true)
@@ -581,7 +604,7 @@ export function CalendarBoard({
                         {recipe.title}
                       </p>
                     ))}
-                    {!locked && (
+                    {!locked && dayEditable(day) && (
                       <div className="mt-auto flex items-center gap-0.5">
                         {recipes.length < MAX_DISHES_PER_SECTION && (
                           <Button
@@ -626,11 +649,11 @@ export function CalendarBoard({
           onAsk({ id: opened.recipeId, title: opened.title, tag: opened.detail?.tag ?? null }, opened.day, opened.section)
           setSheetOpen(false)
         } : undefined}
-        onMove={opened && !locked ? () => {
+        onMove={opened && !locked && dayEditable(opened.day) ? () => {
           setMoving({ day: opened.day, section: opened.section, recipeId: opened.recipeId, title: opened.title })
           setSheetOpen(false)
         } : undefined}
-        onRemove={opened && !locked ? () => {
+        onRemove={opened && !locked && dayEditable(opened.day) ? () => {
           remove({ day: opened.day, section: opened.section, recipeId: opened.recipeId })
           setSheetOpen(false)
         } : undefined}
@@ -647,6 +670,7 @@ export function CalendarBoard({
 
       <MoveDialog
         moving={moving}
+        days={plan ? editableDaysOf(plan) : []}
         onClose={() => setMoving(null)}
         onMove={(to) => {
           if (moving) move(moving, to)
@@ -839,16 +863,19 @@ function AddRecipeDialog({
 
 function MoveDialog({
   moving,
+  days,
   onClose,
   onMove,
 }: {
   moving: (Dragged & { title: string }) | null
+  /** Days that may still change: a dish cannot be moved onto a day that has passed. */
+  days: Weekday[]
   onClose: () => void
   onMove: (to: SlotRef) => void
 }) {
   const [day, setDay] = useState<Weekday | null>(null)
   const [section, setSection] = useState<MealSection | null>(null)
-  const targetDay = day ?? moving?.day ?? "MON"
+  const targetDay = day ?? (moving && days.includes(moving.day) ? moving.day : days[0]) ?? "MON"
   const targetSection = section ?? moving?.section ?? "LUNCH"
 
   function close() {
@@ -868,7 +895,7 @@ function MoveDialog({
           <label className="text-xs font-semibold">
             Ngày
             <NativeSelect className="mt-1.5 w-full" value={targetDay} onChange={(event) => setDay(WEEKDAYS.find((item) => item === event.target.value) ?? null)}>
-              {WEEKDAYS.map((item) => <NativeSelectOption key={item} value={item}>{DAY_LABELS[item]}</NativeSelectOption>)}
+              {days.map((item) => <NativeSelectOption key={item} value={item}>{DAY_LABELS[item]}</NativeSelectOption>)}
             </NativeSelect>
           </label>
           <label className="text-xs font-semibold">

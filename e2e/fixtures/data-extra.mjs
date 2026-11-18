@@ -86,18 +86,49 @@ const recipe = (id, title) => ({
   steps: ["Chiên đậu hũ.", "Rim với cà chua."],
 })
 
-const emptyDay = (dayCode) => ({
+// A Wednesday: Monday and Tuesday of the week have passed and are read-only.
+export const MOCK_WEEK = "2026-11-16"
+export const MOCK_NEXT_WEEK = "2026-11-23"
+const MOCK_TODAY = "2026-11-18"
+
+const addDays = (date, days) => {
+  const [year, month, day] = date.split("-").map(Number)
+  return new Date(Date.UTC(year, month - 1, day + days)).toISOString().slice(0, 10)
+}
+
+/** What `GET /meal-plan` says about a week, apart from its dishes. */
+export const weekFields = (weekStart = MOCK_WEEK) => ({
+  weekStart,
+  currentWeekStart: MOCK_WEEK,
+  today: MOCK_TODAY,
+  minWeekStart: MOCK_WEEK,
+  maxWeekStart: "2026-12-14",
+  editable: true,
+})
+
+const emptyDay = (dayCode, index = 0, weekStart = MOCK_WEEK) => ({
   day: dayCode,
+  date: addDays(weekStart, index),
+  editable: addDays(weekStart, index) >= MOCK_TODAY,
   sections: ["BREAKFAST", "LUNCH", "DINNER", "OTHER"].map((section) => ({ section, recipes: [] })),
 })
 
 export const WEEKDAY_CODES = ["MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"]
 
-export const emptyMealPlan = { days: WEEKDAY_CODES.map(emptyDay), problems: [] }
+export const emptyMealPlan = { ...weekFields(), days: WEEKDAY_CODES.map((code, index) => emptyDay(code, index)), problems: [] }
+
+/** The empty plan of another week, as the API answers for a week nobody planned. */
+export const emptyMealPlanOf = (weekStart) => ({
+  ...weekFields(weekStart),
+  days: WEEKDAY_CODES.map((code, index) => emptyDay(code, index, weekStart)),
+  problems: [],
+})
 
 export const filledMealPlan = {
+  ...weekFields(),
   // Every day is filled, so whichever weekday the planner selects shows meals.
-  days: WEEKDAY_CODES.map((code) => ({
+  days: WEEKDAY_CODES.map((code, index) => ({
+    ...emptyDay(code, index),
     day: code,
     sections: [
       { section: "BREAKFAST", recipes: [recipe("r-1", "Cháo nấm")] },
@@ -125,6 +156,7 @@ export const myDietary = {
 }
 
 export const shoppingList = {
+  weekStart: MOCK_WEEK,
   days: ["MON"],
   quantityBasis: "RECIPE_PER_OCCURRENCE",
   items: [

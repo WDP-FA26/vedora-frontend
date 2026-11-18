@@ -1,4 +1,10 @@
-import { filledMealPlan, shoppingList } from "../fixtures/data-extra.mjs"
+import {
+  emptyMealPlanOf,
+  filledMealPlan,
+  MOCK_NEXT_WEEK,
+  MOCK_WEEK,
+  shoppingList,
+} from "../fixtures/data-extra.mjs"
 import { signInAs } from "../helpers/auth"
 import { mockApi } from "../helpers/api"
 import { test, expect } from "../helpers/test"
@@ -36,6 +42,69 @@ test.describe("meal planner", () => {
     await days.getByRole("button", { name: /Thứ Hai/ }).click()
     await expect(days.getByRole("button", { name: /Thứ Hai/ })).toHaveAttribute("aria-pressed", "true")
     await expect(page.getByRole("region", { name: "Các bữa Thứ Hai" })).toContainText("Cháo nấm")
+  })
+
+  test("marks days before today read-only and offers no way to add dishes to them", async ({ page }) => {
+    await mockApi(page, "/meal-plan", { body: filledMealPlan }, "GET")
+    await page.goto("/meal-planner")
+    const days = page.getByRole("group", { name: "Chọn ngày trong thực đơn" })
+
+    await days.getByRole("button", { name: /Thứ Hai/ }).click()
+    await expect(page.getByText("Đã qua, chỉ xem")).toBeVisible()
+    await expect(page.getByRole("button", { name: /Thêm món vào Thứ Hai/ })).toHaveCount(0)
+
+    await days.getByRole("button", { name: /Thứ Năm/ }).click()
+    await expect(page.getByText("Đã qua, chỉ xem")).toHaveCount(0)
+    await expect(page.getByRole("button", { name: /Thêm món vào Thứ Năm, bữa sáng/ }).first()).toBeVisible()
+  })
+
+  test("moves between weeks, keeps the week in the URL and loads that week", async ({ page }) => {
+    const asked: string[] = []
+    await mockApi(
+      page,
+      "/meal-plan",
+      (route) => {
+        const week = new URL(route.request().url()).searchParams.get("weekStart") ?? MOCK_WEEK
+        asked.push(week)
+        return { body: emptyMealPlanOf(week) }
+      },
+      "GET"
+    )
+    await page.goto("/meal-planner")
+    const nav = page.getByRole("navigation", { name: "Chọn tuần" })
+    await expect(nav).toContainText("16/11 – 22/11/2026")
+    await expect(nav).toContainText("Tuần này")
+    await expect(nav.getByRole("button", { name: "Tuần trước" })).toBeDisabled()
+
+    await nav.getByRole("button", { name: "Tuần sau" }).click()
+    await expect(page).toHaveURL(new RegExp(`week=${MOCK_NEXT_WEEK}`))
+    await expect(nav).toContainText("23/11 – 29/11/2026")
+    expect(asked).toContain(MOCK_NEXT_WEEK)
+
+    await nav.getByRole("button", { name: "Về tuần này" }).click()
+    await expect(page).not.toHaveURL(/week=/)
+    await expect(nav).toContainText("Tuần này")
+  })
+
+  test("opens the week named in the URL and falls back when the API refuses it", async ({ page }) => {
+    await mockApi(
+      page,
+      "/meal-plan",
+      (route) => {
+        const week = new URL(route.request().url()).searchParams.get("weekStart")
+        if (week === "2030-01-07") {
+          return { status: 409, body: { statusCode: 409, code: "MEAL_WEEK_OUT_OF_RANGE", message: "too far" } }
+        }
+        return { body: emptyMealPlanOf(week ?? MOCK_WEEK) }
+      },
+      "GET"
+    )
+    await page.goto(`/meal-planner?week=${MOCK_NEXT_WEEK}`)
+    await expect(page.getByRole("navigation", { name: "Chọn tuần" })).toContainText("23/11 – 29/11/2026")
+
+    await page.goto("/meal-planner?week=2030-01-07")
+    await expect(page).not.toHaveURL(/week=/)
+    await expect(page.getByRole("navigation", { name: "Chọn tuần" })).toContainText("16/11 – 22/11/2026")
   })
 
   test("flags plan problems and links to the dietary profile", async ({ page }) => {
