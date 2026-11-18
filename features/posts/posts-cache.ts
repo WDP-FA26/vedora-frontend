@@ -17,6 +17,16 @@ export function authorPostsKey(authorId: string) {
   return `${POSTS_KEY}?authorId=${authorId}&limit=20`
 }
 
+/**
+ * One page of the published posts that `userId` reposted, most recently reposted
+ * first; `cursor` is the previous page's `nextCursor`. Guests may read it.
+ */
+export function repostedByKey(userId: string, cursor?: string) {
+  const params = new URLSearchParams({ limit: "20" })
+  if (cursor) params.set("cursor", cursor)
+  return `${POSTS_KEY}/reposted-by/${userId}?${params}`
+}
+
 /** The posts the signed-in user saved, most recently saved first. */
 export const BOOKMARKS_KEY = `${POSTS_KEY}/bookmarks?limit=50`
 

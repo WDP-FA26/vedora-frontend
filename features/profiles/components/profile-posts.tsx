@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { useState } from "react"
-import { BookOpenTextIcon, ClapperboardIcon, EllipsisIcon, PenLineIcon, SproutIcon } from "lucide-react"
+import { BookOpenTextIcon, ClapperboardIcon, EllipsisIcon, PenLineIcon, Repeat2Icon, SproutIcon } from "lucide-react"
 
 import { useAuth } from "@/features/auth/hooks/use-auth"
 import { Badge } from "@/components/ui/badge"
@@ -31,14 +31,26 @@ import { postPath } from "@/features/posts/posts-cache"
 import type { ApiPost } from "@/features/posts/schemas"
 import { formatCount } from "@/features/shared/lib/format"
 import { toFeedPost } from "@/features/posts/lib/to-feed-post"
+import { ProfileReposts } from "@/features/profiles/components/profile-reposts"
 import { useProfilePosts } from "@/features/profiles/hooks/use-profile-posts"
+
+const TAB_CLASS = "inline-flex items-center gap-2 border-b-2 border-transparent py-3 text-sm font-bold text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring aria-[current=page]:border-primary aria-[current=page]:text-primary"
+
+type ProfileTab = "posts" | "reposts" | "videos" | "blogs"
+
+/** Videos and blogs are the owner's workspace; posts and reposts are public. */
+function visibleTab(tab: ProfileTab, isOwn: boolean): ProfileTab {
+  if (isOwn) return tab
+  if (tab === "videos" || tab === "blogs") return "posts"
+  return tab
+}
 
 /** The published posts of profile `id`, under the profile header. */
 export function ProfilePosts({ id, count }: { id: string; count: number }) {
   const { user } = useAuth()
   const isOwn = user?.id === id
-  const [tab, setTab] = useState<"posts" | "videos" | "blogs">("posts")
-  const activeTab = isOwn ? tab : "posts"
+  const [tab, setTab] = useState<ProfileTab>("posts")
+  const activeTab = visibleTab(tab, isOwn)
   const { posts, error, isLoading, retry } = useProfilePosts(id)
   const videos = posts.filter((post) => post.media.some((media) => media.type === "VIDEO"))
 
@@ -46,11 +58,14 @@ export function ProfilePosts({ id, count }: { id: string; count: number }) {
     <section aria-labelledby="profile-posts-title" className="border-t-8 border-muted/60">
       <h2 id="profile-posts-title" className="sr-only">Nội dung hồ sơ</h2>
       <div className="flex items-stretch gap-5 border-b border-border px-4 sm:px-5">
-        <button type="button" onClick={() => setTab("posts")} aria-current={activeTab === "posts" ? "page" : undefined} className="inline-flex items-center gap-2 border-b-2 border-transparent py-3 text-sm font-bold text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring aria-[current=page]:border-primary aria-[current=page]:text-primary">
+        <button type="button" onClick={() => setTab("posts")} aria-current={activeTab === "posts" ? "page" : undefined} className={TAB_CLASS}>
           Bài viết <span className="font-medium tabular-nums">{formatCount(count)}</span>
         </button>
-        {isOwn && <button type="button" onClick={() => setTab("videos")} aria-current={activeTab === "videos" ? "page" : undefined} className="inline-flex items-center gap-2 border-b-2 border-transparent py-3 text-sm font-bold text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring aria-[current=page]:border-primary aria-[current=page]:text-primary"><ClapperboardIcon aria-hidden className="size-4" /> Video của tôi</button>}
-        {isOwn && <button type="button" onClick={() => setTab("blogs")} aria-current={activeTab === "blogs" ? "page" : undefined} className="inline-flex items-center gap-2 border-b-2 border-transparent py-3 text-sm font-bold text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring aria-[current=page]:border-primary aria-[current=page]:text-primary"><BookOpenTextIcon aria-hidden className="size-4" /> Blog của tôi</button>}
+        <button type="button" onClick={() => setTab("reposts")} aria-current={activeTab === "reposts" ? "page" : undefined} className={TAB_CLASS}>
+          <Repeat2Icon aria-hidden className="size-4" /> Đăng lại
+        </button>
+        {isOwn && <button type="button" onClick={() => setTab("videos")} aria-current={activeTab === "videos" ? "page" : undefined} className={TAB_CLASS}><ClapperboardIcon aria-hidden className="size-4" /> Video của tôi</button>}
+        {isOwn && <button type="button" onClick={() => setTab("blogs")} aria-current={activeTab === "blogs" ? "page" : undefined} className={TAB_CLASS}><BookOpenTextIcon aria-hidden className="size-4" /> Blog của tôi</button>}
       </div>
 
       {activeTab === "videos" && <div className="border-b border-border bg-secondary/30 px-4 py-3 sm:px-5">
@@ -61,7 +76,9 @@ export function ProfilePosts({ id, count }: { id: string; count: number }) {
         <p className="mt-2 text-xs leading-5 text-muted-foreground">Hiển thị video trong các bài viết gần đây của bạn.</p>
       </div>}
 
-      {activeTab === "blogs" ? (
+      {activeTab === "reposts" && <ProfileReposts key={id} id={id} />}
+
+      {activeTab !== "reposts" && (activeTab === "blogs" ? (
         <>
           <div className="flex items-center justify-between gap-3 border-b border-border bg-secondary/30 px-4 py-3 sm:px-5">
             <p className="text-xs leading-5 text-muted-foreground">Blog nháp, đang chờ duyệt và đã đăng của bạn.</p>
@@ -98,7 +115,7 @@ export function ProfilePosts({ id, count }: { id: string; count: number }) {
         </Empty>
       ) : (
         posts.map((post) => <PostCard key={post.id} post={toFeedPost(post)} />)
-      )}
+      ))}
     </section>
   )
 }
