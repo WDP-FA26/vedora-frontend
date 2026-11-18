@@ -18,7 +18,6 @@ import {
   MessageCircleIcon,
   PencilIcon,
   Repeat2Icon,
-  ShareIcon,
   TimerIcon,
   Trash2Icon,
 } from "lucide-react"
@@ -41,6 +40,7 @@ import { DeleteBlogDialog } from "@/features/blogs/components/delete-blog-dialog
 import { plainExcerpt } from "@/features/blogs/lib/plain-excerpt"
 import type { ArticlePost, BlogPost, PhotoPost, Post, VideoPost } from "@/features/home/types"
 import { VerifiedBadge } from "@/features/shared/components/verified-badge"
+import { SharePostMenu } from "@/features/messaging/components/share-post-menu"
 import { useAuth } from "@/features/auth/hooks/use-auth"
 import { PostMedia } from "@/features/posts/components/post-media"
 import { DeletePostDialog } from "@/features/posts/components/delete-post-dialog"
@@ -386,7 +386,6 @@ export function PostActions({ post }: { post: Post }) {
     setReposted: saveReposted,
     setBookmarked: saveBookmarked,
   } = usePostInteractions()
-  const [copied, setCopied] = useState(false)
 
   const liked = post.liked ?? false
   const reposted = post.reposted ?? false
@@ -402,10 +401,6 @@ export function PostActions({ post }: { post: Post }) {
 
   function toggleBookmark() {
     void saveBookmarked(post.id, !bookmarked)
-  }
-
-  async function share() {
-    setCopied(await copyPostLink(post.id))
   }
 
   return (
@@ -458,12 +453,7 @@ export function PostActions({ post }: { post: Post }) {
             onClick={toggleBookmark}
             activeIconClassName="fill-primary"
           />
-          <ActionButton
-            label={copied ? "Đã sao chép liên kết" : "Chia sẻ"}
-            icon={copied ? CheckIcon : ShareIcon}
-            active={copied}
-            onClick={() => void share()}
-          />
+          <SharePostMenu postId={post.id} />
         </span>
       )}
     </div>
