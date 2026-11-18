@@ -161,6 +161,7 @@ export const outcomeLabels: Record<string, string> = {
   PAYMENT_INTENT_ALREADY_SUCCEEDED:
     "Đơn đã thành công; giao dịch này không kích hoạt thêm gói.",
   PAYMENT_CANCELLED: "Đơn đã hủy trước khi webhook được xử lý.",
+  PAYMENT_EXPIRED: "Đơn đã hết hạn thanh toán 30 phút; cần đối soát khoản chuyển đến muộn.",
   ACCOUNT_UNAVAILABLE:
     "Tài khoản không còn hoạt động hoặc chưa xác minh email.",
 };
