@@ -10,6 +10,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { NutritionChatPanel } from "@/features/nutrition-chat/components/nutrition-chat-panel"
+import { useNutritionChat } from "@/features/nutrition-chat/hooks/use-nutrition-chat"
 import {
   PET_COOKIE,
   PET_OFFSET_COOKIE,
@@ -112,6 +113,9 @@ function usePetMessage() {
 }
 
 export function NutritionPet() {
+  // The page owns the conversation; closing the popover must not reset it or interrupt a reply.
+  // It stays in React memory and is discarded on a full page reload.
+  const chat = useNutritionChat()
   const message = usePetMessage()
   const { pet, offset: savedOffset, setOffset } = usePet()
   const [dragOffset, setDragOffset] = useState<PetOffset | null>(null)
@@ -187,7 +191,7 @@ export function NutritionPet() {
         sideOffset={8}
         className="h-[min(40rem,calc(100dvh-9rem))] w-[min(28rem,calc(100vw-2rem))]"
       >
-        <NutritionChatPanel onClose={() => setChatOpen(false)} />
+        <NutritionChatPanel chat={chat} onClose={() => setChatOpen(false)} />
       </PopoverContent>
     </Popover>
   )

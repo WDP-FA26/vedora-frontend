@@ -31,7 +31,7 @@ import { AgentSources, AgentTrace, hasTrace } from "@/features/shared/components
 import { LogoMark } from "@/features/shared/components/wordmark"
 import {
   messageText,
-  useNutritionChat,
+  type useNutritionChat,
 } from "@/features/nutrition-chat/hooks/use-nutrition-chat"
 import {
   startGuestSession,
@@ -70,9 +70,14 @@ function AssistantMessage({ children }: { children: ReactNode }) {
 }
 
 /** Body of the pet's chat popover: header, conversation and composer. */
-export function NutritionChatPanel({ onClose }: { onClose: () => void }) {
-  const { messages, busy, thinking, pendingId, streamingId, error, limit, ready, send, reset } =
-    useNutritionChat()
+export function NutritionChatPanel({
+  onClose,
+  chat,
+}: {
+  onClose: () => void
+  chat: ReturnType<typeof useNutritionChat>
+}) {
+  const { messages, busy, thinking, pendingId, streamingId, error, limit, ready, send, reset } = chat
   const [verifyFailed, setVerifyFailed] = useState(false)
   const form = useForm<ChatMessageValues>({
     resolver: zodResolver(chatMessageSchema),
