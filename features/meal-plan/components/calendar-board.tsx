@@ -141,6 +141,7 @@ export function CalendarBoard({
   leading,
 }: CalendarBoardProps) {
   const [today] = useState(todayWeekday)
+  const [selectedDay, setSelectedDay] = useState<Weekday>(today)
   const [weekDates] = useState(thisWeekDates)
   const [opened, setOpened] = useState<OpenedDish | null>(null)
   const [sheetOpen, setSheetOpen] = useState(false)
@@ -249,7 +250,7 @@ export function CalendarBoard({
   }
 
   return (
-    <div className="relative flex min-h-[calc(100dvh-4.5rem)] min-w-0 flex-col bg-card pb-[env(safe-area-inset-bottom)] lg:h-full lg:min-h-0 lg:pb-0">
+    <div className="relative flex h-[calc(100dvh-4.5rem)] min-h-[24rem] min-w-0 flex-col bg-card pb-[env(safe-area-inset-bottom)] lg:h-full lg:min-h-0 lg:pb-0">
       {action && (
         <div className="flex h-16 shrink-0 items-center justify-end gap-2 border-b border-border px-3">{action}</div>
       )}
@@ -307,20 +308,204 @@ export function CalendarBoard({
           </p>
         </div>
       )}
-      <div className="min-h-[34rem] flex-1 overflow-auto lg:min-h-0">
+      <div className="flex-1 overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden pb-24 md:hidden">
+        <div
+          className="sticky top-0 z-10 grid grid-cols-7 border-b border-border bg-card/95 px-2 py-2.5 backdrop-blur-sm"
+          role="group"
+          aria-label="Chọn ngày trong thực đơn"
+        >
+          {WEEKDAYS.map((day, index) => {
+            const selected = selectedDay === day
+            const dayHasDishes =
+              view
+                .find((item) => item.day === day)
+                ?.sections.some(({ recipes }) => recipes.length > 0) ?? false
+            const dayHasWarning = Boolean(
+              plan &&
+                !locked &&
+                plan.problems.some((problem) => problem.day === day)
+            )
+            return (
+              <button
+                key={day}
+                type="button"
+                aria-pressed={selected}
+                aria-label={
+                  DAY_LABELS[day] +
+                  (day === today ? ", hôm nay" : "") +
+                  (dayHasWarning ? ", có món cần xem lại" : "")
+                }
+                onClick={() => setSelectedDay(day)}
+                className={cn(
+                  "relative flex flex-col items-center gap-1 rounded-xl py-1.5 outline-none transition-colors focus-visible:ring-3 focus-visible:ring-ring/30",
+                  selected ? "bg-primary/10" : "hover:bg-accent/60"
+                )}
+              >
+                <span
+                  className={cn(
+                    "text-[0.6875rem] font-semibold",
+                    selected || day === today ? "text-primary" : "text-muted-foreground"
+                  )}
+                >
+                  {DAY_SHORT[day]}
+                </span>
+                <span
+                  className={cn(
+                    "flex size-8 items-center justify-center rounded-full text-sm font-semibold tabular-nums",
+                    selected
+                      ? "bg-primary text-primary-foreground shadow-sm"
+                      : day === today
+                        ? "text-primary ring-1 ring-primary/40"
+                        : "text-foreground"
+                  )}
+                >
+                  {weekDates[index]}
+                </span>
+                <span className="flex h-1.5 items-center gap-1" aria-hidden>
+                  {dayHasDishes && !dayHasWarning && (
+                    <span className="size-1.5 rounded-full bg-primary/60" />
+                  )}
+                  {dayHasWarning && (
+                    <span className="size-1.5 rounded-full bg-destructive" />
+                  )}
+                </span>
+              </button>
+            )
+          })}
+        </div>
+
+        <section
+          aria-label={`Thực đơn ${DAY_LABELS[selectedDay]}`}
+          className="flex flex-col gap-3 p-3 sm:p-4"
+        >
+          <div className="flex items-center justify-between gap-2">
+            <h3 className="font-heading text-base font-bold">
+              {DAY_LABELS[selectedDay]}
+              {selectedDay === today && (
+                <span className="ml-2 text-xs font-medium text-primary">Hôm nay</span>
+              )}
+            </h3>
+          </div>
+          {MEAL_SECTIONS.map((section) => {
+            const slot = { day: selectedDay, section }
+            const recipes =
+              view
+                .find((item) => item.day === selectedDay)
+                ?.sections.find((item) => item.section === section)?.recipes ?? []
+            const removed = removedAt(slot)
+            return (
+              <article
+                key={section}
+                aria-label={slotLabel(slot)}
+                className="flex flex-col gap-2.5 rounded-2xl border border-border bg-background p-3"
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <h4 className="text-sm font-semibold text-foreground">
+                    Bữa {SECTION_LABELS[section].toLowerCase()}
+                  </h4>
+                  <span className="text-xs text-muted-foreground tabular-nums">
+                    {recipes.length} món
+                  </span>
+                </div>
+                {recipes.length === 0 && removed.length === 0 && (
+                  <p className="text-xs text-muted-foreground">Chưa có món cho bữa này.</p>
+                )}
+                {recipes.length > 0 && (
+                  <div className="flex flex-col gap-1.5">
+                    {recipes.map((recipe) => {
+                      const detail = recipe.detail
+                      const isNew = overlay !== null && !idsAt(slot).includes(recipe.id)
+                      return (
+                        <CalendarChip
+                          key={recipe.id}
+                          title={recipe.title}
+                          tag={detail?.tag ?? recipe.tag}
+                          slot={slot}
+                          recipeId={recipe.id}
+                          warnings={warnings.get(dishKey(selectedDay, recipe.id)) ?? []}
+                          isNew={isNew}
+                          disabled={locked || saving}
+                          onOpen={() => {
+                            setOpened({
+                              recipeId: recipe.id,
+                              title: recipe.title,
+                              day: selectedDay,
+                              section,
+                              detail,
+                            })
+                            setSheetOpen(true)
+                          }}
+                          onMove={() =>
+                            setMoving({
+                              day: selectedDay,
+                              section,
+                              recipeId: recipe.id,
+                              title: recipe.title,
+                            })
+                          }
+                          onRemove={() => remove({ day: selectedDay, section, recipeId: recipe.id })}
+                          onAsk={onAsk ? () => onAsk(recipe, selectedDay, section) : undefined}
+                        />
+                      )
+                    })}
+                  </div>
+                )}
+                {removed.map((recipe) => (
+                  <p
+                    key={recipe.id}
+                    className="rounded-xl border border-dashed border-border px-2.5 py-1.5 text-xs text-muted-foreground line-through"
+                  >
+                    {recipe.title}
+                  </p>
+                ))}
+                {!locked && (
+                  <div className="flex flex-wrap items-center gap-2 pt-0.5">
+                    {recipes.length < MAX_DISHES_PER_SECTION && (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        disabled={saving}
+                        onClick={() => setAdding(slot)}
+                        aria-label={`Thêm món vào ${slotLabel(slot)}`}
+                      >
+                        <PlusIcon aria-hidden /> Thêm món
+                      </Button>
+                    )}
+                    {onSuggestSlot && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        disabled={saving}
+                        onClick={() => onSuggestSlot(slot)}
+                        aria-label={`Nhờ trợ lý gợi ý món cho ${slotLabel(slot)}`}
+                      >
+                        <SparklesIcon aria-hidden /> Gợi ý món
+                      </Button>
+                    )}
+                  </div>
+                )}
+              </article>
+            )
+          })}
+        </section>
+      </div>
+
+      <div className="hidden min-h-0 flex-1 overflow-auto md:block [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         <div
           role="table"
           aria-label="Lịch thực đơn tuần"
-          className="grid min-w-[44rem] grid-cols-[3rem_repeat(7,minmax(0,1fr))] grid-rows-[auto_repeat(4,minmax(6.5rem,1fr))] gap-px h-full min-h-[34rem] bg-border"
+          className="grid min-h-[34rem] min-w-0 grid-cols-[3rem_repeat(7,minmax(0,1fr))] grid-rows-[auto_repeat(4,minmax(6.5rem,1fr))] gap-px bg-border lg:min-h-full lg:min-w-[52rem] xl:min-w-0"
         >
           <div role="row" className="contents">
-            <div role="columnheader" className="flex flex-col items-center justify-center gap-1 bg-card">{leading}</div>
+            <div role="columnheader" className="sticky top-0 left-0 z-20 flex flex-col items-center justify-center gap-1 bg-card shadow-[1px_1px_0_0_var(--border)]">{leading}</div>
             {WEEKDAYS.map((day, index) => (
               <div
                 key={day}
                 role="columnheader"
                 aria-label={DAY_LABELS[day] + (day === today ? ", hôm nay" : "")}
-                className="flex h-[calc(4rem-1px)] flex-col items-center justify-center gap-0.5 bg-card"
+                className="sticky top-0 z-10 flex h-[calc(4rem-1px)] flex-col items-center justify-center gap-0.5 bg-card shadow-[0_1px_0_0_var(--border)]"
               >
                 <span className={cn("text-[0.6875rem] font-semibold", day === today ? "text-primary" : "text-muted-foreground")}>
                   {DAY_SHORT[day]}
@@ -339,7 +524,7 @@ export function CalendarBoard({
 
           {MEAL_SECTIONS.map((section) => (
             <div key={section} role="row" className="contents">
-              <div role="rowheader" className="flex items-start justify-center bg-card px-1 pt-3 text-[0.6875rem] font-semibold text-muted-foreground">
+              <div role="rowheader" className="sticky left-0 z-10 flex items-start justify-center bg-card px-1 pt-3 text-[0.6875rem] font-semibold text-muted-foreground shadow-[1px_0_0_0_var(--border)]">
                 {SECTION_LABELS[section]}
               </div>
               {WEEKDAYS.map((day) => {
@@ -520,7 +705,7 @@ function CalendarChip({
         className="flex min-w-0 flex-1 items-center gap-1.5 rounded-md py-0.5 text-left outline-none focus-visible:ring-3 focus-visible:ring-ring/30"
       >
         <TagIcon aria-hidden className="size-3.5 shrink-0 text-primary" />
-        <span className="min-w-0 truncate font-medium text-foreground">{title}</span>
+        <span className="min-w-0 flex-1 line-clamp-2 break-words leading-tight font-medium text-foreground">{title}</span>
         {warning && (
           <>
             <TriangleAlertIcon aria-hidden className="size-3.5 shrink-0 text-amber-600 dark:text-amber-400" />

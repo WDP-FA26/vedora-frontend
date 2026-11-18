@@ -2,7 +2,7 @@ import { z } from "zod"
 
 import { API_URL } from "@/features/auth/lib/api"
 import { recipeTagSchema } from "@/features/recipes/tags"
-import { sendJson } from "@/features/shared/lib/api-client"
+import { send, sendJson } from "@/features/shared/lib/api-client"
 
 // Mirrors vedora-api's `/meal-plan` routes: the signed-in user's weekly timetable.
 
@@ -11,6 +11,7 @@ export const MEAL_PLANNER_PATH = "/meal-planner"
 /** The SWR key is `[url, accessToken]`. */
 export const MEAL_PLAN_KEY = `${API_URL}/meal-plan`
 export const MEAL_PLANNER_CHAT_URL = `${API_URL}/meal-plan/chat`
+export const MEAL_PLANNER_CHAT_THREADS_KEY = `${API_URL}/meal-plan/chat/threads`
 export const SHOPPING_LIST_KEY = `${API_URL}/meal-plan/shopping-list`
 
 export const WEEKDAYS = ["MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"] as const
@@ -340,4 +341,91 @@ export function formatQuantity(quantity: string) {
   const [whole, fraction = ""] = quantity.split(".")
   const trimmed = fraction.replace(/0+$/, "")
   return trimmed ? `${whole},${trimmed}` : whole
+}
+
+export const proposalStatusSchema = z.enum(["staged", "saved", "dismissed"])
+
+export const chatThreadSummarySchema = z.object({
+  id: z.string(),
+  title: z.string(),
+  messageCount: z.number(),
+  lastMessagePreview: z.string().nullable(),
+  lastMessageAt: z.string(),
+  createdAt: z.string(),
+  updatedAt: z.string(),
+})
+
+export const chatThreadListSchema = z.object({
+  items: z.array(chatThreadSummarySchema),
+  meta: z.object({
+    page: z.number(),
+    limit: z.number(),
+    totalItems: z.number(),
+    totalPages: z.number(),
+    hasNextPage: z.boolean(),
+    hasPreviousPage: z.boolean(),
+  }),
+})
+
+export const chatMessageRecordSchema = z.object({
+  id: z.string(),
+  role: z.enum(["user", "assistant"]),
+  text: z.string(),
+  parts: z.array(z.record(z.string(), z.unknown())),
+  metadata: z.object({ refused: z.boolean().optional() }).nullable().optional(),
+  createdAt: z.string(),
+})
+
+export const chatThreadDetailSchema = chatThreadSummarySchema.extend({
+  proposalStatuses: z.record(z.string(), proposalStatusSchema),
+  messages: z.array(chatMessageRecordSchema),
+})
+
+export type ChatThreadSummary = z.infer<typeof chatThreadSummarySchema>
+export type ChatThreadList = z.infer<typeof chatThreadListSchema>
+export type ChatMessageRecord = z.infer<typeof chatMessageRecordSchema>
+export type ChatThreadDetail = z.infer<typeof chatThreadDetailSchema>
+
+export type SyncChatMessageInput = {
+  id: string
+  role: "user" | "assistant"
+  text?: string
+  parts?: Record<string, unknown>[]
+  metadata?: { refused?: boolean } | null
+}
+
+export function fetchChatThreads([url, token]: readonly [string, string]) {
+  return sendJson(chatThreadListSchema, url, token)
+}
+
+export function fetchChatThread(token: string, threadId: string) {
+  return sendJson(chatThreadDetailSchema, `${MEAL_PLANNER_CHAT_THREADS_KEY}/${threadId}`, token)
+}
+
+export function createChatThread(token: string, body: { id?: string; title?: string } = {}) {
+  return sendJson(chatThreadDetailSchema, MEAL_PLANNER_CHAT_THREADS_KEY, token, {
+    method: "POST",
+    body: JSON.stringify(body),
+  })
+}
+
+export function updateChatThread(
+  token: string,
+  threadId: string,
+  body: {
+    title?: string
+    proposalStatuses?: Record<string, z.infer<typeof proposalStatusSchema>>
+    messages?: SyncChatMessageInput[]
+  }
+) {
+  return sendJson(chatThreadDetailSchema, `${MEAL_PLANNER_CHAT_THREADS_KEY}/${threadId}`, token, {
+    method: "PATCH",
+    body: JSON.stringify(body),
+  })
+}
+
+export async function deleteChatThread(token: string, threadId: string) {
+  await send(`${MEAL_PLANNER_CHAT_THREADS_KEY}/${threadId}`, token, {
+    method: "DELETE",
+  })
 }

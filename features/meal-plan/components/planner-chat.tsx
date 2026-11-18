@@ -8,10 +8,14 @@ import {
   ArrowUpIcon,
   ChevronDownIcon,
   ChevronUpIcon,
+  HistoryIcon,
+  MessageSquarePlusIcon,
   RotateCcwIcon,
+  Trash2Icon,
   XIcon,
 } from "lucide-react"
 
+import { Badge } from "@/components/ui/badge"
 import { Bubble, BubbleContent, BubbleGroup } from "@/components/ui/bubble"
 import { Button } from "@/components/ui/button"
 import {
@@ -21,6 +25,13 @@ import {
   InputGroupTextarea,
 } from "@/components/ui/input-group"
 import { Message, MessageContent, MessageHeader } from "@/components/ui/message"
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet"
 import { Spinner } from "@/components/ui/spinner"
 import { DIETARY_PATH } from "@/features/dietary/dietary"
 import {
@@ -40,6 +51,18 @@ import {
 } from "@/features/meal-plan/meal-plan"
 import { AgentSources, AgentTrace, hasTrace } from "@/features/shared/components/agent-trace"
 import { LogoMark } from "@/features/shared/components/wordmark"
+import { cn } from "@/lib/utils"
+
+function formatThreadTime(iso: string) {
+  const date = new Date(iso)
+  if (Number.isNaN(date.getTime())) return ""
+  return date.toLocaleString("vi-VN", {
+    day: "2-digit",
+    month: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  })
+}
 
 const UNSAFE_ELEMENTS = ["img", "a"]
 const MAX_PLANNER_MESSAGE_LENGTH = 4000
@@ -108,13 +131,14 @@ export function PlannerChat({
   const [input, setInput] = useState("")
   const [inputError, setInputError] = useState("")
   const [profileOpen, setProfileOpen] = useState(false)
+  const [historyOpen, setHistoryOpen] = useState(false)
   const end = useRef<HTMLDivElement>(null)
   const textarea = useRef<HTMLTextAreaElement>(null)
   const lastPrefillNonce = useRef<number | null>(null)
   const fromForm = useRef(false)
   const pending = useRef<string | null>(null)
   const pendingAfterCount = useRef<number | null>(null)
-  const showSuggestions = messages.length === 1 && !busy && !error
+  const showSuggestions = messages.length === 1 && !busy && !error && !chat.loadingThreadId
   const hasPendingProposal = chat.pendingProposal !== null
 
   useEffect(() => {
@@ -194,15 +218,54 @@ export function PlannerChat({
     sendQuestion(payload, text)
   }
 
+  function handleNewThread() {
+    reset()
+    setInput("")
+    setInputError("")
+    pending.current = null
+    pendingAfterCount.current = null
+    fromForm.current = false
+  }
+
+  async function handleSelectThread(id: string) {
+    setInput("")
+    setInputError("")
+    pending.current = null
+    pendingAfterCount.current = null
+    fromForm.current = false
+    setHistoryOpen(false)
+    await chat.selectThread(id)
+  }
+
   return (
     <div className="flex h-[calc(100dvh-4.5rem)] min-h-[24rem] min-w-0 flex-col bg-background lg:h-full">
-      <header className="flex h-16 shrink-0 items-center gap-3 border-b border-border bg-card px-3 sm:px-4">
+      <header className="flex h-16 shrink-0 items-center gap-2 border-b border-border bg-card px-3 sm:px-4">
         {leading}
         <span className="flex size-10 shrink-0 items-center justify-center rounded-2xl bg-secondary"><LogoMark className="size-7" /></span>
         <div className="min-w-0 flex-1">
           <h2 className="font-heading text-base font-bold leading-tight">Trợ lý Vedora</h2>
-          <p className="mt-0.5 text-xs text-muted-foreground">Cùng bạn chọn món và lên thực đơn</p>
+          <p className="mt-0.5 truncate text-xs text-muted-foreground">
+            {chat.activeThread ? chat.activeThread.title : "Cùng bạn chọn món và lên thực đơn"}
+          </p>
         </div>
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          aria-label="Lịch sử đoạn chat"
+          title="Lịch sử đoạn chat"
+          onClick={() => setHistoryOpen(true)}
+        >
+          <HistoryIcon aria-hidden />
+        </Button>
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          aria-label="Đoạn chat mới"
+          title="Đoạn chat mới"
+          onClick={handleNewThread}
+        >
+          <MessageSquarePlusIcon aria-hidden />
+        </Button>
         {trailing}
       </header>
 
@@ -230,7 +293,12 @@ export function PlannerChat({
         )}
       </div>
 
-      <div aria-label="Cuộc trò chuyện" aria-live="polite" className="flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto overscroll-contain px-4 py-5 sm:px-5">
+      <div aria-label="Cuộc trò chuyện" aria-live="polite" className="flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto overscroll-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden px-4 py-5 sm:px-5">
+        {chat.loadingThreadId && (
+          <p role="status" className="flex items-center gap-2 text-sm text-muted-foreground">
+            <Spinner aria-hidden /> Đang tải lịch sử đoạn chat…
+          </p>
+        )}
         {messages.map((message) => {
           const text = messageText(message)
           const proposals = messageProposals(message)
@@ -269,8 +337,108 @@ export function PlannerChat({
           </InputGroup>
           {inputError && <p role="alert" className="mt-1 text-xs text-destructive">{inputError}</p>}
         </form>
-        <div className="mt-2 flex items-center justify-between gap-3"><p className="text-[0.6875rem] leading-4 text-muted-foreground">Đề xuất chỉ thay đổi thực đơn khi bạn lưu.</p>{messages.length > 1 && <Button variant="ghost" size="xs" onClick={() => { reset(); setInput(""); pending.current = null; pendingAfterCount.current = null; fromForm.current = false }}><RotateCcwIcon aria-hidden /> Bắt đầu lại</Button>}</div>
+        <div className="mt-2 flex items-center justify-between gap-3">
+          <p className="text-[0.6875rem] leading-4 text-muted-foreground">Đề xuất chỉ thay đổi thực đơn khi bạn lưu.</p>
+          {(messages.length > 1 || chat.activeThread !== null) && (
+            <Button variant="ghost" size="xs" onClick={handleNewThread}>
+              <MessageSquarePlusIcon aria-hidden /> Đoạn chat mới
+            </Button>
+          )}
+        </div>
       </div>
+
+      <Sheet open={historyOpen} onOpenChange={setHistoryOpen}>
+        <SheetContent side="left" className="w-full sm:max-w-sm">
+          <div className="flex min-h-0 flex-1 flex-col">
+            <div className="border-b border-border pr-8">
+              <SheetHeader>
+                <SheetTitle>Lịch sử đoạn chat</SheetTitle>
+                <SheetDescription>Xem lại hoặc tiếp tục các cuộc trò chuyện trước</SheetDescription>
+                <div className="pt-2">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="w-full"
+                    onClick={() => {
+                      handleNewThread()
+                      setHistoryOpen(false)
+                    }}
+                  >
+                    <MessageSquarePlusIcon aria-hidden /> Đoạn chat mới
+                  </Button>
+                </div>
+              </SheetHeader>
+            </div>
+
+            {chat.historyError && (
+              <p role="alert" className="border-b border-border px-4 py-2 text-xs text-destructive">
+                {chat.historyError}
+              </p>
+            )}
+
+            <div className="min-h-0 flex-1 overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+              {chat.threadsLoading && chat.threads.length === 0 ? (
+                <p role="status" className="flex items-center gap-2 px-4 py-4 text-sm text-muted-foreground">
+                  <Spinner aria-hidden /> Đang tải lịch sử đoạn chat…
+                </p>
+              ) : chat.threads.length === 0 ? (
+                <p className="px-4 py-6 text-center text-sm text-muted-foreground">
+                  Chưa có lịch sử đoạn chat nào. Hãy gửi tin nhắn đầu tiên để bắt đầu.
+                </p>
+              ) : (
+                <ul className="flex flex-col">
+                  {chat.threads.map((thread) => {
+                    const isActive = thread.id === chat.threadId
+                    const isDeleting = chat.deletingThreadId === thread.id
+                    const isLoading = chat.loadingThreadId === thread.id
+                    return (
+                      <li
+                        key={thread.id}
+                        className={cn(
+                          "flex items-start gap-2 border-b border-border px-4 py-3 transition-colors",
+                          isActive ? "bg-secondary/50" : "hover:bg-muted/40"
+                        )}
+                      >
+                        <button
+                          type="button"
+                          onClick={() => void handleSelectThread(thread.id)}
+                          disabled={isLoading || isDeleting}
+                          className="min-w-0 flex-1 text-left outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                        >
+                          <div className="flex items-center gap-2">
+                            <span className="truncate text-sm font-semibold text-foreground">
+                              {thread.title}
+                            </span>
+                            {isActive && <Badge variant="secondary">Đang mở</Badge>}
+                            {isLoading && <Spinner aria-hidden />}
+                          </div>
+                          {thread.lastMessagePreview && (
+                            <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">
+                              {thread.lastMessagePreview}
+                            </p>
+                          )}
+                          <p className="mt-1.5 text-[0.6875rem] text-muted-foreground">
+                            {thread.messageCount} tin nhắn · {formatThreadTime(thread.lastMessageAt)}
+                          </p>
+                        </button>
+                        <Button
+                          variant="ghost"
+                          size="icon-sm"
+                          aria-label={`Xóa đoạn chat ${thread.title}`}
+                          disabled={isDeleting}
+                          onClick={() => void chat.removeThread(thread.id)}
+                        >
+                          {isDeleting ? <Spinner aria-hidden /> : <Trash2Icon aria-hidden />}
+                        </Button>
+                      </li>
+                    )
+                  })}
+                </ul>
+              )}
+            </div>
+          </div>
+        </SheetContent>
+      </Sheet>
     </div>
   )
 }
