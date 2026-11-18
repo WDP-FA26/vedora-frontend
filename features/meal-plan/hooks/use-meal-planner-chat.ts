@@ -11,7 +11,9 @@ import {
   MEAL_PLANNER_CHAT_URL,
   proposalSchema,
   SECTION_LABELS,
+  WEEKDAYS,
   type MealPlanProposal,
+  type Weekday,
 } from "@/features/meal-plan/meal-plan"
 
 /** Mirror `MealPlannerChatDto` in vedora-api. */
@@ -23,6 +25,54 @@ type Statuses = Record<string, ProposalStatus>
 
 export interface Proposal extends MealPlanProposal {
   id: string
+  /** Set on a merged proposal: the ids of every proposal it was built from. */
+  mergedIds?: string[]
+}
+
+export function proposalIds(proposal: Proposal): string[] {
+  return proposal.mergedIds ?? [proposal.id]
+}
+
+type ProposalDay = Proposal["days"][number]
+type ProposalSection = ProposalDay["sections"][number]
+
+function sectionChanged({ recipes, previous }: ProposalSection) {
+  return recipes.map(({ id }) => id).join() !== previous.map(({ id }) => id).join()
+}
+
+/**
+ * Proposals the user has not answered yet add up, slot by slot: a later
+ * proposal replaces only the slots it actually changes, so asking for one
+ * meal or one day never drops what was proposed before.
+ */
+export function mergeProposals(open: Proposal[]): Proposal | null {
+  const last = open.at(-1)
+  if (!last) return null
+  if (open.length === 1) return last
+
+  const byDay = new Map<Weekday, ProposalDay>()
+  for (const proposal of open) {
+    for (const day of proposal.days) {
+      const known = byDay.get(day.day)
+      if (!known) {
+        byDay.set(day.day, { day: day.day, sections: day.sections.map((section) => ({ ...section })) })
+        continue
+      }
+      for (const section of day.sections) {
+        if (!sectionChanged(section)) continue
+        const index = known.sections.findIndex((item) => item.section === section.section)
+        if (index === -1) known.sections.push({ ...section })
+        else known.sections[index] = { ...section }
+      }
+    }
+  }
+
+  const days: ProposalDay[] = []
+  for (const weekday of WEEKDAYS) {
+    const day = byDay.get(weekday)
+    if (day) days.push(day)
+  }
+  return { id: last.id, ok: true, days, mergedIds: open.map(({ id }) => id) }
 }
 
 /** The planner's tools whose output is a proposal card. */
@@ -167,11 +217,18 @@ export function useMealPlannerChat() {
     /** The assistant message whose trace shows the waiting, once the reply has started. */
     pendingId: busy && !replying && last?.role === "assistant" ? last.id : null,
     streamingId: replying ? last.id : null,
-    /** Only the newest proposal can still be applied. */
-    latestProposalId: messages.flatMap(messageProposals).at(-1)?.id ?? null,
+    /** Every proposal not yet applied, saved or dismissed, merged into one. */
+    pendingProposal: mergeProposals(
+      messages.flatMap(messageProposals).filter((proposal) => !statuses[proposal.id])
+    ),
     statuses,
     setProposalStatus: (id: string, next: ProposalStatus) =>
       setStatuses((current) => ({ ...current, [id]: next })),
+    setProposalsStatus: (ids: string[], next: ProposalStatus) => {
+      const updates: Statuses = {}
+      for (const id of ids) updates[id] = next
+      setStatuses((current) => ({ ...current, ...updates }))
+    },
     error: error ? errorMessage(error) : null,
     send: (text: string) => {
       clearError()

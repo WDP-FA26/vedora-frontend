@@ -16,7 +16,7 @@ import { PlannerChat, type PlannerChatHandle } from "@/features/meal-plan/compon
 import { QuickGenerate } from "@/features/meal-plan/components/quick-generate"
 import { MealRequestForm } from "@/features/meal-plan/components/meal-request-form"
 import {
-  messageProposals,
+  proposalIds,
   useMealPlannerChat,
   type Proposal,
 } from "@/features/meal-plan/hooks/use-meal-planner-chat"
@@ -114,9 +114,7 @@ export function MealPlannerView() {
   const [formSentAtCount, setFormSentAtCount] = useState<number | null>(null)
   const plan = useAuthedSWR(MEAL_PLAN_KEY, fetchMealPlan)
   const restrictions = useAuthedSWR(MY_DIETARY_KEY, fetchMyDietary)
-  const newestProposal = chat.messages.flatMap(messageProposals).at(-1) ?? null
-  const chatSuggestion = newestProposal && !chat.statuses[newestProposal.id] ? newestProposal : null
-  const suggestion = generated ?? chatSuggestion
+  const suggestion = generated ?? chat.pendingProposal
   const plannedDays = plan.data
     ? plan.data.days
         .filter(({ sections }) => sections.some(({ recipes }) => recipes.length > 0))
@@ -190,23 +188,23 @@ export function MealPlannerView() {
       setGenerated(null)
       return
     }
-    chat.setProposalStatus(proposal.id, "dismissed")
+    chat.setProposalsStatus(proposalIds(proposal), "dismissed")
   }
 
   function stage(proposal: Proposal) {
     if (generated?.id === proposal.id) setGenerated(null)
     if (draft && draft.id !== proposal.id && !window.confirm("Thay bản nháp thực đơn hiện tại bằng đề xuất mới?")) return
-    if (draft && draft.id !== proposal.id) chat.setProposalStatus(draft.id, "dismissed")
+    if (draft && draft.id !== proposal.id) chat.setProposalsStatus(proposalIds(draft), "dismissed")
     setDraft(proposal)
     setRequestOpen(false)
     setSaveError(null)
-    chat.setProposalStatus(proposal.id, "staged")
+    chat.setProposalsStatus(proposalIds(proposal), "staged")
     setTab("calendar")
   }
 
   function discardDraft() {
     if (!draft) return
-    chat.setProposalStatus(draft.id, "dismissed")
+    chat.setProposalsStatus(proposalIds(draft), "dismissed")
     setDraft(null)
     setSaveError(null)
     setFormHandoffState("editing")
@@ -225,7 +223,7 @@ export function MealPlannerView() {
       }
       const saved = await saveMealDays(accessToken, days)
       await plan.mutate(saved, { revalidate: false })
-      chat.setProposalStatus(draft.id, "saved")
+      chat.setProposalsStatus(proposalIds(draft), "saved")
       setDraft(null)
     } catch (error) {
       if (error instanceof ApiError && error.status === 401) router.refresh()
