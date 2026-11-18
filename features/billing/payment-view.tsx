@@ -15,6 +15,7 @@ import { ApiError, sendJson } from "@/features/shared/lib/api-client"
 import { usePayment } from "./hooks"
 import { usePaymentStream } from "./use-payment-stream"
 import { dateTime, money, paymentSchema } from "./schema"
+import { countdownLabel, usePaymentCountdown } from "./use-payment-countdown"
 
 export function PaymentView({ id }: { id: string }) {
   const { accessToken } = useAuth()
@@ -28,6 +29,17 @@ function PaymentContent({ id, token }: { id: string; token?: string }) {
   const request = useRef<AbortController | null>(null)
   useEffect(() => () => request.current?.abort(), [])
   const status = payment.data?.status
+  const seconds = usePaymentCountdown(status === "PENDING" ? payment.data : undefined)
+  const expired = payment.data?.cancellationReason === "EXPIRED" || (status === "PENDING" && seconds === 0)
+  const reconciledExpiry = useRef(false)
+  useEffect(() => {
+    if (!expired || reconciledExpiry.current || !token) return
+    reconciledExpiry.current = true
+    void Promise.all([
+      payment.mutate(),
+      mutate([`${API_URL}/billing/me`, token]),
+    ]).catch(() => undefined)
+  }, [expired, token, mutate, payment])
   const realtime = usePaymentStream(id, status === "PENDING")
   useEffect(() => {
     if (status === "SUCCEEDED" && token) void mutate([`${API_URL}/billing/me`, token]).catch(() => undefined)
@@ -51,9 +63,11 @@ function PaymentContent({ id, token }: { id: string; token?: string }) {
   return <div className="space-y-5">
     <div><h1 className="font-heading text-2xl font-semibold">Thanh toán {data.purchasedPlanName}</h1><p className="mt-2 break-all text-xs text-muted-foreground">{data.invoiceNumber}</p></div>
     {data.status === "SUCCEEDED" ? <Card><CardHeader><CardTitle>Đã xác nhận thanh toán</CardTitle><CardDescription>{money(data.amount)} · {data.purchasedPlanName} · {data.durationDays} ngày</CardDescription></CardHeader><CardContent><div className="space-y-4"><p className="text-sm">{data.capturedAt && `Gói được kích hoạt từ ${dateTime(data.capturedAt)} (UTC+7). `}Hạn mức AI của chu kỳ mới đã sẵn sàng. Xem gói hiện tại để kiểm tra số lượt còn lại.</p><Button render={<Link href="/billing" />}>Xem gói hiện tại</Button></div></CardContent></Card>
+    : expired ? <Alert><AlertDescription><p>Đơn thanh toán đã hết hạn sau 30 phút và được tự động hủy. Không chuyển tiền theo QR cũ. Nếu đã chuyển, giữ mã giao dịch để liên hệ quản trị viên đối soát.</p><Link href="/billing" className="underline">Tạo đơn thanh toán mới</Link><Button variant="outline" disabled={payment.isValidating} onClick={() => { void payment.mutate().catch(() => undefined) }}>Kiểm tra trạng thái</Button></AlertDescription></Alert>
     : data.status === "CANCELLED" ? <Alert><AlertDescription><p>Giao dịch đã hủy. Không chuyển tiền theo QR cũ. Nếu đã chuyển, hãy cung cấp mã giao dịch cho quản trị viên để đối soát; hệ thống không tự hoàn tiền.</p><Link href="/billing" className="underline">Về gói của bạn</Link></AlertDescription></Alert>
     : <>
       <Alert><AlertDescription>Gói mới có hiệu lực ngay sau khi webhook được xác nhận, thay thế thời hạn cũ và không cộng dồn. Chỉ chuyển đúng số tiền và nội dung bên dưới.</AlertDescription></Alert>
+      <div className="rounded-xl border p-4 text-sm"><p>Thời gian thanh toán còn lại: <span role="timer" aria-label="Thời gian thanh toán còn lại" aria-live="off" className="font-mono text-xl font-semibold tabular-nums">{seconds === null ? "--:--" : countdownLabel(seconds)}</span></p><p className="mt-1 text-muted-foreground">Hạn thanh toán: {dateTime(data.expiresAt)} (UTC+7). Đơn tự hủy khi hết thời gian.</p></div>
       <Card><CardHeader><CardTitle>Chờ chuyển khoản</CardTitle><CardDescription>{money(data.amount)} · {data.durationDays} ngày</CardDescription></CardHeader><CardContent>
         {data.qr ? <div className="grid items-start gap-6 sm:grid-cols-[256px_1fr]">
           <div className="space-y-3"><Image unoptimized src={data.qr.imageUrl} alt={`QR chuyển khoản ${money(data.amount)} cho gói ${data.purchasedPlanName}`} width={256} height={300} className="h-auto w-full rounded-xl border bg-white" /><a className="block text-center text-sm underline" href={data.qr.downloadUrl} target="_blank" rel="noreferrer">Mở / tải ảnh QR</a></div>
