@@ -17,3 +17,12 @@ export const NEW_BLOG_PATH = "/blogs/new"
 export function editBlogPath(id: string) {
   return `/blogs/${id}/edit`
 }
+
+/**
+ * A blog started at `NEW_BLOG_PATH`, once saved. It keeps that route so a
+ * `router.refresh()` (e.g. rotating an expired token) re-renders the same
+ * page and keeps the editor and the assistant chat mounted.
+ */
+export function newBlogDraftPath(id: string) {
+  return `${NEW_BLOG_PATH}?id=${encodeURIComponent(id)}`
+}
