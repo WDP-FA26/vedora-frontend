@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation"
 import type { EditorState } from "lexical"
 
 import { useAuth } from "@/features/auth/hooks/use-auth"
-import { editBlogPath } from "@/features/blogs/blogs-cache"
+import { newBlogDraftPath } from "@/features/blogs/blogs-cache"
 import { createBlog, updateBlog, type BlogInput } from "@/features/blogs/lib/blogs-api"
 import { isVideoUrl } from "@/features/blogs/editor/media-node"
 import { markdownOf } from "@/features/blogs/editor/markdown"
@@ -127,8 +127,9 @@ export function useBlogDraft(initial: ApiBlog | null) {
       const blog = await request
       if (!id.current) {
         id.current = blog.id
-        // Same page, now addressable; a router navigation would remount the editor.
-        window.history.replaceState(null, "", editBlogPath(blog.id))
+        // Same page, now addressable. Not `/blogs/[id]/edit`: a refresh would
+        // render that route and remount the editor, losing the assistant chat.
+        window.history.replaceState(null, "", newBlogDraftPath(blog.id))
       }
       statusRef.current = blog.status
       setStatus(blog.status)
