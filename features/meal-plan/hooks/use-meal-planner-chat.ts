@@ -25,6 +25,9 @@ export interface Proposal extends MealPlanProposal {
   id: string
 }
 
+/** The planner's tools whose output is a proposal card. */
+const PROPOSAL_TOOL_TYPES = ["tool-proposeMealPlan", "tool-generateMealPlan"]
+
 /** vedora-api marks its fixed refusals with `{ refused: true }`. */
 type PlannerMessage = UIMessage<{ refused?: boolean }>
 
@@ -49,7 +52,7 @@ export function messageText(message: UIMessage) {
 /** The proposals the planner showed in this message; rejected ones never reach the user. */
 export function messageProposals(message: UIMessage): Proposal[] {
   return message.parts.flatMap((part) => {
-    if (part.type !== "tool-proposeMealPlan" || part.state !== "output-available") return []
+    if (!isToolUIPart(part) || !PROPOSAL_TOOL_TYPES.includes(part.type) || part.state !== "output-available") return []
     const proposal = proposalSchema.safeParse(part.output)
     return proposal.success && proposal.data.ok ? [{ ...proposal.data, id: part.toolCallId }] : []
   })
@@ -57,7 +60,7 @@ export function messageProposals(message: UIMessage): Proposal[] {
 
 export function messageCannotPropose(message: UIMessage) {
   return message.parts.some((part) => {
-    if (part.type !== "tool-proposeMealPlan" || part.state !== "output-available") return false
+    if (!isToolUIPart(part) || !PROPOSAL_TOOL_TYPES.includes(part.type) || part.state !== "output-available") return false
     const proposal = proposalSchema.safeParse(part.output)
     return proposal.success && !proposal.data.ok
   })

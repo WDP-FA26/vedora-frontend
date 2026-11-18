@@ -16,6 +16,7 @@ import { profilePath } from "@/features/profiles/profiles-cache"
 import type { FollowSuggestion } from "@/features/profiles/schemas"
 import { PROFESSIONAL_LABEL } from "@/features/verification/schemas"
 import { VerifiedBadge } from "@/features/shared/components/verified-badge"
+import { MEAL_PLANNER_PATH } from "@/features/meal-plan/meal-plan"
 
 /**
  * Like X.com: the rail scrolls with the feed until its bottom reaches the
@@ -69,7 +70,7 @@ export function RightRail() {
 function AiPanel() {
   return (
     <Link
-      href="/home/meal-planner"
+      href={MEAL_PLANNER_PATH}
       className="group relative block overflow-hidden rounded-2xl bg-brand-forest p-4 text-white outline-none transition hover:shadow-md focus-visible:ring-3 focus-visible:ring-ring/50"
     >
       <span className="relative z-10 block max-w-[68%]">

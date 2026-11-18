@@ -11,6 +11,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Button, buttonVariants } from "@/components/ui/button"
 import {
   Field,
+  FieldDescription,
   FieldError,
   FieldGroup,
   FieldLabel,
@@ -23,6 +24,7 @@ import { Spinner } from "@/components/ui/spinner"
 import { Textarea } from "@/components/ui/textarea"
 import { useAuth } from "@/features/auth/hooks/use-auth"
 import { IngredientDialog } from "@/features/recipes/components/ingredient-dialog"
+import { TagSelect } from "@/features/recipes/components/tag-select"
 import { NamedSelect, type SelectOption } from "@/features/recipes/components/named-select"
 import { RecipeImageField } from "@/features/recipes/components/recipe-image-field"
 import { RecipeSource } from "@/features/recipes/components/recipe-source"
@@ -89,6 +91,7 @@ function toFormValues(recipe: RecipeDetail | null): RecipeFormValues {
     title: recipe?.title ?? "",
     description: recipe?.description ?? "",
     imageUrl: recipe?.imageUrl ?? "",
+    tag: recipe?.tag ?? "",
     servings: String(recipe?.servings ?? 2),
     prepMinutes: recipe?.prepMinutes?.toString() ?? "",
     cookMinutes: recipe?.cookMinutes?.toString() ?? "",
@@ -140,6 +143,7 @@ function RecipeForm({
         title: values.title,
         description: values.description || undefined,
         imageUrl: values.imageUrl || undefined,
+        tag: values.tag || null,
         servings: Number(values.servings),
         prepMinutes: values.prepMinutes ? Number(values.prepMinutes) : undefined,
         cookMinutes: values.cookMinutes ? Number(values.cookMinutes) : undefined,
@@ -238,6 +242,19 @@ function RecipeForm({
                   onChange={field.onChange}
                   error={fieldState.error}
                 />
+              )}
+            />
+            <Controller
+              name="tag"
+              control={form.control}
+              render={({ field, fieldState }) => (
+                <Field data-invalid={fieldState.invalid}>
+                  <FieldLabel htmlFor="tag">Phân loại</FieldLabel>
+                  <TagSelect value={field.value} onChange={field.onChange} />
+                  <FieldDescription>
+                    Chọn biểu tượng món trên lịch thực đơn. Bỏ trống sẽ dùng biểu tượng mặc định.
+                  </FieldDescription>
+                </Field>
               )}
             />
             <div className="grid gap-4 sm:grid-cols-3">

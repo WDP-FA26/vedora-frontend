@@ -36,13 +36,13 @@ import {
 } from "@/features/meal-plan/meal-plan"
 import { cn } from "@/lib/utils"
 
-type RecipeRef = Pick<MealRecipe, "id" | "title">
-type DisplayRecipe = RecipeRef & { detail?: MealRecipe }
-type DisplayDay = {
+export type RecipeRef = Pick<MealRecipe, "id" | "title" | "tag">
+export type DisplayRecipe = RecipeRef & { detail?: MealRecipe }
+export type DisplayDay = {
   day: Weekday
   sections: { section: MealSection; recipes: DisplayRecipe[] }[]
 }
-type OpenedRecipe = { recipe: MealRecipe; day: Weekday; section: MealSection }
+export type OpenedRecipe = { recipe: MealRecipe; day: Weekday; section: MealSection }
 
 type TimetableProps = {
   plan: MealPlan | undefined
@@ -62,12 +62,12 @@ type TimetableProps = {
   suggestion?: MealPlanProposal | null
 }
 
-function todayWeekday(): Weekday {
+export function todayWeekday(): Weekday {
   const day = new Date().getDay()
   return WEEKDAYS[day === 0 ? 6 : day - 1]
 }
 
-const DAY_SHORT: Record<Weekday, string> = {
+export const DAY_SHORT: Record<Weekday, string> = {
   MON: "T2",
   TUE: "T3",
   WED: "T4",
@@ -78,7 +78,7 @@ const DAY_SHORT: Record<Weekday, string> = {
 }
 
 /** Day of the month for each weekday of the current week, Monday first. */
-function thisWeekDates(): number[] {
+export function thisWeekDates(): number[] {
   const now = new Date()
   const monday = now.getDate() - ((now.getDay() + 6) % 7)
   return WEEKDAYS.map((_, index) =>
@@ -103,12 +103,12 @@ function problemLines(problems: MealPlan["problems"]) {
   }))
 }
 
-function recipeTime(recipe: MealRecipe | undefined) {
+export function recipeTime(recipe: MealRecipe | undefined) {
   if (!recipe || (recipe.prepMinutes === null && recipe.cookMinutes === null)) return null
   return (recipe.prepMinutes ?? 0) + (recipe.cookMinutes ?? 0)
 }
 
-function displayDays(plan: MealPlan | undefined, draft: MealPlanProposal | null | undefined): DisplayDay[] {
+export function displayDays(plan: MealPlan | undefined, draft: MealPlanProposal | null | undefined): DisplayDay[] {
   const savedRecipes = new Map<string, MealRecipe>()
   for (const day of plan?.days ?? []) {
     for (const section of day.sections) {
@@ -136,6 +136,7 @@ function displayDays(plan: MealPlan | undefined, draft: MealPlanProposal | null 
       recipes: recipes.map((recipe) => ({
         id: recipe.id,
         title: recipe.title,
+        tag: recipe.tag,
         detail: savedRecipes.get(recipe.id),
       })),
     })),
@@ -172,7 +173,7 @@ export function Timetable({
   const showProblems = plan !== undefined && plan.problems.length > 0 && !isDraft && !isSuggestion
 
   return (
-    <div className="flex min-w-0 flex-col bg-card pb-[calc(4rem+env(safe-area-inset-bottom))] sm:pb-0 lg:min-h-full">
+    <div className="flex min-w-0 flex-col bg-card pb-[env(safe-area-inset-bottom)] lg:min-h-full">
       <header className="flex flex-wrap items-center justify-between gap-3 border-b border-border px-4 py-3 sm:px-5">
         <h2 className="min-w-0 font-heading text-lg font-bold leading-tight">
           {isDraft ? "Bản nháp thực đơn" : isSuggestion ? "Thực đơn đề xuất" : "Thực đơn tuần"}
@@ -359,7 +360,7 @@ export function Timetable({
           )}
 
           {isDraft && (
-            <div className="sticky bottom-[calc(4rem+env(safe-area-inset-bottom))] z-10 border-t border-border bg-card/95 px-4 py-4 shadow-[0_-8px_24px_-16px_rgba(20,38,26,0.2)] backdrop-blur-sm sm:bottom-0 sm:px-5">
+            <div className="sticky bottom-0 z-10 border-t border-border bg-card/95 px-4 py-4 shadow-[0_-8px_24px_-16px_rgba(20,38,26,0.2)] backdrop-blur-sm sm:bottom-0 sm:px-5">
               <p className="mb-3 text-xs text-muted-foreground">
                 Thay đổi đang ở bản nháp. Chỉ được lưu khi bạn xác nhận. Lưu hoặc bỏ bản nháp trước khi đề xuất đổi món khác.
               </p>
@@ -469,7 +470,7 @@ function MealCard({
   )
 }
 
-function RecipeDialogContent({ opened, onAsk }: { opened: OpenedRecipe; onAsk?: () => void }) {
+export function RecipeDialogContent({ opened, onAsk }: { opened: OpenedRecipe; onAsk?: () => void }) {
   const { recipe, day, section } = opened
   // Focus the dialog itself: focusing its first button would scroll past the photo.
   const popup = useRef<HTMLDivElement>(null)

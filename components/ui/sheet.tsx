@@ -100,12 +100,21 @@ function SheetFooter({ className, ...props }: React.ComponentProps<"div">) {
   )
 }
 
-function SheetTitle({ className, ...props }: SheetPrimitive.Title.Props) {
+function SheetTitle({
+  className,
+  size = "default",
+  ...props
+}: SheetPrimitive.Title.Props & {
+  size?: "default" | "lg"
+}) {
   return (
     <SheetPrimitive.Title
       data-slot="sheet-title"
       className={cn(
-        "font-heading text-base font-medium text-foreground",
+        "font-heading text-foreground",
+        size === "lg"
+          ? "text-2xl leading-tight font-bold"
+          : "text-base font-medium",
         className
       )}
       {...props}

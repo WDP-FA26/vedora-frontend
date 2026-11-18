@@ -1,3 +1,4 @@
+import { MEAL_PLANNER_PATH } from "@/features/meal-plan/meal-plan"
 import { ADMIN_HOME } from "@/features/admin/data/nav-items"
 import {
   BookmarkIcon,
@@ -26,7 +27,7 @@ export const navItems: NavItem[] = [
   { href: "/home", label: "Khám phá", icon: CompassIcon },
   { href: "/home/notifications", label: "Thông báo", icon: BellIcon },
   { href: "/home/messages", label: "Tin nhắn", icon: MessageCircleIcon },
-  { href: "/home/meal-planner", label: "Trợ lý Vedora", icon: BotMessageSquareIcon },
+  { href: MEAL_PLANNER_PATH, label: "Trợ lý Vedora", icon: BotMessageSquareIcon },
   { href: "/home/bookmarks", label: "Đã lưu", icon: BookmarkIcon },
   { href: "/home/profile", label: "Hồ sơ", icon: UserIcon },
   { href: "/billing", label: "Gói của bạn", icon: CreditCardIcon, desktopOnly: true },

@@ -83,7 +83,13 @@ export function PlannerChat({
   clearAskContext,
   onOpenPlanner,
   onFormSent,
+  leading,
+  trailing,
 }: {
+  /** Shown before the logo, e.g. a back button. */
+  leading?: ReactNode
+  /** Shown at the end of the header, e.g. a collapse button. */
+  trailing?: ReactNode
   chat: MealPlannerChat
   onStage: (proposal: Proposal) => void
   openPlan: () => void
@@ -185,13 +191,15 @@ export function PlannerChat({
   }
 
   return (
-    <div className="flex h-[calc(100dvh-9rem)] min-h-[24rem] min-w-0 flex-col bg-background sm:h-[calc(100dvh-5rem)] lg:h-full">
-      <header className="flex shrink-0 items-center gap-3 border-b border-border bg-card px-4 py-3 sm:px-5">
-        <span className="flex size-10 items-center justify-center rounded-2xl bg-secondary"><LogoMark className="size-7" /></span>
-        <div className="min-w-0">
+    <div className="flex h-[calc(100dvh-4.5rem)] min-h-[24rem] min-w-0 flex-col bg-background lg:h-full">
+      <header className="flex h-16 shrink-0 items-center gap-3 border-b border-border bg-card px-3 sm:px-4">
+        {leading}
+        <span className="flex size-10 shrink-0 items-center justify-center rounded-2xl bg-secondary"><LogoMark className="size-7" /></span>
+        <div className="min-w-0 flex-1">
           <h2 className="font-heading text-base font-bold leading-tight">Trợ lý Vedora</h2>
           <p className="mt-0.5 text-xs text-muted-foreground">Cùng bạn chọn món và lên thực đơn</p>
         </div>
+        {trailing}
       </header>
 
       <div className="shrink-0 border-b border-border bg-card px-4 py-3 sm:px-5">
@@ -308,7 +316,7 @@ function ProposalCard({ proposal, status, superseded, onStage, onDismiss, openPl
           </dl>
         </section>
       ))}
-      {status === "saved" ? <p role="status" className="mt-3 text-sm text-primary">Đã lưu vào thực đơn.</p> : status === "staged" ? <div className="mt-3 flex flex-wrap items-center gap-2"><p role="status" className="text-sm">Đã thêm vào bản nháp, chưa lưu.</p><Button variant="link" size="sm" onClick={openPlan}>Xem bản nháp</Button></div> : status === "dismissed" ? <p role="status" className="mt-3 text-sm text-muted-foreground">Đã bỏ đề xuất.</p> : superseded ? <p className="mt-3 text-sm text-muted-foreground">Đã có đề xuất mới hơn.</p> : changed.length > 0 ? <div className="mt-3 flex flex-wrap gap-2"><Button size="sm" onClick={() => onStage(proposal)}>Áp dụng vào bản nháp</Button><Button variant="outline" size="sm" onClick={onDismiss}>Bỏ đề xuất</Button></div> : null}
+      {status === "saved" ? <p role="status" className="mt-3 text-sm text-primary">Đã lưu vào thực đơn.</p> : status === "staged" ? <div className="mt-3 flex flex-wrap items-center gap-2"><p role="status" className="text-sm">Đã thêm vào bản nháp, chưa lưu.</p><Button variant="link" size="sm" onClick={openPlan}>Xem bản nháp</Button></div> : status === "dismissed" ? <p role="status" className="mt-3 text-sm text-muted-foreground">Đã bỏ đề xuất.</p> : superseded ? <p className="mt-3 text-sm text-muted-foreground">Đã có đề xuất mới hơn.</p> : changed.length > 0 ? <><div className="mt-3 flex flex-wrap gap-2 lg:hidden"><Button size="sm" onClick={() => onStage(proposal)}>Áp dụng vào bản nháp</Button><Button variant="outline" size="sm" onClick={onDismiss}>Bỏ đề xuất</Button></div><p className="mt-3 hidden text-sm text-muted-foreground lg:block">Đề xuất đang hiện trên lịch. Bấm “Áp dụng vào bản nháp” ở phía trên lịch.</p></> : null}
     </article>
   )
 }

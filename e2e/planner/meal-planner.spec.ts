@@ -9,7 +9,7 @@ test.describe("meal planner", () => {
   })
 
   test("renders the assistant and, with an empty plan, the request form", async ({ page }) => {
-    await page.goto("/home/meal-planner")
+    await page.goto("/meal-planner")
     await expect(page).toHaveTitle(/Lên thực đơn · Vedora/)
     await expect(page.getByRole("heading", { name: "Trợ lý Vedora" })).toBeVisible()
     await expect(page.getByRole("textbox", { name: "Tin nhắn cho trợ lý" })).toBeVisible()
@@ -19,7 +19,7 @@ test.describe("meal planner", () => {
   })
 
   test("the send button stays disabled until something is typed", async ({ page }) => {
-    await page.goto("/home/meal-planner")
+    await page.goto("/meal-planner")
     const send = page.getByRole("button", { name: "Gửi", exact: true })
     await expect(send).toBeDisabled()
     await page.getByRole("textbox", { name: "Tin nhắn cho trợ lý" }).fill("Gợi ý bữa tối nhẹ")
@@ -28,7 +28,7 @@ test.describe("meal planner", () => {
 
   test("shows the saved week with its recipes", async ({ page }) => {
     await mockApi(page, "/meal-plan", { body: filledMealPlan }, "GET")
-    await page.goto("/home/meal-planner")
+    await page.goto("/meal-planner")
     await expect(page.getByRole("heading", { name: "Thực đơn tuần" })).toBeVisible()
     await expect(page.getByText("Cháo nấm").first()).toBeVisible()
     await expect(page.getByText("Đậu hũ sốt cà chua").first()).toBeVisible()
@@ -47,7 +47,7 @@ test.describe("meal planner", () => {
         ],
       },
     }, "GET")
-    await page.goto("/home/meal-planner")
+    await page.goto("/meal-planner")
     await expect(page.getByText("Thực đơn có chỗ cần xem lại")).toBeVisible()
     await expect(page.getByText(/Cháo nấm có đậu phộng/)).toBeVisible()
     await expect(page.getByRole("link", { name: "Xem hồ sơ ăn uống" })).toHaveAttribute("href", "/home/dietary")
@@ -55,7 +55,7 @@ test.describe("meal planner", () => {
 
   test("shows an error with retry when the plan cannot be loaded", async ({ page }) => {
     await mockApi(page, "/meal-plan", { status: 500, body: { statusCode: 500, message: "boom" } }, "GET")
-    await page.goto("/home/meal-planner")
+    await page.goto("/meal-planner")
     await expect(page.getByText("Không tải được thực đơn")).toBeVisible()
     await expect(page.getByRole("button", { name: "Thử lại" })).toBeVisible()
   })
@@ -63,7 +63,7 @@ test.describe("meal planner", () => {
   test("the shopping list opens with the aggregated ingredients", async ({ page }) => {
     await mockApi(page, "/meal-plan", { body: filledMealPlan }, "GET")
     await mockApi(page, "/meal-plan/shopping-list", { body: shoppingList })
-    await page.goto("/home/meal-planner")
+    await page.goto("/meal-planner")
     await page.getByRole("button", { name: /đi chợ/i }).click()
     await expect(page.getByRole("dialog")).toContainText("Đậu hũ")
     await expect(page.getByRole("dialog")).toContainText("300")

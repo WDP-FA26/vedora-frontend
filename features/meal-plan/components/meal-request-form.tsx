@@ -7,8 +7,6 @@ import {
   ArrowRightIcon,
   CalendarDaysIcon,
   MessageCircleIcon,
-  PlusIcon,
-  Trash2Icon,
   XIcon,
 } from "lucide-react"
 
@@ -18,17 +16,6 @@ import { MEAL_SECTIONS, SECTION_LABELS, type MealSection } from "@/features/meal
 import { uniqueNonEmpty } from "@/features/shared/lib/unique"
 
 const MAX_CHAT_MESSAGE_LENGTH = 4000
-const MAX_EXTRA_ITEMS = 20
-const PRIORITIES = ["Đa dạng", "Nấu nhanh", "Tiết kiệm", "Tận dụng nguyên liệu"] as const
-
-type ExtraIngredient = {
-  id: number
-  name: string
-  amount: string
-  unit: string
-}
-
-type IngredientEditor = Omit<ExtraIngredient, "id">
 
 type MealRequestFormProps = {
   savedAvoided?: string[]
@@ -50,34 +37,10 @@ function clean(value: string) {
   return value.trim().replace(/\s+/gu, " ")
 }
 
-function ingredientLabel(item: { name: string; amount: string; unit: string }) {
-  const amount = clean(item.amount)
-  const unit = clean(item.unit)
-  return `${clean(item.name)}${amount ? ` (${amount}${unit ? ` ${unit}` : ""})` : ""}`
-}
-
-function amountError(item: IngredientEditor) {
-  const amount = clean(item.amount)
-  if (!amount) return null
-  const number = Number(amount.replace(",", "."))
-  return Number.isFinite(number) && number > 0 && number <= 1_000_000
-    ? null
-    : "Lượng nguyên liệu phải lớn hơn 0 và không quá 1.000.000."
-}
-
 function seedDetails(text: string) {
   const people = text.match(/(\d{1,2})\s*(?:người|suất ăn)/iu)?.[1]
   const minutes = text.match(/(\d{1,3})\s*phút/iu)?.[1]
-  const priority: (typeof PRIORITIES)[number] | null = /tận dụng|nguyên liệu đang có/iu.test(text)
-    ? "Tận dụng nguyên liệu"
-    : /tiết kiệm|ít tốn/iu.test(text)
-      ? "Tiết kiệm"
-      : /nấu nhanh|nhanh|\d{1,3}\s*phút/iu.test(text)
-        ? "Nấu nhanh"
-        : /đa dạng/iu.test(text)
-          ? "Đa dạng"
-          : null
-  return { people, minutes, priority }
+  return { people, minutes }
 }
 
 /** Builds a chat draft only; sending and saving remain separate user actions. */
@@ -99,13 +62,9 @@ export function MealRequestForm({
   const [meals, setMeals] = useState<MealSection[]>(["BREAKFAST", "LUNCH", "DINNER"])
   const [people, setPeople] = useState("")
   const [minutes, setMinutes] = useState("")
-  const [priority, setPriority] = useState<(typeof PRIORITIES)[number]>("Đa dạng")
   const [note, setNote] = useState("")
-  const [extraIngredients, setExtraIngredients] = useState<ExtraIngredient[]>([])
-  const [ingredientEditor, setIngredientEditor] = useState<IngredientEditor>({ name: "", amount: "", unit: "" })
   const [confirmedSignature, setConfirmedSignature] = useState<string | null>(null)
   const [error, setError] = useState("")
-  const nextIngredientId = useRef(1)
   const lastSeedNonce = useRef<number | null>(null)
 
   const profileReady = !profileLoading && !profileError
@@ -121,38 +80,11 @@ export function MealRequestForm({
       const details = seedDetails(seed.text)
       if (details.people) setPeople(details.people)
       if (details.minutes) setMinutes(details.minutes)
-      if (details.priority) setPriority(details.priority)
       setNote(seed.text)
       setError("")
     }, 0)
     return () => window.clearTimeout(timer)
   }, [seed])
-
-  function addExtraIngredient() {
-    const name = clean(ingredientEditor.name)
-    if (!name) {
-      setError("Nhập tên nguyên liệu cần thêm.")
-      return
-    }
-    if (extraIngredients.length >= MAX_EXTRA_ITEMS) {
-      setError(`Chỉ thêm tối đa ${MAX_EXTRA_ITEMS} nguyên liệu cho một yêu cầu.`)
-      return
-    }
-    const invalidAmount = amountError(ingredientEditor)
-    if (invalidAmount) {
-      setError(invalidAmount)
-      return
-    }
-    setExtraIngredients((current) => [...current, {
-      ...ingredientEditor,
-      id: nextIngredientId.current++,
-      name,
-      amount: clean(ingredientEditor.amount),
-      unit: clean(ingredientEditor.unit),
-    }])
-    setIngredientEditor({ name: "", amount: "", unit: "" })
-    setError("")
-  }
 
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -185,27 +117,6 @@ export function MealRequestForm({
       setError("Yêu cầu bổ sung tối đa 2.500 ký tự.")
       return
     }
-    const pending = clean(ingredientEditor.name)
-    if (!pending && (ingredientEditor.amount.trim() || ingredientEditor.unit.trim())) {
-      setError("Nhập tên cho nguyên liệu đang thêm.")
-      return
-    }
-    if (pending && extraIngredients.length >= MAX_EXTRA_ITEMS) {
-      setError(`Chỉ thêm tối đa ${MAX_EXTRA_ITEMS} nguyên liệu cho một yêu cầu.`)
-      return
-    }
-    if (pending) {
-      const invalidAmount = amountError(ingredientEditor)
-      if (invalidAmount) {
-        setError(invalidAmount)
-        return
-      }
-    }
-
-    const ingredients = [
-      ...extraIngredients.map(ingredientLabel),
-      ...(pending ? [ingredientLabel(ingredientEditor)] : []),
-    ]
     const prompt = [
       "Hãy đề xuất bản nháp thực đơn 7 ngày lặp theo thứ trong tuần, từ Thứ Hai đến Chủ nhật.",
       `Các bữa cần lập mỗi ngày: ${MEAL_SECTIONS.filter((meal) => meals.includes(meal)).map((meal) => SECTION_LABELS[meal].toLowerCase()).join(", ")}.`,
@@ -213,14 +124,12 @@ export function MealRequestForm({
       likedNames.length ? `Nguyên liệu tôi thích: ${likedNames.join(", ")}.` : "",
       people ? `Số người ăn: ${people}.` : "",
       minutes ? `Thời gian nấu tối đa cho mỗi bữa: ${minutes} phút.` : "",
-      `Ưu tiên: ${priority.toLowerCase()}.`,
-      ingredients.length ? `Nguyên liệu đang có, hãy ưu tiên tận dụng khi phù hợp: ${ingredients.join(", ")}.` : "",
       clean(note) ? `Yêu cầu bổ sung: ${note.trim()}` : "",
       "Hãy cho tôi xem đề xuất trước, tôi sẽ tự quyết định khi nào lưu thực đơn.",
     ].filter(Boolean).join("\n")
 
     if (prompt.length > MAX_CHAT_MESSAGE_LENGTH) {
-      setError(`Yêu cầu dài quá ${MAX_CHAT_MESSAGE_LENGTH} ký tự. Hãy rút ngắn ghi chú hoặc bớt nguyên liệu.`)
+      setError(`Yêu cầu dài quá ${MAX_CHAT_MESSAGE_LENGTH} ký tự. Hãy rút ngắn ghi chú.`)
       return
     }
     setError("")
@@ -229,7 +138,7 @@ export function MealRequestForm({
 
   return (
     <div className="min-w-0 bg-card">
-    <form hidden={handoffState !== "editing"} noValidate onSubmit={submit} className="min-w-0 bg-card pb-[calc(4rem+env(safe-area-inset-bottom))] sm:pb-4">
+    <form hidden={handoffState !== "editing"} noValidate onSubmit={submit} className="min-w-0 bg-card pb-4">
       <header className="flex min-h-24 items-center justify-between gap-2 overflow-hidden border-b border-border bg-gradient-to-r from-card via-card to-brand-cream/25 px-4 py-3 sm:min-h-28 sm:px-5">
         <div className="min-w-0">
           <h2 className="font-heading text-lg font-bold leading-tight">Lên thực đơn</h2>
@@ -277,46 +186,11 @@ export function MealRequestForm({
               <input type="number" min="1" max="240" step="1" value={minutes} onChange={(event) => { setMinutes(event.target.value); setError("") }} placeholder="Phút, ví dụ: 30" className="mt-1.5 h-10 w-full rounded-xl border border-input bg-background px-3 text-sm font-normal outline-none focus-visible:ring-3 focus-visible:ring-ring/30" />
             </label>
           </div>
-          <label className="block text-xs font-semibold">
-            Ưu tiên
-            <select value={priority} onChange={(event) => setPriority(event.target.value as (typeof PRIORITIES)[number])} className="mt-1.5 h-10 w-full rounded-xl border border-input bg-background px-3 text-sm font-normal outline-none focus-visible:ring-3 focus-visible:ring-ring/30">
-              {PRIORITIES.map((option) => <option key={option} value={option}>{option}</option>)}
-            </select>
-          </label>
-        </section>
-
-        <section aria-labelledby="request-pantry-title" className="space-y-3 border-t border-border pt-5">
-          <div>
-            <h3 id="request-pantry-title" className="text-sm font-bold">2. Nguyên liệu đang có</h3>
-            <p className="mt-1 text-xs leading-5 text-muted-foreground">Thêm nguyên liệu bạn muốn tận dụng cho yêu cầu này.</p>
-          </div>
-          {extraIngredients.length > 0 && (
-            <ul aria-label="Nguyên liệu thêm cho yêu cầu này" className="space-y-2">
-              {extraIngredients.map((item) => (
-                <li key={item.id} className="flex min-w-0 items-center justify-between gap-2 rounded-xl border border-border bg-background px-3 py-2 text-sm">
-                  <span className="min-w-0 break-words">{ingredientLabel(item)}</span>
-                  <Button type="button" variant="ghost" size="icon-sm" aria-label={`Xóa ${item.name} khỏi yêu cầu`} onClick={() => setExtraIngredients((current) => current.filter((entry) => entry.id !== item.id))}><Trash2Icon aria-hidden className="size-4" /></Button>
-                </li>
-              ))}
-            </ul>
-          )}
-          <div className="rounded-2xl border border-border bg-secondary/30 p-3">
-            <p className="mb-2 text-xs font-semibold">Thêm nguyên liệu cho lần này</p>
-            <label className="block text-xs font-medium">
-              Tên nguyên liệu
-              <input value={ingredientEditor.name} maxLength={80} onChange={(event) => { setIngredientEditor((current) => ({ ...current, name: event.target.value })); setError("") }} placeholder="Ví dụ: cà chua" className="mt-1 h-10 w-full rounded-xl border border-input bg-background px-3 text-sm font-normal outline-none focus-visible:ring-3 focus-visible:ring-ring/30" />
-            </label>
-            <div className="mt-2 grid grid-cols-2 gap-2">
-              <label className="text-xs font-medium">Số lượng (nếu có)<input type="text" inputMode="decimal" value={ingredientEditor.amount} maxLength={16} onChange={(event) => { setIngredientEditor((current) => ({ ...current, amount: event.target.value })); setError("") }} placeholder="Ví dụ: 500" className="mt-1 h-10 w-full rounded-xl border border-input bg-background px-3 text-sm font-normal outline-none focus-visible:ring-3 focus-visible:ring-ring/30" /></label>
-              <label className="text-xs font-medium">Đơn vị (nếu có)<input value={ingredientEditor.unit} maxLength={20} onChange={(event) => { setIngredientEditor((current) => ({ ...current, unit: event.target.value })); setError("") }} placeholder="Ví dụ: g" className="mt-1 h-10 w-full rounded-xl border border-input bg-background px-3 text-sm font-normal outline-none focus-visible:ring-3 focus-visible:ring-ring/30" /></label>
-            </div>
-            <Button type="button" variant="outline" size="sm" className="mt-3" onClick={addExtraIngredient}><PlusIcon aria-hidden /> Thêm nguyên liệu</Button>
-          </div>
         </section>
 
         <section aria-labelledby="request-profile-title" className="space-y-3 border-t border-border pt-5">
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <h3 id="request-profile-title" className="text-sm font-bold">3. Kiểm tra hồ sơ ăn uống</h3>
+            <h3 id="request-profile-title" className="text-sm font-bold">2. Kiểm tra hồ sơ ăn uống</h3>
             <Link href={DIETARY_PATH} className="text-xs font-semibold text-primary underline-offset-4 hover:underline focus-visible:underline">Chỉnh hồ sơ</Link>
           </div>
           <div className="space-y-1 rounded-2xl bg-secondary/50 p-3 text-xs leading-5">
@@ -336,7 +210,7 @@ export function MealRequestForm({
         </section>
 
         <section aria-labelledby="request-note-title" className="space-y-2 border-t border-border pt-5">
-          <h3 id="request-note-title" className="text-sm font-bold">4. Yêu cầu thêm</h3>
+          <h3 id="request-note-title" className="text-sm font-bold">3. Yêu cầu thêm</h3>
           <label className="block text-xs font-medium">
             Điều bạn muốn trợ lý lưu ý (nếu có)
             <textarea value={note} maxLength={2500} onChange={(event) => { setNote(event.target.value); setError("") }} rows={3} placeholder="Ví dụ: bữa tối nhẹ, ít dầu, không lặp món trong tuần…" className="mt-1.5 min-h-24 w-full resize-y rounded-xl border border-input bg-background px-3 py-2.5 text-sm font-normal outline-none focus-visible:ring-3 focus-visible:ring-ring/30" />

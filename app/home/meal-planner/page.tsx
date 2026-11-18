@@ -1,11 +1,8 @@
-import type { Metadata } from "next"
+import { redirect } from "next/navigation"
 
-import { MealPlannerView } from "@/features/meal-plan/components/meal-planner-view"
+import { MEAL_PLANNER_PATH } from "@/features/meal-plan/meal-plan"
 
-export const metadata: Metadata = {
-  title: "Lên thực đơn · Vedora",
-}
-
-export default function MealPlannerPage() {
-  return <MealPlannerView />
+/** The planner moved to its own full-screen page; old links keep working. */
+export default function LegacyMealPlannerPage() {
+  redirect(MEAL_PLANNER_PATH)
 }

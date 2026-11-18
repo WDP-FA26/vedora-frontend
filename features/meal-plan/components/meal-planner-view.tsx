@@ -3,17 +3,18 @@
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { useAuthedSWR } from "@/features/auth/hooks/use-authed-swr"
-import { CalendarDaysIcon, SparklesIcon } from "lucide-react"
+import Link from "next/link"
+import { ArrowLeftIcon, CalendarRangeIcon, PanelLeftCloseIcon, SparklesIcon } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useAuth } from "@/features/auth/hooks/use-auth"
 import { isAccessTokenFresh } from "@/features/auth/lib/tokens"
 import { fetchMyDietary, MY_DIETARY_KEY } from "@/features/dietary/dietary"
+import { CalendarBoard } from "@/features/meal-plan/components/calendar-board"
 import { PlannerChat } from "@/features/meal-plan/components/planner-chat"
+import { QuickGenerate } from "@/features/meal-plan/components/quick-generate"
 import { MealRequestForm } from "@/features/meal-plan/components/meal-request-form"
-import { Timetable } from "@/features/meal-plan/components/timetable"
-import { ShoppingListButton } from "@/features/meal-plan/components/shopping-list-button"
 import {
   messageProposals,
   useMealPlannerChat,
@@ -22,19 +23,29 @@ import {
 import {
   DAY_LABELS,
   fetchMealPlan,
+  generateMealDays,
+  inputsForChanges,
   MEAL_PLAN_KEY,
+  planAfterChanges,
+  problemSchema,
+  problemText,
   saveMealDays,
   SECTION_LABELS,
+  type GenerateRequest,
   type MealDayInput,
   type MealPlan,
   type MealSection,
+  type SlotChange,
+  type SlotRef,
   type Weekday,
 } from "@/features/meal-plan/meal-plan"
 import { ApiError } from "@/features/shared/lib/api-client"
+import { z } from "zod"
 import { cn } from "@/lib/utils"
 
 const TOKEN_CHECK_MS = 20_000
-type Tab = "chat" | "plan"
+const HOME_PATH = "/home"
+type Tab = "chat" | "calendar"
 type AskContext = { title: string; day: Weekday; section: MealSection }
 
 function sameIds(left: string[], right: string[]) {
@@ -72,13 +83,26 @@ function changedDayInputs(proposal: Proposal, current: MealPlan): MealDayInput[]
   })
 }
 
+/** What went wrong saving a calendar edit, in words the user can act on. */
+function calendarErrorMessage(error: unknown) {
+  if (!(error instanceof ApiError)) return "Không lưu được thay đổi. Hãy thử lại."
+  const problems = z.array(problemSchema).safeParse(error.details?.problems)
+  if (error.status === 409 && problems.success && problems.data.length > 0) {
+    return problems.data.map(problemText).join(" ")
+  }
+  if (error.status === 409) return "Thực đơn đã thay đổi ở nơi khác. Hãy tải lại trang rồi thử lại."
+  return "Không lưu được thay đổi. Hãy thử lại."
+}
+
 /** The saved recurring week and the assistant share one frontend draft. */
 export function MealPlannerView() {
   const { accessToken } = useAuth()
   const router = useRouter()
   const chat = useMealPlannerChat()
   const [tab, setTab] = useState<Tab>("chat")
+  const [assistantOpen, setAssistantOpen] = useState(true)
   const [draft, setDraft] = useState<Proposal | null>(null)
+  const [generated, setGenerated] = useState<Proposal | null>(null)
   const [savingDraft, setSavingDraft] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
   const [askContext, setAskContext] = useState<AskContext | null>(null)
@@ -90,14 +114,14 @@ export function MealPlannerView() {
   const plan = useAuthedSWR(MEAL_PLAN_KEY, fetchMealPlan)
   const restrictions = useAuthedSWR(MY_DIETARY_KEY, fetchMyDietary)
   const newestProposal = chat.messages.flatMap(messageProposals).at(-1) ?? null
-  const suggestion = newestProposal && !chat.statuses[newestProposal.id] ? newestProposal : null
+  const chatSuggestion = newestProposal && !chat.statuses[newestProposal.id] ? newestProposal : null
+  const suggestion = generated ?? chatSuggestion
   const plannedDays = plan.data
     ? plan.data.days
         .filter(({ sections }) => sections.some(({ recipes }) => recipes.length > 0))
         .map(({ day }) => day)
     : undefined
   const hasSavedMeals = Boolean(plannedDays?.length)
-  const showRequestForm = requestOpen || Boolean(plan.data && !hasSavedMeals && !draft && !suggestion)
   const savedAvoided = [
     ...(restrictions.data?.groups.map(({ name }) => name) ?? []),
     ...(restrictions.data?.ingredients.map(({ name }) => name) ?? []),
@@ -139,14 +163,48 @@ export function MealPlannerView() {
     }
   }, [draft])
 
+  async function generate(request: GenerateRequest): Promise<string | null> {
+    if (!accessToken) return "Phiên đăng nhập đã hết hạn. Hãy tải lại trang."
+    try {
+      const result = await generateMealDays(accessToken, request)
+      if (result.days.length === 0) return "Không tìm thấy món phù hợp với lựa chọn này."
+      if (!result.ok) return "Các món tìm được xung đột với hồ sơ ăn uống. Hãy thử lại."
+      setGenerated({ id: `generated-${crypto.randomUUID()}`, ok: true, days: result.days })
+      setTab("calendar")
+      return null
+    } catch (error) {
+      if (error instanceof ApiError && error.status === 401) router.refresh()
+      return "Không chọn được món. Hãy thử lại."
+    }
+  }
+
+  function askAssistant(prompt: string) {
+    setAssistantOpen(true)
+    setTab("chat")
+    if (chat.busy) {
+      setPrefill((current) => ({ text: prompt, nonce: (current?.nonce ?? 0) + 1 }))
+      return
+    }
+    chat.send(prompt)
+  }
+
+  function dismissSuggestion(proposal: Proposal) {
+    if (generated?.id === proposal.id) {
+      setGenerated(null)
+      return
+    }
+    chat.setProposalStatus(proposal.id, "dismissed")
+  }
+
   function stage(proposal: Proposal) {
+    if (generated?.id === proposal.id) setGenerated(null)
     if (draft && draft.id !== proposal.id && !window.confirm("Thay bản nháp thực đơn hiện tại bằng đề xuất mới?")) return
     if (draft && draft.id !== proposal.id) chat.setProposalStatus(draft.id, "dismissed")
     setDraft(proposal)
     setRequestOpen(false)
     setSaveError(null)
     chat.setProposalStatus(proposal.id, "staged")
-    setTab("plan")
+    setTab("calendar")
   }
 
   function discardDraft() {
@@ -186,12 +244,20 @@ export function MealPlannerView() {
     }
   }
 
-  function requestReplacement(day: Weekday, section: MealSection, title: string) {
-    setTab("chat")
-    setPrefill((current) => ({
-      text: `Đề xuất món khác thay cho "${title}" ở ${DAY_LABELS[day]}, bữa ${SECTION_LABELS[section].toLowerCase()}. Chỉ đổi bữa này, hãy cho tôi xem đề xuất trước khi lưu.`,
-      nonce: (current?.nonce ?? 0) + 1,
-    }))
+  async function changeCalendar(changes: SlotChange[]) {
+    const current = plan.data
+    if (!accessToken || !current) return
+    try {
+      await plan.mutate(saveMealDays(accessToken, inputsForChanges(current, changes)), {
+        optimisticData: planAfterChanges(current, changes) ?? undefined,
+        rollbackOnError: true,
+        populateCache: true,
+        revalidate: false,
+      })
+    } catch (error) {
+      if (error instanceof ApiError && error.status === 401) router.refresh()
+      throw new Error(calendarErrorMessage(error))
+    }
   }
 
   function startPlanning(seed?: string) {
@@ -200,7 +266,7 @@ export function MealPlannerView() {
     setFormSentAtCount(null)
     setFormSeed((current) => ({ text: seed ?? "", nonce: (current?.nonce ?? 0) + 1 }))
     setRequestOpen(true)
-    setTab("plan")
+    setTab("calendar")
   }
 
   function continueInChat(prompt: string) {
@@ -211,28 +277,66 @@ export function MealPlannerView() {
     setTab("chat")
   }
 
+  function suggestForSlot({ day, section }: SlotRef) {
+    setAssistantOpen(true)
+    setTab("chat")
+    setPrefill((current) => ({
+      text: `Gợi ý vài món cho ${DAY_LABELS[day]}, bữa ${SECTION_LABELS[section].toLowerCase()}. Chỉ thay bữa này, hãy cho tôi xem đề xuất trước khi lưu.`,
+      nonce: (current?.nonce ?? 0) + 1,
+    }))
+  }
+
+  function askAboutRecipe(recipe: { title: string }, day: Weekday, section: MealSection) {
+    setAskContext({ title: recipe.title, day, section })
+    setAssistantOpen(true)
+    setTab("chat")
+  }
+
+  const backButton = (size: "icon" | "icon-sm") => (
+    <Button
+      variant="ghost"
+      size={size}
+      nativeButton={false}
+      render={<Link href={HOME_PATH} aria-label="Quay lại trang chủ" />}
+    >
+      <ArrowLeftIcon aria-hidden />
+    </Button>
+  )
+
   return (
-    <section aria-labelledby="meal-planner-title" className="min-w-0 lg:h-dvh lg:overflow-hidden">
+    <section aria-labelledby="meal-planner-title" className="flex min-h-dvh min-w-0 flex-col lg:h-dvh lg:overflow-hidden">
       <h1 id="meal-planner-title" className="sr-only">Lên thực đơn</h1>
-      <Tabs value={tab} onValueChange={(next) => setTab(next as Tab)} className="min-w-0 lg:h-full">
-        <div className="sticky top-0 z-20 border-b border-border bg-card/95 px-4 py-3 backdrop-blur-md lg:hidden">
-          <TabsList className="grid w-full grid-cols-2" aria-label="Lên thực đơn">
+      <Tabs value={tab} onValueChange={(next) => setTab(next as Tab)} className="min-w-0 lg:min-h-0 lg:flex-1">
+        <div className="sticky top-0 z-20 flex items-center gap-2 border-b border-border bg-card/95 px-3 py-3 backdrop-blur-md lg:hidden">
+          {backButton("icon")}
+          <TabsList className="grid min-w-0 flex-1 grid-cols-2" aria-label="Lên thực đơn">
             <TabsTrigger value="chat" className="min-w-0">
               <SparklesIcon aria-hidden /> Trợ lý
             </TabsTrigger>
-            <TabsTrigger value="plan" className="min-w-0">
-              <CalendarDaysIcon aria-hidden /> Thực đơn
+            <TabsTrigger value="calendar" className="min-w-0">
+              <CalendarRangeIcon aria-hidden /> Lịch
               {suggestion && <span className="rounded-full bg-primary px-1.5 py-0.5 text-[0.625rem] leading-none text-primary-foreground">Mới</span>}
             </TabsTrigger>
           </TabsList>
         </div>
 
-        <div className="min-w-0 lg:grid lg:h-full lg:grid-cols-[minmax(0,55fr)_minmax(24rem,45fr)]">
-          <div className={cn("min-w-0 lg:h-full lg:min-h-0", tab !== "chat" && "hidden lg:block")}>
+        <div
+          className={cn(
+            "min-w-0 lg:grid lg:min-h-0 lg:flex-1 lg:transition-[grid-template-columns] lg:duration-300 lg:ease-in-out motion-reduce:lg:transition-none",
+            assistantOpen ? "lg:grid-cols-[24rem_minmax(0,1fr)]" : "lg:grid-cols-[0rem_minmax(0,1fr)]"
+          )}
+        >
+          <div className={cn("min-w-0 lg:min-h-0 lg:overflow-hidden", tab !== "chat" && "hidden lg:block")}>
+            <div
+              className={cn(
+                "lg:h-full lg:w-[24rem] lg:border-r lg:border-border lg:transition-[opacity,visibility] lg:duration-300 motion-reduce:lg:transition-none",
+                !assistantOpen && "lg:invisible lg:opacity-0"
+              )}
+            >
             <PlannerChat
               chat={chat}
               onStage={stage}
-              openPlan={() => setTab("plan")}
+              openPlan={() => setTab("calendar")}
               savedAvoided={savedAvoided}
               savedLiked={savedLiked}
               profileLoading={restrictions.isLoading}
@@ -241,15 +345,27 @@ export function MealPlannerView() {
               prefill={prefill}
               clearAskContext={() => setAskContext(null)}
               onOpenPlanner={startPlanning}
+              leading={<span className="hidden lg:block">{backButton("icon")}</span>}
+              trailing={
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="hidden lg:inline-flex"
+                  aria-label="Ẩn trợ lý"
+                  onClick={() => setAssistantOpen(false)}
+                >
+                  <PanelLeftCloseIcon aria-hidden />
+                </Button>
+              }
               onFormSent={() => {
                 setFormHandoffState("sent")
                 setFormSentAtCount(chat.messages.length)
               }}
             />
+            </div>
           </div>
-
-          <div className={cn("min-w-0 lg:h-full lg:min-h-0 lg:overflow-y-auto lg:border-l lg:border-border [scrollbar-width:none] [&::-webkit-scrollbar]:hidden", tab !== "plan" && "hidden lg:block")}>
-            {showRequestForm ? (
+          <div className={cn("min-w-0 lg:min-h-0 lg:overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden", tab === "chat" && "hidden lg:block")}>
+            <div className={cn("mx-auto w-full max-w-2xl", tab === "calendar" && requestOpen ? "block" : "hidden", requestOpen ? "lg:block" : "lg:hidden")}>
               <MealRequestForm
                 savedAvoided={savedAvoided}
                 savedLiked={savedLiked}
@@ -262,37 +378,51 @@ export function MealPlannerView() {
                 awaitingReply={formAwaitingReply}
                 chatError={chat.error}
                 onEdit={() => setFormHandoffState("editing")}
-                onCancel={hasSavedMeals || draft || suggestion ? () => setRequestOpen(false) : undefined}
+                onCancel={hasSavedMeals || draft || suggestion || requestOpen ? () => setRequestOpen(false) : undefined}
                 busy={chat.busy}
               />
-            ) : <Timetable
-              plan={plan.data}
-              failed={Boolean(plan.error)}
-              onRetry={() => void plan.mutate()}
-              replace={requestReplacement}
-              busy={chat.busy}
-              onAsk={(recipe, day, section) => {
-                setAskContext({ title: recipe.title, day, section })
-                setTab("chat")
-              }}
-              onStart={() => startPlanning()}
-              onForm={() => startPlanning()}
-              action={
-                <div className="flex flex-wrap gap-2">
-                  <ShoppingListButton hasUnsavedChanges={Boolean(draft || suggestion)} plannedDays={plannedDays} />
-                  <Button variant="outline" size="sm" onClick={() => startPlanning()}><CalendarDaysIcon aria-hidden /> Lên thực đơn</Button>
-                </div>
-              }
-              draft={draft}
-              onSaveDraft={saveDraft}
-              onDiscardDraft={discardDraft}
-              savingDraft={savingDraft}
-              saveError={saveError}
-              suggestion={suggestion}
-            />}
+            </div>
+
+            <div className={cn("lg:h-full", tab === "calendar" && !requestOpen ? "block" : "hidden", requestOpen ? "lg:hidden" : "lg:block")}>
+              <CalendarBoard
+                plan={plan.data}
+                failed={Boolean(plan.error)}
+                draft={draft}
+                suggestion={suggestion}
+                onApplySuggestion={suggestion ? () => stage(suggestion) : undefined}
+                onDismissSuggestion={suggestion ? () => dismissSuggestion(suggestion) : undefined}
+                onSaveDraft={saveDraft}
+                onDiscardDraft={discardDraft}
+                savingDraft={savingDraft}
+                saveError={saveError}
+                onChange={changeCalendar}
+                onRetry={() => void plan.mutate()}
+                onAsk={askAboutRecipe}
+                onSuggestSlot={suggestForSlot}
+                leading={
+                  assistantOpen ? undefined : (
+                    <span className="hidden flex-col items-center gap-1 animate-in fade-in duration-300 lg:flex">
+                      {backButton("icon-sm")}
+                      <Button
+                        variant="ghost"
+                        size="icon-sm"
+                        aria-label="Mở trợ lý"
+                        onClick={() => setAssistantOpen(true)}
+                      >
+                        <SparklesIcon aria-hidden />
+                      </Button>
+                    </span>
+                  )
+                }
+              />
+            </div>
           </div>
+
         </div>
       </Tabs>
+      <div className={cn(tab === "chat" && "hidden lg:block")}>
+        <QuickGenerate disabled={savingDraft} onGenerate={generate} onAskAssistant={askAssistant} />
+      </div>
     </section>
   )
 }

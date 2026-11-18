@@ -11,7 +11,7 @@ import {
   writeTokenCookies,
 } from "@/features/auth/lib/tokens"
 
-const PROTECTED_PREFIXES = ["/home", "/blogs", "/billing", "/payment", "/admin"]
+const PROTECTED_PREFIXES = ["/home", "/blogs", "/meal-planner", "/billing", "/payment", "/admin"]
 const GUEST_ONLY_PATHS = [
   "/login",
   "/register",

@@ -1,3 +1,4 @@
+import type { RecipeTag } from "@/features/recipes/tags"
 import type { z } from "zod"
 
 import {
@@ -110,6 +111,8 @@ export type RecipeInput = {
   title: string
   description?: string
   imageUrl?: string
+  /** `null` clears the tag; the API replaces the whole recipe. */
+  tag: RecipeTag | null
   servings: number
   prepMinutes?: number
   cookMinutes?: number

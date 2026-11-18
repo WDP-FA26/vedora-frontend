@@ -1,11 +1,12 @@
 import { z } from "zod"
 
 import { API_URL } from "@/features/auth/lib/api"
+import { recipeTagSchema } from "@/features/recipes/tags"
 import { sendJson } from "@/features/shared/lib/api-client"
 
 // Mirrors vedora-api's `/meal-plan` routes: the signed-in user's weekly timetable.
 
-export const MEAL_PLANNER_PATH = "/home/meal-planner"
+export const MEAL_PLANNER_PATH = "/meal-planner"
 
 /** The SWR key is `[url, accessToken]`. */
 export const MEAL_PLAN_KEY = `${API_URL}/meal-plan`
@@ -42,6 +43,7 @@ const mealRecipeSchema = z.object({
   id: z.string(),
   title: z.string(),
   imageUrl: z.string().nullable(),
+  tag: recipeTagSchema.nullable(),
   servings: z.number(),
   prepMinutes: z.number().nullable(),
   cookMinutes: z.number().nullable(),
@@ -76,7 +78,11 @@ const mealPlanSchema = z.object({
   problems: z.array(problemSchema),
 })
 
-const recipeRefSchema = z.object({ id: z.string(), title: z.string() })
+const recipeRefSchema = z.object({
+  id: z.string(),
+  title: z.string(),
+  tag: recipeTagSchema.nullable(),
+})
 
 /** Output of the planner's `proposeMealPlan` tool: checked, not saved. */
 export const proposalSchema = z.object({
@@ -165,8 +171,120 @@ export function problemText({ code, recipes, ingredients, reason }: MealPlanProb
   return "Có món không còn tồn tại."
 }
 
+export const MAX_DISHES_PER_SECTION = 6
+
+export type SlotRef = { day: Weekday; section: MealSection }
+/** The full new recipe list of one meal slot. */
+export type SlotChange = SlotRef & { recipeIds: string[] }
+
+export function recipesAt(plan: MealPlan, { day, section }: SlotRef): MealRecipe[] {
+  const planned = plan.days.find((item) => item.day === day)
+  return planned?.sections.find((item) => item.section === section)?.recipes ?? []
+}
+
+/** PUT replaces a whole day, so every section of an edited day is sent. */
+export function inputsForChanges(plan: MealPlan, changes: SlotChange[]): MealDayInput[] {
+  const days = WEEKDAYS.filter((day) => changes.some((change) => change.day === day))
+  return days.map((day) => {
+    const ids = (section: MealSection) => {
+      const change = changes.find((item) => item.day === day && item.section === section)
+      if (change) return change.recipeIds
+      return recipesAt(plan, { day, section }).map(({ id }) => id)
+    }
+    return {
+      day,
+      breakfast: ids("BREAKFAST"),
+      lunch: ids("LUNCH"),
+      dinner: ids("DINNER"),
+      others: ids("OTHER"),
+    }
+  })
+}
+
+/**
+ * The plan as it will look after `changes`, for an optimistic update. Returns
+ * null when a recipe id is not in the plan yet (e.g. a freshly added dish).
+ */
+export function planAfterChanges(plan: MealPlan, changes: SlotChange[]): MealPlan | null {
+  const known = new Map<string, MealRecipe>()
+  for (const day of plan.days) {
+    for (const section of day.sections) {
+      for (const recipe of section.recipes) known.set(recipe.id, recipe)
+    }
+  }
+
+  const days = WEEKDAYS.map((day) => {
+    const sections = MEAL_SECTIONS.map((section) => ({
+      section,
+      recipes: recipesAt(plan, { day, section }),
+    }))
+    return { day, sections }
+  })
+
+  for (const change of changes) {
+    const recipes: MealRecipe[] = []
+    for (const id of change.recipeIds) {
+      const recipe = known.get(id)
+      if (!recipe) return null
+      recipes.push(recipe)
+    }
+    const day = days.find((item) => item.day === change.day)
+    const section = day?.sections.find((item) => item.section === change.section)
+    if (!section) return null
+    section.recipes = recipes
+  }
+  return { days, problems: plan.problems }
+}
+
+const recipeSearchSchema = z.object({
+  items: z.array(
+    z.object({
+      id: z.string(),
+      title: z.string(),
+      totalMinutes: z.number().nullable(),
+      servings: z.number(),
+    })
+  ),
+})
+
+export type RecipeOption = z.infer<typeof recipeSearchSchema>["items"][number]
+
+/** Recipes this user can eat (avoided ingredients are already left out). */
+export function searchRecipeOptions(token: string, query: string) {
+  const params = new URLSearchParams({ suitableForMe: "true", limit: "20" })
+  const text = query.trim()
+  if (text) params.set("q", text)
+  return sendJson(recipeSearchSchema, `${API_URL}/recipes?${params.toString()}`, token)
+}
+
 export function fetchMealPlan([url, token]: readonly [string, string]) {
   return sendJson(mealPlanSchema, url, token)
+}
+
+/** Mirrors `GenerateMealDaysDto`: the algorithm picks one dish per chosen slot. */
+export type GenerateRequest = {
+  days: Weekday[]
+  sections: MealSection[]
+  /** Keep every slot that already has a dish. */
+  onlyEmpty: boolean
+  maxMinutes?: number
+  /** A dish or ingredient to prefer; never a hard filter. */
+  query?: string
+}
+
+export const MAX_GENERATE_QUERY_LENGTH = 100
+
+const generatedSchema = proposalSchema
+  .omit({ ok: true })
+  .extend({ problems: z.array(problemSchema) })
+
+/** `POST /meal-plan/generate`: a checked preview, nothing saved. `days` is empty when no dish fits. */
+export async function generateMealDays(token: string, request: GenerateRequest) {
+  const preview = await sendJson(generatedSchema, `${MEAL_PLAN_KEY}/generate`, token, {
+    method: "POST",
+    body: JSON.stringify(request),
+  })
+  return { days: preview.days, ok: preview.problems.length === 0 }
 }
 
 export function saveMealDays(token: string, days: MealDayInput[]) {

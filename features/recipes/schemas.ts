@@ -1,5 +1,6 @@
 import { z } from "zod"
 import { signedUploadSchema } from "@/features/posts/schemas"
+import { recipeTagSchema } from "@/features/recipes/tags"
 import { uniqueNonEmpty } from "@/features/shared/lib/unique"
 
 // Mirrors vedora-api's `/admin/ingredients`, `/admin/ingredient-groups`,
@@ -88,6 +89,8 @@ export const recipeSchema = z.object({
   id: z.string(),
   title: z.string(),
   imageUrl: z.string().nullable(),
+  /** Null until an admin classifies the recipe; the UI then shows a default icon. */
+  tag: recipeTagSchema.nullable(),
   servings: z.number(),
   prepMinutes: z.number().nullable(),
   cookMinutes: z.number().nullable(),
@@ -245,6 +248,8 @@ export const recipeFormSchema = z.object({
     .refine((text) => text === "" || isDishImageUrl(text), {
       message: "Ảnh món phải được tải lên từ máy.",
     }),
+  /** "" means no tag. */
+  tag: z.union([recipeTagSchema, z.literal("")]),
   servings: wholeNumber(100, "Nhập số khẩu phần từ 1 đến 100.").refine(
     (text) => Number(text) >= 1,
     { message: "Nhập số khẩu phần từ 1 đến 100." }
