@@ -1,6 +1,7 @@
 "use client"
 
-import { SearchIcon } from "lucide-react"
+import { useState } from "react"
+import { SearchIcon, UsersIcon } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -11,71 +12,302 @@ import {
   EmptyTitle,
 } from "@/components/ui/empty"
 import { Spinner } from "@/components/ui/spinner"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { PostCard } from "@/features/home/components/post-card"
 import { PostSearchForm } from "@/features/posts/components/post-search-form"
 import { usePostSearch } from "@/features/posts/hooks/use-post-search"
 import { toFeedPost } from "@/features/posts/lib/to-feed-post"
+import {
+  isSearchTab,
+  SEARCH_TABS,
+  type SearchTab,
+} from "@/features/posts/posts-cache"
+import { ProfileSearchRow } from "@/features/profiles/components/profile-search-row"
+import { useProfileSearch } from "@/features/profiles/hooks/use-profile-search"
 
-/** Posts matching `q` by meaning and keywords, best match first. */
-export function SearchView({ q }: { q: string }) {
-  const { posts, hasMore, loadMore, error, isLoading, isLoadingMore } = usePostSearch(q)
+const TAB_LABELS: Record<SearchTab, string> = {
+  all: "Tất cả",
+  people: "Mọi người",
+  posts: "Bài viết",
+}
+
+const TOP_PEOPLE_LIMIT = 3
+
+function buildSearchRedirect(q: string, tab: SearchTab) {
+  const params = new URLSearchParams({ q })
+  if (tab !== "all") params.set("tab", tab)
+  return `/home/search?${params}`
+}
+
+/** Searches people (Qdrant BM25) and posts, with Facebook/X-style tabs and inline Follow. */
+export function SearchView({ q, initialTab }: { q: string; initialTab: SearchTab }) {
+  const [tab, setTab] = useState(initialTab)
+  const postsSearch = usePostSearch(q)
+  const topPeople = useProfileSearch(q, TOP_PEOPLE_LIMIT)
+  const allPeople = useProfileSearch(tab === "people" ? q : "", 20)
+
+  function selectTab(next: SearchTab) {
+    setTab(next)
+    if (!q) return
+    window.history.replaceState(null, "", buildSearchRedirect(q, next))
+  }
+
+  const redirectTo = q ? buildSearchRedirect(q, tab) : "/home/search"
 
   return (
     <section aria-labelledby="search-title">
-      <header className="sticky top-0 z-20 space-y-2 border-b border-border bg-card/85 px-4 py-2 backdrop-blur-md sm:px-5">
-        <h1 id="search-title" className="sr-only">
-          {q ? `Kết quả tìm kiếm cho “${q}”` : "Tìm kiếm"}
-        </h1>
-        <PostSearchForm defaultValue={q} autoFocus={!q} />
-      </header>
+      <Tabs value={tab} onValueChange={(next) => isSearchTab(next) && selectTab(next)}>
+        <header className="sticky top-0 z-20 border-b border-border bg-card/85 backdrop-blur-md">
+          <div className="px-4 py-2 sm:px-5">
+            <h1 id="search-title" className="sr-only">
+              {q ? `Kết quả tìm kiếm cho “${q}”` : "Tìm kiếm"}
+            </h1>
+            <PostSearchForm defaultValue={q} autoFocus={!q} tab={tab} />
+          </div>
+          {q && (
+            <TabsList variant="timeline" aria-label="Loại kết quả tìm kiếm">
+              {SEARCH_TABS.map((id) => (
+                <TabsTrigger key={id} value={id}>
+                  {TAB_LABELS[id]}
+                </TabsTrigger>
+              ))}
+            </TabsList>
+          )}
+        </header>
 
-      {!q ? (
-        <Empty>
-          <EmptyHeader>
-            <EmptyMedia variant="icon">
-              <SearchIcon aria-hidden />
-            </EmptyMedia>
-            <EmptyTitle>Tìm bài viết trên Vedora</EmptyTitle>
-            <EmptyDescription>
-              Gõ tên món, nguyên liệu hay mẹo nấu ăn. Có thể gõ không dấu.
-            </EmptyDescription>
-          </EmptyHeader>
-        </Empty>
-      ) : isLoading ? (
+        {!q ? (
+          <Empty>
+            <EmptyHeader>
+              <EmptyMedia variant="icon">
+                <SearchIcon aria-hidden />
+              </EmptyMedia>
+              <EmptyTitle>Tìm kiếm trên Vedora</EmptyTitle>
+              <EmptyDescription>
+                Gõ tên, @username, hoặc tên món chay, nguyên liệu, mẹo nấu. Có thể gõ không dấu.
+              </EmptyDescription>
+            </EmptyHeader>
+          </Empty>
+        ) : (
+          <>
+            <TabsContent value="all">
+              <AllResultsTab
+                topPeople={topPeople}
+                postsSearch={postsSearch}
+                redirectTo={redirectTo}
+                onShowAllPeople={() => selectTab("people")}
+              />
+            </TabsContent>
+
+            <TabsContent value="people">
+              <PeopleResultsTab people={allPeople} redirectTo={redirectTo} />
+            </TabsContent>
+
+            <TabsContent value="posts">
+              <PostsResultsTab postsSearch={postsSearch} />
+            </TabsContent>
+          </>
+        )}
+      </Tabs>
+    </section>
+  )
+}
+
+function AllResultsTab({
+  topPeople,
+  postsSearch,
+  redirectTo,
+  onShowAllPeople,
+}: {
+  topPeople: ReturnType<typeof useProfileSearch>
+  postsSearch: ReturnType<typeof usePostSearch>
+  redirectTo: string
+  onShowAllPeople: () => void
+}) {
+  const isInitialLoading = topPeople.isLoading && postsSearch.isLoading
+  if (isInitialLoading) {
+    return (
+      <div className="flex justify-center p-6">
+        <Spinner aria-label="Đang tìm kiếm" />
+      </div>
+    )
+  }
+
+  const noPeople = !topPeople.isLoading && !topPeople.error && topPeople.profiles.length === 0
+  const noPosts = !postsSearch.isLoading && !postsSearch.error && postsSearch.posts.length === 0
+  if (noPeople && noPosts) {
+    return (
+      <Empty>
+        <EmptyHeader>
+          <EmptyMedia variant="icon">
+            <SearchIcon aria-hidden />
+          </EmptyMedia>
+          <EmptyTitle>Không có kết quả phù hợp</EmptyTitle>
+          <EmptyDescription>
+            Thử từ khóa khác, ngắn hơn, hoặc tìm theo tên và @username.
+          </EmptyDescription>
+        </EmptyHeader>
+      </Empty>
+    )
+  }
+
+  return (
+    <div>
+      {topPeople.error ? (
+        <p role="alert" className="border-b border-border p-4 text-sm text-destructive sm:px-5">
+          Không tìm được người dùng lúc này.
+        </p>
+      ) : topPeople.profiles.length > 0 ? (
+        <section aria-labelledby="search-people-heading">
+          <div className="flex items-center justify-between border-b border-border px-4 py-2.5 sm:px-5">
+            <h2 id="search-people-heading" className="text-base font-bold">
+              Mọi người
+            </h2>
+            <Button type="button" variant="link" size="sm" onClick={onShowAllPeople}>
+              Xem tất cả
+            </Button>
+          </div>
+          <ul>
+            {topPeople.profiles.map((profile) => (
+              <ProfileSearchRow key={profile.id} profile={profile} redirectTo={redirectTo} />
+            ))}
+          </ul>
+        </section>
+      ) : null}
+
+      {postsSearch.isLoading ? (
         <div className="flex justify-center p-6">
           <Spinner aria-label="Đang tìm bài viết" />
         </div>
-      ) : error ? (
+      ) : postsSearch.error ? (
         <p role="alert" className="p-4 text-sm text-destructive sm:px-5">
-          Không tìm được lúc này. Thử lại sau ít phút nhé.
+          Không tìm được bài viết lúc này. Thử lại sau ít phút nhé.
         </p>
-      ) : posts.length === 0 ? (
-        <Empty>
-          <EmptyHeader>
-            <EmptyMedia variant="icon">
-              <SearchIcon aria-hidden />
-            </EmptyMedia>
-            <EmptyTitle>Không có bài viết phù hợp</EmptyTitle>
-            <EmptyDescription>
-              Thử từ khóa khác, ngắn hơn, hoặc tên một nguyên liệu.
-            </EmptyDescription>
-          </EmptyHeader>
-        </Empty>
-      ) : (
-        <>
-          {posts.map((post) => (
-            <PostCard key={post.id} post={toFeedPost(post)} />
-          ))}
-          {hasMore && (
-            <div className="flex justify-center p-4">
-              <Button type="button" variant="outline" disabled={isLoadingMore} onClick={loadMore}>
-                {isLoadingMore && <Spinner aria-hidden />}
-                Xem thêm kết quả
-              </Button>
-            </div>
+      ) : postsSearch.posts.length > 0 ? (
+        <section aria-labelledby="search-posts-heading">
+          {topPeople.profiles.length > 0 && (
+            <h2
+              id="search-posts-heading"
+              className="border-b border-border px-4 py-2.5 text-base font-bold sm:px-5"
+            >
+              Bài viết
+            </h2>
           )}
-        </>
+          <PostsList postsSearch={postsSearch} />
+        </section>
+      ) : null}
+    </div>
+  )
+}
+
+function PeopleResultsTab({
+  people,
+  redirectTo,
+}: {
+  people: ReturnType<typeof useProfileSearch>
+  redirectTo: string
+}) {
+  if (people.isLoading) {
+    return (
+      <div className="flex justify-center p-6">
+        <Spinner aria-label="Đang tìm mọi người" />
+      </div>
+    )
+  }
+  if (people.error) {
+    return (
+      <p role="alert" className="p-4 text-sm text-destructive sm:px-5">
+        Không tìm được người dùng lúc này. Thử lại sau ít phút nhé.
+      </p>
+    )
+  }
+  if (people.profiles.length === 0) {
+    return (
+      <Empty>
+        <EmptyHeader>
+          <EmptyMedia variant="icon">
+            <UsersIcon aria-hidden />
+          </EmptyMedia>
+          <EmptyTitle>Không có người dùng phù hợp</EmptyTitle>
+          <EmptyDescription>
+            Thử tìm bằng tên hiển thị, @username hoặc từ khóa khác.
+          </EmptyDescription>
+        </EmptyHeader>
+      </Empty>
+    )
+  }
+
+  return (
+    <>
+      <ul>
+        {people.profiles.map((profile) => (
+          <ProfileSearchRow key={profile.id} profile={profile} redirectTo={redirectTo} />
+        ))}
+      </ul>
+      {people.hasMore && (
+        <div className="flex justify-center p-4">
+          <Button type="button" variant="outline" disabled={people.isLoadingMore} onClick={people.loadMore}>
+            {people.isLoadingMore && <Spinner aria-hidden />}
+            Xem thêm kết quả
+          </Button>
+        </div>
       )}
-    </section>
+    </>
+  )
+}
+
+function PostsResultsTab({ postsSearch }: { postsSearch: ReturnType<typeof usePostSearch> }) {
+  if (postsSearch.isLoading) {
+    return (
+      <div className="flex justify-center p-6">
+        <Spinner aria-label="Đang tìm bài viết" />
+      </div>
+    )
+  }
+  if (postsSearch.error) {
+    return (
+      <p role="alert" className="p-4 text-sm text-destructive sm:px-5">
+        Không tìm được bài viết lúc này. Thử lại sau ít phút nhé.
+      </p>
+    )
+  }
+  if (postsSearch.posts.length === 0) {
+    return (
+      <Empty>
+        <EmptyHeader>
+          <EmptyMedia variant="icon">
+            <SearchIcon aria-hidden />
+          </EmptyMedia>
+          <EmptyTitle>Không có bài viết phù hợp</EmptyTitle>
+          <EmptyDescription>
+            Thử từ khóa khác, ngắn hơn, hoặc tên một nguyên liệu.
+          </EmptyDescription>
+        </EmptyHeader>
+      </Empty>
+    )
+  }
+
+  return <PostsList postsSearch={postsSearch} />
+}
+
+function PostsList({ postsSearch }: { postsSearch: ReturnType<typeof usePostSearch> }) {
+  return (
+    <>
+      {postsSearch.posts.map((post) => (
+        <PostCard key={post.id} post={toFeedPost(post)} />
+      ))}
+      {postsSearch.hasMore && (
+        <div className="flex justify-center p-4">
+          <Button
+            type="button"
+            variant="outline"
+            disabled={postsSearch.isLoadingMore}
+            onClick={postsSearch.loadMore}
+          >
+            {postsSearch.isLoadingMore && <Spinner aria-hidden />}
+            Xem thêm kết quả
+          </Button>
+        </div>
+      )}
+    </>
   )
 }

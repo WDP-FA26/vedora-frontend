@@ -34,3 +34,10 @@ export function profileListKey(id: string, kind: ProfileListKind) {
 export function suggestionsKey(limit: number) {
   return `${PROFILES_KEY}/suggestions?limit=${limit}`
 }
+
+/** One page of profiles matching `q` via BM25, best match first; `cursor` comes from the previous page. */
+export function searchProfilesKey(q: string, limit = 20, cursor?: string) {
+  const params = new URLSearchParams({ q, limit: String(limit) })
+  if (cursor) params.set("cursor", cursor)
+  return `${PROFILES_KEY}/search?${params}`
+}

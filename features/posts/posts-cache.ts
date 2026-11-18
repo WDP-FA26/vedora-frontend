@@ -28,6 +28,14 @@ export function isBookmarkTab(value: unknown): value is BookmarkTab {
   return BOOKMARK_TABS.some((tab) => tab === value)
 }
 
+/** Tabs of the `/home/search` page, kept in `?tab=`. */
+export const SEARCH_TABS = ["all", "people", "posts"] as const
+export type SearchTab = (typeof SEARCH_TABS)[number]
+
+export function isSearchTab(value: unknown): value is SearchTab {
+  return SEARCH_TABS.some((tab) => tab === value)
+}
+
 /** One page of posts matching `q`, best match first; `cursor` comes from the previous page. */
 export function searchPostsKey(q: string, cursor?: string) {
   const params = new URLSearchParams({ q, limit: "20" })

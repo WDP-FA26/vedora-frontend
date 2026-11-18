@@ -19,11 +19,15 @@ import {
 import type { ApiProfile, Relationship } from "@/features/profiles/schemas"
 
 /** Whether the signed-in user follows profile `id`, and a toggle for it. Idle when signed out. */
-export function useFollow(id: string) {
+export function useFollow(id: string, initialIsFollowing?: boolean) {
   const { accessToken, user } = useAuth()
   const { mutate } = useSWRConfig()
   const [isPending, setIsPending] = useState(false)
-  const { data, isLoading } = useAuthedSWR(relationshipKey(id), fetchRelationship)
+  const hasInitial = initialIsFollowing !== undefined
+  const { data, isLoading } = useAuthedSWR(relationshipKey(id), fetchRelationship, {
+    fallbackData: hasInitial ? { isFollowing: initialIsFollowing } : undefined,
+    revalidateOnMount: !hasInitial,
+  })
 
   /** Shifts a cached count at once, then refetches the profile to sync with the API. */
   function shift(key: string, field: "followerCount" | "followingCount", by: number) {
@@ -36,8 +40,10 @@ export function useFollow(id: string) {
   }
 
   async function toggle() {
-    if (!accessToken || !data || isPending) return
-    const next: Relationship = { isFollowing: !data.isFollowing }
+    if (!accessToken || isPending) return
+    const current = data?.isFollowing ?? initialIsFollowing
+    if (current === undefined) return
+    const next: Relationship = { isFollowing: !current }
     const by = next.isFollowing ? 1 : -1
 
     setIsPending(true)
@@ -64,5 +70,10 @@ export function useFollow(id: string) {
     }
   }
 
-  return { isFollowing: data?.isFollowing ?? false, isLoading, isPending, toggle }
+  return {
+    isFollowing: data?.isFollowing ?? initialIsFollowing ?? false,
+    isLoading: !hasInitial && isLoading,
+    isPending,
+    toggle,
+  }
 }
