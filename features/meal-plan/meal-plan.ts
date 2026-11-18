@@ -200,11 +200,6 @@ export function dishWarnings(problems: MealPlanProblem[]) {
   return warnings
 }
 
-/** A day conflict is advice only; the other problems break what the user avoids. */
-export function hasOnlyConflicts(problems: MealPlanProblem[]) {
-  return problems.every((problem) => problem.code === "DAY_CONFLICT")
-}
-
 export const MAX_DISHES_PER_SECTION = 6
 
 export type SlotRef = { day: Weekday; section: MealSection }

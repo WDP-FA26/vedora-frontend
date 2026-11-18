@@ -1,7 +1,6 @@
 "use client"
 
 import { useRef, useState, type ReactNode } from "react"
-import Link from "next/link"
 import {
   CalendarDaysIcon,
   CheckIcon,
@@ -21,13 +20,11 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Spinner } from "@/components/ui/spinner"
-import { DIETARY_PATH } from "@/features/dietary/dietary"
 import { MealArt } from "@/features/meal-plan/components/meal-art"
 import {
   DAY_LABELS,
   dishKey,
   dishWarnings,
-  hasOnlyConflicts,
   SECTION_LABELS,
   WEEKDAYS,
   type MealPlan,
@@ -232,21 +229,6 @@ export function Timetable({
         </div>
       ) : (
         <>
-          {showProblems && (
-            <div className="px-4 pt-4 sm:px-5">
-              <Alert variant={hasOnlyConflicts(plan.problems) ? "default" : "destructive"}>
-                <TriangleAlertIcon aria-hidden />
-                <AlertTitle>{warnings.size} món cần xem lại</AlertTitle>
-                <AlertDescription>
-                  Món có dấu cảnh báo không hợp với hồ sơ ăn uống hoặc nhau trong cùng ngày.
-                  <Link href={DIETARY_PATH} className="mt-1.5 inline-block font-medium underline underline-offset-4">
-                    Xem hồ sơ ăn uống
-                  </Link>
-                </AlertDescription>
-              </Alert>
-            </div>
-          )}
-
           <div
             className="relative grid grid-cols-7 border-b border-border px-3 py-3 sm:px-4"
             role="group"

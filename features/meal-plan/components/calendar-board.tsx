@@ -47,7 +47,6 @@ import {
   DAY_LABELS,
   dishKey,
   dishWarnings,
-  hasOnlyConflicts,
   MAX_DISHES_PER_SECTION,
   MEAL_SECTIONS,
   recipesAt,
@@ -301,18 +300,6 @@ export function CalendarBoard({
           </p>
         </div>
       )}
-      {warnings.size > 0 && (
-        <div className="px-4 pt-4 sm:px-5">
-          <Alert variant={plan && hasOnlyConflicts(plan.problems) ? "default" : "destructive"}>
-            <TriangleAlertIcon aria-hidden />
-            <AlertTitle>{warnings.size} món cần xem lại</AlertTitle>
-            <AlertDescription>
-              Món có dấu cảnh báo không hợp với hồ sơ ăn uống hoặc nhau trong cùng ngày. Rê chuột vào món để xem lý do.
-            </AlertDescription>
-          </Alert>
-        </div>
-      )}
-
       <div className="min-h-[34rem] flex-1 overflow-auto lg:min-h-0">
         <div
           role="table"
