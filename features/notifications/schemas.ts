@@ -5,6 +5,7 @@ export const notificationSchema = z.object({
   type: z.enum([
     "LIKE",
     "COMMENT",
+    "COMMENT_REPLY",
     "REPOST",
     "FOLLOW",
     "POST_PENDING_REVIEW",
