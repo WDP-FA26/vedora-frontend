@@ -200,7 +200,7 @@ export function dishWarnings(problems: MealPlanProblem[]) {
   return warnings
 }
 
-export const MAX_DISHES_PER_SECTION = 6
+export const MAX_DISHES_PER_SECTION = 5
 
 export type SlotRef = { day: Weekday; section: MealSection }
 /** The full new recipe list of one meal slot. */
