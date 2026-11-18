@@ -25,8 +25,9 @@ import { DIETARY_PATH } from "@/features/dietary/dietary"
 import { MealArt } from "@/features/meal-plan/components/meal-art"
 import {
   DAY_LABELS,
+  dishKey,
+  dishWarnings,
   hasOnlyConflicts,
-  problemLines,
   SECTION_LABELS,
   WEEKDAYS,
   type MealPlan,
@@ -155,6 +156,7 @@ export function Timetable({
   const isDraft = Boolean(draft && !suggestion)
   const isSuggestion = Boolean(suggestion)
   const showProblems = plan !== undefined && plan.problems.length > 0 && !isDraft && !isSuggestion
+  const warnings = plan !== undefined && showProblems ? dishWarnings(plan.problems) : new Map<string, string[]>()
 
   return (
     <div className="flex min-w-0 flex-col bg-card pb-[env(safe-area-inset-bottom)] lg:min-h-full">
@@ -234,14 +236,9 @@ export function Timetable({
             <div className="px-4 pt-4 sm:px-5">
               <Alert variant={hasOnlyConflicts(plan.problems) ? "default" : "destructive"}>
                 <TriangleAlertIcon aria-hidden />
-                <AlertTitle>Thực đơn có chỗ cần xem lại</AlertTitle>
+                <AlertTitle>{warnings.size} món cần xem lại</AlertTitle>
                 <AlertDescription>
-                  {problemLines(plan.problems).map(({ text, days: problemDays }) => (
-                    <span key={text} className="block">
-                      {text}
-                      <span className="font-medium"> · {problemDays.map((day) => DAY_LABELS[day]).join(", ")}</span>
-                    </span>
-                  ))}
+                  Món có dấu cảnh báo không hợp với hồ sơ ăn uống hoặc nhau trong cùng ngày.
                   <Link href={DIETARY_PATH} className="mt-1.5 inline-block font-medium underline underline-offset-4">
                     Xem hồ sơ ăn uống
                   </Link>
@@ -327,6 +324,7 @@ export function Timetable({
                       recipe={recipe}
                       day={activeDay.day}
                       section={section}
+                      warnings={warnings.get(dishKey(activeDay.day, recipe.id)) ?? []}
                       busy={busy}
                       onOpen={recipe.detail ? () => setOpened({
                         recipe: recipe.detail as MealRecipe,
@@ -384,6 +382,7 @@ function MealCard({
   recipe,
   day,
   section,
+  warnings,
   busy,
   onOpen,
   onReplace,
@@ -393,6 +392,7 @@ function MealCard({
   recipe: DisplayRecipe
   day: Weekday
   section: MealSection
+  warnings: string[]
   busy: boolean
   onOpen?: () => void
   onReplace?: (day: Weekday, section: MealSection, title: string) => void
@@ -415,6 +415,12 @@ function MealCard({
             </button>
           ) : recipe.title}
         </h5>
+        {warnings.map((text) => (
+          <p key={text} className="mt-0.5 flex items-start gap-1 text-xs text-amber-700 dark:text-amber-400">
+            <TriangleAlertIcon aria-hidden className="mt-px size-3.5 shrink-0" />
+            <span>{text}</span>
+          </p>
+        ))}
         {(minutes !== null || (recipe.detail && recipe.detail.servings > 0)) && (
           <p className="mt-0.5 text-xs text-muted-foreground">
             {[

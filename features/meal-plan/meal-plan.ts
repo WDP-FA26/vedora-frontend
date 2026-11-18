@@ -62,6 +62,8 @@ export const problemSchema = z.object({
   code: z.enum(["UNKNOWN_RECIPE", "AVOIDED_INGREDIENT", "DAY_CONFLICT"]),
   day: daySchema,
   recipes: z.array(z.string()),
+  /** The dishes involved, for flagging them on the plan. */
+  recipeIds: z.array(z.string()),
   ingredients: z.array(z.string()),
   reason: z.string().nullable(),
 })
@@ -171,21 +173,31 @@ export function problemText({ code, recipes, ingredients, reason }: MealPlanProb
   return "Có món không còn tồn tại."
 }
 
-/** One short line per distinct problem, with every day it happens on. */
-export function problemLines(problems: MealPlanProblem[]) {
-  const lines = new Map<string, Weekday[]>()
-  for (const problem of problems) {
-    const text = problem.code === "AVOIDED_INGREDIENT"
-      ? `${problem.recipes.join(", ")} có ${problem.ingredients.join(", ")}`
-      : problemText(problem)
-    const days = lines.get(text) ?? []
-    if (!days.includes(problem.day)) days.push(problem.day)
-    lines.set(text, days)
+/** Key of a dish on one day of the plan, as used by `dishWarnings`. */
+export function dishKey(day: Weekday, recipeId: string) {
+  return `${day}:${recipeId}`
+}
+
+function dishWarningText({ code, ingredients, reason }: MealPlanProblem) {
+  if (code === "DAY_CONFLICT") {
+    return `${ingredients.join(" và ")} không nên ăn cùng ngày${reason ? ` (${reason})` : ""}`
   }
-  return [...lines.entries()].map(([text, days]) => ({
-    text,
-    days: WEEKDAYS.filter((day) => days.includes(day)),
-  }))
+  return `Có ${ingredients.join(", ")}, thứ bạn không ăn`
+}
+
+/** What is wrong with each dish, so it can be marked where it sits on the plan. */
+export function dishWarnings(problems: MealPlanProblem[]) {
+  const warnings = new Map<string, string[]>()
+  for (const problem of problems) {
+    const text = dishWarningText(problem)
+    for (const recipeId of problem.recipeIds) {
+      const key = dishKey(problem.day, recipeId)
+      const texts = warnings.get(key) ?? []
+      if (!texts.includes(text)) texts.push(text)
+      warnings.set(key, texts)
+    }
+  }
+  return warnings
 }
 
 /** A day conflict is advice only; the other problems break what the user avoids. */

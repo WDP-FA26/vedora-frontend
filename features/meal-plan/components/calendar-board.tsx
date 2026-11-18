@@ -45,10 +45,11 @@ import {
 } from "@/features/meal-plan/components/timetable"
 import {
   DAY_LABELS,
+  dishKey,
+  dishWarnings,
   hasOnlyConflicts,
   MAX_DISHES_PER_SECTION,
   MEAL_SECTIONS,
-  problemLines,
   recipesAt,
   SECTION_LABELS,
   searchRecipeOptions,
@@ -146,6 +147,7 @@ export function CalendarBoard({
   const overlay = suggestion ?? draft ?? null
   const locked = overlay !== null
   const view = displayDays(plan, overlay)
+  const warnings = plan && !locked ? dishWarnings(plan.problems) : new Map<string, string[]>()
 
   /** Dishes the proposal drops from a slot, shown struck through. */
   function removedAt({ day, section }: SlotRef): RecipeRef[] {
@@ -299,18 +301,13 @@ export function CalendarBoard({
           </p>
         </div>
       )}
-      {plan && plan.problems.length > 0 && !locked && (
+      {warnings.size > 0 && (
         <div className="px-4 pt-4 sm:px-5">
-          <Alert variant={hasOnlyConflicts(plan.problems) ? "default" : "destructive"}>
+          <Alert variant={plan && hasOnlyConflicts(plan.problems) ? "default" : "destructive"}>
             <TriangleAlertIcon aria-hidden />
-            <AlertTitle>Thực đơn có chỗ cần xem lại</AlertTitle>
+            <AlertTitle>{warnings.size} món cần xem lại</AlertTitle>
             <AlertDescription>
-              {problemLines(plan.problems).map(({ text, days: problemDays }) => (
-                <span key={text} className="block">
-                  {text}
-                  <span className="font-medium"> · {problemDays.map((day) => DAY_LABELS[day]).join(", ")}</span>
-                </span>
-              ))}
+              Món có dấu cảnh báo không hợp với hồ sơ ăn uống hoặc nhau trong cùng ngày. Rê chuột vào món để xem lý do.
             </AlertDescription>
           </Alert>
         </div>
@@ -384,6 +381,7 @@ export function CalendarBoard({
                           tag={detail?.tag ?? recipe.tag}
                           slot={slot}
                           recipeId={recipe.id}
+                          warnings={warnings.get(dishKey(day, recipe.id)) ?? []}
                           isNew={isNew}
                           disabled={locked || saving}
                           onOpen={() => {
@@ -485,6 +483,7 @@ function CalendarChip({
   tag,
   slot,
   recipeId,
+  warnings,
   isNew,
   disabled,
   onOpen,
@@ -496,6 +495,7 @@ function CalendarChip({
   tag: RecipeTag | null
   slot: SlotRef
   recipeId: string
+  warnings: string[]
   isNew: boolean
   disabled: boolean
   onOpen: () => void
@@ -504,6 +504,7 @@ function CalendarChip({
   onAsk?: () => void
 }) {
   const { icon: TagIcon, label: tagLabel } = tagView(tag)
+  const warning = warnings.join("; ")
   return (
     <div
       draggable={!disabled}
@@ -521,11 +522,17 @@ function CalendarChip({
         type="button"
         onClick={onOpen}
         aria-label={`Xem công thức ${title}, ${slotLabel(slot)}`}
-        title={`${title} · ${tagLabel}`}
+        title={warning ? `${title}: ${warning}` : `${title} · ${tagLabel}`}
         className="flex min-w-0 flex-1 items-center gap-1.5 rounded-md py-0.5 text-left outline-none focus-visible:ring-3 focus-visible:ring-ring/30"
       >
         <TagIcon aria-hidden className="size-3.5 shrink-0 text-primary" />
         <span className="min-w-0 truncate font-medium text-foreground">{title}</span>
+        {warning && (
+          <>
+            <TriangleAlertIcon aria-hidden className="size-3.5 shrink-0 text-amber-600 dark:text-amber-400" />
+            <span className="sr-only">Cần xem lại: {warning}</span>
+          </>
+        )}
       </button>
       <DropdownMenu>
         <DropdownMenuTrigger
