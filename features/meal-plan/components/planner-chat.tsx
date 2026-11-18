@@ -22,7 +22,6 @@ import {
 } from "@/components/ui/input-group"
 import { Message, MessageContent, MessageHeader } from "@/components/ui/message"
 import { Spinner } from "@/components/ui/spinner"
-import { Switch } from "@/components/ui/switch"
 import { DIETARY_PATH } from "@/features/dietary/dietary"
 import {
   messageProposals,
@@ -54,16 +53,6 @@ export type MealAskContext = { title: string; day: Weekday; section: MealSection
 
 function looksLikePlanRequest(text: string) {
   return /^(?:(?:hãy|giúp\s+(?:tôi|mình)|(?:tôi|mình)\s+muốn)\s+)?(?:lên|lập|tạo|xây|gợi\s+ý)\s+(?:một\s+)?thực\s+đơn\b|^cho\s+(?:tôi|mình)\s+(?:một\s+)?thực\s+đơn\b/iu.test(text)
-}
-
-function looksLikeMealChange(text: string) {
-  return /^(?:(?:hãy|(?:tôi|mình)\s+muốn)\s+)?(?:đổi|thay|đề\s+xuất\s+món\s+khác|gợi\s+ý\s+món\s+khác)\b/iu.test(text)
-}
-
-function profileLine(savedAvoided: string[], savedLiked: string[]) {
-  const avoided = savedAvoided.length ? savedAvoided.join(", ") : "chưa khai báo"
-  const liked = savedLiked.length ? ` Nguyên liệu tôi thích: ${savedLiked.join(", ")}.` : ""
-  return `Hồ sơ ăn uống của tôi: thực phẩm không ăn: ${avoided}.${liked}`
 }
 
 function AssistantMessage({ children }: { children: ReactNode }) {
@@ -112,7 +101,6 @@ export function PlannerChat({
   const [input, setInput] = useState("")
   const [inputError, setInputError] = useState("")
   const [profileOpen, setProfileOpen] = useState(false)
-  const [useProfile, setUseProfile] = useState(true)
   const end = useRef<HTMLDivElement>(null)
   const textarea = useRef<HTMLTextAreaElement>(null)
   const lastPrefillNonce = useRef<number | null>(null)
@@ -186,10 +174,11 @@ export function PlannerChat({
     const context = askContext
       ? `Về món ${askContext.title} ở ${DAY_LABELS[askContext.day]}, bữa ${SECTION_LABELS[askContext.section].toLowerCase()}: `
       : ""
-    const includeProfile = !fromForm.current && (useProfile || looksLikeMealChange(text))
-    const payload = `${context}${text}${includeProfile ? `\n\n${profileLine(savedAvoided, savedLiked)}` : ""}`
+    // The API reads the saved dietary profile itself on every turn, so the
+    // question goes out as typed instead of carrying the profile along.
+    const payload = `${context}${text}`
     if (payload.length > MAX_PLANNER_MESSAGE_LENGTH) {
-      setInputError(`Tin nhắn cùng ngữ cảnh hồ sơ tối đa ${MAX_PLANNER_MESSAGE_LENGTH} ký tự. Hãy rút ngắn nội dung.`)
+      setInputError(`Tin nhắn tối đa ${MAX_PLANNER_MESSAGE_LENGTH} ký tự. Hãy rút ngắn nội dung.`)
       return
     }
     sendQuestion(payload, text)
@@ -224,10 +213,7 @@ export function PlannerChat({
                 <p><span className="font-semibold">Thích:</span> {savedLiked.length > 0 ? savedLiked.join(", ") : "Chưa chọn"}</p>
               </>
             )}
-            <label className="flex items-center justify-between gap-3 border-t border-border pt-2">
-              <span>Dùng hồ sơ ăn uống khi trò chuyện</span>
-              <Switch checked={useProfile} onCheckedChange={setUseProfile} aria-label="Dùng hồ sơ ăn uống khi trò chuyện" size="sm" />
-            </label>
+            <p className="border-t border-border pt-2 text-muted-foreground">Trợ lý luôn dựa vào hồ sơ này khi chọn món, bạn không cần nhắc lại trong tin nhắn.</p>
           </div>
         )}
       </div>
