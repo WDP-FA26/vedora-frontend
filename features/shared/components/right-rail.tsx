@@ -138,7 +138,6 @@ function UpgradePanel() {
       <Button
         size="pill-sm"
         shape="pill"
-        variant={current ? "outline" : "default"}
         className="mt-4"
         render={<Link href="/billing" />}
         nativeButton={false}
