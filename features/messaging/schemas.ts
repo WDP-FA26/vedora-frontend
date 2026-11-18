@@ -1,6 +1,7 @@
 import { z } from "zod"
 
 export const MAX_MESSAGE_LENGTH = 2000
+export const messagingUnreadCountSchema = z.object({ unreadCount: z.number().int().nonnegative() })
 export const inboxSchema = z.enum(["friends", "requests"])
 export type Inbox = z.infer<typeof inboxSchema>
 
