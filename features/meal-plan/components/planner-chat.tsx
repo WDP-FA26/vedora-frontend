@@ -4,8 +4,8 @@ import { useEffect, useImperativeHandle, useRef, useState, type FormEvent, type 
 import Link from "next/link"
 import { Streamdown } from "streamdown"
 import {
-  ArrowRightIcon,
   ArrowUpIcon,
+  CheckIcon,
   ChevronDownIcon,
   ChevronUpIcon,
   HistoryIcon,
@@ -35,18 +35,18 @@ import {
 import { Spinner } from "@/components/ui/spinner"
 import { DIETARY_PATH } from "@/features/dietary/dietary"
 import {
+  decidedStatus,
   messageProposals,
   messageCannotPropose,
   messageText,
-  proposalIds,
   type MealPlannerChat,
   type Proposal,
   type ProposalStatus,
 } from "@/features/meal-plan/hooks/use-meal-planner-chat"
 import {
   DAY_LABELS,
-  formatDayMonth,
   SECTION_LABELS,
+  weekStartRangeLabel,
   type MealSection,
   type Weekday,
 } from "@/features/meal-plan/meal-plan"
@@ -96,8 +96,12 @@ function AssistantMessage({ children }: { children: ReactNode }) {
 
 export function PlannerChat({
   chat,
-  onStage,
-  openPlan,
+  localProposal = null,
+  applyingId = null,
+  applyErrors = {},
+  skippedDays = {},
+  onApply,
+  onDismiss,
   savedAvoided = [],
   savedLiked = [],
   profileLoading = false,
@@ -117,8 +121,16 @@ export function PlannerChat({
   /** Shown at the end of the header, e.g. a collapse button. */
   trailing?: ReactNode
   chat: MealPlannerChat
-  onStage: (proposal: Proposal) => void
-  openPlan: () => void
+  /** A proposal made outside the conversation ("Lên món nhanh"), shown after the messages. */
+  localProposal?: Proposal | null
+  /** The proposal being saved. */
+  applyingId?: string | null
+  /** Why saving a proposal failed, by proposal id. */
+  applyErrors?: Record<string, string>
+  /** Passed days a saved proposal left out, by proposal id. */
+  skippedDays?: Record<string, string[]>
+  onApply: (proposal: Proposal) => void
+  onDismiss: (proposal: Proposal) => void
   savedAvoided?: string[]
   savedLiked?: string[]
   profileLoading?: boolean
@@ -128,7 +140,7 @@ export function PlannerChat({
   clearAskContext?: () => void
   onOpenPlanner?: (seed?: string) => void
   onFormSent?: () => void
-  /** Shows the week an older proposal was made for. */
+  /** Shows a proposal's week on the calendar. */
   onOpenWeek?: (weekStart: string) => void
 }) {
   const { messages, busy, waiting, pendingId, streamingId, error, send, reset } = chat
@@ -143,11 +155,10 @@ export function PlannerChat({
   const pending = useRef<string | null>(null)
   const pendingAfterCount = useRef<number | null>(null)
   const showSuggestions = messages.length === 1 && !busy && !error && !chat.loadingThreadId
-  const hasPendingProposal = chat.pendingProposal !== null
 
   useEffect(() => {
     end.current?.scrollIntoView({ block: "end" })
-  }, [messages, waiting])
+  }, [messages, waiting, localProposal])
 
   useEffect(() => {
     if (!prefill || prefill.nonce === lastPrefillNonce.current) return
@@ -315,7 +326,19 @@ export function PlannerChat({
               <AgentTrace message={message} pending={pending} />
               {text && <Bubble variant="ghost"><BubbleContent><Streamdown caret="block" isAnimating={message.id === streamingId} controls={false} disallowedElements={UNSAFE_ELEMENTS} unwrapDisallowed>{text}</Streamdown></BubbleContent></Bubble>}
               {proposals.map((proposal) => (
-                <ProposalCard key={proposal.id} proposal={proposal} status={chat.statuses[proposal.id]} superseded={proposal.id !== chat.pendingProposal?.id} currentWeek={chat.weekStart} onOpenWeek={onOpenWeek} onStage={onStage} onDismiss={() => chat.setProposalsStatus(proposalIds(proposal), "dismissed")} openPlan={openPlan} />
+                <ProposalCard
+                  key={proposal.id}
+                  proposal={proposal}
+                  status={chat.statuses[proposal.id]}
+                  superseded={!chat.isLatestProposal(proposal)}
+                  currentWeek={chat.weekStart}
+                  applying={applyingId === proposal.id}
+                  applyError={applyErrors[proposal.id]}
+                  skipped={skippedDays[proposal.id]}
+                  onApply={() => onApply(proposal)}
+                  onDismiss={() => onDismiss(proposal)}
+                  onShowWeek={onOpenWeek}
+                />
               ))}
               {!pending && message.id !== streamingId && <AgentSources message={message} />}
               {cannotPropose && !text && <p role="status" className="mt-2 rounded-xl border border-border bg-card px-3 py-2 text-sm">Chưa tìm được đủ món phù hợp với yêu cầu này. Bạn có thể chỉnh yêu cầu và thử lại.</p>}
@@ -329,7 +352,22 @@ export function PlannerChat({
 
         {showSuggestions && <BubbleGroup aria-label="Gợi ý">{SUGGESTIONS.map((suggestion, index) => <Bubble key={suggestion} variant="outline"><BubbleContent render={<button type="button" />} onClick={() => chooseSuggestion(index)}>{suggestion}</BubbleContent></Bubble>)}</BubbleGroup>}
 
-        {hasPendingProposal && <Button variant="outline" size="sm" className="self-start lg:hidden" onClick={openPlan}>Xem đề xuất <ArrowRightIcon aria-hidden /></Button>}
+        {localProposal && (
+          <AssistantMessage>
+            <p className="text-sm">Đây là các món “Lên món nhanh” chọn cho bạn. Chưa có gì được lưu.</p>
+            <ProposalCard
+              proposal={localProposal}
+              status={undefined}
+              superseded={false}
+              currentWeek={chat.weekStart}
+              applying={applyingId === localProposal.id}
+              applyError={applyErrors[localProposal.id]}
+              onApply={() => onApply(localProposal)}
+              onDismiss={() => onDismiss(localProposal)}
+              onShowWeek={onOpenWeek}
+            />
+          </AssistantMessage>
+        )}
         <div ref={end} aria-hidden className="h-px shrink-0" />
       </div>
 
@@ -448,16 +486,22 @@ export function PlannerChat({
   )
 }
 
-function ProposalCard({ proposal, status, superseded, currentWeek, onOpenWeek, onStage, onDismiss, openPlan }: {
+/** One proposal in the chat. Applying it saves it to its week straight away, whichever week is on screen. */
+function ProposalCard({ proposal, status, superseded, currentWeek, applying, applyError, skipped, onApply, onDismiss, onShowWeek }: {
   proposal: Proposal
   status: ProposalStatus | undefined
+  /** A newer proposal of the same week replaced this one. */
   superseded: boolean
-  /** The week on screen: a proposal is only applied to the week it was made for. */
+  /** The week on screen. */
   currentWeek: string | undefined
-  onOpenWeek?: (weekStart: string) => void
-  onStage: (proposal: Proposal) => void
+  applying: boolean
+  applyError: string | undefined
+  /** Passed days left out when it was saved. */
+  skipped?: string[]
+  onApply: () => void
   onDismiss: () => void
-  openPlan: () => void
+  /** Shows the proposal's week on the calendar. */
+  onShowWeek?: (weekStart: string) => void
 }) {
   const titles = (recipes: { title: string }[]) => recipes.map(({ title }) => title).join(", ")
   const changedDays = proposal.days
@@ -468,19 +512,18 @@ function ProposalCard({ proposal, status, superseded, currentWeek, onOpenWeek, o
       ),
     }))
     .filter(({ sections }) => sections.length > 0)
-  const changed = changedDays.flatMap(({ sections }) => sections)
-  const proposalWeek = proposal.weekStart
-  const otherWeek = proposalWeek !== undefined && proposalWeek !== currentWeek
-  const unknownWeek = proposalWeek === undefined
+  const week = proposal.weekStart
+  let heading = `Thực đơn đề xuất cho ${changedDays.map(({ day }) => DAY_LABELS[day]).join(", ")}`
+  if (changedDays.length === 7) heading = "Thực đơn đề xuất cho cả tuần"
+  if (changedDays.length === 0) heading = "Thực đơn hiện tại đã giống đề xuất"
   return (
     <article aria-label="Đề xuất thực đơn" className="mt-2 w-full rounded-xl border border-border bg-card px-4 py-3">
-      <h3 className="text-sm font-semibold">
-        {changed.length === 0
-          ? "Thực đơn hiện tại đã giống đề xuất"
-          : changedDays.length === 7
-            ? "Thực đơn đề xuất cho cả tuần"
-            : `Thực đơn đề xuất cho ${changedDays.map(({ day }) => DAY_LABELS[day]).join(", ")}`}
-      </h3>
+      <h3 className="text-sm font-semibold">{heading}</h3>
+      {week && (
+        <p className="mt-0.5 text-xs text-muted-foreground">
+          Tuần {weekStartRangeLabel(week)}{week === currentWeek ? " · đang xem trên lịch" : ""}
+        </p>
+      )}
       {changedDays.map(({ day, sections }) => (
         <section key={day} className="mt-3 border-t border-border pt-2.5">
           <h4 className="text-xs font-semibold text-muted-foreground">{DAY_LABELS[day]}</h4>
@@ -499,8 +542,58 @@ function ProposalCard({ proposal, status, superseded, currentWeek, onOpenWeek, o
           </dl>
         </section>
       ))}
-      {proposalWeek && <p className="mt-0.5 text-xs text-muted-foreground">Cho tuần bắt đầu {formatDayMonth(proposalWeek)}</p>}
-      {status === undefined && unknownWeek ? <p className="mt-3 text-sm text-muted-foreground">Đề xuất này từ trước khi thực đơn chia theo tuần nên không rõ dành cho tuần nào. Hãy nhờ trợ lý đề xuất lại.</p> : status === undefined && otherWeek ? <div className="mt-3 flex flex-wrap items-center gap-2"><p className="text-sm text-muted-foreground">Đề xuất này dành cho một tuần khác với tuần đang mở.</p>{onOpenWeek && proposalWeek && <Button variant="link" size="sm" onClick={() => onOpenWeek(proposalWeek)}>Mở tuần đó</Button>}</div> : status === "saved" ? <p role="status" className="mt-3 text-sm text-primary">Đã lưu vào thực đơn.</p> : status === "staged" ? <div className="mt-3 flex flex-wrap items-center gap-2"><p role="status" className="text-sm">Đã thêm vào bản nháp, chưa lưu.</p><Button variant="link" size="sm" onClick={openPlan}>Xem bản nháp</Button></div> : status === "dismissed" ? <p role="status" className="mt-3 text-sm text-muted-foreground">Đã bỏ đề xuất.</p> : superseded ? <p className="mt-3 text-sm text-muted-foreground">Đã gộp vào đề xuất hiện tại trên lịch.</p> : changed.length > 0 ? <><div className="mt-3 flex flex-wrap gap-2 lg:hidden"><Button size="sm" onClick={() => onStage(proposal)}>Áp dụng vào bản nháp</Button><Button variant="outline" size="sm" onClick={onDismiss}>Bỏ đề xuất</Button></div><p className="mt-3 hidden text-sm text-muted-foreground lg:block">Đề xuất đang hiện trên lịch. Bấm “Áp dụng vào bản nháp” ở phía trên lịch.</p></> : null}
+      <ProposalFooter
+        week={week}
+        status={decidedStatus(status)}
+        superseded={superseded}
+        hasChanges={changedDays.length > 0}
+        applying={applying}
+        applyError={applyError}
+        skipped={skipped}
+        onApply={onApply}
+        onDismiss={onDismiss}
+        onShowWeek={onShowWeek}
+      />
     </article>
+  )
+}
+
+function ProposalFooter({ week, status, superseded, hasChanges, applying, applyError, skipped, onApply, onDismiss, onShowWeek }: {
+  week: string | undefined
+  skipped?: string[]
+  status: "saved" | "dismissed" | undefined
+  superseded: boolean
+  hasChanges: boolean
+  applying: boolean
+  applyError: string | undefined
+  onApply: () => void
+  onDismiss: () => void
+  onShowWeek?: (weekStart: string) => void
+}) {
+  const showWeek = week && onShowWeek
+    ? <Button variant="link" size="sm" onClick={() => onShowWeek(week)}>Xem trên lịch</Button>
+    : null
+  if (!week) {
+    return <p className="mt-3 text-sm text-muted-foreground">Đề xuất này từ trước khi thực đơn chia theo tuần nên không rõ dành cho tuần nào. Hãy nhờ trợ lý đề xuất lại.</p>
+  }
+  if (status === "saved") {
+    const note = skipped && skipped.length > 0 ? ` Bỏ qua ${skipped.join(", ")} vì đã qua.` : ""
+    return <div className="mt-3 flex flex-wrap items-center gap-2"><p role="status" className="text-sm text-primary">Đã lưu vào thực đơn.{note}</p>{showWeek}</div>
+  }
+  if (status === "dismissed") return <p role="status" className="mt-3 text-sm text-muted-foreground">Đã bỏ đề xuất.</p>
+  if (superseded) return <p className="mt-3 text-sm text-muted-foreground">Trợ lý đã có đề xuất mới hơn cho tuần này ở bên dưới.</p>
+  if (!hasChanges) return null
+  return (
+    <div className="mt-3 space-y-2">
+      {applyError && <p role="alert" className="text-sm text-destructive">{applyError}</p>}
+      <div className="flex flex-wrap items-center gap-2">
+        <Button size="sm" disabled={applying} onClick={onApply}>
+          {applying ? <Spinner aria-hidden /> : <CheckIcon aria-hidden />}
+          {applying ? "Đang lưu…" : "Áp dụng"}
+        </Button>
+        <Button variant="outline" size="sm" disabled={applying} onClick={onDismiss}>Bỏ đề xuất</Button>
+        {showWeek}
+      </div>
+    </div>
   )
 }

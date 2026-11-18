@@ -357,6 +357,11 @@ export function saveMealDays(token: string, weekStart: string, days: MealDayInpu
 }
 
 /** `POST /meal-plan/copy`: refused with `MEAL_WEEK_NOT_EMPTY` unless `overwrite` replaces the target's dishes. */
+/** `DELETE /meal-plan/draft`: drops the assistant's unsaved draft of one week. */
+export async function discardMealDraft(token: string, weekStart: string) {
+  await send(`${MEAL_PLAN_URL}/draft?weekStart=${weekStart}`, token, { method: "DELETE" })
+}
+
 export function copyMealWeek(
   token: string,
   fromWeekStart: string,
@@ -492,6 +497,16 @@ export function weekRangeLabel(plan: MealPlan) {
   const last = plan.days[plan.days.length - 1]
   if (!first || !last) return ""
   return `${formatDayMonth(first.date)} – ${formatDayMonth(last.date)}/${last.date.split("-")[0]}`
+}
+
+/** `16/11 – 22/11` for the week starting `weekStart`. */
+export function weekStartRangeLabel(weekStart: string) {
+  return `${formatDayMonth(weekStart)} – ${formatDayMonth(shiftDays(weekStart, 6))}`
+}
+
+function shiftDays(date: string, days: number) {
+  const [year, month, day] = date.split("-").map(Number)
+  return new Date(Date.UTC(year, month - 1, day + days)).toISOString().slice(0, 10)
 }
 
 /** Monday of the week `weeks` after (or before, when negative) the week starting `weekStart`. */

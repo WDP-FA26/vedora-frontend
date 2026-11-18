@@ -11,7 +11,6 @@ import {
   SparklesIcon,
   Trash2Icon,
   TriangleAlertIcon,
-  CheckIcon,
 } from "lucide-react"
 
 import { tagView, type RecipeTag } from "@/features/recipes/tags"
@@ -81,16 +80,15 @@ type Dragged = SlotRef & { recipeId: string }
 type CalendarBoardProps = {
   plan: MealPlan | undefined
   failed: boolean
-  /** A staged, unsaved draft: shown on the grid until it is saved or dropped. */
-  draft: MealPlanProposal | null | undefined
-  /** A proposal from the assistant that is not staged yet; also previewed on the grid. */
+  /**
+   * A proposal for this week that the user has not decided on yet, previewed on the
+   * grid. It is applied or dismissed from its card in the chat, never from here.
+   */
   suggestion?: MealPlanProposal | null
-  onApplySuggestion?: () => void
-  onDismissSuggestion?: () => void
-  onSaveDraft?: () => Promise<void>
-  onDiscardDraft?: () => void
-  savingDraft?: boolean
-  saveError?: string | null
+  /** Brings the chat, where the proposal's card is, into view. */
+  onOpenChat?: () => void
+  /** A failure from outside the grid, such as copying last week. */
+  weekError?: string | null
   /** Applies the new content of one or more meal slots; rejects with a user-facing message. */
   onChange: (changes: SlotChange[]) => Promise<void>
   onAsk?: (recipe: RecipeRef, day: Weekday, section: MealSection) => void
@@ -128,14 +126,9 @@ function slotLabel({ day, section }: SlotRef) {
 export function CalendarBoard({
   plan,
   failed,
-  draft,
   suggestion = null,
-  onApplySuggestion,
-  onDismissSuggestion,
-  onSaveDraft,
-  onDiscardDraft,
-  savingDraft = false,
-  saveError = null,
+  onOpenChat,
+  weekError = null,
   onChange,
   onAsk,
   onSuggestSlot,
@@ -160,8 +153,9 @@ export function CalendarBoard({
   /** A day before today can only be read. */
   const dayEditable = (day: Weekday) => (plan ? isDayEditable(plan, day) : false)
 
-  const overlay = suggestion ?? draft ?? null
+  const overlay = suggestion
   const locked = overlay !== null
+  const shownError = error ?? weekError
   const view = displayDays(plan, overlay)
   const warnings = plan && !locked ? dishWarnings(plan.problems) : new Map<string, string[]>()
 
@@ -287,42 +281,23 @@ export function CalendarBoard({
             <SparklesIcon aria-hidden />
             <AlertTitle>Trợ lý đề xuất thay đổi</AlertTitle>
             <AlertDescription>
-              Các món có viền nét đứt là món mới, món bị gạch sẽ được thay. Chưa có gì được lưu.
-              <span className="mt-2 flex flex-wrap gap-2">
-                {onApplySuggestion && <Button size="sm" onClick={onApplySuggestion}>Áp dụng vào bản nháp</Button>}
-                {onDismissSuggestion && <Button variant="outline" size="sm" onClick={onDismissSuggestion}>Bỏ đề xuất</Button>}
-              </span>
-            </AlertDescription>
-          </Alert>
-        </div>
-      )}
-      {!suggestion && draft && (
-        <div className="px-4 pt-4 sm:px-5">
-          <Alert>
-            <TriangleAlertIcon aria-hidden />
-            <AlertTitle>Bản nháp chưa lưu</AlertTitle>
-            <AlertDescription>
-              Các món có viền nét đứt là thay đổi mới. Lưu hoặc bỏ bản nháp trước khi chỉnh lịch.
-              {saveError && <span role="alert" className="mt-1 block text-destructive">{saveError}</span>}
-              <span className="mt-2 flex flex-wrap gap-2">
-                {onSaveDraft && (
-                  <Button size="sm" disabled={savingDraft} onClick={() => void onSaveDraft()}>
-                    {savingDraft ? <Spinner aria-hidden /> : <CheckIcon aria-hidden />}
-                    {savingDraft ? "Đang lưu…" : "Lưu thực đơn"}
+              Các món có viền nét đứt là món mới, món bị gạch sẽ được thay. Chưa có gì được lưu: bấm “Áp dụng” hoặc
+              “Bỏ đề xuất” trên thẻ đề xuất trong khung trợ lý.
+              {onOpenChat && (
+                <span className="mt-2 flex flex-wrap gap-2">
+                  <Button variant="outline" size="sm" onClick={onOpenChat}>
+                    <MessageCircleIcon aria-hidden /> Xem thẻ đề xuất
                   </Button>
-                )}
-                {onDiscardDraft && (
-                  <Button variant="outline" size="sm" disabled={savingDraft} onClick={onDiscardDraft}>Bỏ thay đổi</Button>
-                )}
-              </span>
+                </span>
+              )}
             </AlertDescription>
           </Alert>
         </div>
       )}
-      {error && (
+      {shownError && (
         <div className="px-4 pt-4 sm:px-5">
           <p role="alert" className="rounded-xl border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
-            {error}
+            {shownError}
           </p>
         </div>
       )}

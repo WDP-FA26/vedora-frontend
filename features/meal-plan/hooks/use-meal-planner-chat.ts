@@ -29,8 +29,15 @@ const MAX_TEXT_LENGTH = 4000
 const MAX_SYNC_MESSAGES = 100
 const THREAD_LIST_URL = `${MEAL_PLANNER_CHAT_THREADS_KEY}?limit=50`
 
+/** `staged` comes from threads saved before proposals were applied from the chat; it reads as pending. */
 export type ProposalStatus = "staged" | "saved" | "dismissed"
 type Statuses = Record<string, ProposalStatus>
+
+/** Whether the user has decided on the proposal: saved it or dismissed it. */
+export function decidedStatus(status: ProposalStatus | undefined): "saved" | "dismissed" | undefined {
+  if (status === "saved" || status === "dismissed") return status
+  return undefined
+}
 
 export interface Proposal extends MealPlanProposal {
   id: string
@@ -93,15 +100,42 @@ export function messageText(message: UIMessage) {
     .join("\n\n")
 }
 
-/** The proposals the planner showed in this message; rejected ones never reach the user. */
+/**
+ * The proposals the planner showed in this message, one per week; rejected ones
+ * never reach the user. Each draft tool returns its whole week, so the last
+ * proposal of a week stands for the others.
+ */
 export function messageProposals(message: UIMessage): Proposal[] {
-  const proposals = message.parts.flatMap((part) => {
-    if (!isToolUIPart(part) || !PROPOSAL_TOOL_TYPES.includes(part.type) || part.state !== "output-available") return []
+  const byWeek = new Map<string, Proposal[]>()
+  for (const part of message.parts) {
+    if (!isToolUIPart(part) || !PROPOSAL_TOOL_TYPES.includes(part.type) || part.state !== "output-available") continue
     const proposal = proposalSchema.safeParse(part.output)
-    return proposal.success && proposal.data.ok ? [{ ...proposal.data, id: part.toolCallId }] : []
-  })
-  const merged = mergeProposals(proposals)
-  return merged ? [merged] : []
+    if (!proposal.success || !proposal.data.ok) continue
+    const week = proposal.data.weekStart ?? ""
+    const list = byWeek.get(week) ?? []
+    list.push({ ...proposal.data, id: part.toolCallId })
+    byWeek.set(week, list)
+  }
+  const proposals: Proposal[] = []
+  for (const list of byWeek.values()) {
+    const merged = mergeProposals(list)
+    if (merged) proposals.push(merged)
+  }
+  return proposals
+}
+
+/**
+ * The newest proposal of every week in the conversation. An older one of the
+ * same week is out of date: the planner built the newer one on top of it.
+ */
+export function latestProposals(messages: readonly UIMessage[]): Map<string, Proposal> {
+  const latest = new Map<string, Proposal>()
+  for (const message of messages) {
+    for (const proposal of messageProposals(message)) {
+      if (proposal.weekStart) latest.set(proposal.weekStart, proposal)
+    }
+  }
+  return latest
 }
 
 export function messageCannotPropose(message: UIMessage) {
@@ -115,7 +149,7 @@ export function messageCannotPropose(message: UIMessage) {
 
 // The API takes plain text turns, so a proposal rides along as a note the
 // planner can read: what it offered and whether the user took it.
-function contextText(message: UIMessage, statuses: Statuses) {
+function contextText(message: UIMessage, statuses: Statuses, latest: Map<string, Proposal>) {
   const notes = messageProposals(message).map((proposal) => {
     const meals = proposal.days
       .map(({ day, sections }) => {
@@ -128,15 +162,14 @@ function contextText(message: UIMessage, statuses: Statuses) {
         return `${DAY_LABELS[day]} (${filled.length > 0 ? filled.join("; ") : "trống"})`
       })
       .join(" | ")
-    const status =
-      statuses[proposal.id] === "saved"
-        ? "người dùng đã lưu thực đơn"
-        : statuses[proposal.id] === "staged"
-          ? "người dùng đã đưa vào bản nháp, chưa lưu"
-          : statuses[proposal.id] === "dismissed"
-            ? "người dùng đã bỏ qua"
-            : "chưa áp dụng"
-    return `[Đề xuất (${status}): ${meals}]`
+    const decided = decidedStatus(statuses[proposal.id])
+    let status = "chưa áp dụng"
+    if (decided === "saved") status = "người dùng đã áp dụng, đã lưu vào thực đơn"
+    if (decided === "dismissed") status = "người dùng đã bỏ"
+    const newer = proposal.weekStart !== undefined && latest.get(proposal.weekStart)?.id !== proposal.id
+    if (decided === undefined && newer) status = "đã được thay bằng đề xuất mới hơn"
+    const week = proposal.weekStart ? ` tuần ${proposal.weekStart}` : ""
+    return `[Đề xuất${week} (${status}): ${meals}]`
   })
   return [messageText(message), ...notes].filter(Boolean).join("\n").slice(0, MAX_TEXT_LENGTH)
 }
@@ -225,6 +258,7 @@ const transport = new DefaultChatTransport<PlannerMessage>({
   prepareSendMessagesRequest: ({ messages, headers, body }) => {
     const statuses = (body?.statuses ?? {}) as Statuses
     const threadId = typeof body?.threadId === "string" ? body.threadId : undefined
+    const latest = latestProposals(messages)
     return {
       headers,
       body: {
@@ -232,7 +266,7 @@ const transport = new DefaultChatTransport<PlannerMessage>({
         ...(threadId ? { threadId } : {}),
         requestId: messages.filter((message) => message.role === "user").at(-1)?.id,
         messages: withoutRefusals(messages.filter((message) => message.id !== WELCOME.id))
-          .map((message) => ({ role: message.role, text: contextText(message, statuses) }))
+          .map((message) => ({ role: message.role, text: contextText(message, statuses, latest) }))
           .filter((message) => message.text)
           .slice(-CONTEXT_MESSAGES),
       },
@@ -259,8 +293,9 @@ function errorMessage(error: Error) {
 
 /**
  * The conversation with vedora-api's `POST /meal-plan/chat` and persisted threads.
- * It plans one week, `weekStart` (Monday, `YYYY-MM-DD`): undefined while that week is
- * still loading, and then nothing can be sent.
+ * `weekStart` is the week on screen (Monday, `YYYY-MM-DD`), the planner's default week:
+ * undefined while it is still loading, and then nothing can be sent. The planner may
+ * still propose for any other plannable week.
  */
 export function useMealPlannerChat(weekStart: string | undefined) {
   const router = useRouter()
@@ -441,13 +476,15 @@ export function useMealPlannerChat(weekStart: string | undefined) {
   const replying =
     busy && last?.role === "assistant" && messageText(last) !== "" && runningTool === undefined
 
-  // Only a proposal made for the week on screen can be applied to it.
-  const merged = mergeProposals(
-    messages
-      .flatMap(messageProposals)
-      .filter((proposal) => !statuses[proposal.id] && proposal.weekStart === weekStart)
-  )
-  const pendingProposal = merged && merged.days.length > 0 ? merged : null
+  const latest = latestProposals(messages)
+  // One open proposal per week, oldest week first; any week can be applied from its card.
+  const pendingProposals: Proposal[] = []
+  for (const proposal of latest.values()) {
+    if (decidedStatus(statuses[proposal.id]) !== undefined) continue
+    if (proposal.days.length === 0) continue
+    pendingProposals.push(proposal)
+  }
+  pendingProposals.sort((left, right) => (left.weekStart ?? "").localeCompare(right.weekStart ?? ""))
   const threadList: ChatThreadSummary[] = threads.data?.items ?? []
   const activeThread = threadList.find((item) => item.id === threadId) ?? null
 
@@ -467,8 +504,11 @@ export function useMealPlannerChat(weekStart: string | undefined) {
     /** The assistant message whose trace shows the waiting, once the reply has started. */
     pendingId: busy && !replying && last?.role === "assistant" ? last.id : null,
     streamingId: replying ? last.id : null,
-    /** Every proposal not yet applied, saved or dismissed, merged into one. */
-    pendingProposal,
+    /** The newest proposal of each week not yet saved or dismissed. */
+    pendingProposals,
+    /** True when `proposal` is the newest one of its week, so it may still be applied. */
+    isLatestProposal: (proposal: Proposal) =>
+      proposal.weekStart !== undefined && latest.get(proposal.weekStart)?.id === proposal.id,
     statuses,
     setProposalStatus: (id: string, next: ProposalStatus) => updateProposalStatuses({ [id]: next }),
     setProposalsStatus: (ids: string[], next: ProposalStatus) => {

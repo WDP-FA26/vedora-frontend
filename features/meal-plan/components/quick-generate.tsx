@@ -89,7 +89,7 @@ function assistantPrompt(request: GenerateInput, instruction: string) {
 
 /**
  * A floating button that opens a short form. `onGenerate` runs the algorithm and
- * resolves to an error message, or null when a suggestion is on the calendar.
+ * resolves to an error message, or null when its proposal card is in the chat.
  */
 export function QuickGenerate({
   plan,
@@ -184,8 +184,8 @@ export function QuickGenerate({
             <SheetHeader>
               <SheetTitle>Lên món nhanh</SheetTitle>
               <SheetDescription>
-                Chọn món tự động theo hồ sơ ăn uống của bạn. Kết quả hiện trên
-                lịch, chưa có gì được lưu.
+                Chọn món tự động theo hồ sơ ăn uống của bạn. Kết quả hiện thành
+                thẻ đề xuất trong khung trợ lý, chưa có gì được lưu.
               </SheetDescription>
             </SheetHeader>
 
