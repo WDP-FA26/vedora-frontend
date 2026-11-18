@@ -1,8 +1,9 @@
 "use client"
 
-import { useId, useState } from "react"
+import { useEffect, useId, useState } from "react"
 import Link from "next/link"
-import { usePathname } from "next/navigation"
+import { usePathname, useSearchParams } from "next/navigation"
+import useSWR from "swr"
 import { Controller, useForm, useWatch } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { EllipsisIcon, MessageCircleIcon, PencilIcon, Trash2Icon } from "lucide-react"
@@ -37,7 +38,8 @@ import { Textarea } from "@/components/ui/textarea"
 import { useAuth } from "@/features/auth/hooks/use-auth"
 import { toAuthor } from "@/features/auth/lib/to-author"
 import { useComments } from "@/features/posts/hooks/use-comments"
-import { COMMENTS_ANCHOR } from "@/features/posts/posts-cache"
+import { COMMENTS_ANCHOR, commentsKey } from "@/features/posts/posts-cache"
+import { fetchComment } from "@/features/posts/lib/posts-api"
 import {
   MAX_COMMENT_LENGTH,
   commentFormSchema,
@@ -78,10 +80,48 @@ export function PostComments({
   postAuthorId: string
   count: number
 }) {
-  const { user, isAuthenticated } = useAuth()
+  const { accessToken, isAuthenticated } = useAuth()
   const pathname = usePathname()
-  const { comments, hasMore, loadMore, error, isLoading, isLoadingMore, add, edit, remove } =
-    useComments(postId)
+  const focusId = useSearchParams().get("comment")
+  const { data: focused, mutate: refreshFocused } = useSWR(
+    focusId
+      ? ([`${commentsKey(postId)}/${encodeURIComponent(focusId)}`, accessToken] as const)
+      : null,
+    fetchComment,
+    { shouldRetryOnError: false }
+  )
+  const { data: focusedRoot, mutate: refreshFocusedRoot } = useSWR(
+    focused?.parentId
+      ? ([`${commentsKey(postId)}/${focused.parentId}`, accessToken] as const)
+      : null,
+    fetchComment,
+    { shouldRetryOnError: false }
+  )
+  const {
+    comments,
+    hasMore,
+    loadMore,
+    error,
+    isLoading,
+    isLoadingMore,
+    add,
+    edit,
+    remove,
+    changeReplyCount,
+  } = useComments(postId)
+  const focusRoot = focused?.parentId ? focusedRoot : focused
+  const visible = [
+    ...new Map(
+      [...(focusRoot ? [focusRoot] : []), ...comments].map((item) => [item.id, item])
+    ).values(),
+  ]
+  const [deletedRoots, setDeletedRoots] = useState<string[]>([])
+  const visibleComments = visible.filter((item) => !deletedRoots.includes(item.id))
+
+  useEffect(() => {
+    if (focused)
+      document.getElementById(`comment-${focused.id}`)?.scrollIntoView({ block: "center" })
+  }, [focused])
 
   return (
     <section
@@ -113,11 +153,11 @@ export function PostComments({
         <div className="flex justify-center p-6">
           <Spinner aria-label="Đang tải bình luận" />
         </div>
-      ) : error && comments.length === 0 ? (
+      ) : error && visibleComments.length === 0 ? (
         <p role="alert" className="p-4 text-sm text-destructive sm:px-5">
           Không tải được bình luận. Thử tải lại trang nhé.
         </p>
-      ) : comments.length === 0 ? (
+      ) : visibleComments.length === 0 ? (
         <Empty>
           <EmptyHeader>
             <EmptyMedia variant="icon">
@@ -129,20 +169,34 @@ export function PostComments({
         </Empty>
       ) : (
         <ul aria-label="Danh sách bình luận">
-          {comments.map((comment) => {
-            const isAuthor = user?.id === comment.author.id
-            return (
-              <li key={comment.id} className="border-b border-border">
-                <CommentItem
-                  comment={comment}
-                  canEdit={isAuthor}
-                  canDelete={isAuthor || user?.id === postAuthorId || user?.role === "ADMIN"}
-                  onEdit={(body) => edit(comment.id, body)}
-                  onDelete={() => remove(comment.id)}
-                />
-              </li>
-            )
-          })}
+          {visibleComments.map((comment) => (
+            <li key={comment.id} className="border-b border-border">
+              <CommentThread
+                comment={comment}
+                postAuthorId={postAuthorId}
+                focused={focused?.parentId === comment.id ? focused : undefined}
+                focusId={focusId}
+                onCountChange={async (delta) => {
+                  await changeReplyCount(comment.id, delta)
+                  if (focusRoot?.id === comment.id) {
+                    void refreshFocusedRoot()
+                    void refreshFocused()
+                  }
+                }}
+                onEdit={async (body) => {
+                  await edit(comment.id, body)
+                  if (focusRoot?.id === comment.id) {
+                    void refreshFocusedRoot()
+                    void refreshFocused()
+                  }
+                }}
+                onDelete={async () => {
+                  await remove(comment.id)
+                  setDeletedRoots((ids) => [...ids, comment.id])
+                }}
+              />
+            </li>
+          ))}
         </ul>
       )}
 
@@ -158,18 +212,180 @@ export function PostComments({
   )
 }
 
+function CommentThread({
+  comment,
+  postAuthorId,
+  focused,
+  focusId,
+  onCountChange,
+  onEdit,
+  onDelete,
+}: {
+  comment: ApiComment
+  postAuthorId: string
+  focused?: ApiComment
+  focusId: string | null
+  onCountChange: (delta: number) => Promise<unknown>
+  onEdit: (body: string) => Promise<void>
+  onDelete: () => Promise<void>
+}) {
+  const { user, isAuthenticated } = useAuth()
+  const pathname = usePathname()
+  const [expanded, setExpanded] = useState(false)
+  const [focusHidden, setFocusHidden] = useState(false)
+  const [target, setTarget] = useState<ApiComment | null>(null)
+  const [removed, setRemoved] = useState<string[]>([])
+  const showReplies = expanded || (Boolean(focused) && !focusHidden)
+  const replies = useComments(comment.postId, comment.id, showReplies)
+  const items = [
+    ...new Map(
+      [...(focused ? [focused] : []), ...replies.comments].map((item) => [item.id, item])
+    ).values(),
+  ].filter((item) => !removed.includes(item.id))
+  const permissions = (item: ApiComment) => ({
+    canEdit: user?.id === item.author.id,
+    canDelete: user?.id === item.author.id || user?.id === postAuthorId || user?.role === "ADMIN",
+  })
+  const replyButton = (item: ApiComment) =>
+    isAuthenticated ? (
+      <Button
+        variant="ghost"
+        size="sm"
+        onClick={() => {
+          setExpanded(true)
+          setTarget(item)
+        }}
+      >
+        Trả lời
+      </Button>
+    ) : (
+      <Link
+        href={`/login?next=${encodeURIComponent(pathname)}`}
+        className="text-sm text-primary hover:underline"
+      >
+        Đăng nhập để trả lời
+      </Link>
+    )
+
+  useEffect(() => {
+    if (focused && showReplies)
+      document.getElementById(`comment-${focused.id}`)?.scrollIntoView({ block: "center" })
+  }, [focused, showReplies])
+
+  return (
+    <>
+      <CommentItem
+        comment={comment}
+        {...permissions(comment)}
+        onEdit={onEdit}
+        onDelete={onDelete}
+        highlighted={focusId === comment.id}
+      >
+        {replyButton(comment)}
+        {comment.replyCount > 0 && (
+          <Button
+            variant="ghost"
+            size="sm"
+            aria-expanded={showReplies}
+            onClick={() => {
+              setFocusHidden(true)
+              setExpanded(!showReplies)
+            }}
+          >
+            {showReplies ? "Ẩn phản hồi" : `Xem ${comment.replyCount} phản hồi`}
+          </Button>
+        )}
+      </CommentItem>
+      {showReplies && (
+        <div className="ml-5 border-l border-border sm:ml-12">
+          {replies.isLoading && (
+            <div className="p-3">
+              <Spinner aria-label="Đang tải phản hồi" />
+            </div>
+          )}
+          {replies.error && (
+            <p role="alert" className="p-3 text-sm text-destructive">
+              Không tải được phản hồi.{" "}
+              <button className="underline" onClick={() => void replies.refresh()}>
+                Thử lại
+              </button>
+            </p>
+          )}
+          <ul aria-label={`Phản hồi cho bình luận của ${comment.author.fullName}`}>
+            {items.map((item) => (
+              <li key={item.id}>
+                <CommentItem
+                  comment={item}
+                  {...permissions(item)}
+                  highlighted={focusId === item.id}
+                  onEdit={async (body) => {
+                    await replies.edit(item.id, body)
+                    await onCountChange(0)
+                  }}
+                  onDelete={async () => {
+                    await replies.remove(item.id)
+                    setRemoved((ids) => [...ids, item.id])
+                    if (target?.id === item.id) setTarget(null)
+                    await onCountChange(-1)
+                    void replies.refresh()
+                  }}
+                >
+                  {replyButton(item)}
+                </CommentItem>
+              </li>
+            ))}
+          </ul>
+          {replies.hasMore && (
+            <Button
+              className="m-3"
+              variant="outline"
+              disabled={replies.isLoadingMore}
+              onClick={() => void replies.loadMore()}
+            >
+              Xem thêm phản hồi
+            </Button>
+          )}
+          {target && (
+            <div className="px-4 py-3">
+              <p className="mb-2 text-sm text-muted-foreground">
+                Đang trả lời {target.author.fullName}
+              </p>
+              <CommentForm
+                key={target.id}
+                label="Viết trả lời"
+                submitLabel="Trả lời"
+                autoFocus
+                onCancel={() => setTarget(null)}
+                onSubmit={async (body) => {
+                  await replies.add(body, target.id)
+                  setTarget(null)
+                  await onCountChange(1)
+                }}
+              />
+            </div>
+          )}
+        </div>
+      )}
+    </>
+  )
+}
+
 function CommentItem({
   comment,
   canEdit,
   canDelete,
   onEdit,
   onDelete,
+  children,
+  highlighted,
 }: {
   comment: ApiComment
   canEdit: boolean
   canDelete: boolean
   onEdit: (body: string) => Promise<void>
   onDelete: () => Promise<void>
+  children?: React.ReactNode
+  highlighted?: boolean
 }) {
   const author = toAuthor(comment.author)
   const profileHref = profilePath(comment.author.id)
@@ -194,8 +410,16 @@ function CommentItem({
   }
 
   return (
-    <article aria-label={`Bình luận của ${author.name}`} className="flex min-w-0 gap-3 px-4 py-3 sm:px-5">
-      <Link href={profileHref} aria-label={`Hồ sơ của ${author.name}`} className="self-start rounded-full">
+    <article
+      id={`comment-${comment.id}`}
+      aria-label={`Bình luận của ${author.name}`}
+      className={`flex min-w-0 scroll-mt-20 gap-3 px-4 py-3 sm:px-5 ${highlighted ? "bg-primary/5" : ""}`}
+    >
+      <Link
+        href={profileHref}
+        aria-label={`Hồ sơ của ${author.name}`}
+        className="self-start rounded-full"
+      >
         <AuthorAvatar author={author} />
       </Link>
 
@@ -239,6 +463,17 @@ function CommentItem({
           )}
         </header>
 
+        {comment.replyToAuthor && (
+          <p className="mt-1 text-xs text-muted-foreground">
+            Trả lời{" "}
+            <Link
+              href={profilePath(comment.replyToAuthor.id)}
+              className="text-primary hover:underline"
+            >
+              {comment.replyToAuthor.fullName}
+            </Link>
+          </p>
+        )}
         {editing ? (
           <div className="mt-2">
             <CommentForm
@@ -258,6 +493,7 @@ function CommentItem({
             {comment.body}
           </p>
         )}
+        {!editing && <div className="mt-1 flex flex-wrap items-center gap-1">{children}</div>}
       </div>
 
       <AlertDialog
@@ -271,7 +507,9 @@ function CommentItem({
           <AlertDialogHeader>
             <AlertDialogTitle>Xoá bình luận này?</AlertDialogTitle>
             <AlertDialogDescription>
-              Bình luận sẽ bị xoá vĩnh viễn. Không hoàn tác được.
+              {comment.parentId
+                ? "Bình luận sẽ bị xoá vĩnh viễn. Không hoàn tác được."
+                : "Bình luận và tất cả phản hồi sẽ bị xoá vĩnh viễn. Không hoàn tác được."}
             </AlertDialogDescription>
           </AlertDialogHeader>
           {deleteError && (

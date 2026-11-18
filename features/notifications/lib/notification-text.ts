@@ -8,6 +8,7 @@ import { REPORT_REASONS, REPORT_REASON_LABELS, type ReportReason } from "@/featu
 /** What a member did, worded for "<name> <text>". */
 const MEMBER_TEXT = {
   LIKE: "đã thích bài viết của bạn",
+  COMMENT_REPLY: "đã trả lời bình luận của bạn",
   COMMENT: "đã bình luận bài viết của bạn",
   REPOST: "đã đăng lại bài viết của bạn",
   FOLLOW: "đã bắt đầu theo dõi bạn",

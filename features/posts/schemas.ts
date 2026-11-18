@@ -111,6 +111,10 @@ export const videoUploadSchema = z.object({
 })
 
 export const apiCommentSchema = z.object({
+  parentId: z.string().nullable().default(null),
+  replyToId: z.string().nullable().default(null),
+  replyToAuthor: apiPostSchema.shape.author.nullable().default(null),
+  replyCount: z.number().int().nonnegative().default(0),
   id: z.string(),
   postId: z.string(),
   body: z.string(),

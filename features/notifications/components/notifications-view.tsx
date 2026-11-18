@@ -38,6 +38,7 @@ import { profilePath } from "@/features/profiles/profiles-cache"
 const ICONS = {
   LIKE: HeartIcon,
   COMMENT: MessageCircleIcon,
+  COMMENT_REPLY: MessageCircleIcon,
   REPOST: Repeat2Icon,
   FOLLOW: UserPlusIcon,
   POST_PENDING_REVIEW: HourglassIcon,
@@ -60,6 +61,9 @@ function hrefFor(notification: ApiNotification) {
   const { postId, type, postType, actor } = notification
   // A blocked blog is fixed in the editor; everything else opens the post.
   if (postId && type === "POST_REJECTED" && postType === "BLOG") return editBlogPath(postId)
+  if (postId && notification.commentId && (type === "COMMENT" || type === "COMMENT_REPLY")) {
+    return `/posts/${postId}?comment=${encodeURIComponent(notification.commentId)}#comments`
+  }
   if (postId) return `/posts/${postId}`
   return actor ? profilePath(actor.id) : "/home"
 }
@@ -118,7 +122,9 @@ export function NotificationsView() {
                   >
                     <Icon aria-hidden className="mt-1 size-5 shrink-0 text-primary" />
                     <div className="min-w-0 flex-1">
-                      {notification.actor && <AuthorAvatar author={toAuthor(notification.actor)} size="sm" />}
+                      {notification.actor && (
+                        <AuthorAvatar author={toAuthor(notification.actor)} size="sm" />
+                      )}
                       <p className={cn("text-sm", notification.actor && "mt-1.5")}>
                         <span className="font-bold">{from}</span> {text}
                       </p>
