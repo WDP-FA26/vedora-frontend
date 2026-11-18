@@ -3,6 +3,7 @@ import { unstable_serialize } from "swr/infinite"
 import {
   INBOX_REVISION_KEY,
   MESSAGING_KEY,
+  MESSAGE_UNREAD_COUNT_KEY,
   conversationKey,
   inboxPageKey,
   messagePageKey,
@@ -49,6 +50,7 @@ export async function invalidateMessaging(
   messagesChanged = true,
 ) {
   const tasks: Promise<unknown>[] = [
+    mutate([MESSAGE_UNREAD_COUNT_KEY, token]),
     mutate(
       [INBOX_REVISION_KEY, token],
       (revision?: number) => (revision ?? 0) + 1,

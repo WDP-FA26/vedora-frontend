@@ -13,6 +13,7 @@ import {
   inboxPageKey,
   INBOX_REVISION_KEY,
   MESSAGING_CONNECTION_KEY,
+  MESSAGE_UNREAD_COUNT_KEY,
   messagePageKey,
 } from "../messaging-cache"
 import {
@@ -20,6 +21,7 @@ import {
   fetchConversation,
   fetchMessagingContact,
   fetchMessages,
+  fetchMessagingUnreadCount,
   markConversationRead,
   sendDirectMessage,
   acceptMessageRequest,
@@ -39,6 +41,15 @@ export function useMessagingConnection() {
     { fallbackData: false },
   )
   return data ?? false
+}
+
+export function useUnreadMessageCount() {
+  const connected = useMessagingConnection()
+  const { data } = useAuthedSWR(MESSAGE_UNREAD_COUNT_KEY, fetchMessagingUnreadCount, {
+    refreshInterval: connected ? 0 : 5000,
+    shouldRetryOnError: false,
+  })
+  return data ?? 0
 }
 
 export function useConversations(box: Inbox) {
