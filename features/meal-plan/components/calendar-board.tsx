@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, type DragEvent, type ReactNode } from "react"
+import { useEffect, useState, type DragEvent, type ReactNode } from "react"
 import { z } from "zod"
 import {
   ArrowRightLeftIcon,
@@ -8,7 +8,6 @@ import {
   EllipsisIcon,
   MessageCircleIcon,
   PlusIcon,
-  SearchIcon,
   SparklesIcon,
   Trash2Icon,
   TriangleAlertIcon,
@@ -35,6 +34,14 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select"
 import { Spinner } from "@/components/ui/spinner"
+import {
+  Combobox,
+  ComboboxContent,
+  ComboboxEmpty,
+  ComboboxInput,
+  ComboboxItem,
+  ComboboxList,
+} from "@/components/ui/combobox"
 import { RecipeSheet, type OpenedDish } from "@/features/meal-plan/components/recipe-sheet"
 import {
   DAY_SHORT,
@@ -545,6 +552,8 @@ function CalendarChip({
   )
 }
 
+const SEARCH_DEBOUNCE_MS = 250
+
 function AddRecipeDialog({
   slot,
   onClose,
@@ -556,85 +565,88 @@ function AddRecipeDialog({
 }) {
   const { accessToken } = useAuth()
   const [query, setQuery] = useState("")
-  const [results, setResults] = useState<RecipeOption[] | null>(null)
+  const [results, setResults] = useState<RecipeOption[]>([])
   const [searching, setSearching] = useState(false)
   const [failed, setFailed] = useState(false)
+  const open = slot !== null
 
-  async function search() {
-    if (!accessToken) return
-    setSearching(true)
-    setFailed(false)
-    try {
-      const page = await searchRecipeOptions(accessToken, query)
-      setResults(page.items)
-    } catch {
-      setFailed(true)
-    } finally {
-      setSearching(false)
+  // Searches as the user types; an older answer never overwrites a newer one.
+  useEffect(() => {
+    if (!open || !accessToken) return
+    let stale = false
+    const delay = query === "" ? 0 : SEARCH_DEBOUNCE_MS
+    const timer = setTimeout(async () => {
+      setSearching(true)
+      setFailed(false)
+      try {
+        const page = await searchRecipeOptions(accessToken, query)
+        if (!stale) setResults(page.items)
+      } catch {
+        if (!stale) setFailed(true)
+      } finally {
+        if (!stale) setSearching(false)
+      }
+    }, delay)
+    return () => {
+      stale = true
+      clearTimeout(timer)
     }
-  }
+  }, [open, accessToken, query])
 
   function close() {
     setQuery("")
-    setResults(null)
+    setResults([])
     setFailed(false)
     onClose()
   }
 
+  function emptyText() {
+    if (failed) return "Không tìm được công thức. Hãy thử lại."
+    if (searching) return "Đang tìm…"
+    return "Không có món phù hợp."
+  }
+
   return (
-    <Dialog open={slot !== null} onOpenChange={(open) => !open && close()}>
-      <DialogContent className="max-h-[85dvh] overflow-y-auto">
+    <Dialog open={open} onOpenChange={(next) => !next && close()}>
+      <DialogContent className="max-h-[85dvh]">
         <DialogHeader>
           <DialogTitle>Thêm món</DialogTitle>
           <DialogDescription>{slot ? slotLabel(slot) : ""}. Chỉ hiện món phù hợp với hồ sơ ăn uống của bạn.</DialogDescription>
         </DialogHeader>
-        <form
-          onSubmit={(event) => {
-            event.preventDefault()
-            void search()
+        <Combobox
+          items={results}
+          value={null}
+          inputValue={query}
+          onInputValueChange={setQuery}
+          onValueChange={(recipe: RecipeOption | null) => {
+            if (!recipe) return
+            onPick(recipe.id)
+            close()
           }}
-          className="flex gap-2"
+          itemToStringLabel={(recipe: RecipeOption) => recipe.title}
+          isItemEqualToValue={(a: RecipeOption, b: RecipeOption) => a.id === b.id}
+          filter={null}
         >
-          <input
-            value={query}
+          <ComboboxInput
             maxLength={100}
-            onChange={(event) => setQuery(event.target.value)}
-            placeholder="Tên món hoặc nguyên liệu, ví dụ: đậu hũ"
+            placeholder="Gõ tên món hoặc nguyên liệu, ví dụ: đậu hũ"
             aria-label="Tìm công thức"
-            className="h-10 min-w-0 flex-1 rounded-xl border border-input bg-background px-3 text-sm outline-none focus-visible:ring-3 focus-visible:ring-ring/30"
+            showTrigger={false}
           />
-          <Button type="submit" disabled={searching}>
-            {searching ? <Spinner aria-hidden /> : <SearchIcon aria-hidden />} Tìm
-          </Button>
-        </form>
-        {failed && <p role="alert" className="text-sm text-destructive">Không tìm được công thức. Hãy thử lại.</p>}
-        {results !== null && results.length === 0 && !failed && (
-          <p className="text-sm text-muted-foreground">Không có món phù hợp.</p>
-        )}
-        {results === null && !failed && (
-          <p className="text-sm text-muted-foreground">Nhập từ khóa rồi bấm Tìm, hoặc để trống để xem các món có sẵn.</p>
-        )}
-        {results !== null && results.length > 0 && (
-          <ul className="flex flex-col gap-1.5">
-            {results.map((recipe) => (
-              <li key={recipe.id}>
-                <button
-                  type="button"
-                  onClick={() => {
-                    onPick(recipe.id)
-                    close()
-                  }}
-                  className="flex w-full items-center justify-between gap-3 rounded-xl border border-border bg-background px-3 py-2 text-left text-sm outline-none hover:bg-accent focus-visible:ring-3 focus-visible:ring-ring/30"
-                >
-                  <span className="min-w-0 font-medium">{recipe.title}</span>
-                  <span className="shrink-0 text-xs text-muted-foreground">
-                    {recipe.totalMinutes === null ? "" : `${recipe.totalMinutes} phút`}
-                  </span>
-                </button>
-              </li>
-            ))}
-          </ul>
-        )}
+          <ComboboxContent>
+            <ComboboxEmpty>{emptyText()}</ComboboxEmpty>
+            <ComboboxList>
+              {(recipe: RecipeOption) => (
+                <ComboboxItem key={recipe.id} value={recipe}>
+                  <span className="min-w-0 flex-1 truncate font-medium">{recipe.title}</span>
+                  {recipe.totalMinutes !== null && (
+                    <span className="shrink-0 text-xs text-muted-foreground">{recipe.totalMinutes} phút</span>
+                  )}
+                </ComboboxItem>
+              )}
+            </ComboboxList>
+          </ComboboxContent>
+        </Combobox>
       </DialogContent>
     </Dialog>
   )
