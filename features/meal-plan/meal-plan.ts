@@ -168,7 +168,7 @@ export function problemText({ code, recipes, ingredients, reason }: MealPlanProb
     return `${recipes.join(", ")} có ${ingredients.join(", ")}, thứ bạn không ăn.`
   }
   if (code === "DAY_CONFLICT") {
-    return `${ingredients.join(" và ")} không nên ăn cùng ngày${reason ? ` (${reason})` : ""}. Có trong: ${recipes.join(", ")}.`
+    return `${ingredients.join(" và ")} không nên ăn cùng bữa${reason ? ` (${reason})` : ""}. Có trong: ${recipes.join(", ")}.`
   }
   return "Có món không còn tồn tại."
 }
@@ -180,7 +180,7 @@ export function dishKey(day: Weekday, recipeId: string) {
 
 function dishWarningText({ code, ingredients, reason }: MealPlanProblem) {
   if (code === "DAY_CONFLICT") {
-    return `${ingredients.join(" và ")} không nên ăn cùng ngày${reason ? ` (${reason})` : ""}`
+    return `${ingredients.join(" và ")} không nên ăn cùng bữa${reason ? ` (${reason})` : ""}`
   }
   return `Có ${ingredients.join(", ")}, thứ bạn không ăn`
 }
