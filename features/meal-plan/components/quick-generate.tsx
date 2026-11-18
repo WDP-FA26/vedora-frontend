@@ -25,15 +25,17 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
-import { todayWeekday } from "@/features/meal-plan/components/timetable";
 import {
   DAY_LABELS,
+  editableDaysOf,
   MAX_GENERATE_QUERY_LENGTH,
   MEAL_SECTIONS,
   SECTION_LABELS,
-  WEEKDAYS,
-  type GenerateRequest,
+  todayOf,
+  type GenerateInput,
+  type MealPlan,
   type MealSection,
+  type Weekday,
 } from "@/features/meal-plan/meal-plan";
 
 const SCOPES = [
@@ -45,14 +47,22 @@ type Scope = (typeof SCOPES)[number]["id"];
 
 const MINUTE_OPTIONS = [15, 30, 60] as const;
 
+/** Days a request may cover: today only when it is in this week, otherwise every day that has not passed. */
+function daysFor(scope: Scope, plan: MealPlan): Weekday[] {
+  if (scope !== "TODAY") return editableDaysOf(plan);
+  const today = todayOf(plan);
+  return today ? [today] : [];
+}
+
 function requestFor(
+  plan: MealPlan,
   scope: Scope,
   sections: MealSection[],
   maxMinutes: number | null,
   query: string,
-): GenerateRequest {
-  const request: GenerateRequest = {
-    days: scope === "TODAY" ? [todayWeekday()] : [...WEEKDAYS],
+): GenerateInput {
+  const request: GenerateInput = {
+    days: daysFor(scope, plan),
     sections,
     onlyEmpty: scope === "EMPTY",
   };
@@ -63,7 +73,7 @@ function requestFor(
 
 const MAX_INSTRUCTION_LENGTH = 500;
 
-function assistantPrompt(request: GenerateRequest, instruction: string) {
+function assistantPrompt(request: GenerateInput, instruction: string) {
   const lines = [
     `Yêu cầu của tôi: ${instruction}`,
     "Yêu cầu trên là điều quan trọng nhất: nếu nó nhắc ngày, bữa hay món cụ thể thì làm đúng như vậy, kể cả thay món đã có ở ô đó. Phần còn lại dùng các lựa chọn mặc định dưới đây.",
@@ -79,15 +89,18 @@ function assistantPrompt(request: GenerateRequest, instruction: string) {
 
 /**
  * A floating button that opens a short form. `onGenerate` runs the algorithm and
- * resolves to an error message, or null when a suggestion is on the calendar.
+ * resolves to an error message, or null when its proposal card is in the chat.
  */
 export function QuickGenerate({
+  plan,
   disabled,
   onGenerate,
   onAskAssistant,
 }: {
+  /** The week on screen; nothing can be generated until it has loaded. */
+  plan: MealPlan | undefined;
   disabled: boolean;
-  onGenerate: (request: GenerateRequest) => Promise<string | null>;
+  onGenerate: (request: GenerateInput) => Promise<string | null>;
   /** Sends a written request to the assistant, which can use the same algorithm as a tool. */
   onAskAssistant: (prompt: string) => void;
 }) {
@@ -103,6 +116,9 @@ export function QuickGenerate({
   const [instruction, setInstruction] = useState("");
   const [error, setError] = useState("");
   const [pending, setPending] = useState(false);
+  // "Hôm nay" only makes sense in the week that holds today.
+  const scopes = SCOPES.filter(({ id }) => id !== "TODAY" || (plan !== undefined && todayOf(plan) !== undefined));
+  const activeScope: Scope = scopes.some(({ id }) => id === scope) ? scope : "EMPTY";
 
   function toggleMeal(meal: MealSection, checked: boolean) {
     setError("");
@@ -115,12 +131,16 @@ export function QuickGenerate({
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (pending) return;
+    if (pending || !plan) return;
     if (meals.length === 0) {
       setError("Chọn ít nhất một bữa.");
       return;
     }
-    const request = requestFor(scope, meals, maxMinutes, query.trim());
+    const request = requestFor(plan, activeScope, meals, maxMinutes, query.trim());
+    if (request.days.length === 0) {
+      setError("Các ngày của tuần này đã qua nên không thể lên thực đơn.");
+      return;
+    }
     const wish = instruction.trim();
     if (wish) {
       onAskAssistant(assistantPrompt(request, wish));
@@ -145,7 +165,7 @@ export function QuickGenerate({
         variant="raised"
         size="icon-fab"
         shape="pill"
-        disabled={disabled}
+        disabled={disabled || !plan?.editable}
         aria-label="Lên món nhanh"
         title="Lên món nhanh"
         className="fixed right-5 bottom-5 z-30"
@@ -164,8 +184,8 @@ export function QuickGenerate({
             <SheetHeader>
               <SheetTitle>Lên món nhanh</SheetTitle>
               <SheetDescription>
-                Chọn món tự động theo hồ sơ ăn uống của bạn. Kết quả hiện trên
-                lịch, chưa có gì được lưu.
+                Chọn món tự động theo hồ sơ ăn uống của bạn. Kết quả hiện thành
+                thẻ đề xuất trong khung trợ lý, chưa có gì được lưu.
               </SheetDescription>
             </SheetHeader>
 
@@ -178,13 +198,13 @@ export function QuickGenerate({
                     role="radiogroup"
                     aria-label="Phạm vi"
                   >
-                    {SCOPES.map(({ id, label }) => (
+                    {scopes.map(({ id, label }) => (
                       <Button
                         key={id}
                         type="button"
                         role="radio"
-                        aria-checked={scope === id}
-                        variant={scope === id ? "default" : "outline"}
+                        aria-checked={activeScope === id}
+                        variant={activeScope === id ? "default" : "outline"}
                         size="sm"
                         onClick={() => setScope(id)}
                       >

@@ -1,7 +1,8 @@
 "use client"
 
 import { useEffect, useRef, useState } from "react"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
+import { useSWRConfig } from "swr"
 import { useAuthedSWR } from "@/features/auth/hooks/use-authed-swr"
 import Link from "next/link"
 import { ArrowLeftIcon, CalendarRangeIcon, PanelLeftCloseIcon, SparklesIcon } from "lucide-react"
@@ -14,6 +15,7 @@ import { fetchMyDietary, MY_DIETARY_KEY } from "@/features/dietary/dietary"
 import { CalendarBoard } from "@/features/meal-plan/components/calendar-board"
 import { PlannerChat, type PlannerChatHandle } from "@/features/meal-plan/components/planner-chat"
 import { QuickGenerate } from "@/features/meal-plan/components/quick-generate"
+import { WeekNav } from "@/features/meal-plan/components/week-nav"
 import { MealRequestForm } from "@/features/meal-plan/components/meal-request-form"
 import {
   proposalIds,
@@ -21,18 +23,22 @@ import {
   type Proposal,
 } from "@/features/meal-plan/hooks/use-meal-planner-chat"
 import {
+  copyMealWeek,
   DAY_LABELS,
+  discardMealDraft,
+  formatDayMonth,
   fetchMealPlan,
   generateMealDays,
   inputsForChanges,
-  MEAL_PLAN_KEY,
+  mealPlanKey,
   planAfterChanges,
   problemSchema,
   problemText,
   recipesAt,
   saveMealDays,
   SECTION_LABELS,
-  type GenerateRequest,
+  shiftWeek,
+  type GenerateInput,
   type MealDayInput,
   type MealPlan,
   type MealSection,
@@ -46,6 +52,8 @@ import { cn } from "@/lib/utils"
 
 const TOKEN_CHECK_MS = 20_000
 const HOME_PATH = "/home"
+const WEEK_PARAM = "week"
+const WEEK_PATTERN = /^\d{4}-\d{2}-\d{2}$/
 type Tab = "chat" | "calendar"
 type AskContext = { title: string; day: Weekday; section: MealSection }
 
@@ -84,6 +92,37 @@ function changedDayInputs(proposal: Proposal, current: MealPlan): MealDayInput[]
   })
 }
 
+/**
+ * Only days that may still change can be saved; a proposal made yesterday may hold
+ * one that has passed. Returns the days to save and the passed ones left out.
+ */
+function splitPassedDays(inputs: MealDayInput[], current: MealPlan) {
+  const save: MealDayInput[] = []
+  const passed: string[] = []
+  for (const input of inputs) {
+    const day = current.days.find((item) => item.day === input.day)
+    if (day?.editable) {
+      save.push(input)
+      continue
+    }
+    passed.push(day ? `${DAY_LABELS[input.day]} ${formatDayMonth(day.date)}` : DAY_LABELS[input.day])
+  }
+  return { save, passed }
+}
+
+/** Why a proposal could not be saved, in words the user can act on. */
+function applyErrorMessage(error: unknown) {
+  if (error instanceof ApiError && error.code === "MEAL_DAY_LOCKED") {
+    return "Có ngày trong đề xuất đã qua nên không lưu được. Hãy nhờ trợ lý đề xuất lại."
+  }
+  if (error instanceof ApiError && error.code === "MEAL_WEEK_OUT_OF_RANGE") return "Chưa thể lên thực đơn cho tuần xa như vậy."
+  if (error instanceof ApiError && error.status === 409) {
+    return "Thực đơn hoặc thông tin ăn uống đã thay đổi. Hãy nhờ trợ lý đề xuất lại."
+  }
+  if (error instanceof Error && !(error instanceof ApiError)) return error.message
+  return "Không lưu được thực đơn. Hãy thử lại."
+}
+
 /** What went wrong saving a calendar edit, in words the user can act on. */
 function calendarErrorMessage(error: unknown) {
   if (!(error instanceof ApiError)) return "Không lưu được thay đổi. Hãy thử lại."
@@ -91,12 +130,25 @@ function calendarErrorMessage(error: unknown) {
   if (error.status === 409 && problems.success && problems.data.length > 0) {
     return problems.data.map(problemText).join(" ")
   }
+  if (error.status === 409 && error.code === "MEAL_DAY_LOCKED") return "Ngày đã qua nên không thể thay đổi."
+  if (error.status === 409 && error.code === "MEAL_WEEK_OUT_OF_RANGE") return "Chưa thể lên thực đơn cho tuần xa như vậy."
   if (error.status === 409) return "Thực đơn đã thay đổi ở nơi khác. Hãy tải lại trang rồi thử lại."
   return "Không lưu được thay đổi. Hãy thử lại."
 }
 
+/** What went wrong copying a week, in words the user can act on. */
+function copyErrorMessage(error: unknown) {
+  if (error instanceof ApiError && error.code === "MEAL_DAY_LOCKED") return "Các ngày của tuần này đã qua nên không sao chép được."
+  if (error instanceof ApiError && error.code === "MEAL_WEEK_NOT_EMPTY") return "Tuần này đã có món. Hãy thử sao chép lại."
+  const problems = error instanceof ApiError ? z.array(problemSchema).safeParse(error.details?.problems) : null
+  if (problems?.success && problems.data.length > 0) {
+    return `Tuần trước có món bạn không ăn được: ${problems.data.map(problemText).join(" ")} Hãy sửa món đó rồi sao chép lại.`
+  }
+  return "Không sao chép được thực đơn. Hãy thử lại."
+}
+
 /** True when `onlyEmpty` was requested and every target slot already has at least one dish. */
-function allRequestedSlotsFilled(plan: MealPlan | undefined, request: GenerateRequest): boolean {
+function allRequestedSlotsFilled(plan: MealPlan | undefined, request: GenerateInput): boolean {
   if (!request.onlyEmpty || !plan) return false
   for (const day of request.days) {
     for (const section of request.sections) {
@@ -106,27 +158,41 @@ function allRequestedSlotsFilled(plan: MealPlan | undefined, request: GenerateRe
   return true
 }
 
-/** The saved recurring week and the assistant share one frontend draft. */
+/**
+ * One saved week at a time (the `week` URL param, else this week). The assistant may
+ * propose for any plannable week; its cards in the chat are where a proposal is saved.
+ */
 export function MealPlannerView() {
   const { accessToken } = useAuth()
+  const { mutate } = useSWRConfig()
   const router = useRouter()
-  const chat = useMealPlannerChat()
+  const searchParams = useSearchParams()
+  const requestedWeek = searchParams.get(WEEK_PARAM)
+  const weekParam = requestedWeek !== null && WEEK_PATTERN.test(requestedWeek) ? requestedWeek : undefined
+  const plan = useAuthedSWR(mealPlanKey(weekParam), fetchMealPlan)
+  const weekStart = plan.data?.weekStart
+  const chat = useMealPlannerChat(weekStart)
   const plannerChat = useRef<PlannerChatHandle>(null)
   const [tab, setTab] = useState<Tab>("chat")
   const [assistantOpen, setAssistantOpen] = useState(true)
-  const [draft, setDraft] = useState<Proposal | null>(null)
+  /** The latest "Lên món nhanh" result, shown as a card in the chat until saved or dismissed. */
   const [generated, setGenerated] = useState<Proposal | null>(null)
-  const [savingDraft, setSavingDraft] = useState(false)
-  const [saveError, setSaveError] = useState<string | null>(null)
+  const [applyingId, setApplyingId] = useState<string | null>(null)
+  const [applyErrors, setApplyErrors] = useState<Record<string, string>>({})
+  /** Passed days a saved proposal could not keep, by proposal id. */
+  const [skippedDays, setSkippedDays] = useState<Record<string, string[]>>({})
+  const [weekError, setWeekError] = useState<string | null>(null)
   const [askContext, setAskContext] = useState<AskContext | null>(null)
   const [prefill, setPrefill] = useState<{ text: string; nonce: number; fromForm?: boolean } | null>(null)
   const [formSeed, setFormSeed] = useState<{ text: string; nonce: number } | null>(null)
   const [requestOpen, setRequestOpen] = useState(false)
   const [formHandoffState, setFormHandoffState] = useState<"editing" | "prepared" | "sent">("editing")
   const [formSentAtCount, setFormSentAtCount] = useState<number | null>(null)
-  const plan = useAuthedSWR(MEAL_PLAN_KEY, fetchMealPlan)
+  const [copying, setCopying] = useState(false)
   const restrictions = useAuthedSWR(MY_DIETARY_KEY, fetchMyDietary)
-  const suggestion = generated ?? chat.pendingProposal
+  // The calendar previews what a card would change in the week on screen.
+  const chatSuggestion = chat.pendingProposals.find((proposal) => proposal.weekStart === weekStart) ?? null
+  const suggestion = generated?.weekStart === weekStart ? generated : chatSuggestion
   const plannedDays = plan.data
     ? plan.data.days
         .filter(({ sections }) => sections.some(({ recipes }) => recipes.length > 0))
@@ -149,43 +215,67 @@ export function MealPlannerView() {
     return () => clearInterval(timer)
   }, [accessToken, router])
 
+  // A `week` in the URL the API refuses (not a Monday, too far ahead) is dropped, back to this week.
+  const weekRefused =
+    plan.error instanceof ApiError && (plan.error.status === 400 || plan.error.status === 409)
   useEffect(() => {
-    if (!draft) return
-    const beforeUnload = (event: BeforeUnloadEvent) => {
-      event.preventDefault()
-      event.returnValue = ""
-    }
-    const navigate = (event: MouseEvent) => {
-      if (!(event.target instanceof Element)) return
-      const anchor = event.target.closest("a[href]")
-      if (!(anchor instanceof HTMLAnchorElement) || anchor.target === "_blank") return
-      const destination = new URL(anchor.href, window.location.href)
-      if (destination.origin !== window.location.origin || destination.href === window.location.href) return
-      if (!window.confirm("Bản nháp thực đơn chưa được lưu. Bạn muốn rời trang?")) {
-        event.preventDefault()
-        event.stopPropagation()
-      }
-    }
-    window.addEventListener("beforeunload", beforeUnload)
-    document.addEventListener("click", navigate, true)
-    return () => {
-      window.removeEventListener("beforeunload", beforeUnload)
-      document.removeEventListener("click", navigate, true)
-    }
-  }, [draft])
+    if (weekRefused && weekParam) window.history.replaceState(null, "", window.location.pathname)
+  }, [weekRefused, weekParam])
 
-  async function generate(request: GenerateRequest): Promise<string | null> {
-    if (!accessToken) return "Phiên đăng nhập đã hết hạn. Hãy tải lại trang."
+  /** Puts the week in the URL without a server round trip; the current week needs no param. */
+  function writeWeek(next: string | undefined) {
+    const params = new URLSearchParams(searchParams.toString())
+    if (next) params.set(WEEK_PARAM, next)
+    else params.delete(WEEK_PARAM)
+    const query = params.toString()
+    window.history.pushState(null, "", query ? `?${query}` : window.location.pathname)
+  }
+
+  /** Proposals live in the chat and keep their own week, so switching weeks loses nothing. */
+  function showWeek(next: string) {
+    if (next !== weekStart) {
+      setWeekError(null)
+      setRequestOpen(false)
+      writeWeek(next === plan.data?.currentWeekStart ? undefined : next)
+    }
+    setTab("calendar")
+  }
+
+  async function copyFromPreviousWeek() {
+    const current = plan.data
+    if (!accessToken || !current || copying) return
+    const source = shiftWeek(current.weekStart, -1)
+    // Only days that may still change count: the server leaves the others alone.
+    const overwrite = current.days.some(
+      ({ editable, sections }) => editable && sections.some(({ recipes }) => recipes.length > 0)
+    )
+    if (overwrite && !window.confirm("Tuần này đã có món. Thay bằng thực đơn của tuần trước?")) return
+    setCopying(true)
+    setWeekError(null)
     try {
-      const result = await generateMealDays(accessToken, request)
+      const copied = await copyMealWeek(accessToken, source, current.weekStart, overwrite)
+      await plan.mutate(copied, { revalidate: false })
+    } catch (error) {
+      if (error instanceof ApiError && error.status === 401) router.refresh()
+      setWeekError(copyErrorMessage(error))
+    } finally {
+      setCopying(false)
+    }
+  }
+
+  async function generate(request: GenerateInput): Promise<string | null> {
+    if (!accessToken || !weekStart) return "Phiên đăng nhập đã hết hạn. Hãy tải lại trang."
+    try {
+      const result = await generateMealDays(accessToken, { ...request, weekStart })
       if (result.days.length === 0) {
         return allRequestedSlotsFilled(plan.data, request)
           ? "Các bữa đã chọn đều đã có món. Chọn “Cả tuần” hoặc “Hôm nay” nếu bạn muốn đổi món mới."
           : "Không tìm thấy món phù hợp với lựa chọn này."
       }
       if (!result.ok) return "Các món tìm được xung đột với hồ sơ ăn uống. Hãy thử lại."
-      setGenerated({ id: `generated-${crypto.randomUUID()}`, ok: true, days: result.days })
-      setTab("calendar")
+      setGenerated({ id: `generated-${crypto.randomUUID()}`, ok: true, weekStart, days: result.days })
+      setAssistantOpen(true)
+      setTab("chat")
       return null
     } catch (error) {
       if (error instanceof ApiError && error.status === 401) router.refresh()
@@ -199,67 +289,70 @@ export function MealPlannerView() {
     plannerChat.current?.ask(prompt)
   }
 
-  function dismissSuggestion(proposal: Proposal) {
+  function setApplyError(id: string, message: string | null) {
+    setApplyErrors((current) => {
+      const next = { ...current }
+      if (message === null) delete next[id]
+      else next[id] = message
+      return next
+    })
+  }
+
+  /** Saves a card's changes to its own week, which need not be the week on screen. */
+  async function applyProposal(proposal: Proposal) {
+    const week = proposal.weekStart
+    if (!accessToken || applyingId || !week) return
+    setApplyingId(proposal.id)
+    setApplyError(proposal.id, null)
+    try {
+      const current = await fetchMealPlan([mealPlanKey(week), accessToken])
+      const { save, passed } = splitPassedDays(changedDayInputs(proposal, current), current)
+      if (save.length === 0) {
+        setApplyError(proposal.id, "Các ngày trong đề xuất đã qua hoặc đã giống thực đơn đang lưu. Hãy nhờ trợ lý đề xuất lại.")
+        return
+      }
+      const saved = await saveMealDays(accessToken, week, save)
+      await mutate([mealPlanKey(week), accessToken], saved, { revalidate: false })
+      // The current week is also cached under the key without `weekStart` (page default, header sheet).
+      if (week === saved.currentWeekStart) await mutate([mealPlanKey(), accessToken], saved, { revalidate: false })
+      if (generated?.id === proposal.id) {
+        setGenerated(null)
+        return
+      }
+      if (passed.length > 0) setSkippedDays((current) => ({ ...current, [proposal.id]: passed }))
+      chat.setProposalsStatus(proposalIds(proposal), "saved")
+    } catch (error) {
+      if (error instanceof ApiError && error.status === 401) router.refresh()
+      setApplyError(proposal.id, applyErrorMessage(error))
+    } finally {
+      setApplyingId(null)
+    }
+  }
+
+  async function dismissProposal(proposal: Proposal) {
+    setApplyError(proposal.id, null)
     if (generated?.id === proposal.id) {
       setGenerated(null)
       return
     }
     chat.setProposalsStatus(proposalIds(proposal), "dismissed")
+    const week = proposal.weekStart
+    if (!accessToken || !week) return
+    // The planner builds on its server draft; drop it so the next turn starts from the saved week.
+    // A failure is harmless: the conversation note already tells the planner the card was dismissed.
+    await discardMealDraft(accessToken, week).catch(() => undefined)
   }
 
-  function stage(proposal: Proposal) {
-    if (generated?.id === proposal.id) setGenerated(null)
-    if (draft && draft.id !== proposal.id && !window.confirm("Thay bản nháp thực đơn hiện tại bằng đề xuất mới?")) return
-    if (draft && draft.id !== proposal.id) chat.setProposalsStatus(proposalIds(draft), "dismissed")
-    setDraft(proposal)
-    setRequestOpen(false)
-    setSaveError(null)
-    chat.setProposalsStatus(proposalIds(proposal), "staged")
-    setTab("calendar")
-  }
-
-  function discardDraft() {
-    if (!draft) return
-    chat.setProposalsStatus(proposalIds(draft), "dismissed")
-    setDraft(null)
-    setSaveError(null)
-    setFormHandoffState("editing")
-  }
-
-  async function saveDraft() {
-    if (!draft || !accessToken || savingDraft) return
-    setSavingDraft(true)
-    setSaveError(null)
-    try {
-      const current = await fetchMealPlan([MEAL_PLAN_KEY, accessToken])
-      const days = changedDayInputs(draft, current)
-      if (days.length === 0) {
-        setSaveError("Đề xuất này không có thay đổi để lưu.")
-        return
-      }
-      const saved = await saveMealDays(accessToken, days)
-      await plan.mutate(saved, { revalidate: false })
-      chat.setProposalsStatus(proposalIds(draft), "saved")
-      setDraft(null)
-    } catch (error) {
-      if (error instanceof ApiError && error.status === 401) router.refresh()
-      setSaveError(
-        error instanceof ApiError && error.status === 409
-          ? "Thực đơn hoặc thông tin ăn uống đã thay đổi. Hãy kiểm tra lại đề xuất trước khi lưu."
-          : error instanceof Error && !(error instanceof ApiError)
-          ? error.message
-          : "Không lưu được thực đơn. Bản nháp vẫn còn để bạn thử lại."
-      )
-    } finally {
-      setSavingDraft(false)
-    }
+  function openChat() {
+    setAssistantOpen(true)
+    setTab("chat")
   }
 
   async function changeCalendar(changes: SlotChange[]) {
     const current = plan.data
     if (!accessToken || !current) return
     try {
-      await plan.mutate(saveMealDays(accessToken, inputsForChanges(current, changes)), {
+      await plan.mutate(saveMealDays(accessToken, current.weekStart, inputsForChanges(current, changes)), {
         optimisticData: planAfterChanges(current, changes) ?? undefined,
         rollbackOnError: true,
         populateCache: true,
@@ -267,6 +360,7 @@ export function MealPlannerView() {
       })
     } catch (error) {
       if (error instanceof ApiError && error.status === 401) router.refresh()
+      if (error instanceof ApiError && error.code === "MEAL_DAY_LOCKED") void plan.mutate()
       throw new Error(calendarErrorMessage(error))
     }
   }
@@ -347,8 +441,12 @@ export function MealPlannerView() {
             <PlannerChat
               handle={plannerChat}
               chat={chat}
-              onStage={stage}
-              openPlan={() => setTab("calendar")}
+              localProposal={generated}
+              applyingId={applyingId}
+              applyErrors={applyErrors}
+              skippedDays={skippedDays}
+              onApply={(proposal) => void applyProposal(proposal)}
+              onDismiss={(proposal) => void dismissProposal(proposal)}
               savedAvoided={savedAvoided}
               savedLiked={savedLiked}
               profileLoading={restrictions.isLoading}
@@ -369,6 +467,7 @@ export function MealPlannerView() {
                   <PanelLeftCloseIcon aria-hidden />
                 </Button>
               }
+              onOpenWeek={showWeek}
               onFormSent={() => {
                 setFormHandoffState("sent")
                 setFormSentAtCount(chat.messages.length)
@@ -390,27 +489,34 @@ export function MealPlannerView() {
                 awaitingReply={formAwaitingReply}
                 chatError={chat.error}
                 onEdit={() => setFormHandoffState("editing")}
-                onCancel={hasSavedMeals || draft || suggestion || requestOpen ? () => setRequestOpen(false) : undefined}
+                onCancel={hasSavedMeals || suggestion || requestOpen ? () => setRequestOpen(false) : undefined}
                 busy={chat.busy}
               />
             </div>
 
             <div className={cn("lg:h-full", tab === "calendar" && !requestOpen ? "block" : "hidden", requestOpen ? "lg:hidden" : "lg:block")}>
               <CalendarBoard
+                key={weekStart ?? "loading"}
                 plan={plan.data}
                 failed={Boolean(plan.error)}
-                draft={draft}
                 suggestion={suggestion}
-                onApplySuggestion={suggestion ? () => stage(suggestion) : undefined}
-                onDismissSuggestion={suggestion ? () => dismissSuggestion(suggestion) : undefined}
-                onSaveDraft={saveDraft}
-                onDiscardDraft={discardDraft}
-                savingDraft={savingDraft}
-                saveError={saveError}
+                onOpenChat={openChat}
+                weekError={weekError}
                 onChange={changeCalendar}
                 onRetry={() => void plan.mutate()}
                 onAsk={askAboutRecipe}
                 onSuggestSlot={suggestForSlot}
+                action={
+                  <WeekNav
+                    plan={plan.data}
+                    loading={plan.isLoading}
+                    onPrevious={() => plan.data && showWeek(shiftWeek(plan.data.weekStart, -1))}
+                    onNext={() => plan.data && showWeek(shiftWeek(plan.data.weekStart, 1))}
+                    onToday={() => plan.data && showWeek(plan.data.currentWeekStart)}
+                    onCopyPrevious={() => void copyFromPreviousWeek()}
+                    copying={copying}
+                  />
+                }
                 leading={
                   assistantOpen ? undefined : (
                     <span className="hidden flex-col items-center gap-1 animate-in fade-in duration-300 lg:flex">
@@ -433,7 +539,7 @@ export function MealPlannerView() {
         </div>
       </Tabs>
       <div className={cn(tab === "chat" && "hidden lg:block")}>
-        <QuickGenerate disabled={savingDraft} onGenerate={generate} onAskAssistant={askAssistant} />
+        <QuickGenerate plan={plan.data} disabled={applyingId !== null} onGenerate={generate} onAskAssistant={askAssistant} />
       </div>
     </section>
   )

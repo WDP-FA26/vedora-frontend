@@ -6,6 +6,7 @@ import {
   followSuggestionListSchema,
   imageUploadSchema,
   profilePageSchema,
+  profileSearchPageSchema,
   relationshipSchema,
   type ImageKind,
 } from "@/features/profiles/schemas"
@@ -24,6 +25,10 @@ export function fetchSuggestions([url, token]: readonly [string, string]) {
 
 export function fetchProfilePage([url, token]: readonly [string, string | undefined]) {
   return sendJson(profilePageSchema, url, token)
+}
+
+export function fetchProfileSearchPage([url, token]: readonly [string, string | undefined]) {
+  return sendJson(profileSearchPageSchema, url, token)
 }
 
 export function updateMyProfile(token: string, input: { fullName?: string; bio?: string }) {

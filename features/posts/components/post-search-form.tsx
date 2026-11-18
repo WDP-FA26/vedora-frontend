@@ -6,18 +6,22 @@ import {
   InputGroupAddon,
   InputGroupInput,
 } from "@/components/ui/input-group"
+import type { SearchTab } from "@/features/posts/posts-cache"
 import { MAX_SEARCH_QUERY_LENGTH } from "@/features/posts/schemas"
 
 /** Submits to the search page as `?q=`, with client-side navigation. */
 export function PostSearchForm({
   defaultValue,
   autoFocus,
+  tab,
 }: {
   defaultValue?: string
   autoFocus?: boolean
+  tab?: SearchTab
 }) {
   return (
     <Form action="/home/search" role="search">
+      {tab && tab !== "all" && <input type="hidden" name="tab" value={tab} />}
       <InputGroup variant="search">
         <InputGroupAddon>
           <SearchIcon aria-hidden />
@@ -32,7 +36,7 @@ export function PostSearchForm({
           defaultValue={defaultValue}
           autoFocus={autoFocus}
           aria-label="Tìm kiếm trên Vedora"
-          placeholder="Tìm món chay, mẹo nấu, nguyên liệu…"
+          placeholder="Tìm bài viết, mọi người, món chay…"
         />
       </InputGroup>
     </Form>

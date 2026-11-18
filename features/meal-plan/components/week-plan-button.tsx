@@ -17,14 +17,14 @@ import {
 import { Timetable } from "@/features/meal-plan/components/timetable"
 import {
   fetchMealPlan,
-  MEAL_PLAN_KEY,
+  mealPlanKey,
   MEAL_PLANNER_PATH,
 } from "@/features/meal-plan/meal-plan"
 
-/** Header button that shows the saved week in a side sheet, from any page. */
+/** Header button that shows the saved plan of the current week in a side sheet, from any page. */
 export function WeekPlanButton() {
   const [open, setOpen] = useState(false)
-  const plan = useAuthedSWR(open ? MEAL_PLAN_KEY : null, fetchMealPlan)
+  const plan = useAuthedSWR(open ? mealPlanKey() : null, fetchMealPlan)
 
   return (
     <Sheet open={open} onOpenChange={setOpen}>
@@ -38,7 +38,7 @@ export function WeekPlanButton() {
       <SheetContent side="right">
         <SheetHeader>
           <SheetTitle>Thực đơn tuần</SheetTitle>
-          <SheetDescription>Thực đơn bạn đang lưu, lặp lại mỗi tuần.</SheetDescription>
+          <SheetDescription>Thực đơn tuần này của bạn. Mở trang lên thực đơn để xem hoặc lên cho các tuần khác.</SheetDescription>
         </SheetHeader>
         <div className="min-h-0 flex-1 overflow-y-auto">
           <Timetable
