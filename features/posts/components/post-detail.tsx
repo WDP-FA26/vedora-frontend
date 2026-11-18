@@ -21,6 +21,7 @@ import { toFeedPost } from "@/features/posts/lib/to-feed-post"
 import type { ApiPost } from "@/features/posts/schemas"
 import { profilePath } from "@/features/profiles/profiles-cache"
 import { AuthorAvatar } from "@/features/shared/components/author-avatar"
+import { VerifiedBadge } from "@/features/shared/components/verified-badge"
 import { ApiError } from "@/features/shared/lib/api-client"
 import { formatPostDateLong } from "@/features/shared/lib/format"
 
@@ -95,9 +96,12 @@ function PostArticle({ post: apiPost }: { post: ApiPost }) {
           <AuthorAvatar author={author} size="lg" />
         </Link>
         <div className="min-w-0 flex-1 text-[0.9375rem] leading-5">
-          <Link href={profileHref} className="block truncate font-bold hover:underline">
-            {author.name}
-          </Link>
+          <p className="flex min-w-0 items-center gap-1">
+            <Link href={profileHref} className="truncate font-bold hover:underline">
+              {author.name}
+            </Link>
+            {author.verified && <VerifiedBadge label={author.verified} />}
+          </p>
           <p className="truncate text-muted-foreground">@{author.handle}</p>
         </div>
         <PostMenu post={post} />
