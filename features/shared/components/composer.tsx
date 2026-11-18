@@ -3,7 +3,7 @@
 import { useEffect, useRef } from "react"
 import { Controller, useForm, useWatch } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
-import { ClapperboardIcon, ImageIcon, PlusIcon, XIcon } from "lucide-react"
+import { ClapperboardIcon, PlusIcon, XIcon } from "lucide-react"
 import { cn } from "cn"
 
 import { Button } from "@/components/ui/button"
@@ -302,21 +302,6 @@ function ShortPostComposer({
         {errors.root && <FieldError className="mb-3" errors={[errors.root]} />}
         <div className="flex items-center justify-between gap-3">
           <div className="flex items-center gap-1 text-primary">
-            <Tooltip>
-              <TooltipTrigger render={<span tabIndex={0} className="inline-flex" />}>
-                <Button
-                  type="button"
-                  variant="tool"
-                  size="icon-lg"
-                  shape="pill"
-                  aria-label="Thêm ảnh (sắp có)"
-                  disabled
-                >
-                  <ImageIcon aria-hidden />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>Ảnh — sắp có</TooltipContent>
-            </Tooltip>
             <Tooltip>
               <TooltipTrigger
                 render={
