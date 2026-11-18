@@ -252,14 +252,14 @@ function ReviewBody({
           )}
         </div>
 
-        <div className="flex min-h-0 flex-col gap-3">
+        <div className="flex min-h-0 flex-col gap-3 lg:sticky lg:top-32 lg:h-[calc(100svh-9rem)] lg:self-start">
           {!pagesLoaded ? (
             <Skeleton className="h-64 w-full" />
           ) : !current ? (
             <p className="text-sm text-muted-foreground">{emptyMessage(document)}</p>
           ) : (
             <>
-              <div className="sticky top-32 z-10 flex flex-wrap items-center gap-2 bg-background py-1">
+              <div className="flex shrink-0 flex-wrap items-center gap-2 py-1">
                 <Button
                   variant="outline"
                   size="icon-sm"
@@ -321,7 +321,7 @@ function ReviewBody({
 
               <Textarea
                 aria-label={`Văn bản trang ${current.page}`}
-                className="min-h-64 flex-1"
+                className="h-[60svh] min-h-64 overflow-y-auto field-sizing-fixed lg:h-auto lg:min-h-0 lg:flex-1"
                 value={drafts.get(current.page) ?? current.text}
                 readOnly={!editable}
                 disabled={busy}
