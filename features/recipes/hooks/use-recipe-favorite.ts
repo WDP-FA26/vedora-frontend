@@ -2,7 +2,9 @@
 
 import { useRef, useState } from "react"
 import { usePathname, useRouter } from "next/navigation"
-import useSWR, { useSWRConfig } from "swr"
+import { useSWRConfig } from "swr"
+
+import { useLocalSWRState } from "@/features/shared/hooks/use-local-swr-state"
 
 import { toast } from "@/components/ui/toast"
 import { useAuth } from "@/features/auth/hooks/use-auth"
@@ -40,9 +42,9 @@ export function useRecipeFavorite(recipe: { id: string; isFavorite: boolean }) {
   const router = useRouter()
   const pathname = usePathname()
 
-  // No fetcher: the entry only ever holds what `toggle` wrote, per account.
+  // Client-only: the entry only ever holds what `toggle` wrote, per account.
   const overridesKey = user ? ([FAVORITE_OVERRIDES_KEY, user.id] as const) : null
-  const { data: overrides = NO_OVERRIDES } = useSWR<Overrides>(overridesKey, null)
+  const overrides = useLocalSWRState<Overrides>(overridesKey, NO_OVERRIDES)
 
   const [pending, setPending] = useState(false)
   // Guards double clicks that land before `pending` re-renders.

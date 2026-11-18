@@ -2,10 +2,11 @@
 
 import { useCallback, useEffect } from "react"
 import { useRouter } from "next/navigation"
-import useSWR, { useSWRConfig } from "swr"
+import { useSWRConfig } from "swr"
 import useSWRInfinite from "swr/infinite"
 import { useAuth } from "@/features/auth/hooks/use-auth"
 import { useAuthedSWR } from "@/features/auth/hooks/use-authed-swr"
+import { useLocalSWRState } from "@/features/shared/hooks/use-local-swr-state"
 import { ApiError } from "@/features/shared/lib/api-client"
 import {
   contactKey,
@@ -35,12 +36,10 @@ import type { ConversationPage, Inbox, MessagePage } from "../schemas"
 
 export function useMessagingConnection() {
   const { accessToken } = useAuth()
-  const { data } = useSWR<boolean>(
+  return useLocalSWRState<boolean>(
     accessToken ? [MESSAGING_CONNECTION_KEY, accessToken] : null,
-    null,
-    { fallbackData: false },
+    false,
   )
-  return data ?? false
 }
 
 export function useUnreadMessageCount() {
@@ -56,10 +55,9 @@ export function useConversations(box: Inbox) {
   const { accessToken } = useAuth()
   const connected = useMessagingConnection()
   const router = useRouter()
-  const { data: revision = 0 } = useSWR<number>(
+  const revision = useLocalSWRState<number>(
     accessToken ? [INBOX_REVISION_KEY, accessToken] : null,
-    null,
-    { fallbackData: 0 },
+    0,
   )
   const result = useSWRInfinite(
     (index: number, previous: ConversationPage | null) => {
