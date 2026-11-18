@@ -25,7 +25,8 @@ import { DIETARY_PATH } from "@/features/dietary/dietary"
 import { MealArt } from "@/features/meal-plan/components/meal-art"
 import {
   DAY_LABELS,
-  problemText,
+  hasOnlyConflicts,
+  problemLines,
   SECTION_LABELS,
   WEEKDAYS,
   type MealPlan,
@@ -84,23 +85,6 @@ export function thisWeekDates(): number[] {
   return WEEKDAYS.map((_, index) =>
     new Date(now.getFullYear(), now.getMonth(), monday + index).getDate()
   )
-}
-
-/** One short line per distinct problem, with every day it happens on. */
-function problemLines(problems: MealPlan["problems"]) {
-  const lines = new Map<string, Weekday[]>()
-  for (const problem of problems) {
-    const text = problem.code === "AVOIDED_INGREDIENT"
-      ? `${problem.recipes.join(", ")} có ${problem.ingredients.join(", ")}`
-      : problemText(problem)
-    const days = lines.get(text) ?? []
-    if (!days.includes(problem.day)) days.push(problem.day)
-    lines.set(text, days)
-  }
-  return [...lines.entries()].map(([text, days]) => ({
-    text,
-    days: WEEKDAYS.filter((day) => days.includes(day)),
-  }))
 }
 
 export function recipeTime(recipe: MealRecipe | undefined) {
@@ -248,7 +232,7 @@ export function Timetable({
         <>
           {showProblems && (
             <div className="px-4 pt-4 sm:px-5">
-              <Alert variant="destructive">
+              <Alert variant={hasOnlyConflicts(plan.problems) ? "default" : "destructive"}>
                 <TriangleAlertIcon aria-hidden />
                 <AlertTitle>Thực đơn có chỗ cần xem lại</AlertTitle>
                 <AlertDescription>

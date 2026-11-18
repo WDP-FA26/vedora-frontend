@@ -45,8 +45,10 @@ import {
 } from "@/features/meal-plan/components/timetable"
 import {
   DAY_LABELS,
+  hasOnlyConflicts,
   MAX_DISHES_PER_SECTION,
   MEAL_SECTIONS,
+  problemLines,
   recipesAt,
   SECTION_LABELS,
   searchRecipeOptions,
@@ -295,6 +297,22 @@ export function CalendarBoard({
           <p role="alert" className="rounded-xl border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
             {error}
           </p>
+        </div>
+      )}
+      {plan && plan.problems.length > 0 && !locked && (
+        <div className="px-4 pt-4 sm:px-5">
+          <Alert variant={hasOnlyConflicts(plan.problems) ? "default" : "destructive"}>
+            <TriangleAlertIcon aria-hidden />
+            <AlertTitle>Thực đơn có chỗ cần xem lại</AlertTitle>
+            <AlertDescription>
+              {problemLines(plan.problems).map(({ text, days: problemDays }) => (
+                <span key={text} className="block">
+                  {text}
+                  <span className="font-medium"> · {problemDays.map((day) => DAY_LABELS[day]).join(", ")}</span>
+                </span>
+              ))}
+            </AlertDescription>
+          </Alert>
         </div>
       )}
 

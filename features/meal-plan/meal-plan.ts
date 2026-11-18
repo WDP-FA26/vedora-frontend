@@ -171,6 +171,28 @@ export function problemText({ code, recipes, ingredients, reason }: MealPlanProb
   return "Có món không còn tồn tại."
 }
 
+/** One short line per distinct problem, with every day it happens on. */
+export function problemLines(problems: MealPlanProblem[]) {
+  const lines = new Map<string, Weekday[]>()
+  for (const problem of problems) {
+    const text = problem.code === "AVOIDED_INGREDIENT"
+      ? `${problem.recipes.join(", ")} có ${problem.ingredients.join(", ")}`
+      : problemText(problem)
+    const days = lines.get(text) ?? []
+    if (!days.includes(problem.day)) days.push(problem.day)
+    lines.set(text, days)
+  }
+  return [...lines.entries()].map(([text, days]) => ({
+    text,
+    days: WEEKDAYS.filter((day) => days.includes(day)),
+  }))
+}
+
+/** A day conflict is advice only; the other problems break what the user avoids. */
+export function hasOnlyConflicts(problems: MealPlanProblem[]) {
+  return problems.every((problem) => problem.code === "DAY_CONFLICT")
+}
+
 export const MAX_DISHES_PER_SECTION = 6
 
 export type SlotRef = { day: Weekday; section: MealSection }
