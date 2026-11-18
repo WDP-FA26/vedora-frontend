@@ -13,7 +13,10 @@ export function useBilling() {
   return useAuthedSWR(`${API_URL}/billing/me`, ([url, token]) => sendJson(overviewSchema, url, token, { cache: "no-store" }), { ...options, refreshInterval: 60000 })
 }
 export function usePayment(id: string) {
-  return useAuthedSWR(`${API_URL}/payment-intents/${id}`, ([url, token]) => sendJson(paymentSchema, url, token, { cache: "no-store" }), {
+  return useAuthedSWR(`${API_URL}/payment-intents/${id}`, async ([url, token]) => {
+    const payment = await sendJson(paymentSchema, url, token, { cache: "no-store" })
+    return { ...payment, receivedAt: performance.now() }
+  }, {
     ...options, refreshInterval: data => data?.status === "PENDING" ? 30000 : 0,
     shouldRetryOnError: error => !(error instanceof ApiError && [401, 403, 404].includes(error.status)),
     errorRetryInterval: 4000, errorRetryCount: 3,
