@@ -4,8 +4,13 @@ import { usePathname, useRouter } from "next/navigation"
 import { useSWRConfig } from "swr"
 
 import { useAuth } from "@/features/auth/hooks/use-auth"
-import { setPostBookmark, setPostLike, setPostRepost } from "@/features/posts/lib/posts-api"
-import { POSTS_KEY } from "@/features/posts/posts-cache"
+import {
+  fetchPost,
+  setPostBookmark,
+  setPostLike,
+  setPostRepost,
+} from "@/features/posts/lib/posts-api"
+import { POSTS_KEY, postKey } from "@/features/posts/posts-cache"
 import type { ApiPost, PostPage } from "@/features/posts/schemas"
 
 type PostPatch = (post: ApiPost) => Partial<ApiPost>
@@ -88,8 +93,14 @@ export function usePostInteractions() {
         () => ({ isBookmarked: !bookmarked }),
         (token) => setPostBookmark(token, id, bookmarked)
       ),
+    refreshCommentCount: async (id: string) => {
+      const post = await fetchPost([postKey(id), accessToken])
+      await patch(id, () => ({ commentCount: post.commentCount }))
+    },
     /** Keeps `commentCount` in step once a comment is added (+1) or deleted (-1). */
-    countComment: (id: string, delta: 1 | -1) =>
-      patch(id, (post) => ({ commentCount: Math.max(0, post.commentCount + delta) })),
+    countComment: (id: string, delta: number) =>
+      patch(id, (post) => ({
+        commentCount: Math.max(0, post.commentCount + delta),
+      })),
   }
 }
