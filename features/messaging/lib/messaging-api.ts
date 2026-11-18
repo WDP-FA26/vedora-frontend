@@ -46,6 +46,13 @@ export function markConversationRead(
   })
 }
 export const MESSAGING_STREAM_URL = `${MESSAGING_KEY}/events`
+export function sharePostInMessage(token: string, target: { conversationId: string } | { userId: string }, postId: string, clientMessageId: string) {
+  const url = "conversationId" in target ? conversationKey(target.conversationId) : contactKey(target.userId)
+  return sendJson(sendMessageResponseSchema, `${url}/shared-posts`, token, {
+    method: "POST",
+    body: JSON.stringify({ postId, clientMessageId }),
+  })
+}
 export function acceptMessageRequest(token: string, id: string) {
   return sendJson(conversationSchema, `${conversationKey(id)}/accept`, token, {
     method: "POST",
@@ -68,6 +75,8 @@ export function deleteMessageRequest(
 }
 export function messagingError(error: unknown) {
   if (error instanceof ApiError) {
+    if (error.code === "SHARED_POST_UNAVAILABLE")
+      return "Bài viết không còn khả dụng để chia sẻ."
     if (error.code === "MESSAGE_REQUEST_RECEIVER_REQUIRED")
       return "Chỉ người nhận mới có thể xử lý lời mời nhắn tin này."
     if (error.code === "MESSAGE_REQUEST_NOT_PENDING")

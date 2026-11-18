@@ -11,6 +11,14 @@ export const messagingPeerSchema = z.object({
   avatarUrl: z.string().nullable(),
   isProfessional: z.boolean(),
 })
+export const sharedPostSchema = z.object({
+  id: z.string(),
+  type: z.enum(["POST", "BLOG"]),
+  title: z.string().nullable(),
+  excerpt: z.string(),
+  imageUrl: z.string().nullable(),
+  author: z.object({ id: z.string(), username: z.string(), fullName: z.string(), avatarUrl: z.string().nullable() }),
+})
 export const messageSchema = z.object({
   id: z.string(),
   conversationId: z.string(),
@@ -19,6 +27,8 @@ export const messageSchema = z.object({
   clientMessageId: z.string(),
   sequence: z.number().int().positive(),
   body: z.string(),
+  sharedPostId: z.string().nullable().default(null),
+  sharedPost: sharedPostSchema.nullable().default(null),
   createdAt: z.string(),
 })
 export const messagePageSchema = z.object({
