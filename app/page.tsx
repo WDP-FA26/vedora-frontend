@@ -2,6 +2,8 @@ import type { Metadata } from "next"
 import { cookies } from "next/headers"
 
 import { Landing } from "@/features/landing/components/landing"
+import { getAccessToken, getAuth } from "@/features/auth/server/session"
+import { PostDraftSession } from "@/features/post-drafts/provider"
 import {
   NutritionPet,
   PetProvider,
@@ -20,6 +22,7 @@ export const metadata: Metadata = {
 }
 
 export default async function LandingPage() {
+  const [user, token] = await Promise.all([getAuth().catch(() => null), getAccessToken()])
   const cookieStore = await cookies()
   const petPreference = {
     pet: parsePet(cookieStore.get(PET_COOKIE)?.value),
@@ -28,6 +31,7 @@ export default async function LandingPage() {
 
   return (
     <PetProvider initial={petPreference}>
+      <PostDraftSession userId={user?.id} token={token} updateFeed={false} />
       <Landing />
       <NutritionPet />
     </PetProvider>

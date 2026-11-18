@@ -244,7 +244,7 @@ for (const reopen of ["reload", "new tab"] as const) {
     else {
       await page.close()
       resumed = await context.newPage()
-      await resumed.goto("/home")
+      await resumed.goto("/")
     }
     await expect.poll(() => api.uploads.length, { timeout: 20000 }).toBe(2)
     expect(api.uploads[1].mediaId).toBe(mediaId)

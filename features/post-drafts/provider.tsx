@@ -70,16 +70,18 @@ export function PostDraftProvider({ children }: { children: React.ReactNode }) {
 export function PostDraftSession({
   userId,
   token,
+  updateFeed = true,
 }: {
   userId: string | undefined
   token: string | undefined
+  updateFeed?: boolean
 }) {
   const context = use(DraftContext)
   const connect = context?.connect
   useEffect(() => {
     connect?.(userId, token)
   }, [connect, userId, token])
-  return context?.manager ? <PublishedDraftFeed manager={context.manager} /> : null
+  return updateFeed && context?.manager ? <PublishedDraftFeed manager={context.manager} /> : null
 }
 
 function PublishedDraftFeed({ manager }: { manager: PostDraftManager }) {
