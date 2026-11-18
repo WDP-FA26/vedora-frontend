@@ -17,6 +17,7 @@ import {
   type LexicalNode,
   type PointType,
   type RangeSelection,
+  type TextNode,
 } from "lexical"
 
 import { $createMediaNode, MediaNode } from "@/features/blogs/editor/media-node"
@@ -185,41 +186,81 @@ function $textBlocks(): ElementNode[] {
   return blocks
 }
 
-type Passage = { first: ElementNode; start: number; last: ElementNode; end: number }
+function $isProposed(node: LexicalNode) {
+  for (let current: LexicalNode | null = node; current; current = current.getParent()) {
+    if ($isSuggestionNode(current)) return current.getKind() === "insert"
+  }
+  return false
+}
 
-/** The one place `quote` appears in the draft, possibly across blocks. */
+/** A text node's place in a line: `start` characters in. */
+type Segment = { node: TextNode; start: number }
+/** One line of the draft as the agent sees it, and the nodes behind it. */
+type Line = { block: ElementNode; text: string; segments: Segment[] }
+
+/**
+ * The post as the agent's `<draft>` shows it, one entry per non-empty line:
+ * soft line breaks start a new line, empty paragraphs are left out (the
+ * Markdown export drops them) and so is text only proposed so far (the export
+ * discards pending suggestions).
+ */
+function $draftLines(): Line[] {
+  const lines: Line[] = []
+  for (const block of $textBlocks()) {
+    let line: Line = { block, text: "", segments: [] }
+    const flush = () => {
+      if (line.text.trim()) lines.push(line)
+      line = { block, text: "", segments: [] }
+    }
+    const visit = (node: LexicalNode) => {
+      if ($isTextNode(node)) {
+        if ($isProposed(node)) return
+        line.segments.push({ node, start: line.text.length })
+        line.text += node.getTextContent()
+      } else if ($isLineBreakNode(node)) {
+        if (!$isProposed(node)) flush()
+      } else if ($isElementNode(node)) node.getChildren().forEach(visit)
+    }
+    block.getChildren().forEach(visit)
+    flush()
+  }
+  return lines
+}
+
+type Passage = { first: Line; start: number; last: Line; end: number }
+
+/** The one place `quote` appears in the draft, possibly across lines and blocks. */
 function $findPassage(quote: string): Passage | EditError {
-  const lines = plainText(quote)
+  const quoted = plainText(quote)
     .split(/\n+/)
     .map((line) => line.trim())
     .filter(Boolean)
-  if (lines.length === 0) return "NOT_FOUND"
-  const blocks = $textBlocks()
-  const texts = blocks.map((block) => block.getTextContent())
+  if (quoted.length === 0) return "NOT_FOUND"
+  const lines = $draftLines()
   const found: Passage[] = []
 
-  if (lines.length === 1) {
-    const [line] = lines
-    texts.forEach((text, index) => {
-      for (let at = text.indexOf(line); at !== -1; at = text.indexOf(line, at + 1)) {
-        found.push({ first: blocks[index], start: at, last: blocks[index], end: at + line.length })
+  if (quoted.length === 1) {
+    const [needle] = quoted
+    for (const line of lines) {
+      for (let at = line.text.indexOf(needle); at !== -1; at = line.text.indexOf(needle, at + 1)) {
+        found.push({ first: line, start: at, last: line, end: at + needle.length })
       }
-    })
+    }
   } else {
-    const head = lines[0]
-    const tail = lines[lines.length - 1]
-    const middle = lines.slice(1, -1)
-    for (let index = 0; index + lines.length <= blocks.length; index++) {
-      const first = texts[index].trimEnd()
-      const lastText = texts[index + lines.length - 1].trimStart()
+    const head = quoted[0]
+    const tail = quoted[quoted.length - 1]
+    const middle = quoted.slice(1, -1)
+    for (let index = 0; index + quoted.length <= lines.length; index++) {
+      const first = lines[index].text.trimEnd()
+      const last = lines[index + quoted.length - 1]
+      const lastText = last.text.trimStart()
       if (!first.endsWith(head) || !lastText.startsWith(tail)) continue
-      if (!middle.every((line, offset) => texts[index + 1 + offset].trim() === line)) continue
-      const last = texts[index + lines.length - 1]
+      if (!middle.every((text, offset) => lines[index + 1 + offset].text.trim() === text)) continue
       found.push({
-        first: blocks[index],
+        first: lines[index],
         start: first.length - head.length,
-        last: blocks[index + lines.length - 1],
-        end: last.length - lastText.length + tail.length,
+        last,
+        end: last.text.length - lastText.length + tail.length,
       })
     }
   }
@@ -227,21 +268,14 @@ function $findPassage(quote: string): Passage | EditError {
   return found.length === 1 ? found[0] : "AMBIGUOUS"
 }
 
-/** A text point `offset` characters into `block`'s text. */
-function pointIn(block: ElementNode, offset: number, edge: "start" | "end"): Point | null {
-  let seen = 0
-  let lastText: Point | null = null
-  for (const node of block.getAllTextNodes()) {
-    // line breaks sit between text nodes and count as one character
-    const before = node.getPreviousSibling()
-    if (before && $isLineBreakNode(before)) seen += 1
+/** A text point `offset` characters into `line`. */
+function pointIn(line: Line, offset: number, edge: "start" | "end"): Point | null {
+  for (const { node, start } of line.segments) {
     const size = node.getTextContentSize()
-    const inside = edge === "start" ? offset < seen + size : offset <= seen + size
-    if (inside && offset >= seen) return { key: node.getKey(), offset: offset - seen, type: "text" }
-    seen += size
-    lastText = { key: node.getKey(), offset: size, type: "text" }
+    const inside = edge === "start" ? offset < start + size : offset <= start + size
+    if (inside && offset >= start) return { key: node.getKey(), offset: offset - start, type: "text" }
   }
-  return offset === seen ? lastText : null
+  return null
 }
 
 function $selectPassage({ first, start, last, end }: Passage): RangeSelection | null {
@@ -270,7 +304,7 @@ function $insertionAnchor(position: InsertPosition, after: string | undefined, c
   }
   if (!after) return "NOT_FOUND"
   const passage = $findPassage(after)
-  return typeof passage === "string" ? passage : passage.last.getTopLevelElementOrThrow()
+  return typeof passage === "string" ? passage : passage.last.block.getTopLevelElementOrThrow()
 }
 
 export function $applyInsertMarkdown(
