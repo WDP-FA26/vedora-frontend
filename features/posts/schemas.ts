@@ -157,6 +157,7 @@ export const REPORT_REASONS = [
   "MISINFORMATION",
   "HARMFUL_ADVICE",
   "INAPPROPRIATE",
+  "NOT_PLANT_BASED",
   "OTHER",
 ] as const
 /** Mirrors the API's `MAX_REPORT_DETAILS_LENGTH`. */
@@ -168,6 +169,7 @@ export const REPORT_REASON_LABELS: Record<ReportReason, string> = {
   MISINFORMATION: "Thông tin sai lệch",
   HARMFUL_ADVICE: "Lời khuyên ăn uống, sức khoẻ có thể gây hại",
   INAPPROPRIATE: "Nội dung phản cảm",
+  NOT_PLANT_BASED: "Không phù hợp với lối sống ăn chay, thuần thực vật",
   OTHER: "Lý do khác",
 }
 
