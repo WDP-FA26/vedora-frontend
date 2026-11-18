@@ -1,12 +1,17 @@
 import type { PlaceholderTone } from "@/features/shared/components/media-placeholder"
 import type { CurrentUser } from "@/features/auth/types"
 import type { Author } from "@/features/shared/types"
+import { PROFESSIONAL_LABEL } from "@/features/verification/schemas"
 
 const TONES: PlaceholderTone[] = ["basil", "sage", "grain", "beet", "tomato"]
 
 /** Adapts an API user (or post author) to the `Author` shape the avatar and nav components use. */
 export function toAuthor(
-  user: Pick<CurrentUser, "id" | "username" | "fullName"> & { avatarUrl?: string | null }
+  user: Pick<CurrentUser, "id" | "username" | "fullName"> & {
+    avatarUrl?: string | null
+    /** Verified professional; shows the verified badge where the name is rendered. */
+    isProfessional?: boolean
+  }
 ): Author {
   const words = user.fullName.trim().split(/\s+/)
   const initials =
@@ -23,5 +28,6 @@ export function toAuthor(
     handle: user.username,
     initials: initials.toUpperCase(),
     tone: TONES[hash % TONES.length],
+    verified: user.isProfessional ? PROFESSIONAL_LABEL : undefined,
   }
 }

@@ -23,6 +23,8 @@ export const notificationSchema = z.object({
       username: z.string(),
       fullName: z.string(),
       avatarUrl: z.string().nullable().optional(),
+      /** Verified professional (badge only). Absent on API versions from before it. */
+      isProfessional: z.boolean().default(false),
     })
     .nullable(),
   /** Null for `FOLLOW`. */

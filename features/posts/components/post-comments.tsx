@@ -48,6 +48,7 @@ import {
 } from "@/features/posts/schemas"
 import { profilePath } from "@/features/profiles/profiles-cache"
 import { AuthorAvatar } from "@/features/shared/components/author-avatar"
+import { VerifiedBadge } from "@/features/shared/components/verified-badge"
 import { ApiError } from "@/features/shared/lib/api-client"
 import { formatCount } from "@/features/shared/lib/format"
 import { RelativeTime } from "@/features/shared/components/relative-time"
@@ -429,6 +430,11 @@ function CommentItem({
             <Link href={profileHref} className="truncate font-semibold hover:underline">
               {author.name}
             </Link>
+            {author.verified && (
+              <span className="self-center">
+                <VerifiedBadge label={author.verified} />
+              </span>
+            )}
             <span className="truncate text-muted-foreground">@{author.handle}</span>
             <span aria-hidden className="text-muted-foreground">
               ·

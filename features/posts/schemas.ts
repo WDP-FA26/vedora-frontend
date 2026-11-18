@@ -76,6 +76,8 @@ export const apiPostSchema = z.object({
     fullName: z.string(),
     /** Absent on API versions from before profiles. */
     avatarUrl: z.string().nullable().optional(),
+    /** Verified professional (badge only). Absent on API versions from before it. */
+    isProfessional: z.boolean().default(false),
   }),
   media: z.array(apiMediaSchema),
   commentCount: z.number(),
