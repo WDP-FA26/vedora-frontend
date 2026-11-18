@@ -8,7 +8,11 @@ import {
   messagePageSchema,
   readReceiptSchema,
   sendMessageResponseSchema,
+  messagingUnreadCountSchema,
 } from "../schemas"
+
+export const fetchMessagingUnreadCount = async ([url, token]: readonly [string, string]) =>
+  (await sendJson(messagingUnreadCountSchema, url, token)).unreadCount
 
 export const fetchConversations = ([url, token]: readonly [string, string]) =>
   sendJson(conversationPageSchema, url, token)

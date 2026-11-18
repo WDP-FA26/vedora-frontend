@@ -2,6 +2,7 @@ import { API_URL } from "@/features/auth/lib/api"
 import type { Inbox } from "./schemas"
 
 export const MESSAGING_KEY = `${API_URL}/messaging`
+export const MESSAGE_UNREAD_COUNT_KEY = `${MESSAGING_KEY}/unread-count`
 export const MESSAGING_PATH = "/home/messages"
 export const INBOX_REVISION_KEY = "messaging.inbox.revision"
 export const MESSAGING_CONNECTION_KEY = "messaging.connection"

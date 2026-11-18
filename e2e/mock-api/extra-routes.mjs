@@ -48,6 +48,7 @@ export async function handleExtra({ path, method, body, q, me, res, send, error 
   let m
 
   // --- messaging ---------------------------------------------------------
+  if (path === "/messaging/unread-count") return ok({ unreadCount: conversation.unreadCount })
   if (path === "/messaging/conversations") {
     return ok(pageOf(q.get("box") === "requests" ? [] : [conversation]))
   }

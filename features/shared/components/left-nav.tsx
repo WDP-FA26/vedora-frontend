@@ -22,6 +22,7 @@ import { useLogout } from "@/features/auth/hooks/use-logout"
 import { useUnreadCount } from "@/features/notifications/hooks/use-notifications"
 import { navItems } from "@/features/shared/data/nav-items"
 import { Wordmark } from "./wordmark"
+import { UnreadMessagesBadge } from "@/features/messaging/components/unread-messages-badge"
 
 /**
  * Desktop and tablet navigation. Icon-only below `xl`, full labels above,
@@ -101,6 +102,7 @@ export function NavLinks({
                       {unread > 99 ? "99+" : unread}
                     </span>
                   )}
+                  {href === "/home/messages" && <UnreadMessagesBadge />}
                   {isNew && !expanded && (
                     <span
                       aria-hidden
