@@ -4,6 +4,7 @@ import {
   contactSchema,
   conversationPageSchema,
   conversationSchema,
+  deletedRequestSchema,
   messagePageSchema,
   readReceiptSchema,
   sendMessageResponseSchema,
@@ -45,8 +46,32 @@ export function markConversationRead(
   })
 }
 export const MESSAGING_STREAM_URL = `${MESSAGING_KEY}/events`
+export function acceptMessageRequest(token: string, id: string) {
+  return sendJson(conversationSchema, `${conversationKey(id)}/accept`, token, {
+    method: "POST",
+  })
+}
+export function deleteMessageRequest(
+  token: string,
+  id: string,
+  throughMessageId: string,
+) {
+  return sendJson(
+    deletedRequestSchema,
+    `${conversationKey(id)}/request`,
+    token,
+    {
+      method: "DELETE",
+      body: JSON.stringify({ throughMessageId }),
+    },
+  )
+}
 export function messagingError(error: unknown) {
   if (error instanceof ApiError) {
+    if (error.code === "MESSAGE_REQUEST_RECEIVER_REQUIRED")
+      return "Chỉ người nhận mới có thể xử lý lời mời nhắn tin này."
+    if (error.code === "MESSAGE_REQUEST_NOT_PENDING")
+      return "Cuộc trò chuyện đã chuyển sang bạn bè. Hãy tải lại hộp thư."
     if (error.code === "MESSAGE_FOLLOW_REQUIRED")
       return "Bạn cần theo dõi người này trước khi gửi tin nhắn."
     if (error.status === 401)

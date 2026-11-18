@@ -22,8 +22,13 @@ import {
   fetchMessages,
   markConversationRead,
   sendDirectMessage,
+  acceptMessageRequest,
+  deleteMessageRequest,
 } from "../lib/messaging-api"
-import { invalidateMessaging } from "../lib/invalidate-messaging"
+import {
+  forgetMessageRequest,
+  invalidateMessaging,
+} from "../lib/invalidate-messaging"
 import type { ConversationPage, Inbox, MessagePage } from "../schemas"
 
 export function useMessagingConnection() {
@@ -105,7 +110,10 @@ export function useMessagingContact(id: string | null) {
   })
 }
 
-export function useMessageHistory(id: string | null) {
+export function useMessageHistory(
+  id: string | null,
+  deletedThroughSequence = 0,
+) {
   const { accessToken } = useAuth()
   const connected = useMessagingConnection()
   const router = useRouter()
@@ -128,6 +136,13 @@ export function useMessageHistory(id: string | null) {
     },
   )
   const revalidate = result.mutate
+  const resetHistorySize = result.setSize
+  useEffect(() => {
+    if (deletedThroughSequence > 0)
+      void resetHistorySize(1)
+        .then(() => revalidate())
+        .catch(() => undefined)
+  }, [deletedThroughSequence, resetHistorySize, revalidate])
   // A resumed stream has no replay guarantee. Reconcile every loaded history page.
   useEffect(() => {
     if (connected) void revalidate().catch(() => undefined)
@@ -138,7 +153,9 @@ export function useMessageHistory(id: string | null) {
       ...new Map(
         pages.flatMap((page) => page.items).map((item) => [item.id, item]),
       ).values(),
-    ].sort((a, b) => a.sequence - b.sequence),
+    ]
+      .filter((message) => message.sequence > deletedThroughSequence)
+      .sort((a, b) => a.sequence - b.sequence),
     hasMore: Boolean(pages.at(-1)?.nextCursor),
     loadMore: () => result.setSize(result.size + 1),
     isLoading: result.isLoading,
@@ -204,5 +221,33 @@ export function useMessagingActions() {
     },
     [request, accessToken, mutate],
   )
-  return { send, markRead }
+  const acceptRequest = useCallback(
+    async (id: string) => {
+      const result = await request((token) => acceptMessageRequest(token, id))
+      if (accessToken) {
+        await mutate([conversationKey(id), accessToken], result, {
+          revalidate: false,
+        })
+        void invalidateMessaging(mutate, accessToken, id, false).catch(
+          () => undefined,
+        )
+      }
+      return result
+    },
+    [request, accessToken, mutate],
+  )
+  const deleteRequest = useCallback(
+    async (id: string, throughMessageId: string) => {
+      const result = await request((token) =>
+        deleteMessageRequest(token, id, throughMessageId),
+      )
+      if (accessToken) {
+        await forgetMessageRequest(mutate, accessToken, id)
+        void invalidateMessaging(mutate, accessToken, id).catch(() => undefined)
+      }
+      return result
+    },
+    [request, accessToken, mutate],
+  )
+  return { send, markRead, acceptRequest, deleteRequest }
 }

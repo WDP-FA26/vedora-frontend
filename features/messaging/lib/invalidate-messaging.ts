@@ -3,8 +3,43 @@ import { unstable_serialize } from "swr/infinite"
 import {
   INBOX_REVISION_KEY,
   MESSAGING_KEY,
+  conversationKey,
+  inboxPageKey,
   messagePageKey,
 } from "../messaging-cache"
+
+/** Clear deleted history, including cached older pages and other open tabs' data. */
+export async function forgetMessageRequest(
+  mutate: ScopedMutator,
+  token: string,
+  id: string,
+) {
+  await Promise.all([
+    mutate(
+      (key) =>
+        Array.isArray(key) &&
+        key[1] === token &&
+        typeof key[0] === "string" &&
+        (key[0].startsWith(conversationKey(id)) ||
+          key[0].startsWith(`${MESSAGING_KEY}/users/`) ||
+          key[0].startsWith(`${MESSAGING_KEY}/conversations?`)),
+      undefined,
+      { revalidate: false },
+    ),
+    mutate(
+      unstable_serialize(() => [messagePageKey(id), token] as const),
+      undefined,
+      { revalidate: false },
+    ),
+    ...(["friends", "requests"] as const).map((box) =>
+      mutate(
+        unstable_serialize(() => [inboxPageKey(box), token] as const),
+        undefined,
+        { revalidate: false },
+      ),
+    ),
+  ])
+}
 
 /** A changed activity/relationship can invalidate inbox cursors: start from page one. */
 export async function invalidateMessaging(

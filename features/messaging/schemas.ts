@@ -41,6 +41,9 @@ export const conversationSchema = z.object({
   followsPeer: z.boolean(),
   peerFollowsYou: z.boolean(),
   canSend: z.boolean(),
+  canAcceptRequest: z.boolean().default(false),
+  canDeleteRequest: z.boolean().default(false),
+  deletedThroughSequence: z.number().int().nonnegative().default(0),
   lastMessage: z
     .object({
       id: z.string(),
@@ -65,6 +68,10 @@ export const readReceiptSchema = z.object({
   conversationId: z.string(),
   readSequence: z.number().int().nonnegative(),
   unreadCount: z.number().int().nonnegative(),
+})
+export const deletedRequestSchema = z.object({
+  conversationId: z.string(),
+  deletedThroughSequence: z.number().int().nonnegative(),
 })
 export const messagingEventSchema = z.object({
   conversationId: z.string().uuid().nullable(),

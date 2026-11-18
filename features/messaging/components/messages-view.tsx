@@ -37,6 +37,8 @@ export function MessagesView() {
   const contact = useMessagingContact(to)
   const resolvedId = id ?? contact.data?.conversationId ?? null
   const conversation = useConversation(resolvedId)
+  const activeConversation = conversation.error ? undefined : conversation.data
+  const activeContact = contact.error ? undefined : contact.data
   const box: Inbox =
     conversation.data?.box ??
     contact.data?.box ??
@@ -95,8 +97,8 @@ export function MessagesView() {
           {!inbox.isLoading && !inbox.error && !inbox.conversations.length && (
             <p className="p-5 text-sm text-muted-foreground">
               {box === "friends"
-                ? "Bạn bè là những người theo dõi nhau. Bắt đầu nhắn tin từ trang hồ sơ của họ."
-                : "Tin nhắn khi chưa theo dõi nhau hai chiều sẽ xuất hiện ở đây, bao gồm tin bạn đã gửi."}
+                ? "Cuộc trò chuyện đã chấp nhận hoặc những người theo dõi nhau sẽ xuất hiện ở đây."
+                : "Tin nhắn chưa được chấp nhận sẽ xuất hiện ở đây, bao gồm lời nhắn bạn đã gửi."}
             </p>
           )}
           {inbox.conversations.map((item) => (
@@ -174,11 +176,11 @@ export function MessagesView() {
                 }}
               />
             )}
-            {(conversation.data ?? contact.data) ? (
+            {(activeConversation ?? activeContact) ? (
               <Thread
-                key={(conversation.data ?? contact.data)!.peer.id}
-                target={conversation.data ?? contact.data!}
-                conversation={conversation.data}
+                key={(activeConversation ?? activeContact)!.peer.id}
+                target={activeConversation ?? activeContact!}
+                conversation={activeConversation}
                 conversationId={resolvedId}
                 onCreated={(newId) =>
                   router.replace(messagingPath({ conversation: newId, box }))
@@ -222,7 +224,8 @@ function Thread({
   onCreated: (id: string) => void
 }) {
   const { user } = useAuth()
-  const history = useMessageHistory(conversationId)
+  const cutoff = conversation?.deletedThroughSequence ?? 0
+  const history = useMessageHistory(conversationId, cutoff)
   const { send, markRead } = useMessagingActions()
   const [draft, setDraft] = useState("")
   const [sending, setSending] = useState(false)
@@ -242,7 +245,9 @@ function Thread({
         message,
       ]),
     ).values(),
-  ].sort((a, b) => a.sequence - b.sequence)
+  ]
+    .filter((message) => message.sequence > cutoff)
+    .sort((a, b) => a.sequence - b.sequence)
   const newest = messages.at(-1)
   const lastIncoming = messages.findLast(
     (message) => message.senderId !== user?.id,
@@ -333,9 +338,9 @@ function Thread({
       </header>
       {target.box === "requests" && (
         <p className="border-b border-border p-3 text-sm text-muted-foreground">
-          {target.peerFollowsYou && !target.followsPeer
-            ? "Người này đang theo dõi bạn. Theo dõi lại để trở thành bạn bè và trả lời."
-            : "Hai bạn chưa theo dõi nhau hai chiều. Tin nhắn nằm trong hộp thư lạ."}
+          {conversation?.canDeleteRequest
+            ? "Chấp nhận lời mời để chuyển cuộc trò chuyện sang bạn bè và trả lời, không cần theo dõi lại."
+            : "Lời nhắn đang ở hộp thư lạ. Khi người nhận chấp nhận, hai bạn có thể nhắn tin mà không cần theo dõi nhau."}
         </p>
       )}
       <div
@@ -414,59 +419,138 @@ function Thread({
           Đến tin nhắn mới nhất
         </Button>
       )}
-      {!target.canSend && (
+      {conversation?.canDeleteRequest && (
+        <MessageRequestActions
+          conversation={conversation}
+          throughMessageId={newest?.id}
+        />
+      )}
+      {!target.canSend && !conversation?.canDeleteRequest && (
         <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border p-4">
           <p className="text-sm text-muted-foreground">
-            {target.followsPeer
+            {target.followsPeer || target.box === "friends"
               ? "Hiện chưa thể gửi tin nhắn cho tài khoản này."
               : "Bạn cần theo dõi người này để gửi tin nhắn."}
           </p>
-          {!target.followsPeer && <FollowButton id={target.peer.id} />}
+          {!target.followsPeer && target.box !== "friends" && (
+            <FollowButton id={target.peer.id} />
+          )}
         </div>
       )}
-      <form
-        className="border-t border-border p-4"
-        onSubmit={(event) => {
-          event.preventDefault()
-          void submit()
-        }}
-      >
-        {error != null && (
-          <p role="alert" className="mb-2 text-sm text-destructive">
-            {messagingError(error)} Nội dung được giữ lại để bạn thử gửi lại.
+      {!conversation?.canDeleteRequest && (
+        <form
+          className="border-t border-border p-4"
+          onSubmit={(event) => {
+            event.preventDefault()
+            void submit()
+          }}
+        >
+          {error != null && (
+            <p role="alert" className="mb-2 text-sm text-destructive">
+              {messagingError(error)} Nội dung được giữ lại để bạn thử gửi lại.
+            </p>
+          )}
+          <div className="flex items-end gap-2">
+            <Textarea
+              aria-label="Nội dung tin nhắn"
+              placeholder="Nhập tin nhắn…"
+              value={draft}
+              maxLength={MAX_MESSAGE_LENGTH}
+              disabled={!target.canSend || sending}
+              onChange={(event) => setDraft(event.target.value)}
+              onKeyDown={(event) => {
+                if (
+                  event.key === "Enter" &&
+                  !event.shiftKey &&
+                  !event.nativeEvent.isComposing
+                ) {
+                  event.preventDefault()
+                  void submit()
+                }
+              }}
+            />
+            <Button
+              type="submit"
+              aria-label="Gửi tin nhắn"
+              disabled={!target.canSend || sending || !draft.trim()}
+            >
+              <SendIcon aria-hidden className="size-4" />
+            </Button>
+          </div>
+          <p className="mt-1 text-right text-xs text-muted-foreground">
+            {draft.length}/{MAX_MESSAGE_LENGTH}
           </p>
-        )}
-        <div className="flex items-end gap-2">
-          <Textarea
-            aria-label="Nội dung tin nhắn"
-            placeholder="Nhập tin nhắn…"
-            value={draft}
-            maxLength={MAX_MESSAGE_LENGTH}
-            disabled={!target.canSend || sending}
-            onChange={(event) => setDraft(event.target.value)}
-            onKeyDown={(event) => {
-              if (
-                event.key === "Enter" &&
-                !event.shiftKey &&
-                !event.nativeEvent.isComposing
-              ) {
-                event.preventDefault()
-                void submit()
-              }
-            }}
-          />
-          <Button
-            type="submit"
-            aria-label="Gửi tin nhắn"
-            disabled={!target.canSend || sending || !draft.trim()}
-          >
-            <SendIcon aria-hidden className="size-4" />
-          </Button>
-        </div>
-        <p className="mt-1 text-right text-xs text-muted-foreground">
-          {draft.length}/{MAX_MESSAGE_LENGTH}
-        </p>
-      </form>
+        </form>
+      )}
     </>
+  )
+}
+
+function MessageRequestActions({
+  conversation,
+  throughMessageId,
+}: {
+  conversation: Conversation
+  throughMessageId?: string
+}) {
+  const router = useRouter()
+  const { acceptRequest, deleteRequest } = useMessagingActions()
+  const [pending, setPending] = useState<"accept" | "delete" | null>(null)
+  const [error, setError] = useState<unknown>(null)
+  const busy = useRef(false)
+
+  async function respond(action: "accept" | "delete") {
+    if (busy.current) return
+    if (action === "delete" && !throughMessageId) return
+    busy.current = true
+    setPending(action)
+    setError(null)
+    try {
+      if (action === "accept") {
+        await acceptRequest(conversation.id)
+        router.replace(
+          messagingPath({ box: "friends", conversation: conversation.id }),
+        )
+      } else {
+        await deleteRequest(conversation.id, throughMessageId!)
+        router.replace(messagingPath({ box: "requests" }))
+      }
+    } catch (failure) {
+      setError(failure)
+    } finally {
+      busy.current = false
+      setPending(null)
+    }
+  }
+
+  return (
+    <div className="border-t border-border p-4" aria-label="Lời mời nhắn tin">
+      <p className="mb-3 text-sm text-muted-foreground">
+        Chấp nhận để bắt đầu trò chuyện. Xóa chỉ ẩn lời mời và lịch sử cũ ở phía
+        bạn; tin nhắn mới vẫn có thể xuất hiện lại.
+      </p>
+      {error != null && (
+        <p role="alert" className="mb-3 text-sm text-destructive">
+          {messagingError(error)}
+        </p>
+      )}
+      <div className="flex gap-3">
+        <Button
+          className="flex-1"
+          variant="outline"
+          disabled={pending != null || !throughMessageId}
+          onClick={() => void respond("delete")}
+        >
+          {pending === "delete" ? "Đang xóa…" : "Xóa"}
+        </Button>
+        <Button
+          className="flex-1"
+          disabled={pending != null || !conversation.canAcceptRequest}
+          onClick={() => void respond("accept")}
+        >
+          {pending === "accept" ? "Đang chấp nhận…" : "Chấp nhận"}
+        </Button>
+      </div>
+    </div>
   )
 }
