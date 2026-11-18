@@ -22,12 +22,15 @@ export function MealArt({
   imageUrl,
   photoOnly = false,
   className,
+  photoClassName,
 }: {
   section: MealSection
   imageUrl?: string | null
   /** Render nothing, not the drawing, when there is no photo to show. */
   photoOnly?: boolean
   className?: string
+  /** Applied to the photo only, e.g. to show it whole instead of cropped to the frame. */
+  photoClassName?: string
 }) {
   const [failedUrl, setFailedUrl] = useState<string | null>(null)
 
@@ -42,7 +45,7 @@ export function MealArt({
         decoding="async"
         referrerPolicy="no-referrer"
         onError={() => setFailedUrl(imageUrl)}
-        className={cn("size-12 shrink-0 rounded-xl bg-secondary object-cover", className)}
+        className={cn("size-12 shrink-0 rounded-xl bg-secondary object-cover", className, photoClassName)}
       />
     )
   }

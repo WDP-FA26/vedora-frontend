@@ -453,7 +453,13 @@ export function RecipeDialogContent({ opened, onAsk }: { opened: OpenedRecipe; o
   ].filter(Boolean).join(" · ")
   return (
     <DialogContent ref={popup} initialFocus={popup} className="max-h-[85dvh] overflow-y-auto">
-      <MealArt section={section} imageUrl={recipe.imageUrl} photoOnly className="aspect-[16/9] size-auto w-full" />
+      <MealArt
+        section={section}
+        imageUrl={recipe.imageUrl}
+        photoOnly
+        className="aspect-[16/9] size-auto w-full"
+        photoClassName="aspect-auto h-auto max-h-[50dvh] object-contain"
+      />
       <DialogHeader>
         <p className="text-xs font-semibold text-primary">
           {DAY_LABELS[day]} · Bữa {SECTION_LABELS[section].toLowerCase()}

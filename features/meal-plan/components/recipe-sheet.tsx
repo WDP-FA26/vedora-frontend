@@ -92,6 +92,7 @@ export function RecipeSheet({ open, dish, onClose, onAsk, onMove, onRemove }: Pr
               section={dish.section}
               imageUrl={view?.imageUrl}
               className="aspect-[16/10] size-auto w-full shrink-0 rounded-none"
+              photoClassName="aspect-auto h-auto max-h-[60dvh] object-contain"
             />
             <SheetHeader>
               <p className="text-xs font-semibold text-primary">
