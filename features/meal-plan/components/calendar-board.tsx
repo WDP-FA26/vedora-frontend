@@ -311,7 +311,7 @@ export function CalendarBoard({
         <div
           role="table"
           aria-label="Lịch thực đơn tuần"
-          className="grid min-w-[44rem] grid-cols-[3rem_repeat(7,minmax(0,1fr))] grid-rows-[auto_repeat(4,minmax(6.5rem,1fr))] gap-px h-full min-h-[34rem] bg-border"
+          className="grid min-w-[44rem] grid-cols-[3rem_repeat(7,minmax(0,1fr))] grid-rows-[auto_repeat(4,minmax(6.5rem,auto))] gap-px h-full min-h-[34rem] bg-border"
         >
           <div role="row" className="contents">
             <div role="columnheader" className="flex flex-col items-center justify-center gap-1 bg-card">{leading}</div>
