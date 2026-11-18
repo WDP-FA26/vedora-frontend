@@ -7,6 +7,7 @@ import {
   UtensilsCrossedIcon,
   UsersIcon,
 } from "lucide-react"
+import { useEffect, useRef, useState } from "react"
 import { useSWRConfig } from "swr"
 
 import { Button } from "@/components/ui/button"
@@ -37,6 +38,10 @@ const tabs: { value: FeedTab; label: string }[] = [
   { value: "recipes", label: "Công thức" },
 ]
 
+function isFeedTab(value: unknown): value is FeedTab {
+  return tabs.some((tab) => tab.value === value)
+}
+
 const emptyCopy = {
   "for-you": {
     icon: SproutIcon,
@@ -61,6 +66,11 @@ const emptyCopy = {
 } as const
 
 export function Feed() {
+  const [activeTab, setActiveTab] = useState<FeedTab>("for-you")
+  // A tab renders on its first visit and then stays mounted, hidden. Remounting
+  // its cards on every switch rebuilt each video player, which leaks inside the
+  // Cloudinary player and made switching tabs slower until a reload.
+  const [visited, setVisited] = useState<FeedTab[]>(["for-you"])
   const latest = useFeedPosts()
   const ranked = useForYouPosts()
   const following = useFollowingPosts()
@@ -83,12 +93,18 @@ export function Feed() {
     blogs: { posts: blogs, isLoading: latest.isLoading, error: latest.error, key: POSTS_KEY },
   }
 
+  function selectTab(value: unknown) {
+    if (!isFeedTab(value)) return
+    setActiveTab(value)
+    if (!visited.includes(value)) setVisited([...visited, value])
+  }
+
   function retry(url: string) {
     if (accessToken) void mutate([url, accessToken])
   }
 
   return (
-    <Tabs defaultValue="for-you">
+    <Tabs value={activeTab} onValueChange={selectTab}>
       <div className="sticky top-0 z-20 border-b border-border bg-card/90 backdrop-blur-md">
         <MobileTopBar />
         <div className="flex min-w-0 items-center">
@@ -108,22 +124,38 @@ export function Feed() {
       </div>
 
       {tabs.map((tab) => (
-        <TabsContent key={tab.value} value={tab.value}>
-          {tab.value === "recipes" ? (
-            <RecipeFeed />
-          ) : (
-          <Timeline
-            tab={tab.value}
-            livePosts={sources[tab.value]?.posts ?? []}
-            isLoading={sources[tab.value]?.isLoading ?? false}
-            hasError={Boolean(sources[tab.value]?.error)}
-            onRetry={() => retry(sources[tab.value]?.key ?? POSTS_KEY)}
-          />
+        <TabsContent key={tab.value} value={tab.value} keepMounted>
+          {visited.includes(tab.value) && (
+            <PausesWhenHidden isActive={activeTab === tab.value}>
+              {tab.value === "recipes" ? (
+                <RecipeFeed />
+              ) : (
+                <Timeline
+                  tab={tab.value}
+                  livePosts={sources[tab.value]?.posts ?? []}
+                  isLoading={sources[tab.value]?.isLoading ?? false}
+                  hasError={Boolean(sources[tab.value]?.error)}
+                  onRetry={() => retry(sources[tab.value]?.key ?? POSTS_KEY)}
+                />
+              )}
+            </PausesWhenHidden>
           )}
         </TabsContent>
       ))}
     </Tabs>
   )
+}
+
+/** A hidden tab stays mounted, so stop any video in it from playing on unseen. */
+function PausesWhenHidden({ isActive, children }: { isActive: boolean; children: React.ReactNode }) {
+  const ref = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (isActive) return
+    for (const video of ref.current?.querySelectorAll("video") ?? []) video.pause()
+  }, [isActive])
+
+  return <div ref={ref}>{children}</div>
 }
 
 function Timeline({

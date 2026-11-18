@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useRef, useState } from "react"
-import { CldVideoPlayer } from "next-cloudinary"
+import { CldVideoPlayer, type CldVideoPlayerProps } from "next-cloudinary"
 // CldVideoPlayer injects its stylesheet with `next/head`, which the App Router ignores.
 import "next-cloudinary/dist/cld-video-player.css"
 import { cn } from "cn"
@@ -67,7 +67,7 @@ export function VideoPlayer({
         }}
         style={maxHeight ? { maxWidth: `calc(${maxHeight} * ${width / height})` } : undefined}
       >
-        <CldVideoPlayer
+        <DisposingCldVideoPlayer
           // The player reads its size once, so a measured ratio remounts it.
           key={`${width}x${height}`}
           src={publicId}
@@ -82,20 +82,52 @@ export function VideoPlayer({
           poster={{ src: publicId, assetType: "video", format: "jpg", rawTransformations: ["so_0"] }}
           logo={false}
           colors={{ accent: "#75b65c", base: "#000000", text: "#ffffff" }}
-          textTracks={
-            captions.length > 0
-              ? {
-                  subtitles: captions.map((track) => ({
-                    label: track.name,
-                    language: track.languageCode,
-                    url: track.url,
-                  })),
-                }
-              : undefined
-          }
+          {...captionProps(captions)}
           onError={onError}
         />
       </div>
     </div>
   )
+}
+
+/**
+ * `textTracks` only when there are captions. The player validates a present
+ * `textTracks: undefined` against its nested schema and throws
+ * (`s.value is not a function`), leaving a half-built player nothing disposes.
+ */
+function captionProps(captions: CaptionTrack[]): Pick<CldVideoPlayerProps, "textTracks"> {
+  if (captions.length === 0) return {}
+  return {
+    textTracks: {
+      subtitles: captions.map((track) => ({
+        label: track.name,
+        language: track.languageCode,
+        url: track.url,
+      })),
+    },
+  }
+}
+
+type CloudinaryPlayer = NonNullable<NonNullable<CldVideoPlayerProps["playerRef"]>["current"]>
+
+/**
+ * `CldVideoPlayer` that really tears its player down on unmount.
+ * next-cloudinary 6.19 only disposes the Cloudinary plugin
+ * (`player.videojs.cloudinary.dispose()`), so the video.js player behind it
+ * keeps its controls, DOM and listeners alive: every remount, such as switching
+ * a home tab, leaked ~575 nodes per video. A parent's effect cleanup runs before
+ * its child's, so the instance is still here when this one runs.
+ */
+function DisposingCldVideoPlayer(props: CldVideoPlayerProps) {
+  const playerRef = useRef<CloudinaryPlayer | null>(null)
+
+  useEffect(() => {
+    return () => {
+      const player = playerRef.current
+      playerRef.current = null
+      player?.dispose()
+    }
+  }, [])
+
+  return <CldVideoPlayer {...props} playerRef={playerRef} />
 }
