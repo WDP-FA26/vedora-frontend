@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
 import { useAuthedSWR } from "@/features/auth/hooks/use-authed-swr"
 import Link from "next/link"
@@ -12,7 +12,7 @@ import { useAuth } from "@/features/auth/hooks/use-auth"
 import { isAccessTokenFresh } from "@/features/auth/lib/tokens"
 import { fetchMyDietary, MY_DIETARY_KEY } from "@/features/dietary/dietary"
 import { CalendarBoard } from "@/features/meal-plan/components/calendar-board"
-import { PlannerChat } from "@/features/meal-plan/components/planner-chat"
+import { PlannerChat, type PlannerChatHandle } from "@/features/meal-plan/components/planner-chat"
 import { QuickGenerate } from "@/features/meal-plan/components/quick-generate"
 import { MealRequestForm } from "@/features/meal-plan/components/meal-request-form"
 import {
@@ -99,6 +99,7 @@ export function MealPlannerView() {
   const { accessToken } = useAuth()
   const router = useRouter()
   const chat = useMealPlannerChat()
+  const plannerChat = useRef<PlannerChatHandle>(null)
   const [tab, setTab] = useState<Tab>("chat")
   const [assistantOpen, setAssistantOpen] = useState(true)
   const [draft, setDraft] = useState<Proposal | null>(null)
@@ -181,11 +182,7 @@ export function MealPlannerView() {
   function askAssistant(prompt: string) {
     setAssistantOpen(true)
     setTab("chat")
-    if (chat.busy) {
-      setPrefill((current) => ({ text: prompt, nonce: (current?.nonce ?? 0) + 1 }))
-      return
-    }
-    chat.send(prompt)
+    plannerChat.current?.ask(prompt)
   }
 
   function dismissSuggestion(proposal: Proposal) {
@@ -334,6 +331,7 @@ export function MealPlannerView() {
               )}
             >
             <PlannerChat
+              handle={plannerChat}
               chat={chat}
               onStage={stage}
               openPlan={() => setTab("calendar")}

@@ -65,19 +65,16 @@ const MAX_INSTRUCTION_LENGTH = 500;
 
 function assistantPrompt(request: GenerateRequest, instruction: string) {
   const lines = [
-    "Hãy lên đề xuất thực đơn theo yêu cầu sau, dùng generateMealPlan để điền các ô rồi chỉnh theo yêu cầu riêng nếu cần.",
-    `Ngày: ${request.days.map((day) => DAY_LABELS[day]).join(", ")}.`,
-    `Các bữa: ${request.sections.map((section) => SECTION_LABELS[section].toLowerCase()).join(", ")}.`,
-    request.onlyEmpty
-      ? "Chỉ điền các ô đang trống, giữ nguyên món đã có."
-      : "Có thể thay món ở các ô này.",
-  ];
-  if (request.maxMinutes !== undefined)
-    lines.push(`Mỗi bữa nấu tối đa ${request.maxMinutes} phút.`);
-  if (request.query) lines.push(`Ưu tiên: ${request.query}.`);
-  lines.push(`Yêu cầu riêng: ${instruction}`);
-  lines.push("Hãy cho tôi xem đề xuất trước khi lưu.");
-  return lines.join("\n");
+    `Yêu cầu của tôi: ${instruction}`,
+    "Yêu cầu trên là điều quan trọng nhất: nếu nó nhắc ngày, bữa hay món cụ thể thì làm đúng như vậy, kể cả thay món đã có ở ô đó. Phần còn lại dùng các lựa chọn mặc định dưới đây.",
+    `Ngày mặc định: ${request.days.map((day) => DAY_LABELS[day]).join(", ")}.`,
+    `Các bữa mặc định: ${request.sections.map((section) => SECTION_LABELS[section].toLowerCase()).join(", ")}.`,
+    request.onlyEmpty ? "Mặc định chỉ điền các ô đang trống, giữ nguyên món đã có." : "Mặc định có thể thay món ở các ô này.",
+  ]
+  if (request.maxMinutes !== undefined) lines.push(`Mỗi bữa nấu tối đa ${request.maxMinutes} phút.`)
+  if (request.query) lines.push(`Ưu tiên: ${request.query}.`)
+  lines.push("Hãy cho tôi xem đề xuất trước khi lưu.")
+  return lines.join("\n")
 }
 
 /**

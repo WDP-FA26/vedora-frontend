@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react"
+import { useEffect, useImperativeHandle, useRef, useState, type FormEvent, type ReactNode, type Ref } from "react"
 import Link from "next/link"
 import { Streamdown } from "streamdown"
 import {
@@ -49,6 +49,9 @@ const SUGGESTIONS = [
   "Hỏi về nguyên liệu và dinh dưỡng",
 ] as const
 
+/** Lets the page send a written request as if the user had typed it, keeping retry working. */
+export type PlannerChatHandle = { ask: (text: string) => void }
+
 export type MealAskContext = { title: string; day: Weekday; section: MealSection }
 
 function looksLikePlanRequest(text: string) {
@@ -85,7 +88,9 @@ export function PlannerChat({
   onFormSent,
   leading,
   trailing,
+  handle,
 }: {
+  handle?: Ref<PlannerChatHandle>
   /** Shown before the logo, e.g. a back button. */
   leading?: ReactNode
   /** Shown at the end of the header, e.g. a collapse button. */
@@ -158,6 +163,16 @@ export function PlannerChat({
     send(payload)
     if (fromForm.current) onFormSent?.()
   }
+
+  useImperativeHandle(handle, () => ({
+    ask: (text: string) => {
+      if (busy) {
+        setInput(text)
+        return
+      }
+      sendQuestion(text, text)
+    },
+  }))
 
   function submit(event?: FormEvent<HTMLFormElement>) {
     event?.preventDefault()
