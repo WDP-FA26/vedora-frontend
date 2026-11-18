@@ -111,3 +111,14 @@ export async function deletePost(token: string, id: string) {
 export async function deleteComment(token: string, postId: string, commentId: string) {
   await send(`${postKey(postId)}/comments/${commentId}`, token, { method: "DELETE" })
 }
+
+export function fetchComment([url, token]: readonly [string, string | undefined]) {
+  return sendJson(apiCommentSchema, url, token)
+}
+
+export function createReply(token: string, postId: string, targetId: string, body: string) {
+  return sendJson(apiCommentSchema, `${postKey(postId)}/comments/${targetId}/replies`, token, {
+    method: "POST",
+    body: JSON.stringify({ body }),
+  })
+}
