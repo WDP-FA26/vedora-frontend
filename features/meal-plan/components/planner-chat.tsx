@@ -27,6 +27,7 @@ import {
   messageProposals,
   messageCannotPropose,
   messageText,
+  proposalIds,
   type MealPlannerChat,
   type Proposal,
   type ProposalStatus,
@@ -54,10 +55,6 @@ export type PlannerChatHandle = { ask: (text: string) => void }
 
 export type MealAskContext = { title: string; day: Weekday; section: MealSection }
 
-function looksLikePlanRequest(text: string) {
-  return /^(?:(?:hãy|giúp\s+(?:tôi|mình)|(?:tôi|mình)\s+muốn)\s+)?(?:lên|lập|tạo|xây|gợi\s+ý)\s+(?:một\s+)?thực\s+đơn\b|^cho\s+(?:tôi|mình)\s+(?:một\s+)?thực\s+đơn\b/iu.test(text)
-}
-
 function AssistantMessage({ children }: { children: ReactNode }) {
   return (
     <Message>
@@ -84,7 +81,6 @@ export function PlannerChat({
   askContext,
   prefill,
   clearAskContext,
-  onOpenPlanner,
   onFormSent,
   leading,
   trailing,
@@ -105,7 +101,7 @@ export function PlannerChat({
   askContext?: MealAskContext | null
   prefill?: { text: string; nonce: number; fromForm?: boolean } | null
   clearAskContext?: () => void
-  onOpenPlanner: (seed?: string) => void
+  onOpenPlanner?: (seed?: string) => void
   onFormSent?: () => void
 }) {
   const { messages, busy, waiting, pendingId, streamingId, error, send, reset } = chat
@@ -151,7 +147,7 @@ export function PlannerChat({
       requestAnimationFrame(() => textarea.current?.focus())
       return
     }
-    onOpenPlanner(SUGGESTIONS[index])
+    sendQuestion(SUGGESTIONS[index], SUGGESTIONS[index])
   }
 
   function sendQuestion(payload: string, original: string) {
@@ -183,12 +179,6 @@ export function PlannerChat({
     }
     if (text.length > MAX_PLANNER_MESSAGE_LENGTH) {
       setInputError(`Tin nhắn tối đa ${MAX_PLANNER_MESSAGE_LENGTH} ký tự`)
-      return
-    }
-    if (looksLikePlanRequest(text) && !fromForm.current) {
-      onOpenPlanner(text)
-      setInput("")
-      setInputError("")
       return
     }
     const context = askContext
@@ -252,7 +242,7 @@ export function PlannerChat({
               <AgentTrace message={message} pending={pending} />
               {text && <Bubble variant="ghost"><BubbleContent><Streamdown caret="block" isAnimating={message.id === streamingId} controls={false} disallowedElements={UNSAFE_ELEMENTS} unwrapDisallowed>{text}</Streamdown></BubbleContent></Bubble>}
               {proposals.map((proposal) => (
-                <ProposalCard key={proposal.id} proposal={proposal} status={chat.statuses[proposal.id]} superseded={proposal.id !== chat.pendingProposal?.id} onStage={onStage} onDismiss={() => chat.setProposalStatus(proposal.id, "dismissed")} openPlan={openPlan} />
+                <ProposalCard key={proposal.id} proposal={proposal} status={chat.statuses[proposal.id]} superseded={proposal.id !== chat.pendingProposal?.id} onStage={onStage} onDismiss={() => chat.setProposalsStatus(proposalIds(proposal), "dismissed")} openPlan={openPlan} />
               ))}
               {!pending && message.id !== streamingId && <AgentSources message={message} />}
               {cannotPropose && !text && <p role="status" className="mt-2 rounded-xl border border-border bg-card px-3 py-2 text-sm">Chưa tìm được đủ món phù hợp với yêu cầu này. Bạn có thể chỉnh yêu cầu và thử lại.</p>}

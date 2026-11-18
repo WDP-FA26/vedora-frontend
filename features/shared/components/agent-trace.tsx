@@ -67,6 +67,20 @@ function quoted(query: string | undefined) {
   return query ? ` “${query}”` : ""
 }
 
+function editDraftTitle(isEdit: boolean, failed: boolean, rejected: boolean, done: boolean): string {
+  if (failed) return isEdit ? "Không chỉnh được bản nháp thực đơn" : "Không kiểm tra được thực đơn"
+  if (rejected) return isEdit ? "Chỉnh sửa chưa đạt, đổi món khác" : "Đề xuất chưa đạt, chọn lại món"
+  if (done) return isEdit ? "Đã cập nhật bản nháp thực đơn" : "Đã kiểm tra thực đơn đề xuất"
+  return isEdit ? "Đang cập nhật bản nháp thực đơn…" : "Đang kiểm tra thực đơn đề xuất"
+}
+
+function fillSlotsTitle(failed: boolean, rejected: boolean, done: boolean): string {
+  if (failed) return "Không lên được thực đơn tự động"
+  if (rejected) return "Đề xuất chưa đạt, chọn lại món"
+  if (done) return "Đã chọn món vào bản nháp"
+  return "Đang chọn món cho thực đơn…"
+}
+
 function toolStep(part: ToolUIPart | DynamicToolUIPart): Step {
   const name = getToolName(part)
   const query = queryInputSchema.safeParse(part.input).data?.query?.trim()
@@ -121,20 +135,14 @@ function toolStep(part: ToolUIPart | DynamicToolUIPart): Step {
     }
   }
 
-  if (name === "proposeMealPlan") {
+  if (name === "proposeMealPlan" || name === "editDraft") {
     const check = done ? proposalCheckSchema.safeParse(part.output).data : undefined
-    const rejected = check !== undefined && !check.ok
+    const rejected = check !== undefined && !check.ok && check.problems.length > 0
     return {
       key,
       status: rejected ? "error" : status,
       icon: <CalendarCheckIcon />,
-      title: failed
-        ? "Không kiểm tra được thực đơn"
-        : rejected
-          ? "Đề xuất chưa đạt, chọn lại món"
-          : done
-            ? "Đã kiểm tra thực đơn đề xuất"
-            : "Đang kiểm tra thực đơn đề xuất",
+      title: editDraftTitle(name === "editDraft", failed, rejected, done),
       detail: rejected ? (
         <ul className="flex list-disc flex-col gap-1 pl-4">
           {check.problems.map((problem, index) => (
@@ -142,6 +150,50 @@ function toolStep(part: ToolUIPart | DynamicToolUIPart): Step {
           ))}
         </ul>
       ) : undefined,
+    }
+  }
+
+  if (name === "fillSlots" || name === "generateMealPlan") {
+    const check = done ? proposalCheckSchema.safeParse(part.output).data : undefined
+    const rejected = check !== undefined && !check.ok && check.problems.length > 0
+    return {
+      key,
+      status: rejected ? "error" : status,
+      icon: <CalendarCheckIcon />,
+      title: fillSlotsTitle(failed, rejected, done),
+      detail: rejected ? (
+        <ul className="flex list-disc flex-col gap-1 pl-4">
+          {check.problems.map((problem, index) => (
+            <li key={index}>{problemText(problem)}</li>
+          ))}
+        </ul>
+      ) : undefined,
+    }
+  }
+
+  if (name === "getPlan") {
+    return {
+      key,
+      status,
+      icon: <CalendarCheckIcon />,
+      title: failed
+        ? "Không xem được thực đơn hiện tại"
+        : done
+          ? "Đã xem thực đơn hiện tại"
+          : "Đang xem thực đơn hiện tại…",
+    }
+  }
+
+  if (name === "getRecipe") {
+    return {
+      key,
+      status,
+      icon: <BookOpenIcon />,
+      title: failed
+        ? "Không xem được công thức"
+        : done
+          ? "Đã xem chi tiết công thức"
+          : "Đang xem chi tiết công thức…",
     }
   }
 

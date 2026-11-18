@@ -29,6 +29,7 @@ import {
   planAfterChanges,
   problemSchema,
   problemText,
+  recipesAt,
   saveMealDays,
   SECTION_LABELS,
   type GenerateRequest,
@@ -92,6 +93,17 @@ function calendarErrorMessage(error: unknown) {
   }
   if (error.status === 409) return "Thực đơn đã thay đổi ở nơi khác. Hãy tải lại trang rồi thử lại."
   return "Không lưu được thay đổi. Hãy thử lại."
+}
+
+/** True when `onlyEmpty` was requested and every target slot already has at least one dish. */
+function allRequestedSlotsFilled(plan: MealPlan | undefined, request: GenerateRequest): boolean {
+  if (!request.onlyEmpty || !plan) return false
+  for (const day of request.days) {
+    for (const section of request.sections) {
+      if (recipesAt(plan, { day, section }).length === 0) return false
+    }
+  }
+  return true
 }
 
 /** The saved recurring week and the assistant share one frontend draft. */
@@ -166,7 +178,11 @@ export function MealPlannerView() {
     if (!accessToken) return "Phiên đăng nhập đã hết hạn. Hãy tải lại trang."
     try {
       const result = await generateMealDays(accessToken, request)
-      if (result.days.length === 0) return "Không tìm thấy món phù hợp với lựa chọn này."
+      if (result.days.length === 0) {
+        return allRequestedSlotsFilled(plan.data, request)
+          ? "Các bữa đã chọn đều đã có món. Chọn “Cả tuần” hoặc “Hôm nay” nếu bạn muốn đổi món mới."
+          : "Không tìm thấy món phù hợp với lựa chọn này."
+      }
       if (!result.ok) return "Các món tìm được xung đột với hồ sơ ăn uống. Hãy thử lại."
       setGenerated({ id: `generated-${crypto.randomUUID()}`, ok: true, days: result.days })
       setTab("calendar")
