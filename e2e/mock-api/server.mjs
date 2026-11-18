@@ -132,6 +132,7 @@ async function handle(req, res, url, body) {
 
   // --- posts --------------------------------------------------------------
   if (path === "/posts/views" && method === "POST") return send(res, 204)
+  if (path === "/posts/drafts" && method === "GET") return send(res, 200, { items: [] })
   if (path === "/posts/feed") return send(res, 200, pageOf(posts.filter((p) => p.type === "POST")))
   if (path === "/posts/following") return send(res, 200, pageOf([posts[0]]))
   if (path === "/posts/bookmarks") return send(res, 200, pageOf([]))
