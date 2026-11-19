@@ -156,9 +156,12 @@ function SettingsView({ settings }: { settings: ModerationSettings }) {
 
       <AdvancedSettings
         instructions={draft.instructions}
+        manipulationThreshold={draft.manipulationThreshold}
+        manipulationEnforced={settings.manipulationEnforced}
         canReset={!settings.isDefault || dirty}
         busy={saving}
         onChange={(instructions) => change({ instructions })}
+        onManipulationChange={(manipulationThreshold) => change({ manipulationThreshold })}
         onReset={() => void reset()}
       />
 

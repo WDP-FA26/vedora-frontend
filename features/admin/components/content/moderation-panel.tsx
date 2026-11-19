@@ -8,6 +8,7 @@ import { Spinner } from "@/components/ui/spinner"
 import { Textarea } from "@/components/ui/textarea"
 import { useModerateAdminPost } from "@/features/admin/hooks/use-admin-posts"
 import { useCategoryLabel } from "@/features/admin/hooks/use-category-label"
+import { ModerationEvidence } from "@/features/admin/components/content/moderation-evidence"
 import type { AdminPostDetail } from "@/features/admin/schemas"
 import { formatPostDateLong } from "@/features/shared/lib/format"
 
@@ -21,6 +22,7 @@ export const CATEGORY_LABELS: Record<string, string> = {
   illegal: "Bất hợp pháp",
   spam: "Spam",
   provider_blocked: "Model từ chối đọc nội dung (nghi vi phạm nặng)",
+  manipulation: "Chèo lái AI",
 }
 
 function percent(score: number) {
@@ -46,7 +48,9 @@ export function ModerationPanel({ post }: { post: AdminPostDetail }) {
     )
   }
 
-  const decidable = post.status === "PENDING_REVIEW" || post.status === "REJECTED"
+  // A post the reviewer model published can still be taken down (REJECT only).
+  const publishedByReviewer = post.status === "PUBLISHED" && moderation.route?.appliedBy === "SYSTEM_TWO"
+  const decidable = post.status === "PENDING_REVIEW" || post.status === "REJECTED" || publishedByReviewer
   const scores = Object.entries(moderation.scores ?? {})
     .sort(([, left], [, right]) => right - left)
 
@@ -104,6 +108,8 @@ export function ModerationPanel({ post }: { post: AdminPostDetail }) {
         </p>
       )}
 
+      <ModerationEvidence post={post} />
+
       {moderation.reviewedAt && (
         <p className="text-muted-foreground">
           Đã được quản trị viên xem xét lúc {formatPostDateLong(moderation.reviewedAt)}
@@ -134,7 +140,7 @@ export function ModerationPanel({ post }: { post: AdminPostDetail }) {
               {pending === "REJECT" ? <Spinner aria-hidden /> : <XIcon aria-hidden />}
               Từ chối
             </Button>
-            <Button disabled={pending !== null} onClick={() => void decide("APPROVE")}>
+            <Button disabled={pending !== null || publishedByReviewer} onClick={() => void decide("APPROVE")}>
               {pending === "APPROVE" ? <Spinner aria-hidden /> : <CheckIcon aria-hidden />}
               Cho phép đăng
             </Button>

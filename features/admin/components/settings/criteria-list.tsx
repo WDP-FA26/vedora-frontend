@@ -3,7 +3,7 @@
 import { PencilIcon, PlusIcon, Trash2Icon } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
-import { MAX_CHOICES } from "@/features/admin/components/settings/policy-validation"
+import { MANIPULATION_KEY, MAX_CHOICES } from "@/features/admin/components/settings/policy-validation"
 import type { ModerationChoice } from "@/features/admin/schemas"
 
 /** What the check looks for: one line per criterion, with the built-in "Không vi phạm" last. */
@@ -37,7 +37,12 @@ export function CriteriaList({
         {choices.map((choice) => (
           <li key={choice.key} className="flex items-center gap-3 py-3">
             <div className="min-w-0 flex-1">
-              <p className="font-medium">{choice.label}</p>
+              <p className="flex items-center gap-2 font-medium">
+                {choice.label}
+                {choice.key === MANIPULATION_KEY && (
+                  <span className="text-xs font-normal text-muted-foreground">Mặc định, không xoá được</span>
+                )}
+              </p>
               <p className="line-clamp-1 text-sm text-muted-foreground">{choice.description}</p>
             </div>
             <Button
@@ -48,15 +53,17 @@ export function CriteriaList({
             >
               <PencilIcon aria-hidden />
             </Button>
-            <Button
-              variant="action"
-              size="icon-sm"
-              aria-label={`Xoá tiêu chí ${choice.label}`}
-              disabled={choices.length <= 1}
-              onClick={() => onRemove(choice)}
-            >
-              <Trash2Icon aria-hidden />
-            </Button>
+            {choice.key !== MANIPULATION_KEY && (
+              <Button
+                variant="action"
+                size="icon-sm"
+                aria-label={`Xoá tiêu chí ${choice.label}`}
+                disabled={choices.length <= 1}
+                onClick={() => onRemove(choice)}
+              >
+                <Trash2Icon aria-hidden />
+              </Button>
+            )}
           </li>
         ))}
         <li className="flex items-center gap-3 py-3">

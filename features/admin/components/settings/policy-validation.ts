@@ -2,16 +2,21 @@ import type { ModerationChoice, ModerationPolicyDraft, ModerationSettings } from
 
 export const KEY_PATTERN = /^[a-z][a-z0-9_]{1,31}$/
 export const MAX_CHOICES = 16
+/** Built in on the API: always part of the policy, only its texts can change. */
+export const MANIPULATION_KEY = "manipulation"
 
 /** The editable part of saved settings, which is what the API takes back. */
 export function policyOf(settings: ModerationSettings): ModerationPolicyDraft {
-  const { instructions, allowDescription, choices, rejectThreshold, reviewThreshold } = settings
+  const { instructions, allowDescription, choices, rejectThreshold, reviewThreshold, manipulationThreshold } =
+    settings
+  // Left undefined (and so out of the saved JSON) for an API that does not know it.
   return {
     instructions,
     allowDescription,
     choices,
     rejectThreshold,
     reviewThreshold,
+    manipulationThreshold,
   }
 }
 
@@ -104,6 +109,7 @@ export function normalizeDraft(draft: ModerationPolicyDraft): ModerationPolicyDr
     })),
     rejectThreshold: draft.rejectThreshold,
     reviewThreshold: draft.reviewThreshold,
+    manipulationThreshold: draft.manipulationThreshold,
   }
 }
 
@@ -126,6 +132,10 @@ export function draftProblems(draft: ModerationPolicyDraft) {
   const { reviewThreshold, rejectThreshold } = draft
   if (!(reviewThreshold >= 0 && rejectThreshold <= 1 && reviewThreshold < rejectThreshold)) {
     problems.push("Ngưỡng chờ admin phải nhỏ hơn ngưỡng chặn (trong khoảng 0–100%).")
+  }
+  const manipulation = draft.manipulationThreshold
+  if (manipulation !== undefined && !(manipulation >= 0 && manipulation <= 1)) {
+    problems.push("Ngưỡng chặn nội dung chèo lái AI phải trong khoảng 0–100%.")
   }
   return problems
 }

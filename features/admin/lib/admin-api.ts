@@ -72,6 +72,13 @@ export function moderateAdminPost(
   })
 }
 
+/** Asks the explainer model again which parts of a flagged post break the policy. */
+export function explainAdminPost(token: string, id: string) {
+  return sendJson(adminPostDetailSchema, `${adminPostKey(id)}/moderation/evidence`, token, {
+    method: "POST",
+  })
+}
+
 export async function deleteAdminPost(token: string, id: string) {
   await send(adminPostKey(id), token, { method: "DELETE" })
 }

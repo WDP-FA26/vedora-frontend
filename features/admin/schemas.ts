@@ -35,6 +35,64 @@ const adminMediaSchema = apiMediaSchema.extend({
   captionLanguage: z.string().nullable(),
 })
 
+export const EVIDENCE_FIELDS = ["body", "title", "content", "transcript", "frame", "image"] as const
+
+const evidenceItemSchema = z.object({
+  field: z.enum(EVIDENCE_FIELDS),
+  /** Policy category the explainer picked; informational, may differ from the verdict. */
+  category: z.string(),
+  reason: z.string(),
+  /** Exact words for text fields; for frames and images, text the model read (may be off). */
+  quote: z.string().nullable(),
+  /** Offsets in the NFC-normalized field, text fields only. */
+  start: z.number().int().nullable(),
+  end: z.number().int().nullable(),
+  mediaId: z.string().nullable(),
+  seconds: z.number().nullable(),
+  imageUrl: z.string().nullable(),
+  /** Approximate region [x0, y0, x1, y1] scaled 0-1000. */
+  box: z.array(z.number()).length(4).nullable(),
+})
+
+/** Mirrors `moderation.evidence`: which parts the explainer model says break the policy. */
+const evidenceSchema = z.object({
+  status: z.enum(["READY", "FAILED", "REFUSED"]),
+  /** The reviewer model's call; absent on records from before it decided anything. */
+  decision: z
+    .enum(["accept", "reject", "escalate"])
+    .nullish()
+    .transform((decision) => decision ?? null),
+  category: z
+    .string()
+    .nullish()
+    .transform((category) => category ?? null),
+  summary: z.string().nullable(),
+  items: z.array(evidenceItemSchema),
+  dropped: z.number().int().nonnegative(),
+  model: z.string(),
+  createdAt: z.string(),
+})
+
+export const ROUTE_RULES = [
+  "PROVIDER_BLOCKED",
+  "MANIPULATION",
+  "REVIEWER_UNAVAILABLE",
+  "REVIEWER_REJECT",
+  "UNVERIFIED_REJECT",
+  "REVIEWER_ESCALATE",
+  "REVIEWER_ACCEPT",
+] as const
+
+/** Mirrors `moderation.route`: where the router sent a flagged post, and who applied it. */
+const routeSchema = z.object({
+  outcome: z.enum(["PUBLISH", "REJECT", "ADMIN"]),
+  rule: z.enum(ROUTE_RULES),
+  category: z.string().nullable(),
+  /** Null when it was only recorded (shadow mode, or a rerun on a decided post). */
+  appliedBy: z.enum(["SYSTEM_ONE", "SYSTEM_TWO"]).nullable(),
+  decidedAt: z.string(),
+})
+
 const adminPostSchema = z.object({
   id: z.string(),
   type: z.enum(["POST", "BLOG"]),
@@ -53,6 +111,13 @@ const adminPostSchema = z.object({
       reviewedById: z.string().nullable(),
       reviewedAt: z.string().nullable(),
       reviewNote: z.string().nullable(),
+      /** Null until the explainer ran; absent from APIs that predate it. */
+      evidence: evidenceSchema.nullish().transform((evidence) => evidence ?? null),
+      route: routeSchema.nullish().transform((route) => route ?? null),
+      heldAt: z
+        .string()
+        .nullish()
+        .transform((heldAt) => heldAt ?? null),
     })
     .nullable(),
   publishedAt: z.string().nullable(),
@@ -112,6 +177,9 @@ export type CaptionStatus = (typeof CAPTION_STATUSES)[number]
 export type AdminPost = z.infer<typeof adminPostSchema>
 export type AdminPostDetail = z.infer<typeof adminPostDetailSchema>
 export type AdminMediaDetail = AdminPostDetail["media"][number]
+export type ModerationEvidence = z.infer<typeof evidenceSchema>
+export type EvidenceItem = ModerationEvidence["items"][number]
+export type ModerationRoute = z.infer<typeof routeSchema>
 
 const moderationChoiceSchema = z.object({
   key: z.string(),
@@ -127,6 +195,10 @@ export const moderationSettingsSchema = z.object({
   choices: z.array(moderationChoiceSchema),
   rejectThreshold: z.number(),
   reviewThreshold: z.number(),
+  /** A `manipulation` chance at or above this is rejected outright; absent from APIs that predate it. */
+  manipulationThreshold: z.number().min(0).max(1).optional(),
+  /** True when the API enforces that rule (MODERATION_MODE=enforce); otherwise it is only recorded. */
+  manipulationEnforced: z.boolean().default(false),
   /** 0 while the built-in defaults are in force. */
   version: z.number().int().nonnegative(),
   updatedAt: z.string().nullable(),
@@ -146,6 +218,6 @@ export type ModerationSettings = z.infer<typeof moderationSettingsSchema>
 /** The part of the settings an admin edits and the test endpoint accepts. */
 export type ModerationPolicyDraft = Pick<
   ModerationSettings,
-  "instructions" | "allowDescription" | "choices" | "rejectThreshold" | "reviewThreshold"
+  "instructions" | "allowDescription" | "choices" | "rejectThreshold" | "reviewThreshold" | "manipulationThreshold"
 >
 export type ModerationTestResult = z.infer<typeof moderationTestResultSchema>

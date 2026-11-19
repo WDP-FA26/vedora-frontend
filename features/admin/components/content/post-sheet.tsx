@@ -27,6 +27,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { Spinner } from "@/components/ui/spinner"
 import { PostStatusBadge } from "@/features/admin/components/content/post-columns"
 import { ModerationPanel } from "@/features/admin/components/content/moderation-panel"
+import { HighlightedText } from "@/features/admin/components/content/highlighted-text"
 import { Transcript } from "@/features/admin/components/content/transcript"
 import { useAdminPost, useDeleteAdminPost } from "@/features/admin/hooks/use-admin-posts"
 import type { AdminMediaDetail, AdminPostDetail } from "@/features/admin/schemas"
@@ -146,7 +147,11 @@ function PostBody({ post, onDeleted }: { post: AdminPostDetail; onDeleted: () =>
         <ModerationPanel post={post} />
 
         {post.body ? (
-          <p className="text-base leading-7 break-words whitespace-pre-line">{post.body}</p>
+          <HighlightedText
+            text={post.body}
+            items={post.moderation?.evidence?.items ?? []}
+            className="text-base leading-7 break-words whitespace-pre-line"
+          />
         ) : (
           media.length === 0 && <p className="text-muted-foreground">Bài đăng trống.</p>
         )}

@@ -9,6 +9,7 @@ import {
 } from "@/features/admin/admin-cache"
 import {
   deleteAdminPost,
+  explainAdminPost,
   fetchAdminPost,
   fetchAllPosts,
   fetchTranscript,
@@ -60,6 +61,23 @@ export function useDeleteAdminPost() {
       { revalidate: false }
     )
     void mutate((key) => Array.isArray(key) && String(key[0]).startsWith(POSTS_KEY))
+  }
+}
+
+/** Runs the explainer on a flagged post again, then updates the admin list and detail. */
+export function useExplainAdminPost() {
+  const { accessToken } = useAuth()
+  const { mutate } = useSWRConfig()
+
+  return async (id: string) => {
+    if (!accessToken) throw new Error("Not signed in")
+    const updated = await explainAdminPost(accessToken, id)
+    await mutate<AdminPost[]>(
+      [ADMIN_POSTS_KEY, accessToken],
+      (posts) => posts?.map((post) => (post.id === id ? updated : post)),
+      { revalidate: false }
+    )
+    await mutate([adminPostKey(id), accessToken], updated, { revalidate: false })
   }
 }
 
