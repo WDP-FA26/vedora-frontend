@@ -4,6 +4,7 @@ import {
   ChartColumnIcon,
   FileTextIcon,
   LibraryIcon,
+  LifeBuoyIcon,
   SettingsIcon,
   ShieldAlertIcon,
   UsersIcon,
@@ -40,6 +41,7 @@ export const adminNavSections: AdminNavSection[] = [
     items: [
       { href: "/admin/content", label: "Bài đăng", icon: FileTextIcon },
       { href: "/admin/reports", label: "Kiểm duyệt", icon: ShieldAlertIcon },
+      { href: "/admin/support", label: "Hỗ trợ & Kháng cáo", icon: LifeBuoyIcon },
       { href: "/admin/recipes", label: "Công thức", icon: BookOpenIcon },
       {
         href: "/admin/knowledge",

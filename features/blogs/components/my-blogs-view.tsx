@@ -22,6 +22,7 @@ const STATUS_BADGES: Record<ApiPost["status"], { label: string; variant: "defaul
   PUBLISHED: { label: "Đã đăng", variant: "default" },
   FAILED: { label: "Lỗi", variant: "destructive" },
   REJECTED: { label: "Bị từ chối", variant: "destructive" },
+  REMOVED: { label: "Đã bị gỡ", variant: "destructive" },
 }
 
 export function MyBlogsView() {
@@ -69,6 +70,7 @@ export function MyBlogsList() {
 interface MyBlogItem {
   id: string
   status: ApiPost["status"]
+  appeal?: ApiPost["appeal"]
   blog: { title: string; excerpt: string }
   createdAt: string
 }
@@ -76,12 +78,14 @@ interface MyBlogItem {
 function MyBlogRow({ item }: { item: MyBlogItem }) {
   const [deleting, setDeleting] = useState(false)
   const badge = STATUS_BADGES[item.status]
+  const hasActiveAppeal = Boolean(item.appeal?.activeTicket)
   return (
     <li className="flex items-start hover:bg-muted/40">
       <Link href={editBlogPath(item.id)} className="flex min-w-0 flex-1 flex-col gap-1 px-4 py-3">
-        <span className="flex items-center gap-2">
+        <span className="flex flex-wrap items-center gap-2">
           <span className="truncate font-medium">{item.blog.title}</span>
           <Badge variant={badge.variant}>{badge.label}</Badge>
+          {hasActiveAppeal && <Badge variant="outline">Đang kháng cáo</Badge>}
         </span>
         {item.blog.excerpt && (
           <span className="line-clamp-2 text-sm text-muted-foreground">{item.blog.excerpt}</span>
@@ -93,6 +97,7 @@ function MyBlogRow({ item }: { item: MyBlogItem }) {
         variant="ghost"
         size="icon-sm"
         className="mr-3 mt-3"
+        disabled={hasActiveAppeal || item.status === "REMOVED"}
         aria-label={`Xoá blog ${item.blog.title}`}
         onClick={() => setDeleting(true)}
       >

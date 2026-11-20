@@ -22,7 +22,13 @@ export function MainColumns({ children, rail }: { children: ReactNode; rail: Rea
       >
         {children}
       </main>
-      {!wide && rail}
+      {/*
+        Hidden, not unmounted, on wide pages. Remounting the rail on every visit
+        to them leaked the old one: Chromium keeps an unmounted <img srcset> (the
+        rail's sticker) alive through its media-query listener, and the rail's
+        whole DOM with it.
+      */}
+      <div className={wide ? "hidden" : "contents"}>{rail}</div>
     </>
   )
 }

@@ -2,7 +2,7 @@
 
 import { useRef, useState } from "react"
 import Link from "next/link"
-import { BookOpenIcon, ExternalLinkIcon, Trash2Icon } from "lucide-react"
+import { BookOpenIcon, ExternalLinkIcon, RotateCcwIcon, Trash2Icon } from "lucide-react"
 
 import {
   AlertDialog,
@@ -25,11 +25,16 @@ import {
 } from "@/components/ui/sheet"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Spinner } from "@/components/ui/spinner"
+import { Textarea } from "@/components/ui/textarea"
 import { PostStatusBadge } from "@/features/admin/components/content/post-columns"
 import { ModerationPanel } from "@/features/admin/components/content/moderation-panel"
 import { HighlightedText } from "@/features/admin/components/content/highlighted-text"
 import { Transcript } from "@/features/admin/components/content/transcript"
-import { useAdminPost, useDeleteAdminPost } from "@/features/admin/hooks/use-admin-posts"
+import {
+  useAdminPost,
+  useDeleteAdminPost,
+  useRestoreAdminPost,
+} from "@/features/admin/hooks/use-admin-posts"
 import type { AdminMediaDetail, AdminPostDetail } from "@/features/admin/schemas"
 import { toAuthor } from "@/features/auth/lib/to-author"
 import { VideoPlayer } from "@/features/posts/components/video-player"
@@ -61,7 +66,7 @@ export function PostSheet({
     <Sheet open={postId !== null} onOpenChange={(open) => !open && onClose()}>
       <SheetContent className="data-[side=right]:w-full data-[side=right]:sm:max-w-xl">
         {post ? (
-          <PostBody key={post.id} post={post} onDeleted={onClose} />
+          <PostBody key={post.id} post={post} />
         ) : (
           <>
             <SheetHeader>
@@ -88,23 +93,42 @@ export function PostSheet({
   )
 }
 
-function PostBody({ post, onDeleted }: { post: AdminPostDetail; onDeleted: () => void }) {
+function PostBody({ post }: { post: AdminPostDetail }) {
   const deletePost = useDeleteAdminPost()
-  const [confirming, setConfirming] = useState(false)
-  const [deleting, setDeleting] = useState(false)
-  const [deleteFailed, setDeleteFailed] = useState(false)
+  const restorePost = useRestoreAdminPost()
+  const [confirmingRemove, setConfirmingRemove] = useState(false)
+  const [confirmingRestore, setConfirmingRestore] = useState(false)
+  const [removeReason, setRemoveReason] = useState("")
+  const [restoreNote, setRestoreNote] = useState("")
+  const [working, setWorking] = useState<"remove" | "restore" | null>(null)
+  const [actionError, setActionError] = useState<string | null>(null)
   const { author, media } = post
 
   async function remove() {
-    setConfirming(false)
-    setDeleteFailed(false)
-    setDeleting(true)
+    setConfirmingRemove(false)
+    setActionError(null)
+    setWorking("remove")
     try {
-      await deletePost(post.id)
-      onDeleted()
+      await deletePost(post.id, removeReason)
+      setRemoveReason("")
     } catch {
-      setDeleteFailed(true)
-      setDeleting(false)
+      setActionError("Không gỡ được bài đăng. Thử lại nhé.")
+    } finally {
+      setWorking(null)
+    }
+  }
+
+  async function restore() {
+    setConfirmingRestore(false)
+    setActionError(null)
+    setWorking("restore")
+    try {
+      await restorePost(post.id, restoreNote)
+      setRestoreNote("")
+    } catch {
+      setActionError("Không khôi phục được bài đăng. Thử lại nhé.")
+    } finally {
+      setWorking(null)
     }
   }
 
@@ -144,6 +168,8 @@ function PostBody({ post, onDeleted }: { post: AdminPostDetail; onDeleted: () =>
           </div>
         )}
 
+        {post.removal && <PostRemovalNotice post={post} />}
+
         <ModerationPanel post={post} />
 
         {post.body ? (
@@ -180,9 +206,9 @@ function PostBody({ post, onDeleted }: { post: AdminPostDetail; onDeleted: () =>
       </div>
 
       <SheetFooter>
-        {deleteFailed && (
+        {actionError && (
           <p role="alert" className="text-sm text-destructive">
-            Không xoá được bài đăng. Thử lại nhé.
+            {actionError}
           </p>
         )}
         <div className="flex flex-wrap justify-end gap-2">
@@ -203,31 +229,100 @@ function PostBody({ post, onDeleted }: { post: AdminPostDetail; onDeleted: () =>
               Mở trang bài viết
             </Link>
           )}
-          <Button variant="destructive" disabled={deleting} onClick={() => setConfirming(true)}>
-            {deleting ? <Spinner aria-hidden /> : <Trash2Icon aria-hidden />}
-            Xoá bài đăng
-          </Button>
+          {post.status === "REMOVED" ? (
+            <Button
+              variant="default"
+              disabled={working !== null}
+              onClick={() => setConfirmingRestore(true)}
+            >
+              {working === "restore" ? <Spinner aria-hidden /> : <RotateCcwIcon aria-hidden />}
+              Khôi phục bài đăng
+            </Button>
+          ) : (
+            <Button
+              variant="destructive"
+              disabled={working !== null}
+              onClick={() => setConfirmingRemove(true)}
+            >
+              {working === "remove" ? <Spinner aria-hidden /> : <Trash2Icon aria-hidden />}
+              Gỡ bài đăng
+            </Button>
+          )}
         </div>
       </SheetFooter>
 
-      <AlertDialog open={confirming} onOpenChange={setConfirming}>
+      <AlertDialog open={confirmingRemove} onOpenChange={setConfirmingRemove}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Xoá bài đăng này?</AlertDialogTitle>
+            <AlertDialogTitle>Gỡ bài đăng này?</AlertDialogTitle>
             <AlertDialogDescription>
-              Bài đăng của {author.fullName} cùng video, bình luận và lượt thích sẽ bị
-              xoá vĩnh viễn. Không hoàn tác được.
+              Bài đăng của {author.fullName} sẽ chuyển sang trạng thái Đã gỡ (soft-delete), ẩn khỏi
+              nền tảng nhưng vẫn giữ dữ liệu để bạn có thể khôi phục và tác giả có thể kháng cáo
+              trong 14 ngày.
             </AlertDialogDescription>
           </AlertDialogHeader>
+          <Textarea
+            value={removeReason}
+            maxLength={500}
+            rows={3}
+            onChange={(event) => setRemoveReason(event.target.value)}
+            placeholder="Lý do gỡ bài (không bắt buộc — gửi tới tác giả)"
+            aria-label="Lý do gỡ bài"
+          />
           <AlertDialogFooter>
             <AlertDialogCancel>Giữ lại</AlertDialogCancel>
             <AlertDialogAction variant="destructive" onClick={() => void remove()}>
-              Xoá
+              Gỡ bài
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <AlertDialog open={confirmingRestore} onOpenChange={setConfirmingRestore}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Khôi phục bài đăng này?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Bài đăng của {author.fullName} sẽ được trả về trạng thái trước khi gỡ. Nếu đang có
+              phiếu kháng cáo mở, phiếu đó sẽ tự động được chấp nhận.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <Textarea
+            value={restoreNote}
+            maxLength={500}
+            rows={3}
+            onChange={(event) => setRestoreNote(event.target.value)}
+            placeholder="Ghi chú gửi tới tác giả (không bắt buộc)"
+            aria-label="Ghi chú khôi phục"
+          />
+          <AlertDialogFooter>
+            <AlertDialogCancel>Huỷ</AlertDialogCancel>
+            <AlertDialogAction onClick={() => void restore()}>Khôi phục</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
+  )
+}
+
+export function PostRemovalNotice({ post }: { post: AdminPostDetail }) {
+  const { removal } = post
+  if (!removal) return null
+  const actor = removal.removedByRole === "ADMIN" ? "Quản trị viên gỡ" : "Tác giả tự xoá"
+  return (
+    <div className="flex flex-col gap-1 rounded-xl border border-destructive/30 bg-destructive/5 px-3.5 py-2.5 text-sm">
+      <p className="font-medium text-destructive">
+        {actor} {formatPostDateLong(removal.removedAt)}
+      </p>
+      {removal.reason && (
+        <p className="text-foreground">Lý do: {removal.reason}</p>
+      )}
+      {removal.restoredAt && (
+        <p className="text-xs text-muted-foreground">
+          Đã khôi phục {formatPostDateLong(removal.restoredAt)}.
+        </p>
+      )}
+    </div>
   )
 }
 

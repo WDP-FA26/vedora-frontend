@@ -108,6 +108,19 @@ function captionProps(captions: CaptionTrack[]): Pick<CldVideoPlayerProps, "text
   }
 }
 
+/**
+ * Player options next-cloudinary forwards untouched but doesn't type.
+ * - `cloudinaryAnalytics` adds a window "beforeunload" listener for every source
+ *   and never removes it on dispose, so each disposed player kept its whole DOM
+ *   alive (~300 nodes per video per visit).
+ * - `fontFace` defaults to "Inter", loaded by injecting a Google Fonts `<link>`
+ *   per player (blocked by our CSP, and never removed). "inherit" uses the app font.
+ */
+const PLAYER_OVERRIDES: { cloudinaryAnalytics: boolean; fontFace: string } = {
+  cloudinaryAnalytics: false,
+  fontFace: "inherit",
+}
+
 type CloudinaryPlayer = NonNullable<NonNullable<CldVideoPlayerProps["playerRef"]>["current"]>
 
 /**
@@ -129,5 +142,5 @@ function DisposingCldVideoPlayer(props: CldVideoPlayerProps) {
     }
   }, [])
 
-  return <CldVideoPlayer {...props} playerRef={playerRef} />
+  return <CldVideoPlayer {...props} {...PLAYER_OVERRIDES} playerRef={playerRef} />
 }

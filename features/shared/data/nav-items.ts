@@ -7,6 +7,7 @@ import {
   MessageCircleIcon,
   BotMessageSquareIcon,
   CompassIcon,
+  LifeBuoyIcon,
   UserIcon,
   CreditCardIcon,
   ShieldCheckIcon,
@@ -31,6 +32,7 @@ export const navItems: NavItem[] = [
   { href: MEAL_PLANNER_PATH, label: "Trợ lý Vedora", icon: BotMessageSquareIcon },
   { href: "/home/bookmarks", label: "Đã lưu", icon: BookmarkIcon },
   { href: "/home/drafts", label: "Bản nháp", icon: FilePenLineIcon, desktopOnly: true },
+  { href: "/home/support", label: "Hỗ trợ", icon: LifeBuoyIcon, desktopOnly: true },
   { href: "/home/profile", label: "Hồ sơ", icon: UserIcon },
   { href: "/billing", label: "Gói của bạn", icon: CreditCardIcon, desktopOnly: true },
   {

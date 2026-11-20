@@ -104,7 +104,10 @@ function PostArticle({ post: apiPost }: { post: ApiPost }) {
           </p>
           <p className="truncate text-muted-foreground">@{author.handle}</p>
         </div>
-        <PostMenu post={post} />
+        <PostMenu
+          post={post}
+          locked={Boolean(apiPost.appeal?.activeTicket) || apiPost.status === "REMOVED"}
+        />
       </header>
 
       {post.kind === "blog" && <BlogArticle id={post.id} title={post.blog.title} />}

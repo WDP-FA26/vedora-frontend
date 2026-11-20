@@ -12,9 +12,15 @@ export const notificationSchema = z.object({
     "POST_APPROVED",
     "POST_REJECTED",
     "POST_REMOVED",
+    "POST_RESTORED",
     "REPORT_RESOLVED",
     "REPORT_DISMISSED",
     "REPORTED_POST_REMOVED",
+    "SUPPORT_TICKET_REPLIED",
+    "SUPPORT_TICKET_RESOLVED",
+    "SUPPORT_TICKET_CLOSED",
+    "SUPPORT_TICKET_EXPIRED",
+    "SUPPORT_TICKET_REMINDER",
   ]),
   /** Null for notifications from Vedora itself, such as moderation. */
   actor: z
@@ -43,6 +49,7 @@ export const notificationSchema = z.object({
    */
   note: z.string().nullable().optional(),
   commentId: z.string().nullable().optional(),
+  ticketId: z.string().nullable().optional(),
   readAt: z.string().nullable(),
   createdAt: z.string(),
 })

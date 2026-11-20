@@ -79,8 +79,24 @@ export function explainAdminPost(token: string, id: string) {
   })
 }
 
-export async function deleteAdminPost(token: string, id: string) {
-  await send(adminPostKey(id), token, { method: "DELETE" })
+export async function deleteAdminPost(token: string, id: string, reason?: string) {
+  const trimmed = reason?.trim()
+  await send(
+    adminPostKey(id),
+    token,
+    trimmed
+      ? { method: "DELETE", body: JSON.stringify({ reason: trimmed }) }
+      : { method: "DELETE" }
+  )
+}
+
+/** Restores a soft-deleted post and closes any active appeal on it. */
+export function restoreAdminPost(token: string, id: string, note?: string) {
+  const trimmed = note?.trim()
+  return sendJson(adminPostDetailSchema, `${adminPostKey(id)}/restore`, token, {
+    method: "POST",
+    body: JSON.stringify(trimmed ? { note: trimmed } : {}),
+  })
 }
 
 /** A caption track's cues, read from its public WebVTT file on Cloudinary. */

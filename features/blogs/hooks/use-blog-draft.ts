@@ -66,14 +66,18 @@ export function useBlogDraft(initial: ApiBlog | null) {
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const inflight = useRef<Promise<unknown> | null>(null)
 
+  const locked = Boolean(initial?.appeal?.activeTicket) || status === "REMOVED"
+
   /** Something changed: mark the draft unsaved and restart the autosave countdown. */
   function touch() {
+    if (locked) return
     revision.current += 1
     setDirty(true)
     setSaveState((state) => (state === "saved" || state === "error" ? "idle" : state))
     if (timer.current) clearTimeout(timer.current)
     // Saving a public blog sends it back through moderation and hides it until
     // the verdict, so its changes are only saved when the author asks for it.
+    // Never autosave while an appeal ticket is open or after admin removal.
     const autosave = statusRef.current === "DRAFT" || statusRef.current === "REJECTED"
     timer.current = titleRef.current.trim() && autosave
       ? setTimeout(() => void latestSave.current(), AUTOSAVE_DELAY_MS)
@@ -94,6 +98,11 @@ export function useBlogDraft(initial: ApiBlog | null) {
 
   /** Saves the draft; resolves to whether the API has it now. */
   async function save(extra: BlogInput = {}): Promise<boolean> {
+    if (locked) {
+      setSaveState("error")
+      setError("Blog đang khóa chỉnh sửa vì đang kháng cáo hoặc đã bị gỡ.")
+      return false
+    }
     if (timer.current) clearTimeout(timer.current)
     const trimmed = titleRef.current.trim()
     if (!trimmed) {

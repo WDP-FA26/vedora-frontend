@@ -5,12 +5,15 @@ import {
   BellIcon,
   CheckCheckIcon,
   CircleCheckIcon,
+  ClockIcon,
   FlagIcon,
   FlagOffIcon,
   HeartIcon,
   HourglassIcon,
+  LifeBuoyIcon,
   MessageCircleIcon,
   Repeat2Icon,
+  RotateCcwIcon,
   ShieldAlertIcon,
   Trash2Icon,
   UserPlusIcon,
@@ -26,6 +29,7 @@ import {
   EmptyTitle,
 } from "@/components/ui/empty"
 import { Spinner } from "@/components/ui/spinner"
+import { supportTicketPath } from "@/features/support/support-cache"
 import { toAuthor } from "@/features/auth/lib/to-author"
 import { AuthorAvatar } from "@/features/shared/components/author-avatar"
 import { RelativeTime } from "@/features/shared/components/relative-time"
@@ -45,20 +49,53 @@ const ICONS = {
   POST_APPROVED: CircleCheckIcon,
   POST_REJECTED: ShieldAlertIcon,
   POST_REMOVED: Trash2Icon,
+  POST_RESTORED: RotateCcwIcon,
   REPORT_RESOLVED: FlagIcon,
   REPORT_DISMISSED: FlagOffIcon,
   REPORTED_POST_REMOVED: FlagIcon,
+  SUPPORT_TICKET_REPLIED: LifeBuoyIcon,
+  SUPPORT_TICKET_RESOLVED: CircleCheckIcon,
+  SUPPORT_TICKET_CLOSED: ShieldAlertIcon,
+  SUPPORT_TICKET_EXPIRED: ClockIcon,
+  SUPPORT_TICKET_REMINDER: ClockIcon,
 } as const
 
-/** Only moderation results carry an admin's note; removals carry the post excerpt instead. */
+/** Only moderation and support results carry an admin's note; removals carry the post excerpt instead. */
 const ADMIN_NOTE_TYPES = new Set<ApiNotification["type"]>([
   "POST_PENDING_REVIEW",
   "POST_APPROVED",
   "POST_REJECTED",
+  "POST_RESTORED",
+  "SUPPORT_TICKET_REPLIED",
+  "SUPPORT_TICKET_RESOLVED",
+  "SUPPORT_TICKET_CLOSED",
+  "SUPPORT_TICKET_EXPIRED",
+  "SUPPORT_TICKET_REMINDER",
 ])
 
+/** Notes the scheduler writes; they are shown without the "from an admin" label. */
+const SYSTEM_NOTE_TYPES = new Set<ApiNotification["type"]>([
+  "SUPPORT_TICKET_REMINDER",
+  "SUPPORT_TICKET_EXPIRED",
+])
+
+function noteText(notification: ApiNotification, note: string): string {
+  if (SYSTEM_NOTE_TYPES.has(notification.type)) return note
+  return `Ghi chú từ quản trị viên: ${note}`
+}
+
 function hrefFor(notification: ApiNotification) {
-  const { postId, type, postType, actor } = notification
+  const { postId, ticketId, type, postType, actor } = notification
+  if (
+    ticketId &&
+    (type === "SUPPORT_TICKET_REPLIED" ||
+      type === "SUPPORT_TICKET_RESOLVED" ||
+      type === "SUPPORT_TICKET_CLOSED" ||
+      type === "SUPPORT_TICKET_EXPIRED" ||
+      type === "SUPPORT_TICKET_REMINDER")
+  ) {
+    return supportTicketPath(ticketId)
+  }
   // A blocked blog is fixed in the editor; everything else opens the post.
   if (postId && type === "POST_REJECTED" && postType === "BLOG") return editBlogPath(postId)
   if (postId && notification.commentId && (type === "COMMENT" || type === "COMMENT_REPLY")) {
@@ -108,7 +145,11 @@ export function NotificationsView() {
         <>
           <ul>
             {notifications.map((notification) => {
-              const Icon = ICONS[notification.type]
+              const Icon =
+                notification.type === "SUPPORT_TICKET_RESOLVED" &&
+                notification.reason === "APPEAL_REJECTED"
+                  ? ShieldAlertIcon
+                  : ICONS[notification.type]
               const { from, text } = describeNotification(notification)
               return (
                 <li key={notification.id} className="border-b border-border">
@@ -130,7 +171,7 @@ export function NotificationsView() {
                       </p>
                       {notification.note && ADMIN_NOTE_TYPES.has(notification.type) && (
                         <p className="mt-1 text-sm text-muted-foreground">
-                          Ghi chú từ quản trị viên: {notification.note}
+                          {noteText(notification, notification.note)}
                         </p>
                       )}
                       <RelativeTime iso={notification.createdAt} className="text-xs text-muted-foreground" />

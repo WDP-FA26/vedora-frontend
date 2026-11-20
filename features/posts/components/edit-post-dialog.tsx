@@ -59,7 +59,10 @@ function resultToast(post: ApiPost) {
 
 function failureMessage(error: unknown) {
   if (error instanceof ApiError) {
-    if (error.code === "POST_NOT_EDITABLE") return "Bài đang được xử lý, hãy thử lại sau giây lát."
+    if (error.code === "APPEAL_IN_PROGRESS") {
+      return "Bài viết đang có phiếu kháng cáo mở. Hãy rút kháng cáo trước khi sửa."
+    }
+    if (error.code === "POST_NOT_EDITABLE") return "Bài không thể chỉnh sửa ở trạng thái hiện tại."
     if (error.code === "EMPTY_POST") return "Bài viết cần có chữ hoặc video."
     if (error.code === "MEDIA_UNAVAILABLE") return "Có video không dùng được. Hãy gỡ video đó rồi thử lại."
     if (error.status === 401) return "Phiên đăng nhập đã hết hạn. Hãy thử lại."

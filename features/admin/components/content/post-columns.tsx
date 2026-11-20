@@ -23,6 +23,7 @@ const STATUS_BADGES: Record<
   FAILED: { label: "Lỗi", variant: "destructive" },
   PENDING_REVIEW: { label: "Chờ duyệt", variant: "secondary" },
   REJECTED: { label: "Bị từ chối", variant: "destructive" },
+  REMOVED: { label: "Đã gỡ", variant: "destructive" },
 }
 
 export function PostStatusBadge({ status }: { status: AdminPost["status"] }) {

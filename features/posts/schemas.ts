@@ -1,5 +1,7 @@
 import { z } from "zod"
 
+import { postAppealSummarySchema } from "@/features/support/summary-schema"
+
 // Mirrors vedora-api's `/media` and `/posts` responses and `CreatePostDto`.
 // Responses are parsed with these, so the types below are checked at runtime.
 
@@ -62,11 +64,23 @@ export const apiPostSchema = z.object({
   id: z.string(),
   type: z.enum(["POST", "BLOG"]),
   /** `DRAFT` belongs to its author and is never included in the public feed. */
-  status: z.enum(["DRAFT", "PROCESSING", "PENDING_REVIEW", "PUBLISHED", "FAILED", "REJECTED"]),
+  status: z.enum([
+    "DRAFT",
+    "PROCESSING",
+    "PENDING_REVIEW",
+    "PUBLISHED",
+    "FAILED",
+    "REJECTED",
+    "REMOVED",
+  ]),
   /** Why a `REJECTED` post was blocked by content moderation. */
   moderationVerdict: z.string().nullable().optional(),
   /** `moderationVerdict` worded for the author, from the current policy. */
   moderationReason: z.string().nullable().optional(),
+  /** Why an admin soft-deleted this post, shown only to the author. */
+  removalReason: z.string().nullable().optional(),
+  /** Appeal eligibility and active/latest ticket summary; author-only. */
+  appeal: postAppealSummarySchema.nullable().optional(),
   body: z.string().nullable(),
   publishedAt: z.string().nullable(),
   createdAt: z.string(),

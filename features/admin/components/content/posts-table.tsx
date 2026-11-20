@@ -9,6 +9,7 @@ import {
   PencilLineIcon,
   ShieldAlertIcon,
   ShieldXIcon,
+  Trash2Icon,
   TriangleAlertIcon,
   VideoIcon,
 } from "lucide-react"
@@ -66,6 +67,12 @@ const VIEWS: DataTableView[] = [
     label: "Bị từ chối",
     icon: ShieldXIcon,
     columnFilters: [{ id: "status", value: "REJECTED" }],
+  },
+  {
+    id: "removed",
+    label: "Đã gỡ",
+    icon: Trash2Icon,
+    columnFilters: [{ id: "status", value: "REMOVED" }],
   },
   {
     id: "failed",

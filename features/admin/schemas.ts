@@ -93,10 +93,36 @@ const routeSchema = z.object({
   decidedAt: z.string(),
 })
 
+const adminPostRemovalSchema = z.object({
+  removedById: z.string(),
+  removedByRole: z.enum(["ADMIN", "AUTHOR"]),
+  removedAt: z.string(),
+  previousStatus: z.enum([
+    "DRAFT",
+    "PROCESSING",
+    "PENDING_REVIEW",
+    "PUBLISHED",
+    "FAILED",
+    "REJECTED",
+    "REMOVED",
+  ]),
+  reason: z.string().nullable(),
+  restoredById: z.string().nullable(),
+  restoredAt: z.string().nullable(),
+})
+
 const adminPostSchema = z.object({
   id: z.string(),
   type: z.enum(["POST", "BLOG"]),
-  status: z.enum(["DRAFT", "PROCESSING", "PENDING_REVIEW", "PUBLISHED", "FAILED", "REJECTED"]),
+  status: z.enum([
+    "DRAFT",
+    "PROCESSING",
+    "PENDING_REVIEW",
+    "PUBLISHED",
+    "FAILED",
+    "REJECTED",
+    "REMOVED",
+  ]),
   body: z.string().nullable(),
   blog: z
     .object({ title: z.string(), coverImageUrl: z.string().nullable(), excerpt: z.string() })
@@ -120,6 +146,7 @@ const adminPostSchema = z.object({
         .transform((heldAt) => heldAt ?? null),
     })
     .nullable(),
+  removal: adminPostRemovalSchema.nullish().transform((removal) => removal ?? null),
   publishedAt: z.string().nullable(),
   createdAt: z.string(),
   author: z.object({

@@ -14,8 +14,10 @@ import {
   fetchAllPosts,
   fetchTranscript,
   moderateAdminPost,
+  restoreAdminPost,
 } from "@/features/admin/lib/admin-api"
-import type { AdminPost, AdminReport } from "@/features/admin/schemas"
+import type { AdminPost } from "@/features/admin/schemas"
+import { isAdminSupportCacheKey } from "@/features/support/lib/support-api"
 import { useAuth } from "@/features/auth/hooks/use-auth"
 import { useAuthedSWR } from "@/features/auth/hooks/use-authed-swr"
 import { POSTS_KEY } from "@/features/posts/posts-cache"
@@ -42,25 +44,41 @@ export function useTranscript(url: string | null) {
   return { cues: data ?? null, error, isLoading }
 }
 
-/** Deletes a post, drops it and its reports from the admin lists and refreshes the feeds. */
+/** Soft-deletes a post, refreshes admin lists/reports/appeals and public feeds. */
 export function useDeleteAdminPost() {
   const { accessToken } = useAuth()
   const { mutate } = useSWRConfig()
 
-  return async (id: string) => {
+  return async (id: string, reason?: string) => {
     if (!accessToken) throw new Error("Not signed in")
-    await deleteAdminPost(accessToken, id)
+    await deleteAdminPost(accessToken, id, reason)
+    await Promise.all([
+      mutate([ADMIN_POSTS_KEY, accessToken]),
+      mutate([adminPostKey(id), accessToken]),
+      mutate([ADMIN_REPORTS_KEY, accessToken]),
+    ])
+    void mutate(isAdminSupportCacheKey)
+    void mutate((key) => Array.isArray(key) && String(key[0]).startsWith(POSTS_KEY))
+  }
+}
+
+/** Restores a soft-deleted post, updates admin caches and refreshes public feeds. */
+export function useRestoreAdminPost() {
+  const { accessToken } = useAuth()
+  const { mutate } = useSWRConfig()
+
+  return async (id: string, note?: string) => {
+    if (!accessToken) throw new Error("Not signed in")
+    const updated = await restoreAdminPost(accessToken, id, note)
     await mutate<AdminPost[]>(
       [ADMIN_POSTS_KEY, accessToken],
-      (posts) => posts?.filter((post) => post.id !== id),
+      (posts) => posts?.map((post) => (post.id === id ? updated : post)),
       { revalidate: false }
     )
-    await mutate<AdminReport[]>(
-      [ADMIN_REPORTS_KEY, accessToken],
-      (reports) => reports?.filter((report) => report.postId !== id),
-      { revalidate: false }
-    )
+    await mutate([adminPostKey(id), accessToken], updated, { revalidate: false })
+    void mutate(isAdminSupportCacheKey)
     void mutate((key) => Array.isArray(key) && String(key[0]).startsWith(POSTS_KEY))
+    return updated
   }
 }
 
@@ -95,6 +113,7 @@ export function useModerateAdminPost() {
       { revalidate: false }
     )
     await mutate([adminPostKey(id), accessToken], updated, { revalidate: false })
+    void mutate(isAdminSupportCacheKey)
     void mutate((key) => Array.isArray(key) && String(key[0]).startsWith(POSTS_KEY))
   }
 }

@@ -16,6 +16,7 @@ const postStatus: Record<ApiPost["status"], MediaPost["status"]> = {
   FAILED: "failed",
   PENDING_REVIEW: "processing",
   REJECTED: "failed",
+  REMOVED: "failed",
 }
 
 const mediaStatus: Record<ApiMedia["status"], CloudinaryVideo["status"]> = {

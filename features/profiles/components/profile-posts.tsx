@@ -120,6 +120,23 @@ export function ProfilePosts({ id, count }: { id: string; count: number }) {
   )
 }
 
+function videoStatusLabel(status: ApiPost["status"]): string {
+  switch (status) {
+    case "PUBLISHED":
+      return "Đã đăng"
+    case "PROCESSING":
+      return "Đang kiểm duyệt"
+    case "PENDING_REVIEW":
+      return "Chờ duyệt"
+    case "REJECTED":
+      return "Bị từ chối"
+    case "REMOVED":
+      return "Đã bị gỡ"
+    default:
+      return "Lỗi xử lý"
+  }
+}
+
 function MyVideoCard({ post }: { post: ApiPost }) {
   const [editing, setEditing] = useState(false)
   const [deleting, setDeleting] = useState(false)
@@ -127,15 +144,16 @@ function MyVideoCard({ post }: { post: ApiPost }) {
   const title = post.body?.split("\n").find((line) => line.trim())?.trim() || "Video hướng dẫn"
   const date = post.publishedAt ?? post.createdAt
   const formattedDate = new Intl.DateTimeFormat("vi-VN", { day: "2-digit", month: "2-digit", year: "numeric" }).format(new Date(date))
-  const status = post.status === "PUBLISHED" ? "Đã đăng" : post.status === "PROCESSING" ? "Đang kiểm duyệt" : post.status === "PENDING_REVIEW" ? "Chờ duyệt" : post.status === "REJECTED" ? "Bị từ chối" : "Lỗi xử lý"
+  const status = videoStatusLabel(post.status)
+  const locked = Boolean(post.appeal?.activeTicket) || post.status === "REMOVED"
 
   return <article className="min-w-0 overflow-hidden rounded-2xl border border-border bg-card shadow-sm">
     <div className="aspect-video overflow-hidden bg-secondary [container-type:size]">
       {video?.status === "READY" ? <VideoPlayer publicId={video.publicId} aspectRatio={video.aspectRatio} captions={video.captions} label={title} className="flex h-full items-center" maxHeight="100cqh" /> : <div className="flex h-full items-center justify-center text-primary"><ClapperboardIcon aria-hidden className="size-9" /></div>}
     </div>
     <div className="space-y-3 p-4">
-      <div className="flex items-start justify-between gap-2"><div className="min-w-0"><h3 className="line-clamp-2 text-sm font-bold leading-5">{title}</h3><p className="mt-1 text-xs text-muted-foreground">{post.publishedAt ? "Ngày đăng" : "Ngày tạo"}: {formattedDate}</p></div><DropdownMenu><DropdownMenuTrigger render={<Button type="button" variant="ghost" size="icon-sm" aria-label={`Tùy chọn cho ${title}`} />}><EllipsisIcon aria-hidden /></DropdownMenuTrigger><DropdownMenuContent align="end"><DropdownMenuItem onClick={() => setEditing(true)}>Chỉnh sửa</DropdownMenuItem><DropdownMenuItem variant="destructive" onClick={() => setDeleting(true)}>Xóa bài viết</DropdownMenuItem></DropdownMenuContent></DropdownMenu></div>
-      <div className="flex items-center justify-between gap-2"><Badge variant="secondary">{status}</Badge>{post.status === "PUBLISHED" && <Link href={postPath(post.id)} className="rounded-sm text-xs font-semibold text-primary underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-ring">Xem bài viết</Link>}</div>
+      <div className="flex items-start justify-between gap-2"><div className="min-w-0"><h3 className="line-clamp-2 text-sm font-bold leading-5">{title}</h3><p className="mt-1 text-xs text-muted-foreground">{post.publishedAt ? "Ngày đăng" : "Ngày tạo"}: {formattedDate}</p></div><DropdownMenu><DropdownMenuTrigger render={<Button type="button" variant="ghost" size="icon-sm" aria-label={`Tùy chọn cho ${title}`} />}><EllipsisIcon aria-hidden /></DropdownMenuTrigger><DropdownMenuContent align="end"><DropdownMenuItem disabled={locked} onClick={() => setEditing(true)}>Chỉnh sửa</DropdownMenuItem><DropdownMenuItem disabled={locked} variant="destructive" onClick={() => setDeleting(true)}>Xóa bài viết</DropdownMenuItem></DropdownMenuContent></DropdownMenu></div>
+      <div className="flex items-center justify-between gap-2"><Badge variant="secondary">{status}</Badge>{(post.status === "PUBLISHED" || post.status === "REJECTED" || post.status === "REMOVED") && <Link href={postPath(post.id)} className="rounded-sm text-xs font-semibold text-primary underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-ring">Xem bài viết</Link>}</div>
     </div>
     <EditPostDialog postId={post.id} open={editing} onOpenChange={setEditing} />
     <DeletePostDialog postId={post.id} open={deleting} onOpenChange={setDeleting} />

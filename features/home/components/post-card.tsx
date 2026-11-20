@@ -275,7 +275,7 @@ function PhotoMedia({ post }: { post: PhotoPost }) {
   )
 }
 
-export function PostMenu({ post }: { post: Post }) {
+export function PostMenu({ post, locked = false }: { post: Post; locked?: boolean }) {
   const { user } = useAuth()
   const router = useRouter()
   const [reporting, setReporting] = useState(false)
@@ -318,12 +318,19 @@ export function PostMenu({ post }: { post: Post }) {
           </DropdownMenuItem>
           {ownBlog && (
             <>
-              <DropdownMenuItem onClick={() => router.push(editBlogPath(ownBlog.id))}>
+              <DropdownMenuItem
+                disabled={locked}
+                onClick={() => router.push(editBlogPath(ownBlog.id))}
+              >
                 <PencilIcon aria-hidden />
                 Sửa blog
               </DropdownMenuItem>
               <DropdownMenuSeparator />
-              <DropdownMenuItem variant="destructive" onClick={() => setDeleting(true)}>
+              <DropdownMenuItem
+                disabled={locked}
+                variant="destructive"
+                onClick={() => setDeleting(true)}
+              >
                 <Trash2Icon aria-hidden />
                 Xoá blog
               </DropdownMenuItem>
@@ -332,11 +339,15 @@ export function PostMenu({ post }: { post: Post }) {
           {ownPost && (
             <>
               <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={() => setEditingPost(true)}>
+              <DropdownMenuItem disabled={locked} onClick={() => setEditingPost(true)}>
                 <PencilIcon aria-hidden />
                 Sửa bài viết
               </DropdownMenuItem>
-              <DropdownMenuItem variant="destructive" onClick={() => setDeletingPost(true)}>
+              <DropdownMenuItem
+                disabled={locked}
+                variant="destructive"
+                onClick={() => setDeletingPost(true)}
+              >
                 <Trash2Icon aria-hidden />
                 Xoá bài viết
               </DropdownMenuItem>

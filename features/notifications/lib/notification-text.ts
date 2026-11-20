@@ -52,9 +52,52 @@ export function describeNotification(notification: ApiNotification) {
       const reason = reportReasonLabel(notification.reason)
       return {
         from: "Vedora",
-        text: `Bài viết${quoted(notification.note)} của bạn đã bị gỡ vì vi phạm tiêu chuẩn cộng đồng${reason ? ` (bị báo cáo: ${reason})` : ""}.`,
+        text: `${subject}${quoted(notification.note)} của bạn đã bị quản trị viên gỡ bỏ${reason ? ` (${reason})` : notification.reason ? ` (${notification.reason})` : ""}. Bạn có thể gửi kháng cáo trong 14 ngày.`,
       }
     }
+    case "POST_RESTORED":
+      return {
+        from: "Vedora",
+        text: `${subject} của bạn đã được quản trị viên khôi phục.`,
+      }
+    case "SUPPORT_TICKET_REPLIED":
+      return {
+        from: "Vedora",
+        text: `Quản trị viên đã phản hồi hồ sơ hỗ trợ của bạn. Hãy kiểm tra và trả lời trong vòng 7 ngày.`,
+      }
+    case "SUPPORT_TICKET_RESOLVED": {
+      if (notification.reason === "APPEAL_APPROVED") {
+        return {
+          from: "Vedora",
+          text: `Kháng cáo của bạn đã được chấp thuận. ${subject} đã được khôi phục và hiển thị trở lại.`,
+        }
+      }
+      if (notification.reason === "APPEAL_REJECTED") {
+        return {
+          from: "Vedora",
+          text: `Kháng cáo của bạn không được chấp thuận. Quyết định xử lý ${subject.toLowerCase()} được giữ nguyên.`,
+        }
+      }
+      return {
+        from: "Vedora",
+        text: `Hồ sơ hỗ trợ của bạn đã được quản trị viên giải quyết.`,
+      }
+    }
+    case "SUPPORT_TICKET_CLOSED":
+      return {
+        from: "Vedora",
+        text: `Hồ sơ hỗ trợ của bạn đã được đóng.`,
+      }
+    case "SUPPORT_TICKET_EXPIRED":
+      return {
+        from: "Vedora",
+        text: `Hồ sơ hỗ trợ của bạn đã tự động đóng do quá hạn phản hồi.`,
+      }
+    case "SUPPORT_TICKET_REMINDER":
+      return {
+        from: "Vedora",
+        text: `Hồ sơ hỗ trợ của bạn đang chờ bạn trả lời.`,
+      }
     case "REPORT_RESOLVED":
       return {
         from: "Vedora",

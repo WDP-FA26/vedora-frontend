@@ -15,10 +15,14 @@ import { OnChangePlugin } from "@lexical/react/LexicalOnChangePlugin"
 import { RichTextPlugin } from "@lexical/react/LexicalRichTextPlugin"
 import { $convertFromMarkdownString } from "@lexical/markdown"
 import { $createParagraphNode, $getRoot, $isParagraphNode, type EditorState } from "lexical"
-import { ArrowLeftIcon, FileTextIcon, SendIcon } from "lucide-react"
+import { ArrowLeftIcon, FileTextIcon, ScaleIcon, SendIcon, ShieldAlertIcon } from "lucide-react"
 
-import { Button } from "@/components/ui/button"
+import { Button, buttonVariants } from "@/components/ui/button"
 import { toast } from "@/components/ui/toast"
+import { CreateAppealDialog } from "@/features/support/components/create-appeal-dialog"
+import { TicketStatusBadge } from "@/features/support/components/ticket-status-badge"
+import { APPEAL_BLOCKED_LABELS } from "@/features/support/schemas"
+import { supportTicketPath } from "@/features/support/support-cache"
 import { WritingAgentPanel } from "@/features/blogs/components/writing-agent-panel"
 import { BLOGS_PATH } from "@/features/blogs/blogs-cache"
 import { BLOG_NODES } from "@/features/blogs/editor/nodes"
@@ -29,6 +33,8 @@ import { blogTheme } from "@/features/blogs/editor/theme"
 import { BLOG_TRANSFORMERS } from "@/features/blogs/editor/transformers"
 import { useBlogDraft, type SaveState } from "@/features/blogs/hooks/use-blog-draft"
 import { MAX_BLOG_TITLE_LENGTH, type ApiBlog } from "@/features/blogs/schemas"
+import { rejectionMessage } from "@/features/posts/lib/moderation-labels"
+import { formatPostDateLong } from "@/features/shared/lib/format"
 
 const SAVE_LABEL: Record<SaveState, string> = {
   idle: "Chưa lưu",
@@ -56,13 +62,16 @@ function $isDocumentEmpty() {
 export function BlogEditor({ initial }: { initial: ApiBlog | null }) {
   const draft = useBlogDraft(initial)
   const [empty, setEmpty] = useState(!initial?.content.trim())
+  const [appealDialogOpen, setAppealDialogOpen] = useState(false)
   // Lexical renders its content area differently on the server (no editor
   // state, no selection), so the editor only exists in the browser.
   const mounted = useSyncExternalStore(subscribeNever, () => true, () => false)
 
   // A public blog being checked again after an edit is still a public blog.
   const published = draft.status === "PUBLISHED" || draft.status === "PROCESSING" || draft.status === "PENDING_REVIEW"
-  const busy = draft.saveState === "saving"
+  const appeal = initial?.appeal ?? null
+  const locked = Boolean(appeal?.activeTicket) || draft.status === "REMOVED"
+  const busy = draft.saveState === "saving" || locked
 
   function onDocumentChange(state: EditorState) {
     draft.setDocument(state)
@@ -79,6 +88,7 @@ export function BlogEditor({ initial }: { initial: ApiBlog | null }) {
     <LexicalComposer
       initialConfig={{
         namespace: "vedora-blog",
+        editable: !locked,
         nodes: BLOG_NODES,
         theme: blogTheme,
         onError: (error) => {
@@ -134,13 +144,86 @@ export function BlogEditor({ initial }: { initial: ApiBlog | null }) {
           </header>
 
           <div className="mx-auto w-full max-w-[44rem] flex-1 px-6 pt-16 pb-40">
+            {initial && (draft.status === "REJECTED" || draft.status === "REMOVED") && (
+              <div
+                role="status"
+                className="mb-6 flex flex-col gap-2.5 rounded-xl bg-destructive/10 px-4 py-3 text-sm text-destructive"
+              >
+                <div className="flex items-start gap-2 font-medium">
+                  <ShieldAlertIcon aria-hidden className="mt-0.5 size-4 shrink-0" />
+                  <span>
+                    {draft.status === "REMOVED"
+                      ? `Blog này đã bị quản trị viên gỡ bỏ${initial.removalReason ? ` (${initial.removalReason})` : ""}.`
+                      : rejectionMessage(initial.moderationVerdict, "Blog", initial.moderationReason)}
+                  </span>
+                </div>
+                {appeal?.activeTicket ? (
+                  <div className="flex flex-wrap items-center justify-between gap-2 border-t border-destructive/20 pt-2.5 text-foreground">
+                    <div className="flex flex-wrap items-center gap-2 text-xs">
+                      <span className="font-mono font-medium">{appeal.activeTicket.code}</span>
+                      <TicketStatusBadge
+                        status={appeal.activeTicket.status}
+                        appealOutcome={appeal.activeTicket.outcome}
+                      />
+                      <span className="text-muted-foreground">
+                        Đang khóa chỉnh sửa cho đến khi kháng cáo kết thúc.
+                      </span>
+                    </div>
+                    <Link
+                      href={supportTicketPath(appeal.activeTicket.id)}
+                      className={buttonVariants({ variant: "outline", size: "sm" })}
+                    >
+                      Xem hồ sơ kháng cáo
+                    </Link>
+                  </div>
+                ) : appeal?.canAppeal ? (
+                  <div className="flex flex-wrap items-center justify-between gap-2 border-t border-destructive/20 pt-2.5 text-foreground">
+                    <span className="text-xs text-muted-foreground">
+                      Bạn có thể gửi kháng cáo
+                      {appeal.deadlineAt
+                        ? ` trước ${formatPostDateLong(appeal.deadlineAt)}`
+                        : " trong 14 ngày"}
+                      .
+                    </span>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setAppealDialogOpen(true)}
+                    >
+                      <ScaleIcon aria-hidden />
+                      Gửi kháng cáo
+                    </Button>
+                    <CreateAppealDialog
+                      postId={initial.id}
+                      subject="Blog"
+                      deadlineAt={appeal.deadlineAt}
+                      open={appealDialogOpen}
+                      onOpenChange={setAppealDialogOpen}
+                    />
+                  </div>
+                ) : appeal?.blockedReason ? (
+                  <div className="flex flex-wrap items-center justify-between gap-2 border-t border-destructive/20 pt-2.5 text-xs text-muted-foreground">
+                    <span>{APPEAL_BLOCKED_LABELS[appeal.blockedReason]}</span>
+                    {appeal.latestTicket && (
+                      <Link
+                        href={supportTicketPath(appeal.latestTicket.id)}
+                        className="font-medium text-foreground underline underline-offset-4"
+                      >
+                        Xem hồ sơ {appeal.latestTicket.code}
+                      </Link>
+                    )}
+                  </div>
+                ) : null}
+              </div>
+            )}
             <span
               aria-hidden
               className="flex size-11 items-center justify-center rounded-xl bg-muted text-muted-foreground"
             >
               <FileTextIcon className="size-5" />
             </span>
-            <TitleField value={draft.title} onChange={draft.setTitle} />
+            <TitleField value={draft.title} onChange={draft.setTitle} disabled={locked} />
             <div className="relative">
               <RichTextPlugin
                 contentEditable={
@@ -176,7 +259,15 @@ export function BlogEditor({ initial }: { initial: ApiBlog | null }) {
  * single line of text, so Enter moves on to the start of the text, as in a page
  * editor, and pasted line breaks become spaces.
  */
-function TitleField({ value, onChange }: { value: string; onChange: (title: string) => void }) {
+function TitleField({
+  value,
+  onChange,
+  disabled,
+}: {
+  value: string
+  onChange: (title: string) => void
+  disabled?: boolean
+}) {
   const [editor] = useLexicalComposerContext()
   const ref = useRef<HTMLTextAreaElement>(null)
 
@@ -197,6 +288,7 @@ function TitleField({ value, onChange }: { value: string; onChange: (title: stri
       ref={ref}
       rows={1}
       value={value}
+      disabled={disabled}
       onChange={(event) => onChange(event.target.value.replace(/\s*[\r\n]+\s*/g, " "))}
       onKeyDown={(event) => {
         if (event.key !== "Enter" || event.nativeEvent.isComposing) return
