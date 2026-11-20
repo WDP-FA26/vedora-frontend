@@ -126,15 +126,23 @@ export const videoUploadSchema = z.object({
   upload: signedUploadSchema,
 })
 
+/**
+ * `isSystem` marks Vedora AI, the built-in account that comments automatic
+ * summaries. It has no profile page, so never link to one.
+ */
+export const apiCommentAuthorSchema = apiPostSchema.shape.author.extend({
+  isSystem: z.boolean().default(false),
+})
+
 export const apiCommentSchema = z.object({
   parentId: z.string().nullable().default(null),
   replyToId: z.string().nullable().default(null),
-  replyToAuthor: apiPostSchema.shape.author.nullable().default(null),
+  replyToAuthor: apiCommentAuthorSchema.nullable().default(null),
   replyCount: z.number().int().nonnegative().default(0),
   id: z.string(),
   postId: z.string(),
   body: z.string(),
-  author: apiPostSchema.shape.author,
+  author: apiCommentAuthorSchema,
   createdAt: z.string(),
   updatedAt: z.string(),
 })

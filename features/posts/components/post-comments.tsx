@@ -6,7 +6,13 @@ import { usePathname, useSearchParams } from "next/navigation"
 import useSWR from "swr"
 import { Controller, useForm, useWatch } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
-import { EllipsisIcon, MessageCircleIcon, PencilIcon, Trash2Icon } from "lucide-react"
+import {
+  EllipsisIcon,
+  MessageCircleIcon,
+  PencilIcon,
+  SparklesIcon,
+  Trash2Icon,
+} from "lucide-react"
 
 import {
   AlertDialog,
@@ -389,6 +395,7 @@ function CommentItem({
   highlighted?: boolean
 }) {
   const author = toAuthor(comment.author)
+  const isSystem = comment.author.isSystem
   const profileHref = profilePath(comment.author.id)
   const [editing, setEditing] = useState(false)
   const [confirming, setConfirming] = useState(false)
@@ -416,26 +423,41 @@ function CommentItem({
       aria-label={`Bình luận của ${author.name}`}
       className={`flex min-w-0 scroll-mt-20 gap-3 px-4 py-3 sm:px-5 ${highlighted ? "bg-primary/5" : ""}`}
     >
-      <Link
-        href={profileHref}
-        aria-label={`Hồ sơ của ${author.name}`}
-        className="self-start rounded-full"
-      >
-        <AuthorAvatar author={author} />
-      </Link>
+      {isSystem ? (
+        <SystemAvatar />
+      ) : (
+        <Link
+          href={profileHref}
+          aria-label={`Hồ sơ của ${author.name}`}
+          className="self-start rounded-full"
+        >
+          <AuthorAvatar author={author} />
+        </Link>
+      )}
 
       <div className="min-w-0 flex-1">
         <header className="flex min-w-0 items-start gap-2 text-[0.9375rem] leading-5">
           <p className="flex min-w-0 flex-1 flex-wrap items-baseline gap-x-1">
-            <Link href={profileHref} className="truncate font-semibold hover:underline">
-              {author.name}
-            </Link>
-            {author.verified && (
-              <span className="self-center">
-                <VerifiedBadge label={author.verified} />
-              </span>
+            {isSystem ? (
+              <>
+                <span className="truncate font-semibold">{author.name}</span>
+                <span className="self-center rounded-full bg-primary/10 px-1.5 py-0.5 text-[0.6875rem] leading-none font-medium text-primary">
+                  Tóm tắt tự động
+                </span>
+              </>
+            ) : (
+              <>
+                <Link href={profileHref} className="truncate font-semibold hover:underline">
+                  {author.name}
+                </Link>
+                {author.verified && (
+                  <span className="self-center">
+                    <VerifiedBadge label={author.verified} />
+                  </span>
+                )}
+                <span className="truncate text-muted-foreground">@{author.handle}</span>
+              </>
             )}
-            <span className="truncate text-muted-foreground">@{author.handle}</span>
             <span aria-hidden className="text-muted-foreground">
               ·
             </span>
@@ -472,12 +494,16 @@ function CommentItem({
         {comment.replyToAuthor && (
           <p className="mt-1 text-xs text-muted-foreground">
             Trả lời{" "}
-            <Link
-              href={profilePath(comment.replyToAuthor.id)}
-              className="text-primary hover:underline"
-            >
-              {comment.replyToAuthor.fullName}
-            </Link>
+            {comment.replyToAuthor.isSystem ? (
+              <span className="text-primary">{comment.replyToAuthor.fullName}</span>
+            ) : (
+              <Link
+                href={profilePath(comment.replyToAuthor.id)}
+                className="text-primary hover:underline"
+              >
+                {comment.replyToAuthor.fullName}
+              </Link>
+            )}
           </p>
         )}
         {editing ? (
@@ -627,5 +653,17 @@ function CommentForm({
         </Button>
       </div>
     </form>
+  )
+}
+
+/** Vedora AI has no profile photo or page: a quiet leaf-green mark instead. */
+function SystemAvatar() {
+  return (
+    <span
+      aria-hidden
+      className="flex size-8 shrink-0 items-center justify-center self-start rounded-full bg-primary/10 text-primary"
+    >
+      <SparklesIcon className="size-4" />
+    </span>
   )
 }
