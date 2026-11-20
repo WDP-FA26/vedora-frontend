@@ -86,7 +86,7 @@ function AiPanel() {
         </span>
       </span>
       <span aria-hidden className="absolute right-1 bottom-1 size-24 rotate-3">
-        <Image src="/carrot-sticker.png" alt="" width={256} height={256} className="h-full w-full object-contain drop-shadow-md" />
+        <Image src="/carrot-sticker.png" alt="" width={96} height={96} loading="eager" className="h-full w-full object-contain drop-shadow-md" />
       </span>
     </Link>
   )

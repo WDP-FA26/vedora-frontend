@@ -10,6 +10,13 @@ import { toAuthor } from "@/features/auth/lib/to-author"
 import type { CurrentUser } from "@/features/auth/types"
 
 /**
+ * Every component that calls `useAuth()` revalidates `/auth/me` when it mounts,
+ * and SWR's default 2s dedupe let each post card and tab switch refetch it.
+ * Once a minute is still often enough to notice an expired token (it lives 1h).
+ */
+const AUTH_REVALIDATE_MS = 60_000
+
+/**
  * The signed-in user in Client Components, fetched straight from vedora-api.
  * Needs an `AuthProvider` above it (the `/home` layout has one); without it the
  * user is `null`. Use `accessToken` to call other API endpoints directly.
@@ -30,7 +37,11 @@ export function useAuth() {
       if (!response.ok) throw new Error(`GET /auth/me failed (${response.status})`)
       return response.json()
     },
-    { keepPreviousData: true, shouldRetryOnError: false }
+    {
+      keepPreviousData: true,
+      shouldRetryOnError: false,
+      dedupingInterval: AUTH_REVALIDATE_MS,
+    }
   )
 
   const user = data ?? null
