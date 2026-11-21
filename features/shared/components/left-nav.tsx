@@ -42,22 +42,26 @@ import { UnreadMessagesBadge } from "@/features/messaging/components/unread-mess
  */
 export function LeftNav() {
   return (
-    <header className="sticky top-0 hidden h-dvh w-[4.5rem] shrink-0 flex-col items-center px-2 py-4 sm:flex xl:w-[14rem] xl:items-stretch xl:px-4">
-      <Wordmark compact className="xl:hidden" />
-      <Wordmark className="px-2 max-xl:hidden" />
+    <header className="sticky top-0 hidden h-dvh w-[4.5rem] shrink-0 flex-col items-center px-2 py-3 sm:flex xl:w-[14rem] xl:items-stretch xl:px-4">
+      <div className="shrink-0">
+        <Wordmark compact className="xl:hidden" />
+        <Wordmark className="px-2 max-xl:hidden" />
+      </div>
 
-      <NavLinks className="mt-7" />
+      <div className="-mx-2 mt-3 flex min-h-0 flex-1 flex-col items-center overflow-y-auto overscroll-contain px-2 pb-4 xl:-mx-4 xl:items-stretch xl:px-4">
+        <NavLinks />
 
-      <ComposeDialog
-        trigger={
-          <Button variant="raised" size="compose" shape="pill" className="mt-6">
-            <PenLineIcon aria-hidden strokeWidth={2.25} />
-            <span className="max-xl:sr-only">Đăng bài</span>
-          </Button>
-        }
-      />
+        <ComposeDialog
+          trigger={
+            <Button variant="raised" size="compose" shape="pill" className="mt-3 shrink-0">
+              <PenLineIcon aria-hidden strokeWidth={2.25} />
+              <span className="max-xl:sr-only">Đăng bài</span>
+            </Button>
+          }
+        />
+      </div>
 
-      <div className="mt-auto">
+      <div className="shrink-0 pt-2">
         <AccountMenu />
       </div>
     </header>
@@ -85,7 +89,7 @@ export function NavLinks({
 
   return (
     <nav aria-label="Điều hướng chính" className={className}>
-      <ul className="flex flex-col gap-1">
+      <ul className={cn("flex flex-col", expanded ? "gap-1" : "gap-0.5")}>
         {visibleItems.map(({ href, label, icon: Icon, isNew }) => {
           const current = isNavItemCurrent(pathname, href, user?.id)
           return (
@@ -95,11 +99,11 @@ export function NavLinks({
                 onClick={onNavigate}
                 aria-current={current ? "page" : undefined}
                 className={cn(
-                  "group/nav flex h-12 items-center gap-4 rounded-full text-[0.9375rem] font-medium text-foreground/85 transition-colors outline-none hover:bg-sidebar-accent focus-visible:ring-3 focus-visible:ring-ring/50",
+                  "group/nav flex items-center gap-4 rounded-full text-[0.9375rem] font-medium text-foreground/85 transition-colors outline-none hover:bg-sidebar-accent focus-visible:ring-3 focus-visible:ring-ring/50",
                   "aria-[current=page]:bg-sidebar-accent aria-[current=page]:font-bold aria-[current=page]:text-foreground",
                   expanded
-                    ? "px-3"
-                    : "w-12 justify-center xl:w-full xl:justify-start xl:px-3"
+                    ? "h-11 px-3"
+                    : "h-10 w-10 justify-center xl:w-full xl:justify-start xl:px-3"
                 )}
               >
                 <span className="relative">

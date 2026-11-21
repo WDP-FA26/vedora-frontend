@@ -120,6 +120,44 @@ export const recipeDetailSchema = recipeSchema.extend({
   ),
 })
 
+/**
+ * Response of `POST /admin/recipes/drafts`: a recipe AI read from a post or a
+ * pasted caption, already within the form's limits. Each ingredient is matched to
+ * the catalog, or carries a prefill for a new catalog ingredient.
+ */
+export const recipeDraftSchema = z.object({
+  recipe: z
+    .object({
+      title: z.string(),
+      description: z.string().nullable(),
+      tag: recipeTagSchema.nullable(),
+      servings: z.number().nullable(),
+      prepMinutes: z.number().nullable(),
+      cookMinutes: z.number().nullable(),
+      ingredients: z.array(
+        z.object({
+          /** As the caption names it. */
+          name: z.string(),
+          quantity: z.number().nullable(),
+          unit: z.string().nullable(),
+          note: z.string().nullable(),
+          match: namedRefSchema.nullable(),
+          suggestion: z
+            .object({
+              name: z.string(),
+              aliases: z.array(z.string()),
+              groups: z.array(namedRefSchema),
+            })
+            .nullable(),
+        })
+      ),
+      steps: z.array(z.string()),
+    })
+    .nullable(),
+  /** Videos still waiting for a transcript; what they say is missing. */
+  untranscribedVideos: z.number(),
+})
+
 /** The public catalog adds whether the caller saved the recipe; guests get false. */
 export const publicRecipeSchema = recipeSchema.extend({ isFavorite: z.boolean() })
 export const publicRecipePageSchema = page(publicRecipeSchema)
@@ -159,6 +197,11 @@ export type PublicRecipeDetail = z.infer<typeof publicRecipeDetailSchema>
 export type FavoriteRecipe = z.infer<typeof favoriteRecipeSchema>
 export type RatingSummary = z.infer<typeof ratingSummarySchema>
 export type MyRating = z.infer<typeof myRatingSchema>
+export type RecipeDraft = z.infer<typeof recipeDraftSchema>
+export type DraftRecipe = NonNullable<RecipeDraft["recipe"]>
+export type IngredientSuggestion = NonNullable<
+  DraftRecipe["ingredients"][number]["suggestion"]
+>
 
 // Forms. Limits match the API DTOs.
 
@@ -270,6 +313,8 @@ export const recipeFormSchema = z.object({
           ),
         unit: z.string().trim().max(30, "Tối đa 30 ký tự."),
         note: z.string().trim().max(200, "Tối đa 200 ký tự."),
+        /** The name AI read from the caption, "" for rows typed by hand. Not sent. */
+        draftName: z.string(),
       })
     )
     .min(1, "Thêm ít nhất một nguyên liệu.")

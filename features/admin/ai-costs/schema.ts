@@ -93,6 +93,7 @@ export const featureLabels: Record<string, string> = {
   CONTENT_MODERATION: "Kiểm duyệt",
   KNOWLEDGE: "Tài liệu kiến thức",
   POSTS: "Bài đăng",
+  RECIPE_DRAFT: "Điền công thức bằng AI",
   TRANSCRIPTION: "Phụ đề",
   SYSTEM: "Hệ thống",
 };

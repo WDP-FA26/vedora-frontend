@@ -13,9 +13,11 @@ import {
   BrainIcon,
   CalendarCheckIcon,
   FileTextIcon,
+  GlobeIcon,
   ImageIcon,
   LibraryIcon,
   SearchIcon,
+  UtensilsIcon,
   WrenchIcon,
 } from "lucide-react"
 import { z } from "zod"
@@ -30,6 +32,8 @@ import {
   TraceLine,
   TraceTitle,
 } from "@/components/ui/trace"
+import { Button } from "@/components/ui/button"
+import { Popover, PopoverContent, PopoverHeader, PopoverTitle, PopoverTrigger } from "@/components/ui/popover"
 import { problemSchema, problemText } from "@/features/meal-plan/meal-plan"
 
 // Mirror the inputs and outputs of vedora-api's agent tools.
@@ -45,7 +49,15 @@ function knowledgeSearchOf(output: unknown) {
   return knowledgeSearchSchema.safeParse(output).data
 }
 const recipesSchema = z.array(z.object({ id: z.string(), title: z.string() }))
+const restaurantDishesSchema = z.array(
+  z.object({
+    id: z.string(),
+    name: z.string(),
+    restaurant: z.object({ name: z.string() }),
+  })
+)
 const proposalCheckSchema = z.object({ ok: z.boolean(), problems: z.array(problemSchema) })
+const webSearchDecisionSchema = z.object({ approved: z.boolean() })
 const imageResultSchema = z.union([z.object({ url: z.string() }), z.object({ error: z.string() })])
 
 const IMAGE_ERRORS: Record<string, string> = {
@@ -135,6 +147,26 @@ function toolStep(part: ToolUIPart | DynamicToolUIPart): Step {
     }
   }
 
+  if (name === "searchRestaurantDishes") {
+    const dishes = done ? (restaurantDishesSchema.safeParse(part.output).data ?? []) : []
+    const suffix = quoted(query)
+    return {
+      key,
+      status,
+      icon: <UtensilsIcon />,
+      title: failed
+        ? `Không tìm được món tại nhà hàng${suffix}`
+        : done
+          ? `Đã tìm món tại nhà hàng${suffix}`
+          : `Đang tìm món tại nhà hàng${suffix}…`,
+      description: done ? `${dishes.length} món` : undefined,
+      detail:
+        dishes.length > 0 ? (
+          <p>{dishes.map((dish) => `${dish.name} · ${dish.restaurant.name}`).join(", ")}</p>
+        ) : undefined,
+    }
+  }
+
   if (name === "proposeMealPlan" || name === "editDraft") {
     const check = done ? proposalCheckSchema.safeParse(part.output).data : undefined
     const rejected = check !== undefined && !check.ok && check.problems.length > 0
@@ -169,6 +201,15 @@ function toolStep(part: ToolUIPart | DynamicToolUIPart): Step {
         </ul>
       ) : undefined,
     }
+  }
+
+  // It waits for the user's answer on the consent card, so it never shows as running.
+  if (name === "requestWebSearch") {
+    const decision = done ? webSearchDecisionSchema.safeParse(part.output).data : undefined
+    let title = "Xin phép tìm trên web"
+    if (decision?.approved === true) title = "Bạn đã cho phép tìm trên web"
+    if (decision?.approved === false) title = "Bạn đã không cho phép tìm trên web"
+    return { key, icon: <GlobeIcon />, title }
   }
 
   if (name === "getPlan") {
@@ -278,7 +319,7 @@ export function AgentTrace({ message, pending = false }: { message: UIMessage; p
 }
 
 /** The documents the knowledge searches returned, grouped by file. */
-function messageSources(message: UIMessage) {
+function documentSources(message: UIMessage) {
   const pages = new Map<string, Set<number>>()
   for (const part of message.parts) {
     if (!isToolUIPart(part) || getToolName(part) !== "searchKnowledge") continue
@@ -289,41 +330,97 @@ function messageSources(message: UIMessage) {
       pages.set(title, (pages.get(title) ?? new Set()).add(page))
     }
   }
-  return [...pages].map(([title, found]) => ({
-    title,
-    pages: [...found].sort((a, b) => a - b),
-  }))
+  const documents: { title: string; pages: number[] }[] = []
+  for (const [title, found] of pages) {
+    documents.push({ title, pages: [...found].sort((a, b) => a - b) })
+  }
+  return documents
 }
 
-export function AgentSources({ message }: { message: UIMessage }) {
-  const sources = messageSources(message)
-  if (sources.length === 0) return null
+function hostname(url: string): string {
+  if (!URL.canParse(url)) return url
+  return new URL(url).hostname.replace(/^www\./, "")
+}
+
+/** The web pages a web search cited, once each, in the order they came. */
+function webSources(message: UIMessage) {
+  const byUrl = new Map<string, { url: string; title: string }>()
+  for (const part of message.parts) {
+    if (part.type !== "source-url" || byUrl.has(part.url)) continue
+    if (!part.url.startsWith("https://") && !part.url.startsWith("http://")) continue
+    byUrl.set(part.url, { url: part.url, title: part.title || hostname(part.url) })
+  }
+  return [...byUrl.values()]
+}
+
+/**
+ * Everything a reply drew on: Vedora's documents and, when the user allowed
+ * it, web pages. A small "Nguồn" button under the reply opens the list on
+ * hover, focus or tap, so it also works on touch screens.
+ */
+export function MessageSources({ message }: { message: UIMessage }) {
+  const documents = documentSources(message)
+  const pages = webSources(message)
+  const count = documents.length + pages.length
+  if (count === 0) return null
   return (
-    <Trace className="mt-2">
-      <TraceCollapsible>
-        <TraceCollapsibleTrigger>
-          <TraceLine>
-            <TraceIcon>
-              <LibraryIcon />
-            </TraceIcon>
-            <TraceTitle>Nguồn đã tra cứu</TraceTitle>
-            <TraceDescription>{sources.length} tài liệu</TraceDescription>
-          </TraceLine>
-        </TraceCollapsibleTrigger>
-        <TraceCollapsibleContent>
-          <Trace>
-            {sources.map(({ title, pages }) => (
-              <TraceLine key={title}>
-                <TraceIcon>
-                  <FileTextIcon />
-                </TraceIcon>
-                <TraceTitle>{title}</TraceTitle>
-                <TraceDescription>tr. {pages.join(", ")}</TraceDescription>
-              </TraceLine>
-            ))}
-          </Trace>
-        </TraceCollapsibleContent>
-      </TraceCollapsible>
-    </Trace>
+    <Popover>
+      <PopoverTrigger
+        openOnHover
+        delay={150}
+        closeDelay={200}
+        render={<Button variant="tool" size="xs" className="mt-1 self-start" />}
+      >
+        {pages.length > 0 ? <GlobeIcon aria-hidden /> : <LibraryIcon aria-hidden />}
+        Nguồn · {count}
+      </PopoverTrigger>
+      <PopoverContent align="start" side="top" className="w-80 max-w-[calc(100vw-2rem)]">
+        <PopoverHeader>
+          <PopoverTitle>Nguồn trợ lý đã tham khảo</PopoverTitle>
+        </PopoverHeader>
+        {documents.length > 0 && (
+          <section aria-label="Tài liệu của Vedora" className="flex flex-col gap-1.5">
+            <p className="text-xs font-medium text-muted-foreground">Tài liệu của Vedora</p>
+            <ul className="flex flex-col gap-1.5">
+              {documents.map(({ title, pages: found }) => (
+                <li key={title} className="flex min-w-0 items-start gap-2">
+                  <FileTextIcon aria-hidden className="mt-0.5 size-3.5 shrink-0 text-muted-foreground" />
+                  <span className="min-w-0">
+                    <span className="block truncate">{title}</span>
+                    <span className="block text-xs text-muted-foreground">tr. {found.join(", ")}</span>
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
+        {pages.length > 0 && (
+          <section aria-label="Trên web" className="flex flex-col gap-1.5">
+            <p className="text-xs font-medium text-muted-foreground">Trên web</p>
+            <ul className="flex flex-col gap-1.5">
+              {pages.map(({ url, title }) => (
+                <li key={url} className="flex min-w-0 items-start gap-2">
+                  <GlobeIcon aria-hidden className="mt-0.5 size-3.5 shrink-0 text-muted-foreground" />
+                  <span className="min-w-0">
+                    <a
+                      href={url}
+                      target="_blank"
+                      rel="noopener noreferrer nofollow"
+                      className="block truncate underline-offset-4 hover:underline focus-visible:underline"
+                    >
+                      {title}
+                    </a>
+                    <span className="block truncate text-xs text-muted-foreground">{hostname(url)}</span>
+                  </span>
+                </li>
+              ))}
+            </ul>
+            <p className="rounded-lg bg-muted px-2.5 py-1.5 text-xs text-muted-foreground">
+              Thông tin từ web có thể sai, đã cũ hoặc không thống nhất giữa các nguồn, và Vedora không kiểm chứng.
+            </p>
+          </section>
+        )}
+      </PopoverContent>
+    </Popover>
   )
 }

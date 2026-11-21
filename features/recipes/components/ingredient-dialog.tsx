@@ -18,39 +18,69 @@ import {
   parseAliases,
   type Ingredient,
   type IngredientFormValues,
+  type IngredientSuggestion,
 } from "@/features/recipes/schemas"
 import { ApiError } from "@/features/shared/lib/api-client"
 
 const FORM_ID = "ingredient-form"
 
-/** Adds an ingredient, or edits `ingredient` when given. */
+/**
+ * Adds an ingredient, or edits `ingredient` when given. A new ingredient can
+ * start from `suggestion`, the fields AI read from a caption.
+ */
 export function IngredientDialog({
   open,
   ingredient,
+  suggestion,
   onClose,
   onSaved,
 }: {
   open: boolean
   ingredient: Ingredient | null
+  suggestion?: IngredientSuggestion | null
   onClose: () => void
   onSaved?: (ingredient: Ingredient) => void
 }) {
   return open ? (
     <IngredientForm
-      key={ingredient?.id ?? "new"}
+      key={ingredient?.id ?? suggestion?.name ?? "new"}
       ingredient={ingredient}
+      suggestion={suggestion ?? null}
       onClose={onClose}
       onSaved={onSaved}
     />
   ) : null
 }
 
+function toFormValues(
+  ingredient: Ingredient | null,
+  suggestion: IngredientSuggestion | null
+): IngredientFormValues {
+  if (ingredient) {
+    return {
+      name: ingredient.name,
+      aliases: ingredient.aliases.join(", "),
+      groupIds: ingredient.groups.map((group) => group.id),
+    }
+  }
+  if (suggestion) {
+    return {
+      name: suggestion.name,
+      aliases: suggestion.aliases.join(", "),
+      groupIds: suggestion.groups.map((group) => group.id),
+    }
+  }
+  return { name: "", aliases: "", groupIds: [] }
+}
+
 function IngredientForm({
   ingredient,
+  suggestion,
   onClose,
   onSaved,
 }: {
   ingredient: Ingredient | null
+  suggestion: IngredientSuggestion | null
   onClose: () => void
   onSaved?: (ingredient: Ingredient) => void
 }) {
@@ -59,11 +89,7 @@ function IngredientForm({
   const refresh = useRefreshRecipeCatalog()
   const form = useForm<IngredientFormValues>({
     resolver: zodResolver(ingredientFormSchema),
-    defaultValues: {
-      name: ingredient?.name ?? "",
-      aliases: ingredient?.aliases.join(", ") ?? "",
-      groupIds: ingredient?.groups.map((group) => group.id) ?? [],
-    },
+    defaultValues: toFormValues(ingredient, suggestion),
   })
   const { isSubmitting, errors } = form.formState
 
@@ -92,7 +118,11 @@ function IngredientForm({
       open
       onClose={onClose}
       title={ingredient ? "Sửa nguyên liệu" : "Thêm nguyên liệu"}
-      description="Công thức và quy tắc kỵ nhau đều dùng chung danh mục này."
+      description={
+        suggestion
+          ? "AI đã điền sẵn từ caption. Xem lại tên, tên gọi khác và nhóm rồi lưu."
+          : "Công thức và quy tắc kỵ nhau đều dùng chung danh mục này."
+      }
       formId={FORM_ID}
       submitting={isSubmitting}
       rootError={errors.root?.message}

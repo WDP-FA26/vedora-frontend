@@ -9,3 +9,4 @@ export const RestaurantLocationMap = dynamic(() => import("./restaurant-location
   ssr: false,
 })
 export const RestaurantsMap = dynamic(() => import("./restaurants-map"), { ssr: false })
+export type { CameraCenterTarget, RestaurantFocusTarget } from "./restaurants-map"

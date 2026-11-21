@@ -8,10 +8,15 @@ import {
   CheckIcon,
   ChevronDownIcon,
   ChevronUpIcon,
+  GlobeIcon,
   HistoryIcon,
+  MapPinIcon,
   MessageSquarePlusIcon,
+  NavigationIcon,
   RotateCcwIcon,
+  StarIcon,
   Trash2Icon,
+  UtensilsIcon,
   XIcon,
 } from "lucide-react"
 
@@ -38,8 +43,10 @@ import {
   decidedStatus,
   messageProposals,
   messageCannotPropose,
+  messageRestaurantDishes,
   messageText,
   type MealPlannerChat,
+  type PlannerRestaurantDish,
   type Proposal,
   type ProposalStatus,
 } from "@/features/meal-plan/hooks/use-meal-planner-chat"
@@ -50,8 +57,10 @@ import {
   type MealSection,
   type Weekday,
 } from "@/features/meal-plan/meal-plan"
-import { AgentSources, AgentTrace, hasTrace } from "@/features/shared/components/agent-trace"
+import { profilePath } from "@/features/profiles/profiles-cache"
+import { AgentTrace, hasTrace, MessageSources } from "@/features/shared/components/agent-trace"
 import { LogoMark } from "@/features/shared/components/wordmark"
+import { formatPriceVnd, formatRatingScore } from "@/features/workspaces/lib/format"
 import { cn } from "@/lib/utils"
 
 function formatThreadTime(iso: string) {
@@ -70,7 +79,7 @@ const MAX_PLANNER_MESSAGE_LENGTH = 4000
 const SUGGESTIONS = [
   "Lên thực đơn 7 ngày",
   "Mỗi bữa nấu trong 30 phút",
-  "Tận dụng nguyên liệu đang có",
+  "Gợi ý món ngon từ nhà hàng chay",
   "Hỏi về nguyên liệu và dinh dưỡng",
 ] as const
 
@@ -318,9 +327,19 @@ export function PlannerChat({
         {messages.map((message) => {
           const text = messageText(message)
           const proposals = messageProposals(message)
+          const restaurantDishes = messageRestaurantDishes(message)
           const cannotPropose = messageCannotPropose(message)
           const pending = message.id === pendingId
-          if (!text && proposals.length === 0 && !cannotPropose && !pending && !hasTrace(message)) return null
+          if (
+            !text &&
+            proposals.length === 0 &&
+            restaurantDishes.length === 0 &&
+            !cannotPropose &&
+            !pending &&
+            !hasTrace(message)
+          ) {
+            return null
+          }
           return message.role === "assistant" ? (
             <AssistantMessage key={message.id}>
               <AgentTrace message={message} pending={pending} />
@@ -340,7 +359,20 @@ export function PlannerChat({
                   onShowWeek={onOpenWeek}
                 />
               ))}
-              {!pending && message.id !== streamingId && <AgentSources message={message} />}
+              {!pending && restaurantDishes.length > 0 && (
+                <RestaurantDishCards dishes={restaurantDishes} />
+              )}
+              {!pending && message.id !== streamingId && <MessageSources message={message} />}
+              {chat.openWebSearchRequest && message.id === messages.at(-1)?.id && (
+                <WebSearchConsent
+                  reason={chat.openWebSearchRequest.reason}
+                  disabled={busy || !chat.weekStart}
+                  onAnswer={(approved) => {
+                    const request = chat.openWebSearchRequest
+                    if (request) chat.answerWebSearch(request.toolCallId, approved)
+                  }}
+                />
+              )}
               {cannotPropose && !text && <p role="status" className="mt-2 rounded-xl border border-border bg-card px-3 py-2 text-sm">Chưa tìm được đủ món phù hợp với yêu cầu này. Bạn có thể chỉnh yêu cầu và thử lại.</p>}
             </AssistantMessage>
           ) : (
@@ -381,7 +413,14 @@ export function PlannerChat({
           {inputError && <p role="alert" className="mt-1 text-xs text-destructive">{inputError}</p>}
         </form>
         <div className="mt-2 flex items-center justify-between gap-3">
-          <p className="text-[0.6875rem] leading-4 text-muted-foreground">Đề xuất chỉ thay đổi thực đơn khi bạn lưu.</p>
+          <div className="flex flex-col gap-0.5">
+            <p className="text-[0.6875rem] leading-4 text-muted-foreground">Đề xuất chỉ thay đổi thực đơn khi bạn lưu.</p>
+            {chat.webSearchAllowed && (
+              <p title="Bạn đã cho phép trợ lý tìm trên web trong đoạn chat này" className="flex items-center gap-1 text-[0.6875rem] leading-4 text-muted-foreground">
+                <GlobeIcon aria-hidden className="size-3 shrink-0" /> Được tìm trên web
+              </p>
+            )}
+          </div>
           {(messages.length > 1 || chat.activeThread !== null) && (
             <Button variant="ghost" size="xs" onClick={handleNewThread}>
               <MessageSquarePlusIcon aria-hidden /> Đoạn chat mới
@@ -487,6 +526,36 @@ export function PlannerChat({
 }
 
 /** One proposal in the chat. Applying it saves it to its week straight away, whichever week is on screen. */
+/** Asks before the assistant may search the web, and says why web answers need checking. */
+function WebSearchConsent({ reason, disabled, onAnswer }: {
+  reason: string
+  disabled: boolean
+  onAnswer: (approved: boolean) => void
+}) {
+  return (
+    <section aria-label="Xin phép tìm trên web" className="mt-2 flex flex-col gap-3 rounded-xl border border-border bg-card p-3 text-sm">
+      <div className="flex items-start gap-2">
+        <GlobeIcon aria-hidden className="mt-0.5 size-4 shrink-0 text-primary" />
+        <div className="flex min-w-0 flex-col gap-1">
+          <p className="font-semibold">Trợ lý muốn tìm thêm trên web</p>
+          <p className="text-muted-foreground">{reason}</p>
+        </div>
+      </div>
+      <p className="rounded-lg bg-muted px-3 py-2 text-xs text-muted-foreground">
+        Thông tin trên web có thể sai, đã cũ hoặc không thống nhất giữa các nguồn, và Vedora không kiểm chứng. Trợ lý sẽ ghi rõ phần nào lấy từ web và kèm nguồn để bạn xem lại. Món trong thực đơn vẫn chỉ lấy từ Vedora.
+      </p>
+      <div className="flex flex-wrap gap-2">
+        <Button size="sm" disabled={disabled} onClick={() => onAnswer(true)}>
+          <CheckIcon aria-hidden /> Cho phép trong đoạn chat này
+        </Button>
+        <Button size="sm" variant="outline" disabled={disabled} onClick={() => onAnswer(false)}>
+          <XIcon aria-hidden /> Không
+        </Button>
+      </div>
+    </section>
+  )
+}
+
 function ProposalCard({ proposal, status, superseded, currentWeek, applying, applyError, skipped, onApply, onDismiss, onShowWeek }: {
   proposal: Proposal
   status: ProposalStatus | undefined
@@ -584,16 +653,110 @@ function ProposalFooter({ week, status, superseded, hasChanges, applying, applyE
   if (superseded) return <p className="mt-3 text-sm text-muted-foreground">Trợ lý đã có đề xuất mới hơn cho tuần này ở bên dưới.</p>
   if (!hasChanges) return null
   return (
-    <div className="mt-3 space-y-2">
-      {applyError && <p role="alert" className="text-sm text-destructive">{applyError}</p>}
-      <div className="flex flex-wrap items-center gap-2">
-        <Button size="sm" disabled={applying} onClick={onApply}>
-          {applying ? <Spinner aria-hidden /> : <CheckIcon aria-hidden />}
-          {applying ? "Đang lưu…" : "Áp dụng"}
-        </Button>
-        <Button variant="outline" size="sm" disabled={applying} onClick={onDismiss}>Bỏ đề xuất</Button>
-        {showWeek}
+      <div className="mt-3 space-y-2">
+        {applyError && <p role="alert" className="text-sm text-destructive">{applyError}</p>}
+        <div className="flex flex-wrap items-center gap-2">
+          <Button size="sm" disabled={applying} onClick={onApply}>
+            {applying ? <Spinner aria-hidden /> : <CheckIcon aria-hidden />}
+            {applying ? "Đang lưu…" : "Áp dụng"}
+          </Button>
+          <Button variant="outline" size="sm" disabled={applying} onClick={onDismiss}>Bỏ đề xuất</Button>
+          {showWeek}
+        </div>
       </div>
-    </div>
+    )
+}
+
+function RestaurantDishCards({ dishes }: { dishes: PlannerRestaurantDish[] }) {
+  return (
+    <section aria-label="Món gợi ý từ nhà hàng" className="mt-2 flex w-full flex-col gap-2">
+      <h3 className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground">
+        <UtensilsIcon aria-hidden className="size-3.5" />
+        Món từ nhà hàng trên Vedora
+      </h3>
+      <ul className="flex flex-col gap-2">
+        {dishes.map((dish) => {
+          const priceLabel = formatPriceVnd(dish.priceVnd)
+          const menuHref = `${profilePath(dish.restaurant.pageUserId)}?tab=menu`
+          const hasReviews =
+            dish.restaurant.averageRating !== null && dish.restaurant.reviewCount > 0
+          const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${dish.restaurant.name}, ${dish.restaurant.address}`)}`
+
+          return (
+            <li
+              key={dish.id}
+              className="flex items-start gap-3 rounded-xl border border-border bg-card p-3"
+            >
+              {dish.imageUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element -- external R2/S3 dish photo
+                <img
+                  src={dish.imageUrl}
+                  alt={dish.name}
+                  referrerPolicy="no-referrer"
+                  className="size-14 shrink-0 rounded-lg border border-border object-cover"
+                />
+              ) : (
+                <div className="flex size-14 shrink-0 items-center justify-center rounded-lg border border-border bg-muted text-muted-foreground">
+                  <UtensilsIcon aria-hidden className="size-4" />
+                </div>
+              )}
+
+              <div className="min-w-0 flex-1">
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <Link href={menuHref} className="text-sm font-bold hover:underline">
+                    {dish.name}
+                  </Link>
+                  {dish.category && <Badge variant="secondary">{dish.category}</Badge>}
+                  {priceLabel && (
+                    <span className="ml-auto text-xs font-semibold tabular-nums text-primary">
+                      {priceLabel}
+                    </span>
+                  )}
+                </div>
+
+                {dish.avoidedMatches.length > 0 && (
+                  <p className="mt-1 inline-block rounded-md bg-amber-500/15 px-2 py-0.5 text-[11px] font-medium text-amber-700 dark:text-amber-300">
+                    Lưu ý thành phần cần tránh: {dish.avoidedMatches.join(", ")}
+                  </p>
+                )}
+
+                <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-muted-foreground">
+                  <Link href={menuHref} className="font-medium text-foreground hover:underline">
+                    {dish.restaurant.name}
+                  </Link>
+                  {hasReviews && dish.restaurant.averageRating !== null && (
+                    <span className="inline-flex items-center gap-0.5 text-foreground">
+                      <StarIcon aria-hidden className="size-3 fill-amber-400 text-amber-500" />
+                      <span className="tabular-nums">
+                        {formatRatingScore(dish.restaurant.averageRating)}
+                      </span>
+                      <span className="text-muted-foreground">
+                        ({dish.restaurant.reviewCount})
+                      </span>
+                    </span>
+                  )}
+                </div>
+
+                <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-muted-foreground">
+                  <span className="inline-flex min-w-0 items-center gap-1">
+                    <MapPinIcon aria-hidden className="size-3 shrink-0" />
+                    <span className="truncate">{dish.restaurant.address}</span>
+                  </span>
+                  <a
+                    href={mapsUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 font-medium text-primary underline-offset-4 hover:underline"
+                  >
+                    <NavigationIcon aria-hidden className="size-3" />
+                    Chỉ đường
+                  </a>
+                </div>
+              </div>
+            </li>
+          )
+        })}
+      </ul>
+    </section>
   )
 }

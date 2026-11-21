@@ -26,6 +26,7 @@ import { useAuth } from "@/features/auth/hooks/use-auth"
 import { IngredientDialog } from "@/features/recipes/components/ingredient-dialog"
 import { TagSelect } from "@/features/recipes/components/tag-select"
 import { NamedSelect, type SelectOption } from "@/features/recipes/components/named-select"
+import { RecipeAiFill } from "@/features/recipes/components/recipe-ai-fill"
 import { RecipeImageField } from "@/features/recipes/components/recipe-image-field"
 import { RecipeSource } from "@/features/recipes/components/recipe-source"
 import {
@@ -40,13 +41,15 @@ import {
   MAX_RECIPE_INGREDIENTS,
   MAX_RECIPE_STEPS,
   recipeFormSchema,
+  type DraftRecipe,
+  type IngredientSuggestion,
   type RecipeDetail,
   type RecipeFormValues,
 } from "@/features/recipes/schemas"
 import { ApiError } from "@/features/shared/lib/api-client"
 
 const FORM_ID = "recipe-form"
-const EMPTY_INGREDIENT = { ingredientId: "", quantity: "", unit: "", note: "" }
+const EMPTY_INGREDIENT = { ingredientId: "", quantity: "", unit: "", note: "", draftName: "" }
 
 /** Writes a new recipe, optionally from the post `postId`, or edits `recipeId`. */
 export function RecipeEditor({
@@ -100,9 +103,37 @@ function toFormValues(recipe: RecipeDetail | null): RecipeFormValues {
       quantity: item.quantity?.toString() ?? "",
       unit: item.unit ?? "",
       note: item.note ?? "",
+      draftName: "",
     })) ?? [EMPTY_INGREDIENT],
     steps: recipe?.steps.map((text) => ({ text })) ?? [{ text: "" }],
   }
+}
+
+/** The form filled from an AI draft; the photo, and servings when AI found none, stay. */
+function fromDraft(draft: DraftRecipe, current: RecipeFormValues): RecipeFormValues {
+  const ingredients = draft.ingredients.map((item) => ({
+    ingredientId: item.match?.id ?? "",
+    quantity: item.quantity?.toString() ?? "",
+    unit: item.unit ?? "",
+    note: item.note ?? "",
+    draftName: item.name,
+  }))
+  const steps = draft.steps.map((text) => ({ text }))
+  return {
+    title: draft.title,
+    description: draft.description ?? "",
+    imageUrl: current.imageUrl,
+    tag: draft.tag ?? "",
+    servings: draft.servings === null ? current.servings : String(draft.servings),
+    prepMinutes: draft.prepMinutes?.toString() ?? "",
+    cookMinutes: draft.cookMinutes?.toString() ?? "",
+    ingredients: ingredients.length > 0 ? ingredients : [EMPTY_INGREDIENT],
+    steps: steps.length > 0 ? steps : [{ text: "" }],
+  }
+}
+
+function sameName(a: string, b: string) {
+  return a.normalize("NFC").trim().toLowerCase() === b.normalize("NFC").trim().toLowerCase()
 }
 
 function RecipeForm({
@@ -118,12 +149,19 @@ function RecipeForm({
   const refresh = useRefreshRecipeCatalog()
   const [postId, setPostId] = useState(initialPostId)
   const [addingIngredient, setAddingIngredient] = useState(false)
+  /** New-ingredient prefills from the last AI draft, by the name AI read. */
+  const [suggestions, setSuggestions] = useState(new Map<string, IngredientSuggestion>())
+  /** The row whose AI suggestion is open in the ingredient dialog. */
+  const [creatingFor, setCreatingFor] = useState<{
+    index: number
+    suggestion: IngredientSuggestion
+  } | null>(null)
 
   const form = useForm<RecipeFormValues>({
     resolver: zodResolver(recipeFormSchema),
     defaultValues: toFormValues(recipe),
   })
-  const { isSubmitting, errors } = form.formState
+  const { isSubmitting, isDirty, errors } = form.formState
   const ingredients = useFieldArray({ control: form.control, name: "ingredients" })
   const steps = useFieldArray({ control: form.control, name: "steps" })
 
@@ -135,6 +173,20 @@ function RecipeForm({
     name: item.name,
     keywords: item.aliases.join(" "),
   }))
+
+  function fillFromDraft(draft: DraftRecipe) {
+    const next = new Map<string, IngredientSuggestion>()
+    for (const item of draft.ingredients) {
+      if (item.suggestion) next.set(item.name, item.suggestion)
+    }
+    setSuggestions(next)
+    form.reset(fromDraft(draft, form.getValues()), { keepDefaultValues: true })
+  }
+
+  function closeIngredientDialog() {
+    setAddingIngredient(false)
+    setCreatingFor(null)
+  }
 
   async function onSubmit(values: RecipeFormValues) {
     if (!accessToken) return
@@ -199,6 +251,12 @@ function RecipeForm({
           onSubmit={form.handleSubmit(onSubmit)}
           className="flex min-w-0 flex-col gap-8"
         >
+          <RecipeAiFill
+            postId={postId}
+            hasContent={isDirty || recipe !== null}
+            onFill={fillFromDraft}
+            onLinkPost={setPostId}
+          />
           <FieldGroup>
             <Controller
               name="title"
@@ -296,6 +354,11 @@ function RecipeForm({
                   (option) => option.id === chosen[index]?.ingredientId
                 )?.name
                 const labelSuffix = name ? ` của ${name}` : ` dòng ${index + 1}`
+                const draftName = chosen[index]?.draftName ?? ""
+                const suggestion =
+                  draftName && !chosen[index]?.ingredientId
+                    ? suggestions.get(draftName)
+                    : undefined
                 return (
                   <li key={row.id} className="flex flex-col gap-1">
                     <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-2 sm:grid-cols-[minmax(0,2fr)_5rem_6rem_minmax(0,1.5fr)_auto]">
@@ -346,6 +409,23 @@ function RecipeForm({
                         className="col-span-2 sm:col-span-1"
                       />
                     </div>
+                    {suggestion && (
+                      <div className="flex flex-wrap items-center gap-x-2 text-sm text-muted-foreground">
+                        <span>AI đọc được “{draftName}”, chưa có trong danh mục.</span>
+                        <Button
+                          variant="link"
+                          size="xs"
+                          onClick={() => setCreatingFor({ index, suggestion })}
+                        >
+                          Tạo nguyên liệu
+                        </Button>
+                      </div>
+                    )}
+                    {draftName && name && !sameName(name, draftName) && (
+                      <p className="text-sm text-muted-foreground">
+                        Caption gọi là “{draftName}”.
+                      </p>
+                    )}
                     <FieldError
                       errors={[
                         rowErrors?.ingredientId,
@@ -454,10 +534,18 @@ function RecipeForm({
       </div>
 
       <IngredientDialog
-        open={addingIngredient}
+        open={addingIngredient || creatingFor !== null}
         ingredient={null}
-        onClose={() => setAddingIngredient(false)}
+        suggestion={creatingFor?.suggestion}
+        onClose={closeIngredientDialog}
         onSaved={(created) => {
+          if (creatingFor) {
+            form.setValue(`ingredients.${creatingFor.index}.ingredientId`, created.id, {
+              shouldDirty: true,
+              shouldValidate: true,
+            })
+            return
+          }
           const blank = chosen.findIndex((item) => !item.ingredientId)
           if (blank >= 0) {
             form.setValue(`ingredients.${blank}.ingredientId`, created.id, {

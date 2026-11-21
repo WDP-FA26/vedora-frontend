@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { SearchIcon, UsersIcon } from "lucide-react"
+import { SearchIcon, UsersIcon, UtensilsIcon } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -24,14 +24,18 @@ import {
 } from "@/features/posts/posts-cache"
 import { ProfileSearchRow } from "@/features/profiles/components/profile-search-row"
 import { useProfileSearch } from "@/features/profiles/hooks/use-profile-search"
+import { MenuDishSearchRow } from "@/features/workspaces/components/menu-dish-search-row"
+import { useMenuSearch } from "@/features/workspaces/hooks/use-menu-search"
 
 const TAB_LABELS: Record<SearchTab, string> = {
   all: "Tất cả",
   people: "Mọi người",
+  dishes: "Món nhà hàng",
   posts: "Bài viết",
 }
 
 const TOP_PEOPLE_LIMIT = 3
+const TOP_DISHES_LIMIT = 4
 
 function buildSearchRedirect(q: string, tab: SearchTab) {
   const params = new URLSearchParams({ q })
@@ -45,6 +49,8 @@ export function SearchView({ q, initialTab }: { q: string; initialTab: SearchTab
   const postsSearch = usePostSearch(q)
   const topPeople = useProfileSearch(q, TOP_PEOPLE_LIMIT)
   const allPeople = useProfileSearch(tab === "people" ? q : "", 20)
+  const topDishes = useMenuSearch(q, TOP_DISHES_LIMIT)
+  const allDishes = useMenuSearch(tab === "dishes" ? q : "", 15)
 
   function selectTab(next: SearchTab) {
     setTab(next)
@@ -92,14 +98,20 @@ export function SearchView({ q, initialTab }: { q: string; initialTab: SearchTab
             <TabsContent value="all">
               <AllResultsTab
                 topPeople={topPeople}
+                topDishes={topDishes}
                 postsSearch={postsSearch}
                 redirectTo={redirectTo}
                 onShowAllPeople={() => selectTab("people")}
+                onShowAllDishes={() => selectTab("dishes")}
               />
             </TabsContent>
 
             <TabsContent value="people">
               <PeopleResultsTab people={allPeople} redirectTo={redirectTo} />
+            </TabsContent>
+
+            <TabsContent value="dishes">
+              <DishesResultsTab dishes={allDishes} />
             </TabsContent>
 
             <TabsContent value="posts">
@@ -114,16 +126,21 @@ export function SearchView({ q, initialTab }: { q: string; initialTab: SearchTab
 
 function AllResultsTab({
   topPeople,
+  topDishes,
   postsSearch,
   redirectTo,
   onShowAllPeople,
+  onShowAllDishes,
 }: {
   topPeople: ReturnType<typeof useProfileSearch>
+  topDishes: ReturnType<typeof useMenuSearch>
   postsSearch: ReturnType<typeof usePostSearch>
   redirectTo: string
   onShowAllPeople: () => void
+  onShowAllDishes: () => void
 }) {
-  const isInitialLoading = topPeople.isLoading && postsSearch.isLoading
+  const isInitialLoading =
+    topPeople.isLoading && topDishes.isLoading && postsSearch.isLoading
   if (isInitialLoading) {
     return (
       <div className="flex justify-center p-6">
@@ -133,8 +150,9 @@ function AllResultsTab({
   }
 
   const noPeople = !topPeople.isLoading && !topPeople.error && topPeople.profiles.length === 0
+  const noDishes = !topDishes.isLoading && !topDishes.error && topDishes.items.length === 0
   const noPosts = !postsSearch.isLoading && !postsSearch.error && postsSearch.posts.length === 0
-  if (noPeople && noPosts) {
+  if (noPeople && noDishes && noPosts) {
     return (
       <Empty>
         <EmptyHeader>
@@ -149,6 +167,8 @@ function AllResultsTab({
       </Empty>
     )
   }
+
+  const hasSectionAbovePosts = topPeople.profiles.length > 0 || topDishes.items.length > 0
 
   return (
     <div>
@@ -174,6 +194,28 @@ function AllResultsTab({
         </section>
       ) : null}
 
+      {topDishes.error ? (
+        <p role="alert" className="border-b border-border p-4 text-sm text-destructive sm:px-5">
+          Không tìm được món nhà hàng lúc này.
+        </p>
+      ) : topDishes.items.length > 0 ? (
+        <section aria-labelledby="search-dishes-heading">
+          <div className="flex items-center justify-between border-b border-border px-4 py-2.5 sm:px-5">
+            <h2 id="search-dishes-heading" className="text-base font-bold">
+              Món nhà hàng
+            </h2>
+            <Button type="button" variant="link" size="sm" onClick={onShowAllDishes}>
+              Xem tất cả
+            </Button>
+          </div>
+          <ul>
+            {topDishes.items.map((item) => (
+              <MenuDishSearchRow key={item.id} item={item} />
+            ))}
+          </ul>
+        </section>
+      ) : null}
+
       {postsSearch.isLoading ? (
         <div className="flex justify-center p-6">
           <Spinner aria-label="Đang tìm bài viết" />
@@ -184,7 +226,7 @@ function AllResultsTab({
         </p>
       ) : postsSearch.posts.length > 0 ? (
         <section aria-labelledby="search-posts-heading">
-          {topPeople.profiles.length > 0 && (
+          {hasSectionAbovePosts && (
             <h2
               id="search-posts-heading"
               className="border-b border-border px-4 py-2.5 text-base font-bold sm:px-5"
@@ -247,6 +289,56 @@ function PeopleResultsTab({
         <div className="flex justify-center p-4">
           <Button type="button" variant="outline" disabled={people.isLoadingMore} onClick={people.loadMore}>
             {people.isLoadingMore && <Spinner aria-hidden />}
+            Xem thêm kết quả
+          </Button>
+        </div>
+      )}
+    </>
+  )
+}
+
+function DishesResultsTab({ dishes }: { dishes: ReturnType<typeof useMenuSearch> }) {
+  if (dishes.isLoading) {
+    return (
+      <div className="flex justify-center p-6">
+        <Spinner aria-label="Đang tìm món nhà hàng" />
+      </div>
+    )
+  }
+  if (dishes.error) {
+    return (
+      <p role="alert" className="p-4 text-sm text-destructive sm:px-5">
+        Không tìm được món nhà hàng lúc này. Thử lại sau ít phút nhé.
+      </p>
+    )
+  }
+  if (dishes.items.length === 0) {
+    return (
+      <Empty>
+        <EmptyHeader>
+          <EmptyMedia variant="icon">
+            <UtensilsIcon aria-hidden />
+          </EmptyMedia>
+          <EmptyTitle>Không có món nhà hàng phù hợp</EmptyTitle>
+          <EmptyDescription>
+            Thử tên món chay, danh mục hoặc tên nhà hàng khác (có thể gõ không dấu).
+          </EmptyDescription>
+        </EmptyHeader>
+      </Empty>
+    )
+  }
+
+  return (
+    <>
+      <ul>
+        {dishes.items.map((item) => (
+          <MenuDishSearchRow key={item.id} item={item} />
+        ))}
+      </ul>
+      {dishes.hasMore && (
+        <div className="flex justify-center p-4">
+          <Button type="button" variant="outline" disabled={dishes.isLoadingMore} onClick={dishes.loadMore}>
+            {dishes.isLoadingMore && <Spinner aria-hidden />}
             Xem thêm kết quả
           </Button>
         </div>

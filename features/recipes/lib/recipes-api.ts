@@ -24,6 +24,7 @@ import {
   ratingSummarySchema,
   recipeConflictsSchema,
   recipeDetailSchema,
+  recipeDraftSchema,
   recipeImageUploadSchema,
   recipePageSchema,
   type RuleSide,
@@ -122,6 +123,20 @@ export type RecipeInput = {
 }
 export const saveRecipe = (token: string, id: string | undefined, body: RecipeInput) =>
   save(recipeDetailSchema, RECIPES_KEY, token, id, body)
+
+/**
+ * What AI reads a recipe draft from: a post's caption and transcripts (only
+ * `mediaId`'s transcript when given), or pasted text.
+ */
+export type RecipeDraftSource = { postId: string; mediaId?: string } | { text: string }
+
+/** Asks AI to read `source` into a recipe draft; nothing is saved. */
+export function requestRecipeDraft(token: string, source: RecipeDraftSource) {
+  return sendJson(recipeDraftSchema, `${RECIPES_KEY}/drafts`, token, {
+    method: "POST",
+    body: JSON.stringify(source),
+  })
+}
 
 export async function deleteRow(collection: string, token: string, id: string) {
   await send(`${collection}/${id}`, token, { method: "DELETE" })

@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
 import { useChat } from "@ai-sdk/react"
 import { APICallError, DefaultChatTransport, isToolUIPart, type UIMessage } from "ai"
+import { z } from "zod"
 
 import { useAuth } from "@/features/auth/hooks/use-auth"
 import { useAuthedSWR } from "@/features/auth/hooks/use-authed-swr"
@@ -78,6 +79,105 @@ const PROPOSAL_TOOL_TYPES = [
   "tool-fillSlots",
   "tool-editDraft",
 ]
+
+// Mirror vedora-api's `requestWebSearch` tool: it asks for consent and has no
+// output until the user answers on the card.
+const WEB_SEARCH_REQUEST_TYPE = "tool-requestWebSearch"
+const webSearchInputSchema = z.object({ reason: z.string() })
+const webSearchDecisionSchema = z.object({ approved: z.boolean() })
+
+const RESTAURANT_DISHES_TOOL_TYPE = "tool-searchRestaurantDishes"
+const plannerRestaurantDishSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  category: z.string().nullable().default(null),
+  priceVnd: z.number().nullable().default(null),
+  description: z.string().nullable().default(null),
+  imageUrl: z.string().nullable().default(null),
+  restaurant: z.object({
+    pageUserId: z.string(),
+    username: z.string(),
+    name: z.string(),
+    avatarUrl: z.string().nullable().default(null),
+    address: z.string(),
+    averageRating: z.number().nullable().default(null),
+    reviewCount: z.number().default(0),
+  }),
+  avoidedMatches: z.array(z.string()).default([]),
+})
+const plannerRestaurantDishListSchema = z.array(plannerRestaurantDishSchema)
+
+export type PlannerRestaurantDish = z.infer<typeof plannerRestaurantDishSchema>
+
+export function messageRestaurantDishes(message: UIMessage): PlannerRestaurantDish[] {
+  const seen = new Set<string>()
+  const dishes: PlannerRestaurantDish[] = []
+  for (const part of message.parts) {
+    if (
+      !isToolUIPart(part) ||
+      part.type !== RESTAURANT_DISHES_TOOL_TYPE ||
+      part.state !== "output-available"
+    ) {
+      continue
+    }
+    const parsed = plannerRestaurantDishListSchema.safeParse(part.output)
+    if (!parsed.success) continue
+    for (const dish of parsed.data) {
+      if (seen.has(dish.id)) continue
+      seen.add(dish.id)
+      dishes.push(dish)
+    }
+  }
+  return dishes
+}
+
+export interface WebSearchRequest {
+  toolCallId: string
+  reason: string
+  /** Undefined until the user answers. */
+  approved: boolean | undefined
+}
+
+/** The assistant's requests to search the web in this message, in order. */
+export function messageWebSearchRequests(message: UIMessage): WebSearchRequest[] {
+  const requests: WebSearchRequest[] = []
+  for (const part of message.parts) {
+    if (!isToolUIPart(part) || part.type !== WEB_SEARCH_REQUEST_TYPE) continue
+    const input = webSearchInputSchema.safeParse(part.input)
+    if (!input.success) continue
+    const decision = part.state === "output-available" ? webSearchDecisionSchema.safeParse(part.output) : undefined
+    requests.push({
+      toolCallId: part.toolCallId,
+      reason: input.data.reason,
+      approved: decision?.success ? decision.data.approved : undefined,
+    })
+  }
+  return requests
+}
+
+/**
+ * Whether the user allowed web search in this conversation: their newest
+ * answer to a request stands. A new conversation starts without consent.
+ */
+export function webSearchAllowed(messages: readonly UIMessage[]): boolean {
+  let allowed = false
+  for (const message of messages) {
+    for (const { approved } of messageWebSearchRequests(message)) {
+      if (approved !== undefined) allowed = approved
+    }
+  }
+  return allowed
+}
+
+function webSearchNote({ reason, approved }: WebSearchRequest): string {
+  let answer = "người dùng chưa trả lời"
+  if (approved === true) answer = "người dùng đã cho phép"
+  if (approved === false) answer = "người dùng đã từ chối"
+  return `[Đã xin phép tìm trên web (${reason}): ${answer}]`
+}
+
+const WEB_SEARCH_APPROVED_TEXT = "Đồng ý, bạn cứ tìm trên web."
+const WEB_SEARCH_DECLINED_TEXT = "Không cần tìm trên web."
 
 /** vedora-api marks its fixed refusals with `{ refused: true }`. */
 type PlannerMessage = UIMessage<{ refused?: boolean }>
@@ -171,7 +271,8 @@ function contextText(message: UIMessage, statuses: Statuses, latest: Map<string,
     const week = proposal.weekStart ? ` tuần ${proposal.weekStart}` : ""
     return `[Đề xuất${week} (${status}): ${meals}]`
   })
-  return [messageText(message), ...notes].filter(Boolean).join("\n").slice(0, MAX_TEXT_LENGTH)
+  const webSearchNotes = messageWebSearchRequests(message).map(webSearchNote)
+  return [messageText(message), ...notes, ...webSearchNotes].filter(Boolean).join("\n").slice(0, MAX_TEXT_LENGTH)
 }
 
 // a refused request must not ride along as context for the next message
@@ -264,6 +365,7 @@ const transport = new DefaultChatTransport<PlannerMessage>({
       body: {
         weekStart: body?.weekStart,
         ...(threadId ? { threadId } : {}),
+        allowWebSearch: body?.allowWebSearch === true,
         requestId: messages.filter((message) => message.role === "user").at(-1)?.id,
         messages: withoutRefusals(messages.filter((message) => message.id !== WELCOME.id))
           .map((message) => ({ role: message.role, text: contextText(message, statuses, latest) }))
@@ -338,7 +440,7 @@ export function useMealPlannerChat(weekStart: string | undefined) {
     }
   }
 
-  const { messages, status, error, sendMessage, setMessages, stop, clearError } =
+  const { messages, status, error, sendMessage, setMessages, stop, clearError, addToolOutput } =
     useChat<PlannerMessage>({
       transport,
       messages: [WELCOME],
@@ -468,6 +570,33 @@ export function useMealPlannerChat(weekStart: string | undefined) {
   }
 
   const busy = status === "submitted" || status === "streaming"
+
+  function sendText(text: string, allowWebSearch: boolean) {
+    if (!weekStart) return
+    manualActionRef.current = true
+    clearError()
+    setHistoryError(null)
+    void sendMessage(
+      { text },
+      {
+        headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : undefined,
+        body: { statuses, threadId, weekStart, allowWebSearch },
+      }
+    )
+  }
+
+  async function answerWebSearch(toolCallId: string, approved: boolean) {
+    if (busy || !weekStart) return
+    await addToolOutput({ tool: "requestWebSearch", toolCallId, output: { approved } })
+    sendText(approved ? WEB_SEARCH_APPROVED_TEXT : WEB_SEARCH_DECLINED_TEXT, approved)
+  }
+
+  const webSearch = webSearchAllowed(messages)
+  const lastMessage = messages.at(-1)
+  const lastRequest = lastMessage?.role === "assistant" ? messageWebSearchRequests(lastMessage).at(-1) : undefined
+  // Only the newest message can still be answered; an older one the user typed past stays unanswered.
+  const openWebSearchRequest =
+    !busy && lastRequest !== undefined && lastRequest.approved === undefined ? lastRequest : null
   const last = messages.at(-1)
   const runningTool =
     busy && last?.role === "assistant"
@@ -517,19 +646,12 @@ export function useMealPlannerChat(weekStart: string | undefined) {
       updateProposalStatuses(updates)
     },
     error: error ? errorMessage(error) : null,
-    send: (text: string) => {
-      if (!weekStart) return
-      manualActionRef.current = true
-      clearError()
-      setHistoryError(null)
-      void sendMessage(
-        { text },
-        {
-          headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : undefined,
-          body: { statuses, threadId, weekStart },
-        }
-      )
-    },
+    send: (text: string) => sendText(text, webSearch),
+    /** The user allowed web search in this conversation. */
+    webSearchAllowed: webSearch,
+    /** The assistant's request to search the web, waiting for the user's answer. */
+    openWebSearchRequest,
+    answerWebSearch: (toolCallId: string, approved: boolean) => void answerWebSearch(toolCallId, approved),
     selectThread,
     startNewThread,
     removeThread,

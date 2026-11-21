@@ -27,7 +27,7 @@ import {
   MessageScrollerViewport,
 } from "@/components/ui/message-scroller"
 import { PopoverDescription, PopoverTitle } from "@/components/ui/popover"
-import { AgentSources, AgentTrace, hasTrace } from "@/features/shared/components/agent-trace"
+import { AgentTrace, hasTrace, MessageSources } from "@/features/shared/components/agent-trace"
 import { LogoMark } from "@/features/shared/components/wordmark"
 import {
   messageText,
@@ -132,7 +132,7 @@ export function NutritionChatPanel({
                           {text}
                         </Streamdown>
                       )}
-                      {!pending && message.id !== streamingId && <AgentSources message={message} />}
+                      {!pending && message.id !== streamingId && <MessageSources message={message} />}
                     </AssistantMessage>
                   ) : (
                     <Message align="end">

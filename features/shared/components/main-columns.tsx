@@ -6,7 +6,7 @@ import { usePathname } from "next/navigation"
 import { cn } from "@/lib/utils"
 
 /** Pages that take the right rail's space for a panel of their own. */
-const WIDE_PATHS = ["/home/meal-planner", "/home/messages"]
+const WIDE_PATHS = ["/home/meal-planner", "/home/messages", "/home/restaurants"]
 
 export function MainColumns({ children, rail }: { children: ReactNode; rail: ReactNode }) {
   const pathname = usePathname()

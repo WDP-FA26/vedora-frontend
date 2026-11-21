@@ -26,11 +26,14 @@ export const apiProfileSummarySchema = z.object({
 })
 
 export const restaurantProfileSchema = z.object({
+  workspaceId: z.string().optional(),
   address: z.string(),
   longitude: z.number(),
   latitude: z.number(),
   phone: z.string().nullable(),
   website: z.string().nullable(),
+  averageRating: z.number().nullable().default(null),
+  reviewCount: z.number().default(0),
 })
 
 export const apiProfileSchema = apiProfileSummarySchema.extend({

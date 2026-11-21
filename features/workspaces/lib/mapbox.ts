@@ -84,3 +84,8 @@ export async function addressAt(
   const [first] = toSuggestions(await response.json())
   return first?.label ?? null
 }
+
+/** Google Maps directions link ending at `point`. */
+export function googleMapsDirectionsUrl(point: LngLat): string {
+  return `https://www.google.com/maps/dir/?api=1&destination=${point.latitude},${point.longitude}`
+}

@@ -1,9 +1,17 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import Link from "next/link"
-import { MapPinOffIcon } from "lucide-react"
+import {
+  LocateFixedIcon,
+  MapPinIcon,
+  MapPinOffIcon,
+  NavigationIcon,
+  StarIcon,
+  UtensilsIcon,
+} from "lucide-react"
 
+import { Button } from "@/components/ui/button"
 import {
   Empty,
   EmptyDescription,
@@ -11,19 +19,65 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from "@/components/ui/empty"
+import { Spinner } from "@/components/ui/spinner"
 import { toAuthor } from "@/features/auth/lib/to-author"
 import { profilePath } from "@/features/profiles/profiles-cache"
 import { AuthorAvatar } from "@/features/shared/components/author-avatar"
-import { RestaurantsMap } from "@/features/workspaces/components/map"
+import {
+  RestaurantsMap,
+  type CameraCenterTarget,
+  type RestaurantFocusTarget,
+} from "@/features/workspaces/components/map"
 import { PageHeader } from "@/features/workspaces/components/page-header"
 import { useRestaurantsInView } from "@/features/workspaces/hooks/use-workspaces"
-import { MAPBOX_TOKEN } from "@/features/workspaces/lib/mapbox"
+import { formatDistance, formatRatingScore } from "@/features/workspaces/lib/format"
+import { googleMapsDirectionsUrl, MAPBOX_TOKEN } from "@/features/workspaces/lib/mapbox"
+import type { LngLat, RestaurantPin } from "@/features/workspaces/schemas"
 import type { MapBounds } from "@/features/workspaces/workspaces-cache"
+import { cn } from "@/lib/utils"
 
-/** A map of approved vegetarian restaurants, with the ones in view listed below it. */
+function countSummary(
+  ready: boolean,
+  count: number,
+  truncated: boolean,
+  hasLocation: boolean
+): string {
+  if (!ready) return "Đang tải nhà hàng trong khu vực…"
+  if (count === 0) return "Chưa có nhà hàng nào trong khu vực này"
+  const suffix = hasLocation ? " · Gần bạn nhất" : ""
+  if (truncated) return `Hiển thị ${count} nhà hàng · Phóng to để xem thêm${suffix}`
+  return `${count} nhà hàng trong khu vực này${suffix}`
+}
+
+/** A full-height map of approved vegetarian restaurants with clickable cards in the right column. */
 export function RestaurantsExplorer() {
   const [bounds, setBounds] = useState<MapBounds | null>(null)
-  const { restaurants, truncated, error } = useRestaurantsInView(bounds)
+  const [userLocation, setUserLocation] = useState<LngLat | null>(null)
+  const [locating, setLocating] = useState(false)
+  const [locationNotice, setLocationNotice] = useState<string | null>(null)
+  const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [focusTarget, setFocusTarget] = useState<RestaurantFocusTarget | null>(null)
+  const [cameraTarget, setCameraTarget] = useState<CameraCenterTarget | null>(null)
+  const { restaurants, truncated, error, isLoading } = useRestaurantsInView(bounds, userLocation)
+
+  useEffect(() => {
+    if (typeof navigator === "undefined" || !("geolocation" in navigator)) return
+    let active = true
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        if (!active) return
+        setUserLocation({
+          longitude: position.coords.longitude,
+          latitude: position.coords.latitude,
+        })
+      },
+      () => undefined,
+      { enableHighAccuracy: false, timeout: 8000, maximumAge: 60_000 }
+    )
+    return () => {
+      active = false
+    }
+  }, [])
 
   if (!MAPBOX_TOKEN) {
     return (
@@ -42,70 +96,274 @@ export function RestaurantsExplorer() {
     )
   }
 
+  function requestMyLocation() {
+    if (typeof navigator === "undefined" || !("geolocation" in navigator)) {
+      setLocationNotice("Trình duyệt không hỗ trợ lấy vị trí hiện tại.")
+      return
+    }
+    setLocating(true)
+    setLocationNotice(null)
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        const coords: LngLat = {
+          longitude: position.coords.longitude,
+          latitude: position.coords.latitude,
+        }
+        setUserLocation(coords)
+        setCameraTarget((prev) => ({ ...coords, seq: (prev?.seq ?? 0) + 1 }))
+        setLocating(false)
+      },
+      () => {
+        setLocationNotice("Chưa lấy được vị trí. Hãy cấp quyền vị trí trên trình duyệt rồi thử lại.")
+        setLocating(false)
+      },
+      { enableHighAccuracy: true, timeout: 10_000, maximumAge: 30_000 }
+    )
+  }
+
+  function focusRestaurant(restaurant: RestaurantPin) {
+    setSelectedId(restaurant.pageUserId)
+    setFocusTarget((prev) => ({ restaurant, seq: (prev?.seq ?? 0) + 1 }))
+  }
+
+  function handleMapSelect(restaurant: RestaurantPin | null) {
+    setSelectedId(restaurant ? restaurant.pageUserId : null)
+  }
+
+  const ready = bounds !== null && !(isLoading && restaurants.length === 0)
+
   return (
-    <section aria-labelledby="restaurants-title">
-      <PageHeader title="Nhà hàng chay" />
-      <span id="restaurants-title" className="sr-only">
-        Bản đồ nhà hàng chay
-      </span>
-      <div className="h-[55dvh] min-h-80 border-b border-border">
-        <RestaurantsMap restaurants={restaurants} onBoundsChange={setBounds} />
+    <section
+      aria-labelledby="restaurants-title"
+      className="flex h-[calc(100dvh-4rem)] flex-col overflow-hidden sm:h-dvh md:flex-row"
+    >
+      <div className="relative min-h-[45%] min-w-0 flex-1 md:min-h-0">
+        <div className="absolute inset-0">
+          <RestaurantsMap
+            restaurants={restaurants}
+            selectedId={selectedId}
+            focusTarget={focusTarget}
+            cameraTarget={cameraTarget}
+            onSelect={handleMapSelect}
+            onBoundsChange={setBounds}
+            onUserLocation={setUserLocation}
+          />
+        </div>
       </div>
-      {error && (
-        <p role="alert" className="p-4 text-sm text-destructive sm:px-5">
-          Không tải được danh sách nhà hàng. Thử di chuyển bản đồ lại nhé.
-        </p>
-      )}
-      {truncated && (
-        <p className="px-4 pt-3 text-sm text-muted-foreground sm:px-5">
-          Có nhiều nhà hàng trong khu vực này; phóng to bản đồ để xem hết.
-        </p>
-      )}
-      <RestaurantList restaurants={restaurants} loaded={bounds !== null} />
+
+      <aside
+        aria-label="Danh sách nhà hàng"
+        className="flex h-[45%] min-h-0 flex-col border-t border-border bg-background md:h-full md:w-80 md:shrink-0 md:border-t-0 md:border-l lg:w-[21.875rem] xl:w-[23rem]"
+      >
+        <header className="shrink-0 border-b border-border bg-card/85 px-4 py-3 backdrop-blur-md">
+          <div className="flex items-center justify-between gap-2">
+            <h1 id="restaurants-title" className="text-lg font-bold">
+              Nhà hàng chay
+            </h1>
+            <Button
+              type="button"
+              variant={userLocation ? "secondary" : "outline"}
+              size="xs"
+              shape="pill"
+              disabled={locating}
+              onClick={requestMyLocation}
+              title="Tìm và sắp xếp nhà hàng gần vị trí của bạn"
+            >
+              {locating ? <Spinner aria-hidden /> : <LocateFixedIcon aria-hidden />}
+              Gần bạn
+            </Button>
+          </div>
+          <p className="mt-0.5 text-xs text-muted-foreground">
+            {countSummary(ready, restaurants.length, truncated, userLocation !== null)}
+          </p>
+          {locationNotice && (
+            <p role="status" className="mt-1 text-xs text-amber-600 dark:text-amber-400">
+              {locationNotice}
+            </p>
+          )}
+        </header>
+
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-3">
+          {error && (
+            <p
+              role="alert"
+              className="mb-3 rounded-xl border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive"
+            >
+              Không tải được danh sách nhà hàng. Thử di chuyển bản đồ lại nhé.
+            </p>
+          )}
+          <RestaurantCards
+            restaurants={restaurants}
+            ready={ready}
+            hasError={Boolean(error)}
+            selectedId={selectedId}
+            onSelect={focusRestaurant}
+          />
+        </div>
+      </aside>
     </section>
   )
 }
 
-function RestaurantList({
+function RestaurantCards({
   restaurants,
-  loaded,
+  ready,
+  hasError,
+  selectedId,
+  onSelect,
 }: {
-  restaurants: ReturnType<typeof useRestaurantsInView>["restaurants"]
-  loaded: boolean
+  restaurants: RestaurantPin[]
+  ready: boolean
+  hasError: boolean
+  selectedId: string | null
+  onSelect: (restaurant: RestaurantPin) => void
 }) {
-  if (!loaded) return null
-  if (restaurants.length === 0) {
+  if (!ready) {
     return (
-      <p className="p-4 text-sm text-muted-foreground sm:px-5">
-        Chưa có nhà hàng nào trong khu vực này.
+      <div className="flex justify-center py-8">
+        <Spinner aria-label="Đang tải danh sách nhà hàng" />
+      </div>
+    )
+  }
+
+  if (restaurants.length === 0) {
+    if (hasError) return null
+    return (
+      <p className="rounded-2xl border border-dashed border-border p-4 text-sm text-muted-foreground">
+        Chưa có nhà hàng nào trong khu vực này. Thử di chuyển hoặc thu nhỏ bản đồ để tìm thêm.
       </p>
     )
   }
+
   return (
-    <ul className="divide-y divide-border">
+    <ul className="flex flex-col gap-3">
       {restaurants.map((restaurant) => (
         <li key={restaurant.pageUserId}>
-          <Link
-            href={profilePath(restaurant.pageUserId)}
-            className="flex items-center gap-3 px-4 py-3 hover:bg-muted/50 sm:px-5"
-          >
-            <AuthorAvatar
-              author={toAuthor({
-                id: restaurant.pageUserId,
-                username: restaurant.username,
-                fullName: restaurant.name,
-                avatarUrl: restaurant.avatarUrl,
-              })}
-            />
-            <span className="min-w-0 flex-1">
-              <span className="block truncate font-bold">{restaurant.name}</span>
-              <span className="block truncate text-sm text-muted-foreground">
-                {restaurant.address}
-              </span>
-            </span>
-          </Link>
+          <RestaurantExplorerCard
+            restaurant={restaurant}
+            selected={restaurant.pageUserId === selectedId}
+            onSelect={onSelect}
+          />
         </li>
       ))}
     </ul>
+  )
+}
+
+function RestaurantExplorerCard({
+  restaurant,
+  selected,
+  onSelect,
+}: {
+  restaurant: RestaurantPin
+  selected: boolean
+  onSelect: (restaurant: RestaurantPin) => void
+}) {
+  const hasReviews = restaurant.averageRating !== null && restaurant.reviewCount > 0
+
+  return (
+    <article
+      className={cn(
+        "group relative rounded-2xl border bg-card p-3.5 transition-colors",
+        selected
+          ? "border-primary bg-accent/40 ring-1 ring-primary/30"
+          : "border-border hover:border-primary/40 hover:bg-muted/40"
+      )}
+    >
+      <button
+        type="button"
+        onClick={() => onSelect(restaurant)}
+        aria-pressed={selected}
+        aria-label={`Di chuyển bản đồ đến ${restaurant.name}`}
+        className="absolute inset-0 z-0 cursor-pointer rounded-2xl outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+      />
+
+      <div className="pointer-events-none relative z-10 flex flex-col gap-2">
+        <div className="flex items-start gap-3">
+          <AuthorAvatar
+            author={toAuthor({
+              id: restaurant.pageUserId,
+              username: restaurant.username,
+              fullName: restaurant.name,
+              avatarUrl: restaurant.avatarUrl,
+            })}
+            size="lg"
+          />
+          <div className="min-w-0 flex-1">
+            <div className="flex items-start justify-between gap-2">
+              <Link
+                href={profilePath(restaurant.pageUserId)}
+                className="pointer-events-auto relative z-10 inline-block max-w-full truncate font-heading text-sm font-bold text-foreground underline-offset-4 hover:text-primary hover:underline focus-visible:rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                {restaurant.name}
+              </Link>
+              {restaurant.distanceMeters !== null && (
+                <span className="shrink-0 rounded-full bg-secondary px-2 py-0.5 text-[11px] font-medium tabular-nums text-secondary-foreground">
+                  {formatDistance(restaurant.distanceMeters)}
+                </span>
+              )}
+            </div>
+            <p className="truncate text-xs text-muted-foreground">@{restaurant.username}</p>
+          </div>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs">
+          {hasReviews && restaurant.averageRating !== null ? (
+            <Link
+              href={`${profilePath(restaurant.pageUserId)}?tab=reviews`}
+              className="pointer-events-auto relative z-10 inline-flex items-center gap-1 font-medium text-foreground hover:underline"
+            >
+              <StarIcon aria-hidden className="size-3.5 fill-amber-400 text-amber-500" />
+              <span className="tabular-nums">{formatRatingScore(restaurant.averageRating)}</span>
+              <span className="text-muted-foreground">({restaurant.reviewCount} đánh giá)</span>
+            </Link>
+          ) : (
+            <Link
+              href={`${profilePath(restaurant.pageUserId)}?tab=reviews`}
+              className="pointer-events-auto relative z-10 inline-flex items-center gap-1 text-muted-foreground hover:text-foreground hover:underline"
+            >
+              <StarIcon aria-hidden className="size-3.5" />
+              Chưa có đánh giá
+            </Link>
+          )}
+        </div>
+
+        <p className="flex items-start gap-2 text-xs leading-relaxed text-muted-foreground">
+          <MapPinIcon aria-hidden className="mt-0.5 size-3.5 shrink-0 text-primary" />
+          <span className="line-clamp-2">{restaurant.address}</span>
+        </p>
+
+        <div className="flex items-center justify-between gap-2 pt-0.5">
+          {selected ? (
+            <span className="text-xs font-medium text-primary">Đang xem trên bản đồ</span>
+          ) : (
+            <Link
+              href={`${profilePath(restaurant.pageUserId)}?tab=menu`}
+              className="pointer-events-auto relative z-10 inline-flex items-center gap-1 text-xs font-medium text-foreground/80 underline-offset-4 hover:text-primary hover:underline"
+            >
+              <UtensilsIcon aria-hidden className="size-3.5" />
+              Thực đơn
+            </Link>
+          )}
+          <Button
+            variant="outline"
+            size="sm"
+            shape="pill"
+            nativeButton={false}
+            className="pointer-events-auto relative z-10 ml-auto"
+            render={
+              <a
+                href={googleMapsDirectionsUrl(restaurant)}
+                target="_blank"
+                rel="noopener noreferrer"
+              />
+            }
+          >
+            <NavigationIcon aria-hidden className="size-3.5" />
+            Chỉ đường
+          </Button>
+        </div>
+      </div>
+    </article>
   )
 }

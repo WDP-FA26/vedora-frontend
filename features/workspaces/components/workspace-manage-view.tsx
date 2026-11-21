@@ -28,6 +28,7 @@ import { ApiError } from "@/features/shared/lib/api-client"
 import { formatPostDateLong } from "@/features/shared/lib/format"
 import { LocationPicker } from "@/features/workspaces/components/location-picker"
 import { PageHeader } from "@/features/workspaces/components/page-header"
+import { RestaurantMenuManager } from "@/features/workspaces/components/restaurant-menu-manager"
 import { WorkspaceStatusBadge } from "@/features/workspaces/components/status-badge"
 import { useSwitchAccount } from "@/features/workspaces/hooks/use-switch-account"
 import {
@@ -90,6 +91,7 @@ export function WorkspaceManageView({ id }: { id: string }) {
       <PageHeader title={workspace.name} backHref={WORKSPACES_PATH} />
       <div className="flex flex-col gap-8 p-4 sm:px-5">
         <Overview workspace={workspace} />
+        <RestaurantMenuManager workspace={workspace} />
         <DetailsForm workspace={workspace} />
         <Members workspace={workspace} />
       </div>

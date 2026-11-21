@@ -119,11 +119,136 @@ export const restaurantPinSchema = z.object({
   address: z.string(),
   longitude: z.number(),
   latitude: z.number(),
+  distanceMeters: z.number().nullable().default(null),
+  averageRating: z.number().nullable().default(null),
+  reviewCount: z.number().default(0),
 })
 
 export const restaurantPinListSchema = z.object({
   items: z.array(restaurantPinSchema),
   truncated: z.boolean(),
+})
+
+export const MAX_MENU_ITEM_NAME_LENGTH = 120
+export const MAX_MENU_ITEM_DESCRIPTION_LENGTH = 600
+export const MAX_MENU_ITEM_CATEGORY_LENGTH = 60
+export const MAX_MENU_ITEM_PRICE_VND = 100_000_000
+export const MAX_MENU_IMAGE_MB = 5
+export const MENU_IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp"] as const
+export const MENU_CATEGORIES = [
+  "Khai vị",
+  "Món chính",
+  "Món nước",
+  "Lẩu",
+  "Đồ uống",
+  "Tráng miệng",
+] as const
+
+export const menuImageUploadSchema = z.object({
+  upload: presignedUploadSchema,
+  url: z.string(),
+})
+
+export const restaurantMenuItemSchema = z.object({
+  id: z.string(),
+  workspaceId: z.string(),
+  pageUserId: z.string().nullable(),
+  name: z.string(),
+  description: z.string().nullable(),
+  category: z.string().nullable(),
+  priceVnd: z.number().nullable(),
+  imageUrl: z.string().nullable(),
+  isAvailable: z.boolean(),
+  position: z.number(),
+  createdAt: z.string(),
+  updatedAt: z.string(),
+})
+
+export const restaurantMenuListSchema = z.object({
+  items: z.array(restaurantMenuItemSchema),
+})
+
+export const menuDishRestaurantSummarySchema = z.object({
+  pageUserId: z.string(),
+  username: z.string(),
+  name: z.string(),
+  avatarUrl: z.string().nullable(),
+  address: z.string(),
+  longitude: z.number(),
+  latitude: z.number(),
+  averageRating: z.number().nullable().default(null),
+  reviewCount: z.number().default(0),
+})
+
+export const restaurantMenuSearchItemSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  description: z.string().nullable(),
+  category: z.string().nullable(),
+  priceVnd: z.number().nullable(),
+  imageUrl: z.string().nullable(),
+  restaurant: menuDishRestaurantSummarySchema,
+})
+
+export const restaurantMenuSearchPageSchema = z.object({
+  items: z.array(restaurantMenuSearchItemSchema),
+  nextCursor: z.string().nullable(),
+})
+
+export const MAX_REVIEW_COMMENT_LENGTH = 1000
+export const REVIEW_SORTS = ["newest", "highest", "lowest"] as const
+export type RestaurantReviewSort = (typeof REVIEW_SORTS)[number]
+
+export const restaurantReviewAuthorSchema = z.object({
+  id: z.string(),
+  username: z.string(),
+  fullName: z.string(),
+  avatarUrl: z.string().nullable(),
+  isProfessional: z.boolean(),
+})
+
+export const restaurantReviewSchema = z.object({
+  id: z.string(),
+  rating: z.number().int().min(1).max(5),
+  comment: z.string().nullable(),
+  createdAt: z.string(),
+  updatedAt: z.string(),
+  author: restaurantReviewAuthorSchema,
+})
+
+export const restaurantRatingBreakdownSchema = z.object({
+  "1": z.number(),
+  "2": z.number(),
+  "3": z.number(),
+  "4": z.number(),
+  "5": z.number(),
+})
+
+export const restaurantReviewSummarySchema = z.object({
+  averageRating: z.number().nullable(),
+  reviewCount: z.number(),
+  breakdown: restaurantRatingBreakdownSchema,
+})
+
+export const paginationMetaSchema = z.object({
+  page: z.number(),
+  limit: z.number(),
+  totalItems: z.number(),
+  totalPages: z.number(),
+  hasNextPage: z.boolean(),
+  hasPreviousPage: z.boolean(),
+})
+
+export const restaurantReviewPageSchema = z.object({
+  summary: restaurantReviewSummarySchema,
+  myReview: restaurantReviewSchema.nullable(),
+  items: z.array(restaurantReviewSchema),
+  meta: paginationMetaSchema,
+})
+
+export const restaurantReviewMutationResponseSchema = z.object({
+  review: restaurantReviewSchema,
+  summary: restaurantReviewSummarySchema,
 })
 
 /** Blank optional text is sent as null. */
@@ -180,14 +305,66 @@ export const addMemberFormSchema = z.object({
   username: z.string().trim().toLowerCase().min(1, "Nhập tên đăng nhập"),
 })
 
+export const menuItemFormSchema = z.object({
+  name: z
+    .string()
+    .trim()
+    .min(1, "Nhập tên món")
+    .max(MAX_MENU_ITEM_NAME_LENGTH, `Tối đa ${MAX_MENU_ITEM_NAME_LENGTH} ký tự`),
+  description: optionalText(
+    MAX_MENU_ITEM_DESCRIPTION_LENGTH,
+    `Tối đa ${MAX_MENU_ITEM_DESCRIPTION_LENGTH} ký tự`
+  ),
+  category: optionalText(
+    MAX_MENU_ITEM_CATEGORY_LENGTH,
+    `Tối đa ${MAX_MENU_ITEM_CATEGORY_LENGTH} ký tự`
+  ),
+  priceText: z
+    .string()
+    .trim()
+    .refine(
+      (value) => value === "" || (/^\d+$/.test(value) && Number(value) <= MAX_MENU_ITEM_PRICE_VND),
+      `Nhập giá hợp lệ (tối đa ${MAX_MENU_ITEM_PRICE_VND.toLocaleString("vi-VN")} đ)`
+    ),
+  imageUrl: z.string().nullable(),
+  isAvailable: z.boolean(),
+})
+
+export const restaurantReviewFormSchema = z.object({
+  rating: z
+    .number({ error: "Chọn số sao đánh giá" })
+    .int()
+    .min(1, "Chọn từ 1 đến 5 sao")
+    .max(5, "Chọn từ 1 đến 5 sao"),
+  comment: optionalText(
+    MAX_REVIEW_COMMENT_LENGTH,
+    `Nhận xét tối đa ${MAX_REVIEW_COMMENT_LENGTH} ký tự`
+  ),
+})
+
 export type Workspace = z.infer<typeof workspaceSchema>
 export type WorkspaceDetail = z.infer<typeof workspaceDetailSchema>
 export type WorkspaceMember = z.infer<typeof workspaceMemberSchema>
 export type AdminWorkspace = z.infer<typeof adminWorkspaceSchema>
 export type AdminWorkspaceDetail = z.infer<typeof adminWorkspaceDetailSchema>
 export type RestaurantPin = z.infer<typeof restaurantPinSchema>
+export type RestaurantMenuItem = z.infer<typeof restaurantMenuItemSchema>
+export type MenuDishRestaurantSummary = z.infer<typeof menuDishRestaurantSummarySchema>
+export type RestaurantMenuSearchItem = z.infer<typeof restaurantMenuSearchItemSchema>
+export type RestaurantMenuSearchPage = z.infer<typeof restaurantMenuSearchPageSchema>
+export type RestaurantReviewAuthor = z.infer<typeof restaurantReviewAuthorSchema>
+export type RestaurantReview = z.infer<typeof restaurantReviewSchema>
+export type RestaurantReviewSummary = z.infer<typeof restaurantReviewSummarySchema>
+export type RestaurantReviewPage = z.infer<typeof restaurantReviewPageSchema>
+export type RestaurantReviewMutationResponse = z.infer<
+  typeof restaurantReviewMutationResponseSchema
+>
 export type LngLat = { longitude: number; latitude: number }
 export type WorkspaceFormInput = z.input<typeof workspaceFormSchema>
 export type WorkspaceFormValues = z.output<typeof workspaceFormSchema>
 export type RestaurantDetailsFormInput = z.input<typeof restaurantDetailsFormSchema>
 export type RestaurantDetailsFormValues = z.output<typeof restaurantDetailsFormSchema>
+export type MenuItemFormInput = z.input<typeof menuItemFormSchema>
+export type MenuItemFormValues = z.output<typeof menuItemFormSchema>
+export type RestaurantReviewFormInput = z.input<typeof restaurantReviewFormSchema>
+export type RestaurantReviewFormValues = z.output<typeof restaurantReviewFormSchema>

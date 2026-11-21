@@ -1,14 +1,23 @@
 "use client"
 
-import { GlobeIcon, MapPinIcon, PhoneIcon } from "lucide-react"
+import { GlobeIcon, MapPinIcon, PhoneIcon, StarIcon } from "lucide-react"
 
 import { RestaurantLocationMap } from "@/features/workspaces/components/map"
-import { MAPBOX_TOKEN } from "@/features/workspaces/lib/mapbox"
+import { formatRatingScore } from "@/features/workspaces/lib/format"
+import { googleMapsDirectionsUrl, MAPBOX_TOKEN } from "@/features/workspaces/lib/mapbox"
 import type { RestaurantProfile } from "@/features/profiles/schemas"
 
-/** Address, contact and a small map on a restaurant page's profile. */
-export function RestaurantCard({ restaurant }: { restaurant: RestaurantProfile }) {
-  const directions = `https://www.google.com/maps/dir/?api=1&destination=${restaurant.latitude},${restaurant.longitude}`
+/** Address, rating summary, contact and a small map on a restaurant page's profile. */
+export function RestaurantCard({
+  restaurant,
+  onOpenReviews,
+}: {
+  restaurant: RestaurantProfile
+  onOpenReviews?: () => void
+}) {
+  const directions = googleMapsDirectionsUrl(restaurant)
+  const hasReviews = restaurant.averageRating !== null && restaurant.reviewCount > 0
+
   return (
     <section
       aria-label="Thông tin nhà hàng"
@@ -22,6 +31,36 @@ export function RestaurantCard({ restaurant }: { restaurant: RestaurantProfile }
         </div>
       )}
       <ul className="flex flex-col gap-2 p-4 text-sm">
+        <li className="flex items-center gap-2">
+          <StarIcon
+            aria-hidden
+            className={
+              hasReviews
+                ? "size-4 shrink-0 fill-amber-400 text-amber-500"
+                : "size-4 shrink-0 text-primary"
+            }
+          />
+          {hasReviews && restaurant.averageRating !== null ? (
+            <button
+              type="button"
+              onClick={onOpenReviews}
+              disabled={!onOpenReviews}
+              className="inline-flex items-center gap-1.5 text-left font-medium hover:underline disabled:no-underline"
+            >
+              <span className="tabular-nums">{formatRatingScore(restaurant.averageRating)}</span>
+              <span className="text-muted-foreground">({restaurant.reviewCount} đánh giá)</span>
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={onOpenReviews}
+              disabled={!onOpenReviews}
+              className="text-left text-muted-foreground hover:text-foreground hover:underline disabled:no-underline"
+            >
+              Chưa có đánh giá
+            </button>
+          )}
+        </li>
         <li className="flex items-start gap-2">
           <MapPinIcon aria-hidden className="mt-0.5 size-4 shrink-0 text-primary" />
           <span>

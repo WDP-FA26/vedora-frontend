@@ -20,6 +20,7 @@ import {
 } from "@/features/workspaces/lib/workspaces-api"
 import {
   restaurantPinListSchema,
+  type LngLat,
   type RestaurantDetailsFormValues,
   type Workspace,
   type WorkspaceDetail,
@@ -120,9 +121,12 @@ export function useWorkspaceMembers(id: string) {
 }
 
 /** Public: approved restaurants inside the map's current bounds. */
-export function useRestaurantsInView(bounds: MapBounds | null) {
+export function useRestaurantsInView(
+  bounds: MapBounds | null,
+  userLocation?: LngLat | null
+) {
   const { data, error, isLoading } = useSWR(
-    bounds ? restaurantsInViewKey(bounds) : null,
+    bounds ? restaurantsInViewKey(bounds, userLocation) : null,
     (url: string) => sendJson(restaurantPinListSchema, url, undefined),
     { keepPreviousData: true }
   )

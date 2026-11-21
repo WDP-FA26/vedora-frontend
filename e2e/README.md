@@ -99,8 +99,9 @@ e2e/
 - The mock API's SSE endpoints (`*/sse`, `*/events`) only send a keep-alive;
   live push (toasts, unread-count updates, payment status pushes) is not tested.
 - Video upload/playback (Cloudinary) is not covered.
-- The meal planner's AI chat stream (`/meal-plan/chat`), the blog writing
-  assistant and the nutrition chat are not exercised.
+- The meal planner's AI chat stream (`/meal-plan/chat`) is only exercised for
+  the web search consent flow (a canned stream); the blog writing assistant and
+  the nutrition chat are not exercised.
 - Forms that are native-submitted if clicked before hydration (admin date
   filters) are retried with `expect(...).toPass`; guest auth pages use
   `gotoReady()`.

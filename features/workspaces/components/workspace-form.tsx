@@ -33,7 +33,6 @@ import {
 
 const SUBMIT_ERRORS: Record<string, string> = {
   USERNAME_TAKEN: "Tên đăng nhập này đã có người dùng. Chọn tên khác nhé.",
-  REQUEST_PENDING: "Bạn đã có một trang đang chờ duyệt.",
   PROOF_NOT_UPLOADED: "Một ảnh chưa tải lên xong. Thử gửi lại nhé.",
   PROOF_LIMIT_REACHED: "Bạn đã tải lên quá nhiều ảnh. Thử lại sau nhé.",
   PAGE_SESSION_NOT_ALLOWED: "Chuyển về tài khoản cá nhân để mở trang mới.",

@@ -1,15 +1,19 @@
 "use client"
 
+import { useState } from "react"
 import Link from "next/link"
 import { BadgeCheckIcon, CalendarDaysIcon, LeafIcon } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { messagingPath } from "@/features/messaging/messaging-cache"
 import { useAuth } from "@/features/auth/hooks/use-auth"
 import { DietaryOverviewCard } from "@/features/dietary/components/dietary-overview-card"
 import { EditProfileDialog } from "@/features/profiles/components/edit-profile-dialog"
 import { FollowButton } from "@/features/profiles/components/follow-button"
 import { RestaurantCard } from "@/features/workspaces/components/restaurant-card"
+import { RestaurantMenuSection } from "@/features/workspaces/components/restaurant-menu-section"
+import { RestaurantReviewsSection } from "@/features/workspaces/components/restaurant-reviews-section"
 import { ProfileAvatar } from "@/features/profiles/components/profile-avatar"
 import { ProfileCover } from "@/features/profiles/components/profile-cover"
 import { ProfilePosts } from "@/features/profiles/components/profile-posts"
@@ -22,10 +26,29 @@ import { ApiError } from "@/features/shared/lib/api-client"
 import { PROFESSIONAL_LABEL } from "@/features/verification/schemas"
 import { VERIFICATION_PATH } from "@/features/verification/verification-cache"
 
+export type ProfileTab = "posts" | "menu" | "reviews"
+
+function isProfileTab(value: unknown): value is ProfileTab {
+  return value === "posts" || value === "menu" || value === "reviews"
+}
+
 /** A profile's header and posts. Public; the owner also gets the edit button. */
-export function ProfileView({ id }: { id: string }) {
+export function ProfileView({
+  id,
+  initialTab = "posts",
+}: {
+  id: string
+  initialTab?: ProfileTab
+}) {
+  const [tab, setTab] = useState<ProfileTab>(initialTab)
   const { user, accessToken } = useAuth()
   const { profile, error, isLoading, retry } = useProfile(id)
+
+  function selectTab(next: ProfileTab) {
+    setTab(next)
+    const nextUrl = next === "posts" ? profilePath(id) : `${profilePath(id)}?tab=${next}`
+    window.history.replaceState(null, "", nextUrl)
+  }
 
   if (isLoading && !profile) return <ProfileSkeleton />
   if (!profile) {
@@ -117,7 +140,12 @@ export function ProfileView({ id }: { id: string }) {
           <p className="mt-3 text-sm text-muted-foreground">Thêm lời giới thiệu để mọi người hiểu hơn về bạn.</p>
         ) : null}
 
-        {profile.restaurant && <RestaurantCard restaurant={profile.restaurant} />}
+        {profile.restaurant && (
+          <RestaurantCard
+            restaurant={profile.restaurant}
+            onOpenReviews={() => selectTab("reviews")}
+          />
+        )}
 
         <p className="mt-3 flex items-center gap-2 text-sm text-muted-foreground">
           <CalendarDaysIcon aria-hidden className="size-4" />
@@ -148,7 +176,41 @@ export function ProfileView({ id }: { id: string }) {
         {isOwn && <DietaryOverviewCard />}
       </div>
 
-      <ProfilePosts id={profile.id} count={profile.postCount} />
+      {profile.restaurant ? (
+        <Tabs value={tab} onValueChange={(next) => isProfileTab(next) && selectTab(next)}>
+          <div className="border-t border-border">
+            <TabsList variant="timeline" aria-label="Nội dung trang nhà hàng">
+              <TabsTrigger value="posts">Bài viết</TabsTrigger>
+              <TabsTrigger value="menu">Thực đơn</TabsTrigger>
+              <TabsTrigger value="reviews">
+                {profile.restaurant.reviewCount > 0
+                  ? `Đánh giá (${profile.restaurant.reviewCount})`
+                  : "Đánh giá"}
+              </TabsTrigger>
+            </TabsList>
+          </div>
+
+          <TabsContent value="posts">
+            <ProfilePosts id={profile.id} count={profile.postCount} />
+          </TabsContent>
+
+          <TabsContent value="menu">
+            <RestaurantMenuSection
+              pageUserId={profile.id}
+              workspaceId={profile.restaurant.workspaceId ?? null}
+            />
+          </TabsContent>
+
+          <TabsContent value="reviews">
+            <RestaurantReviewsSection
+              pageUserId={profile.id}
+              workspaceId={profile.restaurant.workspaceId ?? null}
+            />
+          </TabsContent>
+        </Tabs>
+      ) : (
+        <ProfilePosts id={profile.id} count={profile.postCount} />
+      )}
     </article>
   )
 }

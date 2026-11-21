@@ -39,7 +39,7 @@ export function isBookmarkTab(value: unknown): value is BookmarkTab {
 }
 
 /** Tabs of the `/home/search` page, kept in `?tab=`. */
-export const SEARCH_TABS = ["all", "people", "posts"] as const
+export const SEARCH_TABS = ["all", "people", "dishes", "posts"] as const
 export type SearchTab = (typeof SEARCH_TABS)[number]
 
 export function isSearchTab(value: unknown): value is SearchTab {

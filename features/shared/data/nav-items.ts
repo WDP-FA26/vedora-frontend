@@ -34,7 +34,7 @@ type NavItem = {
 
 export const navItems: NavItem[] = [
   { href: "/home", label: "Khám phá", icon: CompassIcon },
-  { href: RESTAURANTS_PATH, label: "Nhà hàng chay", icon: MapIcon, isNew: true, desktopOnly: true },
+  { href: RESTAURANTS_PATH, label: "Nhà hàng", icon: MapIcon, isNew: true, desktopOnly: true },
   { href: "/home/notifications", label: "Thông báo", icon: BellIcon },
   { href: "/home/messages", label: "Tin nhắn", icon: MessageCircleIcon },
   { href: MEAL_PLANNER_PATH, label: "Trợ lý Vedora", icon: BotMessageSquareIcon },

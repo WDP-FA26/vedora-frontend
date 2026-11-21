@@ -3,18 +3,29 @@ import {
   adminWorkspaceDetailSchema,
   adminWorkspacePageSchema,
   adminWorkspaceSchema,
+  menuImageUploadSchema,
+  restaurantMenuItemSchema,
+  restaurantMenuListSchema,
+  restaurantMenuSearchPageSchema,
+  restaurantReviewMutationResponseSchema,
+  restaurantReviewPageSchema,
+  restaurantReviewSummarySchema,
   workspaceDetailSchema,
   workspaceListSchema,
   workspaceProofUploadSchema,
   type AdminWorkspace,
   type RestaurantDetailsFormValues,
+  type RestaurantReviewFormValues,
   type WorkspaceFormValues,
 } from "@/features/workspaces/schemas"
 import {
   adminWorkspaceKey,
+  myRestaurantReviewKey,
   WORKSPACE_PROOF_UPLOADS_KEY,
   WORKSPACES_URL,
   workspaceKey,
+  workspaceMenuImageUploadsKey,
+  workspaceMenuKey,
 } from "@/features/workspaces/workspaces-cache"
 
 /** The API's `MAX_PAGE_LIMIT`. */
@@ -112,5 +123,82 @@ export function reviewWorkspace(
   return sendJson(adminWorkspaceSchema, `${adminWorkspaceKey(id)}/review`, token, {
     method: "POST",
     body: JSON.stringify(input),
+  })
+}
+
+export type RestaurantMenuItemInput = {
+  name: string
+  description: string | null
+  category: string | null
+  priceVnd: number | null
+  imageUrl: string | null
+  isAvailable: boolean
+  position?: number
+}
+
+export function fetchWorkspaceMenu([url, token]: readonly [string, string]) {
+  return sendJson(restaurantMenuListSchema, url, token)
+}
+
+export function requestMenuImageUpload(token: string, workspaceId: string, file: File) {
+  return sendJson(menuImageUploadSchema, workspaceMenuImageUploadsKey(workspaceId), token, {
+    method: "POST",
+    body: JSON.stringify({ contentType: file.type, sizeBytes: file.size }),
+  })
+}
+
+export function createMenuItem(
+  token: string,
+  workspaceId: string,
+  input: RestaurantMenuItemInput
+) {
+  return sendJson(restaurantMenuItemSchema, workspaceMenuKey(workspaceId), token, {
+    method: "POST",
+    body: JSON.stringify(input),
+  })
+}
+
+export function updateMenuItem(
+  token: string,
+  workspaceId: string,
+  itemId: string,
+  input: Partial<RestaurantMenuItemInput>
+) {
+  return sendJson(restaurantMenuItemSchema, `${workspaceMenuKey(workspaceId)}/${itemId}`, token, {
+    method: "PATCH",
+    body: JSON.stringify(input),
+  })
+}
+
+export async function deleteMenuItem(token: string, workspaceId: string, itemId: string) {
+  await send(`${workspaceMenuKey(workspaceId)}/${itemId}`, token, { method: "DELETE" })
+}
+
+export function fetchPublicRestaurantMenu(url: string) {
+  return sendJson(restaurantMenuListSchema, url, undefined)
+}
+
+export function fetchMenuSearchPage(url: string) {
+  return sendJson(restaurantMenuSearchPageSchema, url, undefined)
+}
+
+export function fetchRestaurantReviews([url, token]: readonly [string, string | undefined]) {
+  return sendJson(restaurantReviewPageSchema, url, token)
+}
+
+export function upsertMyRestaurantReview(
+  token: string,
+  pageUserId: string,
+  input: RestaurantReviewFormValues
+) {
+  return sendJson(restaurantReviewMutationResponseSchema, myRestaurantReviewKey(pageUserId), token, {
+    method: "PUT",
+    body: JSON.stringify(input),
+  })
+}
+
+export function deleteMyRestaurantReview(token: string, pageUserId: string) {
+  return sendJson(restaurantReviewSummarySchema, myRestaurantReviewKey(pageUserId), token, {
+    method: "DELETE",
   })
 }
