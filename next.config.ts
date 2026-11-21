@@ -24,6 +24,10 @@ const storageOrigin = new URL(PUBLIC_ENV.storageUrl).origin;
 // Dish photos are hot-linked, not stored: only these free-licence hosts may serve them.
 // Keep in sync with DISH_IMAGE_HOSTS in features/recipes/schemas.ts.
 const dishImages = "https://upload.wikimedia.org https://images.unsplash.com https://images.pexels.com";
+// Mapbox GL: styles, tiles, sprites and fonts (api.mapbox.com, *.tiles.mapbox.com),
+// geocoding (api.mapbox.com) and the SDK's usage telemetry (events.mapbox.com).
+// The map renders in a blob: worker and draws tiles as blob:/data: images.
+const mapbox = "https://api.mapbox.com https://*.tiles.mapbox.com https://events.mapbox.com";
 // Cloudflare Turnstile: the script and the challenge iframe of the guest chat.
 const turnstile = "https://challenges.cloudflare.com";
 
@@ -39,9 +43,10 @@ const csp = [
   `img-src 'self' blob: data: ${cloudinaryCdn} ${storageOrigin} https://vietqr.app ${dishImages}${toolbar("https://vercel.live", "https://vercel.com")}`,
   // The Cloudinary player's icon font is inlined as a data: URI.
   `font-src 'self' data:${toolbar("https://vercel.live", "https://assets.vercel.com")}`,
-  `connect-src 'self' ${apiOrigin} ${cloudinaryUpload} ${cloudinaryCdn} ${cloudinaryAnalytics} ${storageOrigin} ${cloudinaryPlayer}${toolbar("https://vercel.live", "wss://ws-us3.pusher.com")}`,
+  `connect-src 'self' ${apiOrigin} ${cloudinaryUpload} ${cloudinaryCdn} ${cloudinaryAnalytics} ${storageOrigin} ${cloudinaryPlayer} ${mapbox}${toolbar("https://vercel.live", "wss://ws-us3.pusher.com")}`,
   `media-src 'self' blob: ${cloudinaryCdn}`,
   "worker-src 'self' blob:",
+  "child-src 'self' blob:",
   `frame-src 'self' ${storageOrigin} ${turnstile}${toolbar("https://vercel.live")}`,
   "object-src 'none'",
   "base-uri 'self'",

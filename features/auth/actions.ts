@@ -6,7 +6,7 @@ import { redirect } from "next/navigation"
 import { z } from "zod"
 
 import { ACCOUNT_BLOCK_MESSAGES, accountBlockOf } from "@/features/auth/lib/account-block"
-import { postJson } from "@/features/auth/lib/api"
+import { apiFetch, postJson } from "@/features/auth/lib/api"
 import { apiErrorSchema } from "@/features/shared/lib/api-client"
 import {
   clearPendingEmail,
@@ -15,6 +15,7 @@ import {
 } from "@/features/auth/lib/pending-verification"
 import { safeRedirectPath } from "@/features/auth/lib/redirect"
 import {
+  ACCESS_TOKEN_COOKIE,
   REFRESH_TOKEN_COOKIE,
   clearTokenCookies,
   writeTokenCookies,
@@ -239,4 +240,47 @@ export async function logout() {
   }
   clearTokenCookies(cookieStore)
   redirect("/login")
+}
+
+export type SwitchAccountResult = { error: string } | undefined
+
+const SWITCH_ERRORS: Record<string, string> = {
+  FORBIDDEN: "Bạn không còn quản lý trang này.",
+  PAGE_ACCESS_REVOKED: "Bạn không còn quản lý trang này.",
+  ACCOUNT_SUSPENDED: "Tài khoản của bạn đang bị khóa.",
+}
+
+/**
+ * Swaps this browser's session for one acting as `pageId`, or back to your
+ * own account when it is `null`. The API revokes the current refresh token,
+ * so the cookies are replaced in the same step; then the app reloads as the
+ * new identity (every authenticated SWR key carries the access token).
+ */
+export async function switchAccount(
+  pageId: string | null,
+  next: string
+): Promise<SwitchAccountResult> {
+  const cookieStore = await cookies()
+  const accessToken = cookieStore.get(ACCESS_TOKEN_COOKIE)?.value
+  const refreshToken = cookieStore.get(REFRESH_TOKEN_COOKIE)?.value
+  if (!accessToken || !refreshToken) redirect("/login")
+
+  const response = await apiFetch("/auth/switch", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ refreshToken, pageId }),
+  }).catch(() => null)
+  if (!response) return { error: UNREACHABLE }
+  if (!response.ok) {
+    const failure = apiErrorSchema.safeParse(await response.json().catch(() => null))
+    const code = failure.success ? failure.data.code : undefined
+    if (code && SWITCH_ERRORS[code]) return { error: SWITCH_ERRORS[code] }
+    return { error: "Không chuyển được tài khoản. Thử lại nhé." }
+  }
+
+  writeTokenCookies(cookieStore, await response.json())
+  redirect(safeRedirectPath(next))
 }

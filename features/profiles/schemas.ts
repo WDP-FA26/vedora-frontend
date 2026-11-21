@@ -25,7 +25,20 @@ export const apiProfileSummarySchema = z.object({
   isProfessional: z.boolean(),
 })
 
+export const restaurantProfileSchema = z.object({
+  address: z.string(),
+  longitude: z.number(),
+  latitude: z.number(),
+  phone: z.string().nullable(),
+  website: z.string().nullable(),
+})
+
 export const apiProfileSchema = apiProfileSummarySchema.extend({
+  /** `PAGE` for a restaurant page. */
+  // Defaults keep profiles working against an API deployed before pages existed.
+  accountType: z.enum(["PERSONAL", "PAGE"]).default("PERSONAL"),
+  /** Where a restaurant page is; `null` for a person. */
+  restaurant: restaurantProfileSchema.nullable().default(null),
   createdAt: z.string(),
   postCount: z.number(),
   followerCount: z.number(),
@@ -85,3 +98,4 @@ export type FollowSuggestionList = z.infer<typeof followSuggestionListSchema>
 export type Relationship = z.infer<typeof relationshipSchema>
 export type ImageUploadTarget = z.infer<typeof imageUploadSchema>
 export type ProfileFormValues = z.infer<typeof profileFormSchema>
+export type RestaurantProfile = z.infer<typeof restaurantProfileSchema>

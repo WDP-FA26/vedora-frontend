@@ -6,6 +6,7 @@ import {
   LibraryIcon,
   LifeBuoyIcon,
   SettingsIcon,
+  StoreIcon,
   ShieldAlertIcon,
   UsersIcon,
   type LucideIcon,
@@ -32,6 +33,7 @@ export const adminNavItems: AdminNavItem[] = [
     label: "Xác minh chuyên gia",
     icon: BadgeCheckIcon,
   },
+  { href: "/admin/workspaces", label: "Trang nhà hàng", icon: StoreIcon },
   { href: "/admin/insights", label: "Thống kê", icon: ChartColumnIcon },
 ];
 

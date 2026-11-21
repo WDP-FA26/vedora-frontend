@@ -16,6 +16,8 @@ const publicEnvSchema = z.object({
   NEXT_PUBLIC_SITE_URL: z.string().url().optional(),
   // Optional in development; a production build must ship a real site key.
   NEXT_PUBLIC_TURNSTILE_SITE_KEY: z.string().min(1).optional(),
+  // Mapbox public token (pk.*). Without it maps are hidden and addresses are typed by hand.
+  NEXT_PUBLIC_MAPBOX_TOKEN: z.string().startsWith("pk.").optional(),
 })
 
 const isProduction = process.env.NODE_ENV === "production"
@@ -38,6 +40,7 @@ function readPublicEnv() {
     NEXT_PUBLIC_SITE_URL: process.env.NEXT_PUBLIC_SITE_URL || undefined,
     // An empty value in .env.local means "not configured", not an empty key.
     NEXT_PUBLIC_TURNSTILE_SITE_KEY: process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY || undefined,
+    NEXT_PUBLIC_MAPBOX_TOKEN: process.env.NEXT_PUBLIC_MAPBOX_TOKEN || undefined,
   })
 
   if (!parsed.success) {
@@ -73,4 +76,6 @@ export const PUBLIC_ENV = {
   cloudinaryCloudName: data.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME,
   siteUrl: siteUrl(),
   turnstileSiteKey: data.NEXT_PUBLIC_TURNSTILE_SITE_KEY ?? TURNSTILE_TEST_SITE_KEY,
+  /** `null` when maps are not configured. */
+  mapboxToken: data.NEXT_PUBLIC_MAPBOX_TOKEN ?? null,
 }

@@ -9,6 +9,7 @@ import { useAuth } from "@/features/auth/hooks/use-auth"
 import { DietaryOverviewCard } from "@/features/dietary/components/dietary-overview-card"
 import { EditProfileDialog } from "@/features/profiles/components/edit-profile-dialog"
 import { FollowButton } from "@/features/profiles/components/follow-button"
+import { RestaurantCard } from "@/features/workspaces/components/restaurant-card"
 import { ProfileAvatar } from "@/features/profiles/components/profile-avatar"
 import { ProfileCover } from "@/features/profiles/components/profile-cover"
 import { ProfilePosts } from "@/features/profiles/components/profile-posts"
@@ -116,6 +117,8 @@ export function ProfileView({ id }: { id: string }) {
           <p className="mt-3 text-sm text-muted-foreground">Thêm lời giới thiệu để mọi người hiểu hơn về bạn.</p>
         ) : null}
 
+        {profile.restaurant && <RestaurantCard restaurant={profile.restaurant} />}
+
         <p className="mt-3 flex items-center gap-2 text-sm text-muted-foreground">
           <CalendarDaysIcon aria-hidden className="size-4" />
           Tham gia {formatJoinDate(profile.createdAt)}
@@ -132,7 +135,7 @@ export function ProfileView({ id }: { id: string }) {
           ))}
         </ul>
 
-        {isOwn && !profile.isProfessional && (
+        {isOwn && !profile.isProfessional && profile.accountType === "PERSONAL" && (
           <Link
             href={VERIFICATION_PATH}
             className="mt-3 inline-flex items-center gap-1 text-sm leading-5 text-primary underline-offset-4 hover:underline"

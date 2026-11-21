@@ -135,7 +135,7 @@ export function VerificationForm({
   )
 }
 
-function ProofPicker({
+export function ProofPicker({
   proofs,
   disabled,
   onChange,

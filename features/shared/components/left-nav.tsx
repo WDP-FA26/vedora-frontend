@@ -2,14 +2,23 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { EllipsisIcon, LogOutIcon, PenLineIcon } from "lucide-react"
+import {
+  ArrowLeftRightIcon,
+  EllipsisIcon,
+  LogOutIcon,
+  PenLineIcon,
+  StoreIcon,
+  UndoIcon,
+} from "lucide-react"
 import { cn } from "cn"
 
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuItem,
+  DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
@@ -22,6 +31,9 @@ import { useLogout } from "@/features/auth/hooks/use-logout"
 import { useUnreadCount } from "@/features/notifications/hooks/use-notifications"
 import { navItems } from "@/features/shared/data/nav-items"
 import { Wordmark } from "./wordmark"
+import { useMyWorkspaces } from "@/features/workspaces/hooks/use-workspaces"
+import { useSwitchAccount } from "@/features/workspaces/hooks/use-switch-account"
+import { WORKSPACES_PATH } from "@/features/workspaces/workspaces-cache"
 import { UnreadMessagesBadge } from "@/features/messaging/components/unread-messages-badge"
 
 /**
@@ -66,7 +78,10 @@ export function NavLinks({
   const { user } = useAuth()
   const unread = useUnreadCount()
   const isAdmin = user?.role === "ADMIN"
-  const visibleItems = navItems.filter((item) => !item.adminOnly || isAdmin)
+  const isPage = user?.accountType === "PAGE"
+  const visibleItems = navItems.filter(
+    (item) => (!item.adminOnly || isAdmin) && (!item.personalOnly || !isPage)
+  )
 
   return (
     <nav aria-label="Điều hướng chính" className={className}>
@@ -142,9 +157,10 @@ export function isNavItemCurrent(pathname: string, href: string, userId?: string
 }
 
 function AccountMenu() {
-  const { author } = useAuth()
+  const { author, user } = useAuth()
   const { logout, pending } = useLogout()
-  if (!author) return null
+  if (!author || !user) return null
+  const actor = user.actor
 
   return (
     <DropdownMenu>
@@ -158,12 +174,14 @@ function AccountMenu() {
             {author.name}
           </span>
           <span className="block truncate text-xs text-muted-foreground">
-            @{author.handle}
+            {actor ? `Trang · bạn là @${actor.username}` : `@${author.handle}`}
           </span>
         </span>
         <EllipsisIcon aria-hidden className="size-4 text-muted-foreground max-xl:hidden" />
       </DropdownMenuTrigger>
-      <DropdownMenuContent side="top" align="start" className="w-60">
+      <DropdownMenuContent side="top" align="start" className="w-64">
+        <SwitchAccountGroup currentId={user.id} actorUsername={actor?.username ?? null} />
+        <DropdownMenuSeparator />
         <ThemeMenuGroup />
         <DropdownMenuSeparator />
         <DropdownMenuItem onClick={logout} disabled={pending}>
@@ -172,5 +190,48 @@ function AccountMenu() {
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
+  )
+}
+
+/** Your pages to act as, and the way back to your own account in a page session. */
+function SwitchAccountGroup({
+  currentId,
+  actorUsername,
+}: {
+  currentId: string
+  actorUsername: string | null
+}) {
+  const { workspaces } = useMyWorkspaces()
+  const { switchTo, pending } = useSwitchAccount()
+  const pages = workspaces.filter(
+    (workspace) => workspace.pageUserId !== null && workspace.pageUserId !== currentId
+  )
+
+  return (
+    <DropdownMenuGroup>
+      <DropdownMenuLabel>Chuyển tài khoản</DropdownMenuLabel>
+      {actorUsername && (
+        <DropdownMenuItem disabled={pending} onClick={() => switchTo(null, WORKSPACES_PATH)}>
+          <UndoIcon aria-hidden />
+          Về tài khoản @{actorUsername}
+        </DropdownMenuItem>
+      )}
+      {pages.map((workspace) => (
+        <DropdownMenuItem
+          key={workspace.id}
+          disabled={pending}
+          onClick={() => {
+            if (workspace.pageUserId) switchTo(workspace.pageUserId, "/home")
+          }}
+        >
+          <ArrowLeftRightIcon aria-hidden />
+          <span className="truncate">{workspace.name}</span>
+        </DropdownMenuItem>
+      ))}
+      <DropdownMenuItem render={<Link href={WORKSPACES_PATH} />}>
+        <StoreIcon aria-hidden />
+        Trang nhà hàng của bạn
+      </DropdownMenuItem>
+    </DropdownMenuGroup>
   )
 }
