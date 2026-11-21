@@ -1,7 +1,8 @@
 "use client"
 
-import { ArrowRightLeftIcon, MessageCircleIcon, Trash2Icon } from "lucide-react"
+import { ArrowRightLeftIcon, FlameIcon, MessageCircleIcon, Trash2Icon } from "lucide-react"
 
+import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
   Sheet,
@@ -12,6 +13,10 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet"
 import { Skeleton } from "@/components/ui/skeleton"
+import {
+  NUTRITION_PILLAR_META,
+  type NutritionPillar,
+} from "@/features/dietary/dietary"
 import { MealArt } from "@/features/meal-plan/components/meal-art"
 import {
   DAY_LABELS,
@@ -35,6 +40,8 @@ type RecipeView = {
   imageUrl: string | null
   servings: number
   minutes: number | null
+  caloriesPerServing: number | null
+  nutritionPillars: NutritionPillar[]
   description: string | null
   ingredients: MealRecipe["ingredients"]
   steps: string[]
@@ -64,6 +71,8 @@ export function RecipeSheet({ open, dish, onClose, onAsk, onMove, onRemove }: Pr
       imageUrl: full.imageUrl,
       servings: full.servings,
       minutes: totalMinutes(full.prepMinutes, full.cookMinutes),
+      caloriesPerServing: full.caloriesPerServing ?? dish?.detail?.caloriesPerServing ?? null,
+      nutritionPillars: full.nutritionPillars ?? dish?.detail?.nutritionPillars ?? [],
       description: full.description,
       ingredients: full.ingredients,
       steps: full.steps,
@@ -73,6 +82,8 @@ export function RecipeSheet({ open, dish, onClose, onAsk, onMove, onRemove }: Pr
       imageUrl: dish.detail.imageUrl,
       servings: dish.detail.servings,
       minutes: totalMinutes(dish.detail.prepMinutes, dish.detail.cookMinutes),
+      caloriesPerServing: dish.detail.caloriesPerServing ?? null,
+      nutritionPillars: dish.detail.nutritionPillars ?? [],
       description: null,
       ingredients: dish.detail.ingredients,
       steps: dish.detail.steps,
@@ -80,7 +91,7 @@ export function RecipeSheet({ open, dish, onClose, onAsk, onMove, onRemove }: Pr
   }
 
   const meta: string[] = []
-  if (view && view.servings > 0) meta.push(`${view.servings} khẩu phần`)
+  if (view && view.servings > 0) meta.push(`Công thức gốc ${view.servings} khẩu phần`)
   if (view && view.minutes !== null) meta.push(`khoảng ${view.minutes} phút`)
 
   return (
@@ -103,6 +114,25 @@ export function RecipeSheet({ open, dish, onClose, onAsk, onMove, onRemove }: Pr
             </SheetHeader>
 
             <div className="flex flex-col gap-6 px-6 pb-6 text-sm">
+              {view && (view.caloriesPerServing !== null || view.nutritionPillars.length > 0) && (
+                <div className="flex flex-col gap-2 rounded-2xl border border-border bg-secondary/30 p-3.5 text-xs">
+                  {view.caloriesPerServing !== null && (
+                    <p className="flex items-center gap-1.5 font-semibold text-foreground">
+                      <FlameIcon aria-hidden className="size-4 text-amber-600 dark:text-amber-400" />
+                      Phần của bạn: ~{view.caloriesPerServing} kcal / 1 suất ăn
+                    </p>
+                  )}
+                  {view.nutritionPillars.length > 0 && (
+                    <div className="flex flex-wrap gap-1.5">
+                      {view.nutritionPillars.map((pillar) => (
+                        <Badge key={pillar} variant="secondary" title={NUTRITION_PILLAR_META[pillar].tip}>
+                          {NUTRITION_PILLAR_META[pillar].label}
+                        </Badge>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
               {!view && !error && (
                 <div className="flex flex-col gap-2" aria-label="Đang tải công thức">
                   <Skeleton className="h-4 w-1/2" />

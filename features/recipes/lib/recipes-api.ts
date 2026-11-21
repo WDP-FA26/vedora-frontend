@@ -117,6 +117,7 @@ export type RecipeInput = {
   servings: number
   prepMinutes?: number
   cookMinutes?: number
+  caloriesPerServing?: number | null
   ingredients: { ingredientId: string; quantity?: number; unit?: string; note?: string }[]
   steps: string[]
   postId?: string

@@ -17,6 +17,7 @@ import {
   ImageIcon,
   LibraryIcon,
   SearchIcon,
+  ShieldCheckIcon,
   UtensilsIcon,
   WrenchIcon,
 } from "lucide-react"
@@ -80,16 +81,16 @@ function quoted(query: string | undefined) {
 }
 
 function editDraftTitle(isEdit: boolean, failed: boolean, rejected: boolean, done: boolean): string {
-  if (failed) return isEdit ? "Không chỉnh được bản nháp thực đơn" : "Không kiểm tra được thực đơn"
+  if (failed) return isEdit ? "Không chỉnh được thực đơn đề xuất" : "Không kiểm tra được thực đơn"
   if (rejected) return isEdit ? "Chỉnh sửa chưa đạt, đổi món khác" : "Đề xuất chưa đạt, chọn lại món"
-  if (done) return isEdit ? "Đã cập nhật bản nháp thực đơn" : "Đã kiểm tra thực đơn đề xuất"
-  return isEdit ? "Đang cập nhật bản nháp thực đơn…" : "Đang kiểm tra thực đơn đề xuất"
+  if (done) return "Đã cập nhật thực đơn đề xuất"
+  return isEdit ? "Đang cập nhật thực đơn đề xuất…" : "Đang chuẩn bị thực đơn đề xuất…"
 }
 
 function fillSlotsTitle(failed: boolean, rejected: boolean, done: boolean): string {
   if (failed) return "Không lên được thực đơn tự động"
   if (rejected) return "Đề xuất chưa đạt, chọn lại món"
-  if (done) return "Đã chọn món vào bản nháp"
+  if (done) return "Đã chọn món cho thực đơn"
   return "Đang chọn món cho thực đơn…"
 }
 
@@ -185,14 +186,22 @@ function toolStep(part: ToolUIPart | DynamicToolUIPart): Step {
     }
   }
 
-  if (name === "fillSlots" || name === "generateMealPlan") {
+  if (name === "fillSlots" || name === "generateMealPlan" || name === "autoBalanceDraft") {
     const check = done ? proposalCheckSchema.safeParse(part.output).data : undefined
     const rejected = check !== undefined && !check.ok && check.problems.length > 0
+    const isBalance = name === "autoBalanceDraft"
+    let title = fillSlotsTitle(failed, rejected, done)
+    if (isBalance) {
+      if (failed) title = "Không cân đối được thực đơn tự động"
+      else if (rejected) title = "Cân đối chưa đạt, đang thử cách khác"
+      else if (done) title = "Đã tự động cân đối khẩu phần & Kcal"
+      else title = "Đang tự động cân đối các bữa theo Kcal…"
+    }
     return {
       key,
       status: rejected ? "error" : status,
       icon: <CalendarCheckIcon />,
-      title: fillSlotsTitle(failed, rejected, done),
+      title,
       detail: rejected ? (
         <ul className="flex list-disc flex-col gap-1 pl-4">
           {check.problems.map((problem, index) => (
@@ -200,6 +209,58 @@ function toolStep(part: ToolUIPart | DynamicToolUIPart): Step {
           ))}
         </ul>
       ) : undefined,
+    }
+  }
+
+  if (name === "consultNutritionSubagent") {
+    return {
+      key,
+      status,
+      icon: <BrainIcon />,
+      title: failed
+        ? "Chuyên gia dinh dưỡng chưa phản hồi được"
+        : done
+          ? "Đã tham vấn Chuyên gia dinh dưỡng & tra cứu web"
+          : "Đang tham vấn Chuyên gia dinh dưỡng & tra cứu web…",
+    }
+  }
+
+  if (name === "verifyMealPlanAllergies") {
+    const audit = done
+      ? z
+          .object({
+            safe: z.boolean().optional(),
+            checkedDishesCount: z.number().optional(),
+            flaggedDishes: z.array(z.object({ title: z.string(), reason: z.string() })).optional(),
+          })
+          .safeParse(part.output).data
+      : undefined
+    const flagged = audit?.flaggedDishes ?? []
+    const checked = audit?.checkedDishesCount
+    let title = "Đang kiểm tra thành phần dị ứng & kiêng khem…"
+    if (failed) title = "Không kiểm tra dị ứng được"
+    else if (done) {
+      title =
+        flagged.length > 0
+          ? `Đã đổi ${flagged.length} món không hợp lưu ý dị ứng`
+          : "Đã kiểm tra dị ứng & lưu ý ăn uống: Phù hợp"
+    }
+    return {
+      key,
+      status,
+      icon: <ShieldCheckIcon />,
+      title,
+      description: done && checked !== undefined ? `${checked} món` : undefined,
+      detail:
+        flagged.length > 0 ? (
+          <ul className="flex list-disc flex-col gap-1 pl-4">
+            {flagged.map((item, index) => (
+              <li key={index}>
+                <span className="font-medium text-foreground">{item.title}</span>: {item.reason}
+              </li>
+            ))}
+          </ul>
+        ) : undefined,
     }
   }
 
@@ -255,7 +316,7 @@ function toolStep(part: ToolUIPart | DynamicToolUIPart): Step {
     key,
     status,
     icon: <WrenchIcon />,
-    title: failed ? `Lỗi khi dùng ${name}` : done ? `Đã dùng ${name}` : `Đang dùng ${name}`,
+    title: failed ? "Chưa xử lý được bước này" : done ? "Đã xử lý xong" : "Đang xử lý yêu cầu…",
   }
 }
 

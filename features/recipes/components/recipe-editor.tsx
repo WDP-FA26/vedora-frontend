@@ -98,6 +98,7 @@ function toFormValues(recipe: RecipeDetail | null): RecipeFormValues {
     servings: String(recipe?.servings ?? 2),
     prepMinutes: recipe?.prepMinutes?.toString() ?? "",
     cookMinutes: recipe?.cookMinutes?.toString() ?? "",
+    caloriesPerServing: recipe?.caloriesPerServing?.toString() ?? "",
     ingredients: recipe?.ingredients.map((item) => ({
       ingredientId: item.ingredientId,
       quantity: item.quantity?.toString() ?? "",
@@ -127,6 +128,7 @@ function fromDraft(draft: DraftRecipe, current: RecipeFormValues): RecipeFormVal
     servings: draft.servings === null ? current.servings : String(draft.servings),
     prepMinutes: draft.prepMinutes?.toString() ?? "",
     cookMinutes: draft.cookMinutes?.toString() ?? "",
+    caloriesPerServing: draft.caloriesPerServing?.toString() ?? "",
     ingredients: ingredients.length > 0 ? ingredients : [EMPTY_INGREDIENT],
     steps: steps.length > 0 ? steps : [{ text: "" }],
   }
@@ -199,6 +201,7 @@ function RecipeForm({
         servings: Number(values.servings),
         prepMinutes: values.prepMinutes ? Number(values.prepMinutes) : undefined,
         cookMinutes: values.cookMinutes ? Number(values.cookMinutes) : undefined,
+        caloriesPerServing: values.caloriesPerServing ? Number(values.caloriesPerServing) : undefined,
         ingredients: values.ingredients.map((item) => ({
           ingredientId: item.ingredientId,
           quantity: item.quantity ? Number(item.quantity.replace(",", ".")) : undefined,
@@ -315,12 +318,13 @@ function RecipeForm({
                 </Field>
               )}
             />
-            <div className="grid gap-4 sm:grid-cols-3">
+            <div className="grid gap-4 sm:grid-cols-4">
               {(
                 [
                   { name: "servings", label: "Khẩu phần" },
                   { name: "prepMinutes", label: "Sơ chế (phút)" },
                   { name: "cookMinutes", label: "Nấu (phút)" },
+                  { name: "caloriesPerServing", label: "Kcal / suất (ước tính)" },
                 ] as const
               ).map(({ name, label }) => (
                 <Controller

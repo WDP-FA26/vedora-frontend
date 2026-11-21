@@ -6,8 +6,6 @@ import { Streamdown } from "streamdown"
 import {
   ArrowUpIcon,
   CheckIcon,
-  ChevronDownIcon,
-  ChevronUpIcon,
   GlobeIcon,
   HistoryIcon,
   MapPinIcon,
@@ -77,10 +75,10 @@ function formatThreadTime(iso: string) {
 const UNSAFE_ELEMENTS = ["img", "a"]
 const MAX_PLANNER_MESSAGE_LENGTH = 4000
 const SUGGESTIONS = [
-  "Lên thực đơn 7 ngày",
-  "Mỗi bữa nấu trong 30 phút",
-  "Gợi ý món ngon từ nhà hàng chay",
-  "Hỏi về nguyên liệu và dinh dưỡng",
+  "Lên thực đơn 7 ngày hợp BMI của mình",
+  "Trưa nay lỡ ăn ngoài hơi nhiều, tối đổi món nhẹ",
+  "Kiểm tra tuần này đã đủ Đạm, Sắt, Canxi chưa",
+  "Gợi ý vài món chay ngoài quán thanh đạm, giàu đạm thực vật",
 ] as const
 
 /** Lets the page send a written request as if the user had typed it, keeping retry working. */
@@ -105,20 +103,16 @@ function AssistantMessage({ children }: { children: ReactNode }) {
 
 export function PlannerChat({
   chat,
-  localProposal = null,
   applyingId = null,
   applyErrors = {},
   skippedDays = {},
   onApply,
   onDismiss,
   savedAvoided = [],
-  savedLiked = [],
   profileLoading = false,
   profileError = false,
   askContext,
-  prefill,
   clearAskContext,
-  onFormSent,
   onOpenWeek,
   leading,
   trailing,
@@ -130,8 +124,6 @@ export function PlannerChat({
   /** Shown at the end of the header, e.g. a collapse button. */
   trailing?: ReactNode
   chat: MealPlannerChat
-  /** A proposal made outside the conversation ("Lên món nhanh"), shown after the messages. */
-  localProposal?: Proposal | null
   /** The proposal being saved. */
   applyingId?: string | null
   /** Why saving a proposal failed, by proposal id. */
@@ -141,41 +133,32 @@ export function PlannerChat({
   onApply: (proposal: Proposal) => void
   onDismiss: (proposal: Proposal) => void
   savedAvoided?: string[]
-  savedLiked?: string[]
   profileLoading?: boolean
   profileError?: boolean
   askContext?: MealAskContext | null
-  prefill?: { text: string; nonce: number; fromForm?: boolean } | null
   clearAskContext?: () => void
-  onOpenPlanner?: (seed?: string) => void
-  onFormSent?: () => void
   /** Shows a proposal's week on the calendar. */
   onOpenWeek?: (weekStart: string) => void
 }) {
   const { messages, busy, waiting, pendingId, streamingId, error, send, reset } = chat
   const [input, setInput] = useState("")
   const [inputError, setInputError] = useState("")
-  const [profileOpen, setProfileOpen] = useState(false)
   const [historyOpen, setHistoryOpen] = useState(false)
   const end = useRef<HTMLDivElement>(null)
   const textarea = useRef<HTMLTextAreaElement>(null)
-  const lastPrefillNonce = useRef<number | null>(null)
-  const fromForm = useRef(false)
   const pending = useRef<string | null>(null)
   const pendingAfterCount = useRef<number | null>(null)
   const showSuggestions = messages.length === 1 && !busy && !error && !chat.loadingThreadId
 
   useEffect(() => {
     end.current?.scrollIntoView({ block: "end" })
-  }, [messages, waiting, localProposal])
+  }, [messages, waiting])
 
   useEffect(() => {
-    if (!prefill || prefill.nonce === lastPrefillNonce.current) return
-    lastPrefillNonce.current = prefill.nonce
-    fromForm.current = Boolean(prefill.fromForm)
-    setInput(prefill.text)
-    requestAnimationFrame(() => textarea.current?.focus())
-  }, [prefill])
+    if (askContext) {
+      requestAnimationFrame(() => textarea.current?.focus())
+    }
+  }, [askContext])
 
   useEffect(() => {
     if (error && pending.current && !input.trim()) {
@@ -184,17 +167,11 @@ export function PlannerChat({
     if (!busy && !error && pending.current && pendingAfterCount.current !== null && messages.length > pendingAfterCount.current && messages.at(-1)?.role === "assistant") {
       pending.current = null
       pendingAfterCount.current = null
-      fromForm.current = false
       clearAskContext?.()
     }
   }, [busy, error, messages, input, clearAskContext])
 
   function chooseSuggestion(index: number) {
-    if (index === 3) {
-      setInput("Mình muốn hỏi về nguyên liệu và dinh dưỡng.")
-      requestAnimationFrame(() => textarea.current?.focus())
-      return
-    }
     sendQuestion(SUGGESTIONS[index], SUGGESTIONS[index])
   }
 
@@ -204,7 +181,6 @@ export function PlannerChat({
     setInput("")
     setInputError("")
     send(payload)
-    if (fromForm.current) onFormSent?.()
   }
 
   useImperativeHandle(handle, () => ({
@@ -249,7 +225,6 @@ export function PlannerChat({
     setInputError("")
     pending.current = null
     pendingAfterCount.current = null
-    fromForm.current = false
   }
 
   async function handleSelectThread(id: string) {
@@ -257,10 +232,14 @@ export function PlannerChat({
     setInputError("")
     pending.current = null
     pendingAfterCount.current = null
-    fromForm.current = false
     setHistoryOpen(false)
     await chat.selectThread(id)
   }
+
+  let avoidedSummary = "Chưa khai báo"
+  if (profileLoading) avoidedSummary = "Đang tải…"
+  else if (profileError) avoidedSummary = "Chưa tải được hồ sơ"
+  else if (savedAvoided.length > 0) avoidedSummary = savedAvoided.join(", ")
 
   return (
     <div className="flex h-[calc(100dvh-4.5rem)] min-h-[24rem] min-w-0 flex-col bg-background lg:h-full">
@@ -294,28 +273,16 @@ export function PlannerChat({
         {trailing}
       </header>
 
-      <div className="shrink-0 border-b border-border bg-card px-4 py-3 sm:px-5">
-        <div className="flex items-center justify-between gap-2">
-          <button type="button" aria-expanded={profileOpen} onClick={() => setProfileOpen((value) => !value)} className="inline-flex items-center gap-2 rounded-md text-sm font-semibold outline-none focus-visible:ring-3 focus-visible:ring-ring/30">
-            Hồ sơ ăn uống {profileOpen ? <ChevronUpIcon aria-hidden className="size-4" /> : <ChevronDownIcon aria-hidden className="size-4" />}
-          </button>
-          <Link href={DIETARY_PATH} className="text-xs font-semibold text-primary underline-offset-4 hover:underline focus-visible:underline">Xem hồ sơ</Link>
-        </div>
-        {profileOpen && (
-          <div className="mt-3 space-y-2 text-xs leading-5">
-            {profileLoading ? (
-              <p role="status" className="text-muted-foreground">Đang tải hồ sơ ăn uống…</p>
-            ) : profileError ? (
-              <p role="alert" className="text-destructive">Chưa tải được hồ sơ ăn uống.</p>
-            ) : (
-              <>
-                <p><span className="font-semibold">Không ăn:</span> {savedAvoided.length > 0 ? savedAvoided.join(", ") : "Chưa khai báo"}</p>
-                <p><span className="font-semibold">Thích:</span> {savedLiked.length > 0 ? savedLiked.join(", ") : "Chưa chọn"}</p>
-              </>
-            )}
-            <p className="border-t border-border pt-2 text-muted-foreground">Trợ lý luôn dựa vào hồ sơ này khi chọn món, bạn không cần nhắc lại trong tin nhắn.</p>
-          </div>
-        )}
+      <div className="flex shrink-0 items-center justify-between gap-3 border-b border-border bg-card px-4 py-2 text-xs sm:px-5">
+        <p className="min-w-0 truncate text-muted-foreground" title={avoidedSummary}>
+          <span className="font-semibold text-foreground">Kiêng/Dị ứng:</span> {avoidedSummary}
+        </p>
+        <Link
+          href={DIETARY_PATH}
+          className="shrink-0 font-semibold text-primary underline-offset-4 hover:underline focus-visible:underline"
+        >
+          Chỉnh hồ sơ
+        </Link>
       </div>
 
       <div aria-label="Cuộc trò chuyện" aria-live="polite" className="flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto overscroll-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden px-4 py-5 sm:px-5">
@@ -383,23 +350,6 @@ export function PlannerChat({
         {error && <AssistantMessage><div role="alert" className="space-y-2 text-sm text-destructive"><p>{error} Tin nhắn vẫn ở ô nhập để bạn thử lại.</p><Link href="/billing" target="_blank" rel="noopener noreferrer" className="inline-block text-primary underline underline-offset-4">Xem gói và hạn mức AI</Link><Button variant="outline" size="sm" onClick={() => submit()} disabled={!input.trim() || busy}><RotateCcwIcon aria-hidden /> Thử lại</Button></div></AssistantMessage>}
 
         {showSuggestions && <BubbleGroup aria-label="Gợi ý">{SUGGESTIONS.map((suggestion, index) => <Bubble key={suggestion} variant="outline"><BubbleContent render={<button type="button" />} onClick={() => chooseSuggestion(index)}>{suggestion}</BubbleContent></Bubble>)}</BubbleGroup>}
-
-        {localProposal && (
-          <AssistantMessage>
-            <p className="text-sm">Đây là các món “Lên món nhanh” chọn cho bạn. Chưa có gì được lưu.</p>
-            <ProposalCard
-              proposal={localProposal}
-              status={undefined}
-              superseded={false}
-              currentWeek={chat.weekStart}
-              applying={applyingId === localProposal.id}
-              applyError={applyErrors[localProposal.id]}
-              onApply={() => onApply(localProposal)}
-              onDismiss={() => onDismiss(localProposal)}
-              onShowWeek={onOpenWeek}
-            />
-          </AssistantMessage>
-        )}
         <div ref={end} aria-hidden className="h-px shrink-0" />
       </div>
 
@@ -412,19 +362,12 @@ export function PlannerChat({
           </InputGroup>
           {inputError && <p role="alert" className="mt-1 text-xs text-destructive">{inputError}</p>}
         </form>
-        <div className="mt-2 flex items-center justify-between gap-3">
-          <div className="flex flex-col gap-0.5">
-            <p className="text-[0.6875rem] leading-4 text-muted-foreground">Đề xuất chỉ thay đổi thực đơn khi bạn lưu.</p>
-            {chat.webSearchAllowed && (
-              <p title="Bạn đã cho phép trợ lý tìm trên web trong đoạn chat này" className="flex items-center gap-1 text-[0.6875rem] leading-4 text-muted-foreground">
-                <GlobeIcon aria-hidden className="size-3 shrink-0" /> Được tìm trên web
-              </p>
-            )}
-          </div>
-          {(messages.length > 1 || chat.activeThread !== null) && (
-            <Button variant="ghost" size="xs" onClick={handleNewThread}>
-              <MessageSquarePlusIcon aria-hidden /> Đoạn chat mới
-            </Button>
+        <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-[0.6875rem] leading-4 text-muted-foreground">
+          <p>Đề xuất chỉ thay đổi thực đơn khi bạn lưu.</p>
+          {chat.webSearchAllowed && (
+            <p title="Bạn đã cho phép trợ lý tìm trên web trong đoạn chat này" className="flex items-center gap-1">
+              <GlobeIcon aria-hidden className="size-3 shrink-0" /> Được tìm trên web
+            </p>
           )}
         </div>
       </div>

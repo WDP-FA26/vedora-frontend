@@ -5,12 +5,21 @@ import Link from "next/link"
 import { useAuthedSWR } from "@/features/auth/hooks/use-authed-swr"
 import {
   ArrowRightIcon,
+  ScaleIcon,
   ShieldCheckIcon,
   ThumbsUpIcon,
   type LucideIcon,
 } from "lucide-react"
 
-import { DIETARY_PATH, fetchMyDietary, MY_DIETARY_KEY } from "@/features/dietary/dietary"
+import {
+  BMI_CATEGORY_META,
+  DIETARY_PATH,
+  fetchMyDietary,
+  fetchMyNutrition,
+  MY_DIETARY_KEY,
+  MY_NUTRITION_KEY,
+  NUTRITION_GOAL_LABELS,
+} from "@/features/dietary/dietary"
 
 function compactList(values: string[]) {
   const visible = values.slice(0, 3).join(", ")
@@ -20,8 +29,24 @@ function compactList(values: string[]) {
 /** The owner's saved dietary profile, summarised on their own profile page. */
 export function DietaryOverviewCard() {
   const { data } = useAuthedSWR(MY_DIETARY_KEY, fetchMyDietary)
+  const { data: nutrition } = useAuthedSWR(MY_NUTRITION_KEY, fetchMyNutrition)
   const names = (items: { name: string }[] | undefined) => items?.map(({ name }) => name) ?? []
-  const avoided = [...names(data?.groups), ...names(data?.ingredients)]
+  const avoided = [
+    ...names(data?.groups),
+    ...names(data?.ingredients),
+    ...(data?.allergyNote ? [data.allergyNote] : []),
+  ]
+
+  const bmiItems: string[] = []
+  if (nutrition && nutrition.bmi !== null && nutrition.bmiCategory !== null) {
+    bmiItems.push(`BMI ${nutrition.bmi.toFixed(1)} (${BMI_CATEGORY_META[nutrition.bmiCategory].label})`)
+  }
+  if (nutrition?.effectiveGoal) {
+    bmiItems.push(NUTRITION_GOAL_LABELS[nutrition.effectiveGoal].shortLabel)
+  }
+  if (nutrition?.dailyCalorieTarget !== null && nutrition?.dailyCalorieTarget !== undefined) {
+    bmiItems.push(`~${nutrition.dailyCalorieTarget} kcal/ngày`)
+  }
 
   return (
     <section
@@ -49,9 +74,10 @@ export function DietaryOverviewCard() {
         </Link>
       </div>
 
-      <dl className="mt-5 grid grid-cols-1 gap-x-8 gap-y-5 min-[400px]:grid-cols-2">
+      <dl className="mt-5 grid grid-cols-1 gap-x-8 gap-y-5 min-[400px]:grid-cols-3">
         <OverviewItem icon={ShieldCheckIcon} label="Không ăn" values={avoided} empty="Chưa khai báo" />
         <OverviewItem icon={ThumbsUpIcon} label="Thích" values={names(data?.liked)} empty="Chưa chọn" />
+        <OverviewItem icon={ScaleIcon} label="BMI & Mục tiêu" values={bmiItems} empty="Chưa thiết lập" />
       </dl>
     </section>
   )

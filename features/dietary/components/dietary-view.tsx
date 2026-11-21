@@ -1,10 +1,10 @@
 "use client"
 
 import Link from "next/link"
-import { Controller, useForm, useWatch } from "react-hook-form"
+import { Controller, useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useAuthedSWR } from "@/features/auth/hooks/use-authed-swr"
-import { ArrowLeftIcon } from "lucide-react"
+import { ArrowLeftIcon, CalendarRangeIcon } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -18,6 +18,7 @@ import {
   FieldSet,
 } from "@/components/ui/field"
 import { Spinner } from "@/components/ui/spinner"
+import { Textarea } from "@/components/ui/textarea"
 import { useAuth } from "@/features/auth/hooks/use-auth"
 import { ApiError } from "@/features/shared/lib/api-client"
 import {
@@ -25,20 +26,28 @@ import {
   dietaryFormSchema,
   fetchDietaryOptions,
   fetchMyDietary,
+  fetchMyNutrition,
+  MAX_ALLERGY_NOTE_LENGTH,
   MY_DIETARY_KEY,
+  MY_NUTRITION_KEY,
   saveMyDietary,
   type DietaryFormValues,
   type DietaryOptions,
   type DietaryRestrictions,
 } from "@/features/dietary/dietary"
+import {
+  AsianBmiSpectrumBar,
+  NutritionProfileForm,
+  WeightBmiTrendChart,
+} from "@/features/dietary/components/bmi-charts"
+import { MEAL_PLANNER_PATH } from "@/features/meal-plan/meal-plan"
 import { profilePath } from "@/features/profiles/profiles-cache"
 import {
   NamedMultiSelect,
   type SelectOption,
 } from "@/features/recipes/components/named-select"
 
-const GROUPS_ID = "dietary-groups"
-const PICKER_ID = "dietary-ingredients"
+const ALLERGY_NOTE_ID = "dietary-allergy-note"
 const LIKED_ID = "dietary-liked"
 
 /** Where a user lists what they do not eat and the ingredients they like. */
@@ -46,6 +55,7 @@ export function DietaryView() {
   const { user, accessToken } = useAuth()
   const options = useAuthedSWR(DIETARY_OPTIONS_KEY, fetchDietaryOptions)
   const mine = useAuthedSWR(MY_DIETARY_KEY, fetchMyDietary)
+  const nutrition = useAuthedSWR(MY_NUTRITION_KEY, fetchMyNutrition)
 
   return (
     <section aria-labelledby="dietary-title">
@@ -63,14 +73,49 @@ export function DietaryView() {
           </Button>
         )}
         <h1 id="dietary-title" className="text-lg font-bold">
-          Hồ sơ ăn uống
+          Hồ sơ ăn uống &amp; BMI
         </h1>
+        <Button
+          variant="outline"
+          size="sm"
+          className="ml-auto"
+          nativeButton={false}
+          render={<Link href={MEAL_PLANNER_PATH} />}
+        >
+          <CalendarRangeIcon aria-hidden />
+          Lên thực đơn
+        </Button>
       </header>
 
       <div className="flex flex-col gap-6 p-4 sm:px-5">
         <p className="text-[0.9375rem] leading-6 text-muted-foreground">
-          Trợ lý Vedora dùng hồ sơ này khi gợi ý món và lên thực đơn. Chỉ mình bạn thấy.
+          Trợ lý Vedora dùng hồ sơ này khi gợi ý món và cân bằng dinh dưỡng thực vật. Chỉ mình bạn thấy.
         </p>
+
+        {nutrition.data && (
+          <div className="space-y-4 border-b border-border pb-6">
+            <div>
+              <h2 className="font-heading text-base font-bold">Chỉ số cơ thể &amp; Mục tiêu</h2>
+              <p className="mt-0.5 text-xs leading-5 text-muted-foreground">
+                Chiều cao, cân nặng và mục tiêu dùng để tính định mức calo và số lượng món ăn mỗi ngày.
+              </p>
+            </div>
+            <div className="grid gap-4 lg:grid-cols-2">
+              <AsianBmiSpectrumBar profile={nutrition.data} />
+              <WeightBmiTrendChart profile={nutrition.data} />
+            </div>
+            <div className="rounded-2xl border border-border bg-card p-4">
+              <h3 className="mb-3 text-sm font-bold">Thiết lập thể trạng &amp; mục tiêu</h3>
+              <NutritionProfileForm
+                key={`${nutrition.data.heightCm}-${nutrition.data.weightKg}-${nutrition.data.nutritionGoal}`}
+                profile={nutrition.data}
+                onSaved={async (updated) => {
+                  await nutrition.mutate(updated, { revalidate: false })
+                }}
+              />
+            </div>
+          </div>
+        )}
         {options.data && mine.data && accessToken ? (
           <DietaryForm
             options={options.data}
@@ -103,74 +148,42 @@ function DietaryForm({
   restrictions: DietaryRestrictions
   save: (values: DietaryFormValues) => Promise<void>
 }) {
+  const legacyAvoided = [
+    ...restrictions.groups.map((group) => group.name),
+    ...restrictions.ingredients.map((item) => item.name),
+  ]
+  const existingNote = restrictions.allergyNote?.trim() ?? ""
+  const initialAllergyNote = existingNote || legacyAvoided.join(", ")
+
   const form = useForm<DietaryFormValues>({
     resolver: zodResolver(dietaryFormSchema),
     defaultValues: {
-      groupIds: restrictions.groups.map((group) => group.id),
-      ingredientIds: restrictions.ingredients.map((item) => item.id),
+      groupIds: [],
+      ingredientIds: [],
       likedIngredientIds: restrictions.liked.map((item) => item.id),
+      allergyNote: initialAllergyNote,
     },
   })
   const { isSubmitting, isDirty, isSubmitSuccessful, errors } = form.formState
-  const chosen = useWatch({ control: form.control })
 
-  // A group chosen earlier may no longer be offered; keep it listed so it can be removed.
-  const groups = [
-    ...options.groups,
-    ...restrictions.groups
-      .filter((group) => !options.groups.some((option) => option.id === group.id))
-      .map((group) => ({ ...group, ingredients: [] as string[] })),
-  ]
-  const groupChoices: SelectOption[] = groups.map((group) => ({
-    id: group.id,
-    name: group.name,
-    keywords: group.ingredients.join(" "),
-    detail: group.ingredients.join(", "),
-  }))
   const ingredientChoices: SelectOption[] = options.ingredients.map((item) => ({
     id: item.id,
     name: item.name,
     keywords: item.aliases.join(" "),
   }))
 
-  // Ingredients picked one by one that a ticked group already covers.
-  const chosenGroups = groups.filter((group) => chosen.groupIds?.includes(group.id))
-  const covered = options.ingredients
-    .filter((item) => chosen.ingredientIds?.includes(item.id))
-    .flatMap((item) => {
-      const group = chosenGroups.find((candidate) =>
-        candidate.ingredients.includes(item.name)
-      )
-      return group ? [`${item.name} (đã có trong ${group.name})`] : []
-    })
-
-  const likedButAvoided = options.ingredients
-    .filter((item) => chosen.likedIngredientIds?.includes(item.id))
-    .filter((item) => chosenGroups.some((group) => group.ingredients.includes(item.name)))
-    .map((item) => item.name)
-
-  const likedAndAvoided = options.ingredients
-    .filter((item) => chosen.likedIngredientIds?.includes(item.id))
-    .filter((item) => chosen.ingredientIds?.includes(item.id))
-    .map((item) => item.name)
-
-  function likedNote(direct: string[], grouped: string[]): string {
-    if (direct.length > 0) {
-      return `Không thể vừa thích vừa tránh: ${direct.join(", ")}. Bỏ một trong hai để lưu.`
-    }
-    if (grouped.length > 0) {
-      return `Đang nằm trong nhóm bạn không ăn nên sẽ không được gợi ý: ${grouped.join(", ")}.`
-    }
-    return "Trợ lý Vedora ưu tiên món có những nguyên liệu này khi gợi ý."
-  }
-
   async function onSubmit(values: DietaryFormValues) {
+    const nextValues: DietaryFormValues = {
+      ...values,
+      groupIds: [],
+      ingredientIds: [],
+    }
     try {
-      await save(values)
-      form.reset(values)
+      await save(nextValues)
+      form.reset(nextValues)
     } catch (error: unknown) {
       if (error instanceof ApiError && error.code === "CONFLICTING_PREFERENCE") {
-        form.setError("root", { message: "Một nguyên liệu không thể vừa thích vừa tránh. Bỏ một trong hai rồi lưu lại." })
+        form.setError("root", { message: "Có xung đột trong danh sách nguyên liệu. Hãy thử lại." })
         return
       }
       form.setError("root", { message: "Không lưu được. Thử lại nhé." })
@@ -181,67 +194,29 @@ function DietaryForm({
     <form noValidate onSubmit={form.handleSubmit(onSubmit)}>
       <FieldGroup>
         <FieldSet>
-          <FieldLegend>Thực phẩm tôi không ăn</FieldLegend>
+          <FieldLegend>Thực phẩm không ăn hoặc dị ứng</FieldLegend>
           <FieldDescription>
-            Dị ứng, tín ngưỡng hay đơn giản là không thích. Món có những thực phẩm này không
-            bao giờ được đưa vào thực đơn của bạn.
+            Loại trừ hoàn toàn món có thành phần dị ứng hoặc không hợp khi trợ lý lên lịch ăn hằng ngày.
           </FieldDescription>
           <FieldGroup>
-            {groups.length > 0 && (
-              <Controller
-                name="groupIds"
-                control={form.control}
-                render={({ field }) => (
-                  <Field>
-                    <FieldLabel htmlFor={GROUPS_ID}>Nhóm thực phẩm</FieldLabel>
-                    <NamedMultiSelect
-                      id={GROUPS_ID}
-                      options={groupChoices}
-                      value={field.value}
-                      onChange={field.onChange}
-                      placeholder="Tìm nhóm, ví dụ: sữa, hạt, gluten"
-                    />
-                    {chosenGroups.length > 0 ? (
-                      <ul className="flex flex-col gap-1 text-sm leading-5 text-muted-foreground">
-                        {chosenGroups.map((group) => (
-                          <li key={group.id}>
-                            <span className="font-medium text-foreground">{group.name}</span>
-                            {group.ingredients.length > 0
-                              ? `: ${group.ingredients.join(", ")}`
-                              : ": chưa có nguyên liệu nào"}
-                          </li>
-                        ))}
-                      </ul>
-                    ) : (
-                      <FieldDescription>
-                        Chọn một nhóm là tránh mọi nguyên liệu trong nhóm đó. Tìm được theo tên
-                        nhóm hoặc tên nguyên liệu.
-                      </FieldDescription>
-                    )}
-                  </Field>
-                )}
-              />
-            )}
-
             <Controller
-              name="ingredientIds"
+              name="allergyNote"
               control={form.control}
               render={({ field, fieldState }) => (
                 <Field data-invalid={fieldState.invalid}>
-                  <FieldLabel htmlFor={PICKER_ID}>Nguyên liệu riêng lẻ</FieldLabel>
-                  <NamedMultiSelect
-                    id={PICKER_ID}
-                    options={ingredientChoices}
+                  <FieldLabel htmlFor={ALLERGY_NOTE_ID}>
+                    Ghi chú dị ứng hoặc lưu ý ăn uống riêng
+                  </FieldLabel>
+                  <Textarea
+                    id={ALLERGY_NOTE_ID}
                     value={field.value}
                     onChange={field.onChange}
-                    placeholder="Tìm nguyên liệu, ví dụ: đậu phộng"
-                    invalid={fieldState.invalid}
+                    onBlur={field.onBlur}
+                    maxLength={MAX_ALLERGY_NOTE_LENGTH}
+                    rows={3}
+                    placeholder="Ví dụ: Mình dị ứng đậu phộng, mè/vừng và nước tương có gluten; ăn cay hoặc nhiều nước cốt dừa hay bị đầy bụng…"
+                    aria-invalid={fieldState.invalid}
                   />
-                  <FieldDescription>
-                    {covered.length > 0
-                      ? `Không cần chọn riêng: ${covered.join("; ")}.`
-                      : "Dùng cho những thứ không thuộc nhóm nào ở trên. Tìm được cả tên gọi khác và không dấu."}
-                  </FieldDescription>
                   {fieldState.invalid && <FieldError errors={[fieldState.error]} />}
                 </Field>
               )}
@@ -256,7 +231,7 @@ function DietaryForm({
           control={form.control}
           render={({ field, fieldState }) => (
             <Field data-invalid={fieldState.invalid}>
-              <FieldLabel htmlFor={LIKED_ID}>Nguyên liệu tôi thích</FieldLabel>
+              <FieldLabel htmlFor={LIKED_ID}>Nguyên liệu tôi thích (tùy chọn)</FieldLabel>
               <NamedMultiSelect
                 id={LIKED_ID}
                 options={ingredientChoices}
@@ -266,7 +241,7 @@ function DietaryForm({
                 invalid={fieldState.invalid}
               />
               <FieldDescription>
-                {likedNote(likedAndAvoided, likedButAvoided)}
+                Trợ lý ưu tiên gợi ý thêm các món có nguyên liệu yêu thích vào thực đơn của bạn.
               </FieldDescription>
               {fieldState.invalid && <FieldError errors={[fieldState.error]} />}
             </Field>
@@ -274,9 +249,9 @@ function DietaryForm({
         />
 
         <div className="flex flex-wrap items-center gap-3">
-          <Button type="submit" disabled={isSubmitting || !isDirty || likedAndAvoided.length > 0}>
+          <Button type="submit" disabled={isSubmitting || !isDirty}>
             {isSubmitting && <Spinner aria-hidden />}
-            Lưu
+            Lưu thực phẩm &amp; dị ứng
           </Button>
           <Button
             variant="outline"

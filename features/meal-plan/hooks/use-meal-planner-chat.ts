@@ -77,6 +77,8 @@ const PROPOSAL_TOOL_TYPES = [
   "tool-proposeMealPlan",
   "tool-generateMealPlan",
   "tool-fillSlots",
+  "tool-autoBalanceDraft",
+  "tool-verifyMealPlanAllergies",
   "tool-editDraft",
 ]
 
@@ -156,11 +158,12 @@ export function messageWebSearchRequests(message: UIMessage): WebSearchRequest[]
 }
 
 /**
- * Whether the user allowed web search in this conversation: their newest
- * answer to a request stands. A new conversation starts without consent.
+ * Whether web search is enabled in this conversation: enabled by default so
+ * the assistant can look up out-of-catalog dishes freely; an explicit decline
+ * turns it off until approved again.
  */
 export function webSearchAllowed(messages: readonly UIMessage[]): boolean {
-  let allowed = false
+  let allowed = true
   for (const message of messages) {
     for (const { approved } of messageWebSearchRequests(message)) {
       if (approved !== undefined) allowed = approved

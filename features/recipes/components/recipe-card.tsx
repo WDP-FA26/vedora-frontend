@@ -1,8 +1,9 @@
 "use client"
 
 import { useState } from "react"
-import { BookmarkIcon, ClockIcon, UsersIcon } from "lucide-react"
+import { BookmarkIcon, ClockIcon, FlameIcon, UsersIcon } from "lucide-react"
 
+import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -11,6 +12,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Skeleton } from "@/components/ui/skeleton"
+import { NUTRITION_PILLAR_META } from "@/features/dietary/dietary"
 import { RecipeRating } from "@/features/recipes/components/recipe-rating"
 import { usePublicRecipe } from "@/features/recipes/hooks/use-recipe-catalog"
 import { useRecipeFavorite } from "@/features/recipes/hooks/use-recipe-favorite"
@@ -80,6 +82,12 @@ export function RecipeCard({ recipe, onOpen }: { recipe: PublicRecipe; onOpen: (
               <UsersIcon aria-hidden className="size-3.5" />
               {recipe.servings} khẩu phần
             </span>
+            {typeof recipe.caloriesPerServing === "number" && (
+              <span className="inline-flex items-center gap-1 tabular-nums">
+                <FlameIcon aria-hidden className="size-3.5 text-amber-600 dark:text-amber-400" />
+                ~{recipe.caloriesPerServing} kcal/suất
+              </span>
+            )}
             <span>{recipe.ingredientCount} nguyên liệu</span>
           </span>
           {recipe.post && (
@@ -115,9 +123,23 @@ export function RecipeDialog({ id, onClose }: { id: string | null; onClose: () =
               <p className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-muted-foreground">
                 {minutes !== null && <span>{minutes} phút</span>}
                 <span>{recipe.servings} khẩu phần</span>
+                {typeof recipe.caloriesPerServing === "number" && (
+                  <span className="font-medium text-foreground">
+                    ~{recipe.caloriesPerServing} kcal / 1 suất ăn
+                  </span>
+                )}
               </p>
               <FavoriteButton recipe={recipe} withLabel />
             </div>
+            {recipe.nutritionPillars && recipe.nutritionPillars.length > 0 && (
+              <div className="flex flex-wrap gap-1.5" aria-label="Nhóm dưỡng chất chay">
+                {recipe.nutritionPillars.map((pillar) => (
+                  <Badge key={pillar} variant="secondary" title={NUTRITION_PILLAR_META[pillar].tip}>
+                    {NUTRITION_PILLAR_META[pillar].label}
+                  </Badge>
+                ))}
+              </div>
+            )}
             <RecipeRating key={recipe.id} recipeId={recipe.id} />
             {recipe.conflicts.length > 0 && (
               <div role="note" className="rounded-xl border border-amber-500/40 bg-amber-500/10 p-3 text-sm">

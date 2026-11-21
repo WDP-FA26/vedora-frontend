@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { useSWRConfig } from "swr"
 import { useAuthedSWR } from "@/features/auth/hooks/use-authed-swr"
@@ -8,15 +8,31 @@ import Link from "next/link"
 import { ArrowLeftIcon, CalendarRangeIcon, PanelLeftCloseIcon, SparklesIcon } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
+import { Field, FieldDescription, FieldGroup, FieldLabel } from "@/components/ui/field"
+import { Input } from "@/components/ui/input"
+import { Spinner } from "@/components/ui/spinner"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Textarea } from "@/components/ui/textarea"
 import { useAuth } from "@/features/auth/hooks/use-auth"
 import { isAccessTokenFresh } from "@/features/auth/lib/tokens"
-import { fetchMyDietary, MY_DIETARY_KEY } from "@/features/dietary/dietary"
+import {
+  DIETARY_PATH,
+  fetchMyDietary,
+  fetchMyNutrition,
+  MAX_ALLERGY_NOTE_LENGTH,
+  MY_DIETARY_KEY,
+  MY_NUTRITION_KEY,
+  NUTRITION_GOALS,
+  NUTRITION_GOAL_LABELS,
+  saveMyDietary,
+  saveMyNutrition,
+  type DietaryRestrictions,
+  type NutritionGoal,
+  type NutritionProfile,
+} from "@/features/dietary/dietary"
 import { CalendarBoard } from "@/features/meal-plan/components/calendar-board"
 import { PlannerChat, type PlannerChatHandle } from "@/features/meal-plan/components/planner-chat"
-import { QuickGenerate } from "@/features/meal-plan/components/quick-generate"
 import { WeekNav } from "@/features/meal-plan/components/week-nav"
-import { MealRequestForm } from "@/features/meal-plan/components/meal-request-form"
 import {
   proposalIds,
   useMealPlannerChat,
@@ -27,17 +43,14 @@ import {
   discardMealDraft,
   formatDayMonth,
   fetchMealPlan,
-  generateMealDays,
   inputsForChanges,
   mealPlanKey,
   planAfterChanges,
   problemSchema,
   problemText,
-  recipesAt,
   saveMealDays,
   SECTION_LABELS,
   shiftWeek,
-  type GenerateInput,
   type MealDayInput,
   type MealPlan,
   type MealSection,
@@ -135,20 +148,9 @@ function calendarErrorMessage(error: unknown) {
   return "Không lưu được thay đổi. Hãy thử lại."
 }
 
-/** True when `onlyEmpty` was requested and every target slot already has at least one dish. */
-function allRequestedSlotsFilled(plan: MealPlan | undefined, request: GenerateInput): boolean {
-  if (!request.onlyEmpty || !plan) return false
-  for (const day of request.days) {
-    for (const section of request.sections) {
-      if (recipesAt(plan, { day, section }).length === 0) return false
-    }
-  }
-  return true
-}
-
 /**
  * One saved week at a time (the `week` URL param, else this week). The assistant may
- * propose for any plannable week; its cards in the chat are where a proposal is saved.
+ * propose for any plannable week; proposals can be applied from either chat cards or calendar preview.
  */
 export function MealPlannerView() {
   const { accessToken } = useAuth()
@@ -163,36 +165,20 @@ export function MealPlannerView() {
   const plannerChat = useRef<PlannerChatHandle>(null)
   const [tab, setTab] = useState<Tab>("chat")
   const [assistantOpen, setAssistantOpen] = useState(true)
-  /** The latest "Lên món nhanh" result, shown as a card in the chat until saved or dismissed. */
-  const [generated, setGenerated] = useState<Proposal | null>(null)
   const [applyingId, setApplyingId] = useState<string | null>(null)
   const [applyErrors, setApplyErrors] = useState<Record<string, string>>({})
   /** Passed days a saved proposal could not keep, by proposal id. */
   const [skippedDays, setSkippedDays] = useState<Record<string, string[]>>({})
   const [askContext, setAskContext] = useState<AskContext | null>(null)
-  const [prefill, setPrefill] = useState<{ text: string; nonce: number; fromForm?: boolean } | null>(null)
-  const [formSeed, setFormSeed] = useState<{ text: string; nonce: number } | null>(null)
-  const [requestOpen, setRequestOpen] = useState(false)
-  const [formHandoffState, setFormHandoffState] = useState<"editing" | "prepared" | "sent">("editing")
-  const [formSentAtCount, setFormSentAtCount] = useState<number | null>(null)
   const restrictions = useAuthedSWR(MY_DIETARY_KEY, fetchMyDietary)
+  const nutrition = useAuthedSWR(MY_NUTRITION_KEY, fetchMyNutrition)
   // The calendar previews what a card would change in the week on screen.
-  const chatSuggestion = chat.pendingProposals.find((proposal) => proposal.weekStart === weekStart) ?? null
-  const suggestion = generated?.weekStart === weekStart ? generated : chatSuggestion
-  const plannedDays = plan.data
-    ? plan.data.days
-        .filter(({ sections }) => sections.some(({ recipes }) => recipes.length > 0))
-        .map(({ day }) => day)
-    : undefined
-  const hasSavedMeals = Boolean(plannedDays?.length)
+  const suggestion = chat.pendingProposals.find((proposal) => proposal.weekStart === weekStart) ?? null
   const savedAvoided = [
     ...(restrictions.data?.groups.map(({ name }) => name) ?? []),
     ...(restrictions.data?.ingredients.map(({ name }) => name) ?? []),
+    ...(restrictions.data?.allergyNote ? [restrictions.data.allergyNote] : []),
   ]
-  const savedLiked = restrictions.data?.liked.map(({ name }) => name) ?? []
-  const formReplyReceived = formSentAtCount !== null &&
-    chat.messages.length > formSentAtCount && chat.messages.at(-1)?.role === "assistant" && !chat.busy
-  const formAwaitingReply = formHandoffState === "sent" && !chat.error && !formReplyReceived
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -220,30 +206,9 @@ export function MealPlannerView() {
   /** Proposals live in the chat and keep their own week, so switching weeks loses nothing. */
   function showWeek(next: string) {
     if (next !== weekStart) {
-      setRequestOpen(false)
       writeWeek(next === plan.data?.currentWeekStart ? undefined : next)
     }
     setTab("calendar")
-  }
-
-  async function generate(request: GenerateInput): Promise<string | null> {
-    if (!accessToken || !weekStart) return "Phiên đăng nhập đã hết hạn. Hãy tải lại trang."
-    try {
-      const result = await generateMealDays(accessToken, { ...request, weekStart })
-      if (result.days.length === 0) {
-        return allRequestedSlotsFilled(plan.data, request)
-          ? "Các bữa đã chọn đều đã có món. Chọn “Cả tuần” hoặc “Hôm nay” nếu bạn muốn đổi món mới."
-          : "Không tìm thấy món phù hợp với lựa chọn này."
-      }
-      if (!result.ok) return "Các món tìm được xung đột với hồ sơ ăn uống. Hãy thử lại."
-      setGenerated({ id: `generated-${crypto.randomUUID()}`, ok: true, weekStart, days: result.days })
-      setAssistantOpen(true)
-      setTab("chat")
-      return null
-    } catch (error) {
-      if (error instanceof ApiError && error.status === 401) router.refresh()
-      return "Không chọn được món. Hãy thử lại."
-    }
   }
 
   function askAssistant(prompt: string) {
@@ -278,10 +243,6 @@ export function MealPlannerView() {
       await mutate([mealPlanKey(week), accessToken], saved, { revalidate: false })
       // The current week is also cached under the key without `weekStart` (page default, header sheet).
       if (week === saved.currentWeekStart) await mutate([mealPlanKey(), accessToken], saved, { revalidate: false })
-      if (generated?.id === proposal.id) {
-        setGenerated(null)
-        return
-      }
       if (passed.length > 0) setSkippedDays((current) => ({ ...current, [proposal.id]: passed }))
       chat.setProposalsStatus(proposalIds(proposal), "saved")
     } catch (error) {
@@ -294,10 +255,6 @@ export function MealPlannerView() {
 
   async function dismissProposal(proposal: Proposal) {
     setApplyError(proposal.id, null)
-    if (generated?.id === proposal.id) {
-      setGenerated(null)
-      return
-    }
     chat.setProposalsStatus(proposalIds(proposal), "dismissed")
     const week = proposal.weekStart
     if (!accessToken || !week) return
@@ -328,30 +285,10 @@ export function MealPlannerView() {
     }
   }
 
-  function startPlanning(seed?: string) {
-    setAskContext(null)
-    setFormHandoffState("editing")
-    setFormSentAtCount(null)
-    setFormSeed((current) => ({ text: seed ?? "", nonce: (current?.nonce ?? 0) + 1 }))
-    setRequestOpen(true)
-    setTab("calendar")
-  }
-
-  function continueInChat(prompt: string) {
-    setPrefill((current) => ({ text: prompt, nonce: (current?.nonce ?? 0) + 1, fromForm: true }))
-    setFormHandoffState("prepared")
-    setFormSentAtCount(null)
-    setRequestOpen(false)
-    setTab("chat")
-  }
-
   function suggestForSlot({ day, section }: SlotRef) {
-    setAssistantOpen(true)
-    setTab("chat")
-    setPrefill((current) => ({
-      text: `Gợi ý vài món cho ${DAY_LABELS[day]}, bữa ${SECTION_LABELS[section].toLowerCase()}. Chỉ thay bữa này, hãy cho tôi xem đề xuất trước khi lưu.`,
-      nonce: (current?.nonce ?? 0) + 1,
-    }))
+    askAssistant(
+      `Gợi ý giúp mình vài món cho bữa ${SECTION_LABELS[section].toLowerCase()} ${DAY_LABELS[day]} nhé.`
+    )
   }
 
   function askAboutRecipe(recipe: { title: string }, day: Weekday, section: MealSection) {
@@ -370,6 +307,64 @@ export function MealPlannerView() {
       <ArrowLeftIcon aria-hidden />
     </Button>
   )
+
+  const hasNutritionProfile =
+    nutrition.data !== undefined &&
+    nutrition.data.heightCm !== null &&
+    nutrition.data.weightKg !== null
+
+  if (!nutrition.data || !restrictions.data) {
+    if (nutrition.error || restrictions.error) {
+      return (
+        <section aria-labelledby="meal-planner-title" className="flex min-h-dvh flex-col">
+          <header className="flex items-center gap-2 border-b border-border bg-card px-3 py-2.5">
+            {backButton("icon")}
+            <h1 id="meal-planner-title" className="text-base font-bold">Lên thực đơn</h1>
+          </header>
+          <div className="mx-auto my-auto flex max-w-md flex-col items-center gap-3 p-6 text-center">
+            <p role="alert" className="text-sm text-destructive">
+              Chưa tải được hồ sơ ăn uống của bạn. Vui lòng thử lại.
+            </p>
+            <Button
+              variant="outline"
+              onClick={() => {
+                void nutrition.mutate()
+                void restrictions.mutate()
+              }}
+            >
+              Thử lại
+            </Button>
+          </div>
+        </section>
+      )
+    }
+
+    return (
+      <section aria-labelledby="meal-planner-title" className="flex min-h-dvh flex-col">
+        <h1 id="meal-planner-title" className="sr-only">Lên thực đơn</h1>
+        <div className="flex flex-1 flex-col items-center justify-center gap-3 p-6 text-center">
+          <Spinner aria-label="Đang tải hồ sơ ăn uống" />
+          <p className="text-sm text-muted-foreground">Đang chuẩn bị trợ lý lên thực đơn…</p>
+        </div>
+      </section>
+    )
+  }
+
+  if (!hasNutritionProfile) {
+    return (
+      <MealPlannerOnboardingGate
+        backButton={backButton("icon")}
+        initialNutrition={nutrition.data}
+        initialRestrictions={restrictions.data}
+        onCompleted={async (savedNutrition, savedDietary) => {
+          await Promise.all([
+            nutrition.mutate(savedNutrition, { revalidate: false }),
+            restrictions.mutate(savedDietary, { revalidate: false }),
+          ])
+        }}
+      />
+    )
+  }
 
   return (
     <section aria-labelledby="meal-planner-title" className="flex min-h-dvh min-w-0 flex-col lg:h-dvh lg:overflow-hidden">
@@ -404,20 +399,16 @@ export function MealPlannerView() {
             <PlannerChat
               handle={plannerChat}
               chat={chat}
-              localProposal={generated}
               applyingId={applyingId}
               applyErrors={applyErrors}
               skippedDays={skippedDays}
               onApply={(proposal) => void applyProposal(proposal)}
               onDismiss={(proposal) => void dismissProposal(proposal)}
               savedAvoided={savedAvoided}
-              savedLiked={savedLiked}
               profileLoading={restrictions.isLoading}
               profileError={Boolean(restrictions.error)}
               askContext={askContext}
-              prefill={prefill}
               clearAskContext={() => setAskContext(null)}
-              onOpenPlanner={startPlanning}
               leading={<span className="hidden lg:block">{backButton("icon")}</span>}
               trailing={
                 <Button
@@ -431,43 +422,29 @@ export function MealPlannerView() {
                 </Button>
               }
               onOpenWeek={showWeek}
-              onFormSent={() => {
-                setFormHandoffState("sent")
-                setFormSentAtCount(chat.messages.length)
-              }}
             />
             </div>
           </div>
           <div className={cn("min-w-0 lg:min-h-0 lg:overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden", tab === "chat" && "hidden lg:block")}>
-            <div className={cn("mx-auto w-full max-w-2xl", tab === "calendar" && requestOpen ? "block" : "hidden", requestOpen ? "lg:block" : "lg:hidden")}>
-              <MealRequestForm
-                savedAvoided={savedAvoided}
-                savedLiked={savedLiked}
-                profileLoading={restrictions.isLoading}
-                profileError={Boolean(restrictions.error)}
-                onRetryProfile={() => void restrictions.mutate()}
-                seed={formSeed}
-                onContinue={continueInChat}
-                handoffState={formHandoffState}
-                awaitingReply={formAwaitingReply}
-                chatError={chat.error}
-                onEdit={() => setFormHandoffState("editing")}
-                onCancel={hasSavedMeals || suggestion || requestOpen ? () => setRequestOpen(false) : undefined}
-                busy={chat.busy}
-              />
-            </div>
-
-            <div className={cn("lg:h-full", tab === "calendar" && !requestOpen ? "block" : "hidden", requestOpen ? "lg:hidden" : "lg:block")}>
+            <div className="lg:h-full">
               <CalendarBoard
                 key={weekStart ?? "loading"}
                 plan={plan.data}
                 failed={Boolean(plan.error)}
                 suggestion={suggestion}
+                onApplySuggestion={() => suggestion && void applyProposal(suggestion)}
+                onDismissSuggestion={() => suggestion && void dismissProposal(suggestion)}
+                applyingSuggestion={Boolean(suggestion && applyingId === suggestion.id)}
                 onOpenChat={openChat}
                 onChange={changeCalendar}
                 onRetry={() => void plan.mutate()}
                 onAsk={askAboutRecipe}
                 onSuggestSlot={suggestForSlot}
+                nutrition={nutrition.data}
+                onNutritionSaved={async (updated) => {
+                  await nutrition.mutate(updated, { revalidate: false })
+                }}
+                onAskAssistant={askAssistant}
                 action={
                   <WeekNav
                     plan={plan.data}
@@ -498,8 +475,215 @@ export function MealPlannerView() {
 
         </div>
       </Tabs>
-      <div className={cn(tab === "chat" && "hidden lg:block")}>
-        <QuickGenerate plan={plan.data} disabled={applyingId !== null} onGenerate={generate} onAskAssistant={askAssistant} />
+    </section>
+  )
+}
+
+function MealPlannerOnboardingGate({
+  backButton,
+  initialNutrition,
+  initialRestrictions,
+  onCompleted,
+}: {
+  backButton: ReactNode
+  initialNutrition: NutritionProfile
+  initialRestrictions: DietaryRestrictions
+  onCompleted: (savedNutrition: NutritionProfile, savedDietary: DietaryRestrictions) => Promise<void>
+}) {
+  const { accessToken } = useAuth()
+  const existingAvoided = [
+    ...initialRestrictions.groups.map(({ name }) => name),
+    ...initialRestrictions.ingredients.map(({ name }) => name),
+  ]
+  const initialNote = initialRestrictions.allergyNote?.trim() || existingAvoided.join(", ")
+
+  const [heightCm, setHeightCm] = useState(initialNutrition.heightCm?.toString() ?? "")
+  const [weightKg, setWeightKg] = useState(initialNutrition.weightKg?.toString() ?? "")
+  const [nutritionGoal, setNutritionGoal] = useState<NutritionGoal | null>(
+    initialNutrition.nutritionGoal ?? null
+  )
+  const [allergyNote, setAllergyNote] = useState(initialNote)
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  async function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    if (!accessToken || saving) return
+
+    const heightNum = Number(heightCm.trim().replace(",", "."))
+    const weightNum = Number(weightKg.trim().replace(",", "."))
+
+    if (!Number.isInteger(heightNum) || heightNum < 100 || heightNum > 250) {
+      setError("Nhập chiều cao hợp lệ từ 100 đến 250 cm để tính định mức calo.")
+      return
+    }
+    if (!Number.isFinite(weightNum) || weightNum < 25 || weightNum > 300) {
+      setError("Nhập cân nặng hợp lệ từ 25 đến 300 kg để tính định mức calo.")
+      return
+    }
+
+    setSaving(true)
+    setError(null)
+    try {
+      const [savedNutrition, savedDietary] = await Promise.all([
+        saveMyNutrition(accessToken, {
+          heightCm: heightNum,
+          weightKg: Math.round(weightNum * 10) / 10,
+          nutritionGoal,
+        }),
+        saveMyDietary(accessToken, {
+          groupIds: [],
+          ingredientIds: [],
+          likedIngredientIds: initialRestrictions.liked.map(({ id }) => id),
+          allergyNote,
+        }),
+      ])
+      await onCompleted(savedNutrition, savedDietary)
+    } catch (caught) {
+      setError(
+        caught instanceof ApiError
+          ? caught.message
+          : "Chưa lưu được hồ sơ ăn uống. Vui lòng thử lại."
+      )
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <section aria-labelledby="meal-planner-onboarding-title" className="flex min-h-dvh flex-col bg-background">
+      <header className="flex items-center gap-2 border-b border-border bg-card px-3 py-2.5">
+        {backButton}
+        <h1 id="meal-planner-onboarding-title" className="text-base font-bold">
+          Cập nhật hồ sơ ăn uống trước khi lên thực đơn
+        </h1>
+      </header>
+
+      <div className="mx-auto flex w-full max-w-2xl flex-1 flex-col justify-center p-4 sm:p-6">
+        <form
+          onSubmit={submit}
+          noValidate
+          className="space-y-6 rounded-2xl border border-border bg-card p-5 shadow-xs sm:p-6"
+        >
+          <div className="space-y-1">
+            <h2 className="font-heading text-lg font-bold">
+              Thiết lập nhanh chỉ số ăn uống của bạn
+            </h2>
+            <p className="text-xs leading-5 text-muted-foreground">
+              Trợ lý chỉ hỏi đúng 3 thông tin dùng trực tiếp để chia khẩu phần hợp lý và loại bỏ món gây dị ứng cho bạn.
+            </p>
+          </div>
+
+          <FieldGroup>
+            <div className="space-y-2">
+              <div className="grid gap-3 sm:grid-cols-2">
+                <Field>
+                  <FieldLabel htmlFor="gate-height">Chiều cao (cm) *</FieldLabel>
+                  <Input
+                    id="gate-height"
+                    type="number"
+                    required
+                    min={100}
+                    max={250}
+                    step={1}
+                    value={heightCm}
+                    onChange={(event) => {
+                      setHeightCm(event.target.value)
+                      setError(null)
+                    }}
+                    placeholder="Ví dụ: 162"
+                  />
+                </Field>
+                <Field>
+                  <FieldLabel htmlFor="gate-weight">Cân nặng hiện tại (kg) *</FieldLabel>
+                  <Input
+                    id="gate-weight"
+                    type="number"
+                    required
+                    min={25}
+                    max={300}
+                    step={0.1}
+                    value={weightKg}
+                    onChange={(event) => {
+                      setWeightKg(event.target.value)
+                      setError(null)
+                    }}
+                    placeholder="Ví dụ: 55.5"
+                  />
+                </Field>
+              </div>
+              <FieldDescription>
+                Dùng để tính chỉ số BMI và định mức calo mỗi ngày (~kcal/ngày) nhằm ghép đủ số món cho từng bữa.
+              </FieldDescription>
+            </div>
+
+            <Field>
+              <FieldLabel>Mục tiêu thực đơn</FieldLabel>
+              <div className="grid gap-2 sm:grid-cols-3">
+                {NUTRITION_GOALS.map((goal) => {
+                  const selected = nutritionGoal === goal
+                  return (
+                    <button
+                      key={goal}
+                      type="button"
+                      onClick={() => setNutritionGoal(selected ? null : goal)}
+                      className={cn(
+                        "flex flex-col items-start gap-1 rounded-xl border p-3 text-left transition-colors",
+                        selected
+                          ? "border-primary bg-primary/10"
+                          : "border-border bg-background hover:bg-accent/50"
+                      )}
+                    >
+                      <span className="text-xs font-semibold">{NUTRITION_GOAL_LABELS[goal].label}</span>
+                      <span className="text-[0.6875rem] leading-4 text-muted-foreground">
+                        {NUTRITION_GOAL_LABELS[goal].hint}
+                      </span>
+                    </button>
+                  )
+                })}
+              </div>
+              <FieldDescription>
+                Quyết định cách trợ lý phân bổ bữa ăn (ưu tiên bữa tối thanh nhẹ khi giảm cân, hoặc thêm món/bữa phụ khi cần bồi bổ). Có thể bỏ trống để hệ thống tự gợi ý theo BMI.
+              </FieldDescription>
+            </Field>
+
+            <Field>
+              <FieldLabel htmlFor="gate-allergy-note">
+                Ghi chú dị ứng hoặc thực phẩm không ăn (tùy chọn)
+              </FieldLabel>
+              <Textarea
+                id="gate-allergy-note"
+                rows={3}
+                maxLength={MAX_ALLERGY_NOTE_LENGTH}
+                value={allergyNote}
+                onChange={(event) => setAllergyNote(event.target.value)}
+                placeholder="Ví dụ: Mình dị ứng đậu phộng, mè/vừng và không ăn đồ cay…"
+              />
+              <FieldDescription>
+                Trợ lý sẽ tự tránh các món có nguyên liệu, gia vị hoặc cách nấu không hợp với bạn.
+              </FieldDescription>
+            </Field>
+          </FieldGroup>
+
+          {error && (
+            <p role="alert" className="rounded-xl border border-destructive/30 bg-destructive/5 px-3 py-2 text-xs text-destructive">
+              {error}
+            </p>
+          )}
+
+          <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
+            <Button type="submit" disabled={saving}>
+              {saving && <Spinner aria-hidden />}
+              Lưu hồ sơ &amp; Bắt đầu lên thực đơn
+            </Button>
+            <Link
+              href={DIETARY_PATH}
+              className="text-xs font-semibold text-primary underline-offset-4 hover:underline"
+            >
+              Chọn thêm nguyên liệu yêu thích
+            </Link>
+          </div>
+        </form>
       </div>
     </section>
   )

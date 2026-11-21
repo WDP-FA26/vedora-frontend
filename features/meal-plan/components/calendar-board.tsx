@@ -5,6 +5,7 @@ import { z } from "zod"
 import {
   ArrowRightLeftIcon,
   BookOpenIcon,
+  CheckIcon,
   EllipsisIcon,
   MessageCircleIcon,
   PlusIcon,
@@ -42,12 +43,15 @@ import {
   ComboboxList,
 } from "@/components/ui/combobox"
 import { RecipeSheet, type OpenedDish } from "@/features/meal-plan/components/recipe-sheet"
+import { NutritionCompanionBar } from "@/features/meal-plan/components/nutrition-companion-bar"
 import {
   DAY_SHORT,
   displayDays,
   type RecipeRef,
 } from "@/features/meal-plan/components/timetable"
+import type { NutritionProfile } from "@/features/dietary/dietary"
 import {
+  computeDayNutrition,
   DAY_LABELS,
   dayOfMonth,
   dishKey,
@@ -82,9 +86,12 @@ type CalendarBoardProps = {
   failed: boolean
   /**
    * A proposal for this week that the user has not decided on yet, previewed on the
-   * grid. It is applied or dismissed from its card in the chat, never from here.
+   * grid and directly applicable or dismissible from the preview banner.
    */
   suggestion?: MealPlanProposal | null
+  onApplySuggestion?: () => void
+  onDismissSuggestion?: () => void
+  applyingSuggestion?: boolean
   /** Brings the chat, where the proposal's card is, into view. */
   onOpenChat?: () => void
   /** Applies the new content of one or more meal slots; rejects with a user-facing message. */
@@ -93,6 +100,9 @@ type CalendarBoardProps = {
   /** Asks the assistant for dishes for an empty or partly filled slot. */
   onSuggestSlot?: (slot: SlotRef) => void
   onRetry?: () => void
+  nutrition?: NutritionProfile
+  onNutritionSaved?: (next: NutritionProfile) => Promise<void> | void
+  onAskAssistant?: (prompt: string) => void
   /** Buttons at the right of the toolbar above the grid. */
   action?: ReactNode
   /** Controls in the top-left corner cell (shown when the assistant is hidden). */
@@ -125,11 +135,17 @@ export function CalendarBoard({
   plan,
   failed,
   suggestion = null,
+  onApplySuggestion,
+  onDismissSuggestion,
+  applyingSuggestion = false,
   onOpenChat,
   onChange,
   onAsk,
   onSuggestSlot,
   onRetry,
+  nutrition,
+  onNutritionSaved,
+  onAskAssistant,
   action,
   leading,
 }: CalendarBoardProps) {
@@ -154,6 +170,13 @@ export function CalendarBoard({
   const locked = overlay !== null
   const view = displayDays(plan, overlay)
   const warnings = plan && !locked ? dishWarnings(plan.problems) : new Map<string, string[]>()
+  const dayNutritionByDay = new Map(
+    (plan?.days ?? []).map((dayItem) => [
+      dayItem.day,
+      computeDayNutrition(dayItem, nutrition?.dailyCalorieTarget, nutrition?.effectiveGoal),
+    ])
+  )
+  const selectedDayNutrition = dayNutritionByDay.get(selectedDay)
 
   /** Dishes the proposal drops from a slot, shown struck through. */
   function removedAt({ day, section }: SlotRef): RecipeRef[] {
@@ -259,8 +282,16 @@ export function CalendarBoard({
 
   return (
     <div className="relative flex h-[calc(100dvh-4.5rem)] min-h-[24rem] min-w-0 flex-col bg-card pb-[env(safe-area-inset-bottom)] lg:h-full lg:min-h-0 lg:pb-0">
-      {action && (
-        <div className="flex h-16 shrink-0 items-center justify-end gap-2 border-b border-border px-3">{action}</div>
+      {locked ? (
+        action && <div className="flex h-14 shrink-0 items-center justify-end gap-2 border-b border-border px-3">{action}</div>
+      ) : (
+        <NutritionCompanionBar
+          plan={plan}
+          nutrition={nutrition}
+          onNutritionSaved={onNutritionSaved ?? (() => undefined)}
+          onAskAssistant={onAskAssistant}
+          trailing={action}
+        />
       )}
       {saving && (
         <span
@@ -277,13 +308,25 @@ export function CalendarBoard({
             <SparklesIcon aria-hidden />
             <AlertTitle>Trợ lý đề xuất thay đổi</AlertTitle>
             <AlertDescription>
-              Các món có viền nét đứt là món mới, món bị gạch sẽ được thay. Chưa có gì được lưu: bấm “Áp dụng” hoặc
-              “Bỏ đề xuất” trên thẻ đề xuất trong khung trợ lý.
-              {onOpenChat && (
-                <span className="mt-2 flex flex-wrap gap-2">
-                  <Button variant="outline" size="sm" onClick={onOpenChat}>
-                    <MessageCircleIcon aria-hidden /> Xem thẻ đề xuất
-                  </Button>
+              Các món có viền nét đứt là món mới, món bị gạch sẽ được thay. Chưa có gì được lưu.
+              {(onApplySuggestion || onDismissSuggestion || onOpenChat) && (
+                <span className="mt-2 flex flex-wrap items-center gap-2">
+                  {onApplySuggestion && (
+                    <Button size="sm" disabled={applyingSuggestion} onClick={onApplySuggestion}>
+                      {applyingSuggestion ? <Spinner aria-hidden /> : <CheckIcon aria-hidden />}
+                      {applyingSuggestion ? "Đang lưu…" : "Áp dụng"}
+                    </Button>
+                  )}
+                  {onDismissSuggestion && (
+                    <Button variant="outline" size="sm" disabled={applyingSuggestion} onClick={onDismissSuggestion}>
+                      Bỏ đề xuất
+                    </Button>
+                  )}
+                  {onOpenChat && (
+                    <Button variant="ghost" size="sm" onClick={onOpenChat}>
+                      <MessageCircleIcon aria-hidden /> Xem trong đoạn chat
+                    </Button>
+                  )}
                 </span>
               )}
             </AlertDescription>
@@ -368,7 +411,7 @@ export function CalendarBoard({
           aria-label={`Thực đơn ${DAY_LABELS[selectedDay]}`}
           className="flex flex-col gap-3 p-3 sm:p-4"
         >
-          <div className="flex items-center justify-between gap-2">
+          <div className="flex flex-wrap items-center justify-between gap-2">
             <h3 className="font-heading text-base font-bold">
               {DAY_LABELS[selectedDay]}
               {selectedDay === today && (
@@ -378,7 +421,26 @@ export function CalendarBoard({
                 <span className="ml-2 text-xs font-medium text-muted-foreground">Đã qua, chỉ xem</span>
               )}
             </h3>
+            {selectedDayNutrition?.hasRecipes && (
+              <span
+                className={cn(
+                  "rounded-full px-2.5 py-0.5 text-xs font-medium tabular-nums",
+                  selectedDayNutrition.hints.length > 0
+                    ? "bg-amber-500/15 text-amber-800 dark:text-amber-300"
+                    : "bg-secondary text-foreground"
+                )}
+              >
+                ~{selectedDayNutrition.calories} kcal
+                {!selectedDayNutrition.isFullMainDay &&
+                  ` (${selectedDayNutrition.filledMainMeals}/3 bữa chính)`}
+              </span>
+            )}
           </div>
+          {selectedDayNutrition && selectedDayNutrition.hints.length > 0 && (
+            <p className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-800 dark:text-amber-300">
+              {selectedDayNutrition.hints.join(" ")}
+            </p>
+          )}
           {MEAL_SECTIONS.map((section) => {
             const slot = { day: selectedDay, section }
             const recipes =
@@ -493,26 +555,48 @@ export function CalendarBoard({
         >
           <div role="row" className="contents">
             <div role="columnheader" className="sticky top-0 left-0 z-20 flex flex-col items-center justify-center gap-1 bg-card shadow-[1px_1px_0_0_var(--border)]">{leading}</div>
-            {WEEKDAYS.map((day, index) => (
-              <div
-                key={day}
-                role="columnheader"
-                aria-label={DAY_LABELS[day] + (day === today ? ", hôm nay" : "")}
-                className="sticky top-0 z-10 flex h-[calc(4rem-1px)] flex-col items-center justify-center gap-0.5 bg-card shadow-[0_1px_0_0_var(--border)]"
-              >
-                <span className={cn("text-[0.6875rem] font-semibold", day === today ? "text-primary" : "text-muted-foreground")}>
-                  {DAY_SHORT[day]}
-                </span>
-                <span
-                  className={cn(
-                    "flex size-8 items-center justify-center rounded-full text-sm font-semibold tabular-nums",
-                    day === today ? "bg-primary text-primary-foreground" : "text-foreground"
-                  )}
+            {WEEKDAYS.map((day, index) => {
+              const dayNutrition = dayNutritionByDay.get(day)
+              const hasHint = (dayNutrition?.hints.length ?? 0) > 0
+              let kcalTitle = ""
+              if (dayNutrition?.hasRecipes) {
+                kcalTitle = `Ước tính ~${dayNutrition.calories} kcal (${dayNutrition.filledMainMeals}/3 bữa chính)`
+                if (hasHint) kcalTitle += ` · ${dayNutrition.hints.join(" ")}`
+              }
+              return (
+                <div
+                  key={day}
+                  role="columnheader"
+                  aria-label={DAY_LABELS[day] + (day === today ? ", hôm nay" : "")}
+                  title={kcalTitle || undefined}
+                  className="sticky top-0 z-10 flex min-h-16 flex-col items-center justify-center gap-0.5 bg-card py-1 shadow-[0_1px_0_0_var(--border)]"
                 >
-                  {weekDates[index]}
-                </span>
-              </div>
-            ))}
+                  <span className={cn("text-[0.6875rem] font-semibold", day === today ? "text-primary" : "text-muted-foreground")}>
+                    {DAY_SHORT[day]}
+                  </span>
+                  <span
+                    className={cn(
+                      "flex size-7 items-center justify-center rounded-full text-sm font-semibold tabular-nums",
+                      day === today ? "bg-primary text-primary-foreground" : "text-foreground"
+                    )}
+                  >
+                    {weekDates[index]}
+                  </span>
+                  {dayNutrition?.hasRecipes && (
+                    <span
+                      className={cn(
+                        "inline-flex items-center gap-0.5 text-[0.625rem] leading-none tabular-nums",
+                        hasHint
+                          ? "font-semibold text-amber-700 dark:text-amber-400"
+                          : "text-muted-foreground"
+                      )}
+                    >
+                      ~{dayNutrition.calories} kcal{!dayNutrition.isFullMainDay ? ` (${dayNutrition.filledMainMeals}/3)` : ""}
+                    </span>
+                  )}
+                </div>
+              )
+            })}
           </div>
 
           {MEAL_SECTIONS.map((section) => (
@@ -538,7 +622,7 @@ export function CalendarBoard({
                     onDragLeave={() => setDropTarget((current) => (current?.day === day && current.section === section ? null : current))}
                     onDrop={(event) => handleDrop(event, slot)}
                     className={cn(
-                      "flex min-h-24 flex-col gap-1.5 bg-card p-1.5 transition-colors",
+                      "group/cell flex min-h-24 flex-col gap-1.5 bg-card p-1.5 transition-colors",
                       day === today && "bg-secondary/30",
                       !dayEditable(day) && "bg-muted/50",
                       targeted && "bg-primary/10 ring-2 ring-inset ring-primary/40"
@@ -576,7 +660,12 @@ export function CalendarBoard({
                       </p>
                     ))}
                     {!locked && dayEditable(day) && (
-                      <div className="mt-auto flex items-center gap-0.5">
+                      <div
+                        className={cn(
+                          "mt-auto flex items-center gap-0.5 transition-opacity",
+                          recipes.length > 0 && "opacity-0 group-hover/cell:opacity-100 focus-within:opacity-100"
+                        )}
+                      >
                         {recipes.length < MAX_DISHES_PER_SECTION && (
                           <Button
                             type="button"
@@ -589,7 +678,7 @@ export function CalendarBoard({
                             <PlusIcon aria-hidden />
                           </Button>
                         )}
-                        {onSuggestSlot && (
+                        {onSuggestSlot && !(section === "OTHER" && recipes.length > 0) && (
                           <Button
                             type="button"
                             variant="ghost"

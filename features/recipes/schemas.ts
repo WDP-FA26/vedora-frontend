@@ -1,4 +1,5 @@
 import { z } from "zod"
+import { nutritionPillarSchema } from "@/features/dietary/dietary"
 import { signedUploadSchema } from "@/features/posts/schemas"
 import { recipeTagSchema } from "@/features/recipes/tags"
 import { uniqueNonEmpty } from "@/features/shared/lib/unique"
@@ -94,6 +95,8 @@ export const recipeSchema = z.object({
   servings: z.number(),
   prepMinutes: z.number().nullable(),
   cookMinutes: z.number().nullable(),
+  caloriesPerServing: z.number().nullable().optional(),
+  nutritionPillars: z.array(nutritionPillarSchema).optional(),
   ingredientCount: z.number(),
   conflicts: recipeConflictsSchema,
   post: z
@@ -134,6 +137,7 @@ export const recipeDraftSchema = z.object({
       servings: z.number().nullable(),
       prepMinutes: z.number().nullable(),
       cookMinutes: z.number().nullable(),
+      caloriesPerServing: z.number().nullable().optional(),
       ingredients: z.array(
         z.object({
           /** As the caption names it. */
@@ -281,6 +285,13 @@ const optionalMinutes = z
     message: "Nhập số phút, tối đa 1440.",
   })
 
+const optionalCalories = z
+  .string()
+  .refine(
+    (text) => text === "" || (/^\d+$/.test(text) && Number(text) >= 10 && Number(text) <= 3000),
+    { message: "Nhập kcal/suất từ 10 đến 3000." }
+  )
+
 export const recipeFormSchema = z.object({
   title: z.string().trim().min(1, "Nhập tên món.").max(150, "Tên món dài tối đa 150 ký tự."),
   description: z.string().trim().max(1000, "Mô tả dài tối đa 1000 ký tự."),
@@ -299,6 +310,7 @@ export const recipeFormSchema = z.object({
   ),
   prepMinutes: optionalMinutes,
   cookMinutes: optionalMinutes,
+  caloriesPerServing: optionalCalories,
   ingredients: z
     .array(
       z.object({
