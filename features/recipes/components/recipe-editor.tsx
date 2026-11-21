@@ -1,11 +1,18 @@
 "use client"
 
-import { useState } from "react"
+import { useRef, useState } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { Controller, useFieldArray, useForm, useWatch } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
-import { ArrowLeftIcon, PlusIcon, TriangleAlertIcon, XIcon } from "lucide-react"
+import {
+  ArrowLeftIcon,
+  PlusIcon,
+  SparklesIcon,
+  TriangleAlertIcon,
+  VideoIcon,
+  XIcon,
+} from "lucide-react"
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Button, buttonVariants } from "@/components/ui/button"
@@ -26,7 +33,7 @@ import { useAuth } from "@/features/auth/hooks/use-auth"
 import { IngredientDialog } from "@/features/recipes/components/ingredient-dialog"
 import { TagSelect } from "@/features/recipes/components/tag-select"
 import { NamedSelect, type SelectOption } from "@/features/recipes/components/named-select"
-import { RecipeAiFill } from "@/features/recipes/components/recipe-ai-fill"
+import { RecipeAiFill, type RecipeAiHandle } from "@/features/recipes/components/recipe-ai-fill"
 import { RecipeImageField } from "@/features/recipes/components/recipe-image-field"
 import { RecipeSource } from "@/features/recipes/components/recipe-source"
 import {
@@ -149,6 +156,7 @@ function RecipeForm({
   const { accessToken } = useAuth()
   const { ingredients: catalog } = useIngredients()
   const refresh = useRefreshRecipeCatalog()
+  const aiHandle = useRef<RecipeAiHandle>(null)
   const [postId, setPostId] = useState(initialPostId)
   const [addingIngredient, setAddingIngredient] = useState(false)
   /** New-ingredient prefills from the last AI draft, by the name AI read. */
@@ -228,12 +236,30 @@ function RecipeForm({
           <ArrowLeftIcon aria-hidden />
           Công thức
         </Link>
-        <div className="ml-auto flex items-center gap-3">
+        <div className="ml-auto flex flex-wrap items-center gap-2">
           {errors.root && (
             <p role="alert" className="text-sm text-destructive">
               {errors.root.message}
             </p>
           )}
+          <Button
+            type="button"
+            variant="action"
+            size="sm"
+            onClick={() => aiHandle.current?.pickVideo()}
+          >
+            <VideoIcon aria-hidden />
+            Chọn video
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => aiHandle.current?.openWithAi()}
+          >
+            <SparklesIcon aria-hidden />
+            Điền bằng AI
+          </Button>
           <Button type="submit" form={FORM_ID} size="sm" disabled={isSubmitting}>
             {isSubmitting && <Spinner aria-hidden />}
             {recipe ? "Lưu thay đổi" : "Lưu công thức"}
@@ -254,12 +280,6 @@ function RecipeForm({
           onSubmit={form.handleSubmit(onSubmit)}
           className="flex min-w-0 flex-col gap-8"
         >
-          <RecipeAiFill
-            postId={postId}
-            hasContent={isDirty || recipe !== null}
-            onFill={fillFromDraft}
-            onLinkPost={setPostId}
-          />
           <FieldGroup>
             <Controller
               name="title"
@@ -559,6 +579,16 @@ function RecipeForm({
             ingredients.append({ ...EMPTY_INGREDIENT, ingredientId: created.id })
           }
         }}
+      />
+
+      <RecipeAiFill
+        handle={aiHandle}
+        postId={postId}
+        hasContent={isDirty || recipe !== null}
+        catalog={catalog}
+        getFormSnapshot={() => form.getValues()}
+        onFill={fillFromDraft}
+        onLinkPost={setPostId}
       />
     </div>
   )

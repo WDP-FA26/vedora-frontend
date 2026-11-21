@@ -10,7 +10,6 @@ import {
   EllipsisIcon,
   MessageCircleIcon,
   PencilIcon,
-  SparklesIcon,
   Trash2Icon,
 } from "lucide-react"
 
@@ -54,6 +53,7 @@ import {
 } from "@/features/posts/schemas"
 import { profilePath } from "@/features/profiles/profiles-cache"
 import { AuthorAvatar } from "@/features/shared/components/author-avatar"
+import { LogoMark } from "@/features/shared/components/wordmark"
 import { VerifiedBadge } from "@/features/shared/components/verified-badge"
 import { ApiError } from "@/features/shared/lib/api-client"
 import { formatCount } from "@/features/shared/lib/format"
@@ -656,14 +656,7 @@ function CommentForm({
   )
 }
 
-/** Vedora AI has no profile photo or page: a quiet leaf-green mark instead. */
+/** Vedora AI uses the shared AI mark, matching the Meal Planner assistant. */
 function SystemAvatar() {
-  return (
-    <span
-      aria-hidden
-      className="flex size-8 shrink-0 items-center justify-center self-start rounded-full bg-primary/10 text-primary"
-    >
-      <SparklesIcon className="size-4" />
-    </span>
-  )
+  return <LogoMark className="size-8 self-start" />
 }

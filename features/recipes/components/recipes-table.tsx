@@ -108,6 +108,21 @@ const columns = helper.columns([
     enableGlobalFilter: false,
     meta: { label: "Nguyên liệu", className: "hidden sm:table-cell" },
   }),
+  helper.accessor((row) => row.caloriesPerServing ?? -1, {
+    id: "caloriesPerServing",
+    header: ({ column }) => <DataTableColumnHeader column={column} title="Kcal / suất" />,
+    cell: ({ row }) => {
+      const kcal = row.original.caloriesPerServing
+      return typeof kcal === "number" && kcal > 0 ? (
+        <span className="tabular-nums">~{kcal} kcal</span>
+      ) : (
+        <span className="text-muted-foreground">—</span>
+      )
+    },
+    sortFn: "alphanumeric",
+    enableGlobalFilter: false,
+    meta: { label: "Kcal / suất", className: "hidden md:table-cell" },
+  }),
   helper.accessor((row) => (row.prepMinutes ?? 0) + (row.cookMinutes ?? 0), {
     id: "minutes",
     header: ({ column }) => <DataTableColumnHeader column={column} title="Thời gian" />,

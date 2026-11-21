@@ -138,6 +138,15 @@ export const recipeDraftSchema = z.object({
       prepMinutes: z.number().nullable(),
       cookMinutes: z.number().nullable(),
       caloriesPerServing: z.number().nullable().optional(),
+      calorieNote: z.string().nullable().optional(),
+      calorieSources: z
+        .array(
+          z.object({
+            title: z.string(),
+            url: z.string(),
+          })
+        )
+        .optional(),
       ingredients: z.array(
         z.object({
           /** As the caption names it. */
