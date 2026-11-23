@@ -750,8 +750,10 @@ function QuestionCard({ question, open, disabled, onAnswer }: {
   }
 
   function isChosen(option: string) {
-    if (question.answer !== undefined) return question.answer.split(", ").includes(option)
-    return picked.includes(option)
+    if (question.answer === undefined) return picked.includes(option)
+    // A single answer is the option itself, which may contain ", " too.
+    if (!question.multiple) return question.answer === option
+    return question.answer.split(", ").includes(option)
   }
 
   return (
@@ -766,9 +768,9 @@ function QuestionCard({ question, open, disabled, onAnswer }: {
             disabled={!canAnswer}
             aria-pressed={question.multiple ? isChosen(option) : undefined}
             onClick={() => (question.multiple ? toggle(option) : onAnswer(option))}
-            className="h-auto min-h-8 whitespace-normal text-left"
+            className="h-auto min-h-8 max-w-full whitespace-normal text-left"
           >
-            {option}
+            <span className="min-w-0 py-1.5 break-words">{option}</span>
           </Button>
         ))}
       </div>
