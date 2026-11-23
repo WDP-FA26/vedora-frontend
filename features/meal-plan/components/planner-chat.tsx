@@ -13,6 +13,8 @@ import {
   MessageSquarePlusIcon,
   NavigationIcon,
   RotateCcwIcon,
+  SparklesIcon,
+  SquareIcon,
   StarIcon,
   Trash2Icon,
   Undo2Icon,
@@ -51,18 +53,21 @@ import { Spinner } from "@/components/ui/spinner"
 import { DIETARY_PATH } from "@/features/dietary/dietary"
 import {
   messagePlanChanges,
+  messageProfileNoteUpdates,
   messageQuestions,
   messageRestaurantDishes,
   messageText,
   type MealPlannerChat,
   type PlanChangeEntry,
   type PlannerRestaurantDish,
+  type ProfileNoteUpdate,
   type UserQuestion,
 } from "@/features/meal-plan/hooks/use-meal-planner-chat"
 import {
   DAY_LABELS,
   SECTION_LABELS,
   weekStartRangeLabel,
+  type MealPlanProblem,
   type MealSection,
   type Weekday,
 } from "@/features/meal-plan/meal-plan"
@@ -145,6 +150,8 @@ export function PlannerChat({
   /** The user message the rewind dialog asks about. */
   const [rewindTarget, setRewindTarget] = useState<string | null>(null)
   const [rewindNotice, setRewindNotice] = useState<string | null>(null)
+  /** A message typed while the assistant was still working; it goes out when the turn ends. */
+  const [queued, setQueued] = useState<{ payload: string; original: string } | null>(null)
   const end = useRef<HTMLDivElement>(null)
   const textarea = useRef<HTMLTextAreaElement>(null)
   const pending = useRef<string | null>(null)
@@ -172,6 +179,16 @@ export function PlannerChat({
     }
   }, [busy, error, messages, input, clearAskContext])
 
+  // Sends the queued message once the turn ends; the timer keeps a re-render from sending it twice.
+  useEffect(() => {
+    if (busy || error || !queued) return
+    const timer = setTimeout(() => {
+      setQueued(null)
+      sendQuestion(queued.payload, queued.original)
+    }, 0)
+    return () => clearTimeout(timer)
+  }, [busy, error, queued, sendQuestion])
+
   function chooseSuggestion(index: number) {
     sendQuestion(SUGGESTIONS[index], SUGGESTIONS[index])
   }
@@ -198,7 +215,7 @@ export function PlannerChat({
   function submit(event?: FormEvent<HTMLFormElement>) {
     event?.preventDefault()
     // The assistant plans one week, so it waits until the week on screen has loaded.
-    if (busy || !chat.weekStart) return
+    if (!chat.weekStart) return
     const text = input.trim()
     if (!text) {
       setInputError("Nhập câu hỏi")
@@ -216,6 +233,13 @@ export function PlannerChat({
     const payload = `${context}${text}`
     if (payload.length > MAX_PLANNER_MESSAGE_LENGTH) {
       setInputError(`Tin nhắn tối đa ${MAX_PLANNER_MESSAGE_LENGTH} ký tự. Hãy rút ngắn nội dung.`)
+      return
+    }
+    if (busy) {
+      // Like Claude Code: keep typing while the assistant works; this goes out next.
+      setQueued({ payload, original: text })
+      setInput("")
+      setInputError("")
       return
     }
     sendQuestion(payload, text)
@@ -313,12 +337,14 @@ export function PlannerChat({
           const changes = messagePlanChanges(message)
           const questions = messageQuestions(message)
           const restaurantDishes = messageRestaurantDishes(message)
+          const noteUpdates = messageProfileNoteUpdates(message)
           const pending = message.id === pendingId
           if (
             !text &&
             changes.length === 0 &&
             questions.length === 0 &&
             restaurantDishes.length === 0 &&
+            noteUpdates.length === 0 &&
             !pending &&
             !hasTrace(message)
           ) {
@@ -346,6 +372,9 @@ export function PlannerChat({
                   currentWeek={chat.weekStart}
                   onShowWeek={onOpenWeek}
                 />
+              ))}
+              {noteUpdates.map((update) => (
+                <ProfileNoteCard key={update.id} update={update} />
               ))}
               {!pending && restaurantDishes.length > 0 && (
                 <RestaurantDishCards dishes={restaurantDishes} />
@@ -387,10 +416,35 @@ export function PlannerChat({
 
       <div className="z-10 shrink-0 border-t border-border bg-card/95 px-4 py-3 shadow-[0_-8px_22px_rgba(20,38,26,0.04)] backdrop-blur-lg sm:px-5">
         {askContext && <div className="mb-2 inline-flex max-w-full items-center gap-2 rounded-full bg-secondary px-3 py-1.5 text-xs text-primary"><span className="truncate">{DAY_LABELS[askContext.day]} · {SECTION_LABELS[askContext.section]} · {askContext.title}</span><button type="button" aria-label="Bỏ món đính kèm" onClick={clearAskContext} className="rounded-full outline-none focus-visible:ring-2 focus-visible:ring-ring"><XIcon aria-hidden className="size-3.5" /></button></div>}
+        {queued && (
+          <div role="status" className="mb-2 flex max-w-full items-center gap-2 rounded-xl border border-border bg-background px-3 py-1.5 text-xs text-muted-foreground">
+            <span className="min-w-0 flex-1 truncate">
+              Sẽ gửi khi trợ lý xong: <span className="text-foreground">{queued.original}</span>
+            </span>
+            <Button
+              variant="ghost"
+              size="xs"
+              onClick={() => {
+                setInput(queued.original)
+                setQueued(null)
+              }}
+            >
+              Sửa
+            </Button>
+          </div>
+        )}
         <form onSubmit={submit}>
           <InputGroup>
             <InputGroupTextarea ref={textarea} value={input} onChange={(event) => { setInput(event.target.value); setInputError("") }} aria-label="Tin nhắn cho trợ lý" aria-invalid={Boolean(inputError)} placeholder="Hỏi về món chay hoặc yêu cầu đổi món…" maxLength={MAX_PLANNER_MESSAGE_LENGTH} rows={1} className="max-h-32 min-h-12" onKeyDown={(event) => { if (event.key !== "Enter" || event.shiftKey || event.nativeEvent.isComposing || event.keyCode === 229) return; event.preventDefault(); submit() }} />
-            <InputGroupAddon align="inline-end"><InputGroupButton type="submit" size="icon-sm" variant="default" aria-label="Gửi" disabled={busy || !chat.weekStart || !input.trim()}>{busy ? <Spinner aria-hidden /> : <ArrowUpIcon aria-hidden />}</InputGroupButton></InputGroupAddon>
+            <InputGroupAddon align="inline-end">{busy && !input.trim() ? (
+                <InputGroupButton type="button" size="icon-sm" variant="default" aria-label="Dừng" title="Dừng" onClick={chat.stop}>
+                  <SquareIcon aria-hidden />
+                </InputGroupButton>
+              ) : (
+                <InputGroupButton type="submit" size="icon-sm" variant="default" aria-label={busy ? "Gửi sau khi trợ lý xong" : "Gửi"} disabled={!chat.weekStart || !input.trim()}>
+                  <ArrowUpIcon aria-hidden />
+                </InputGroupButton>
+              )}</InputGroupAddon>
           </InputGroup>
           {inputError && <p role="alert" className="mt-1 text-xs text-destructive">{inputError}</p>}
         </form>
@@ -593,6 +647,31 @@ function WebSearchConsent({ reason, disabled, onAnswer }: {
 }
 
 /** What the assistant saved to one week in this message, before and after. */
+function leftOutLabel(problem: MealPlanProblem) {
+  const day = DAY_LABELS[problem.day]
+  if (problem.code === "UNKNOWN_RECIPE") return `${day}: món không còn trong kho`
+  return `${day}: ${problem.recipes.join(", ")} (có ${problem.ingredients.join(", ")} bạn không ăn)`
+}
+
+/** The assistant rewrote the "Sở thích" or "Dị ứng" note in the dietary profile. */
+function ProfileNoteCard({ update }: { update: ProfileNoteUpdate }) {
+  const label = update.kind === "allergy" ? "Dị ứng" : "Sở thích"
+  return (
+    <article aria-label={`${label} đã cập nhật`} className="mt-2 w-full rounded-xl border border-border bg-card px-4 py-3">
+      <div className="flex items-start gap-2">
+        <SparklesIcon aria-hidden className="mt-0.5 size-4 shrink-0 text-primary" />
+        <div className="min-w-0 flex-1">
+          <h3 className="text-sm font-semibold">Đã cập nhật {label} trong hồ sơ</h3>
+          <p className="mt-1 whitespace-pre-line text-sm text-muted-foreground">{update.note ?? `Đã xoá hết mục ${label}.`}</p>
+        </div>
+        <Link href={DIETARY_PATH} className="shrink-0 text-xs font-semibold text-primary underline-offset-4 hover:underline">
+          Chỉnh
+        </Link>
+      </div>
+    </article>
+  )
+}
+
 function PlanChangeCard({ change, currentWeek, onShowWeek }: {
   change: PlanChangeEntry
   /** The week on screen. */
@@ -602,6 +681,7 @@ function PlanChangeCard({ change, currentWeek, onShowWeek }: {
 }) {
   const titles = (recipes: { title: string }[]) => recipes.map(({ title }) => title).join(", ")
   const clashes = change.problems.filter(({ code }) => code === "DAY_CONFLICT")
+  const leftOut = change.problems.filter(({ code }) => code !== "DAY_CONFLICT")
   return (
     <article aria-label="Thực đơn đã cập nhật" className="mt-2 w-full rounded-xl border border-border bg-card px-4 py-3">
       <div className="flex items-start gap-2">
@@ -643,6 +723,11 @@ function PlanChangeCard({ change, currentWeek, onShowWeek }: {
       {clashes.length > 0 && (
         <p className="mt-2 rounded-lg bg-amber-500/15 px-2.5 py-1.5 text-xs text-amber-800 dark:text-amber-300">
           Lưu ý: có món không nên ăn cùng ngày ({clashes.map(({ ingredients }) => ingredients.join(" + ")).join("; ")}).
+        </p>
+      )}
+      {leftOut.length > 0 && (
+        <p className="mt-2 rounded-lg bg-muted px-2.5 py-1.5 text-xs text-muted-foreground">
+          Không thêm: {leftOut.map(leftOutLabel).join("; ")}.
         </p>
       )}
     </article>

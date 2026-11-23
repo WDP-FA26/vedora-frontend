@@ -27,11 +27,15 @@ import {
   type PlanChange,
   type SyncChatMessageInput,
 } from "@/features/meal-plan/meal-plan"
+import { MY_DIETARY_KEY } from "@/features/dietary/dietary"
 import { ApiError } from "@/features/shared/lib/api-client"
 
 /** Mirror `MealPlannerChatDto` in vedora-api. */
-const CONTEXT_MESSAGES = 10
-const MAX_TEXT_LENGTH = 4000
+const CONTEXT_MESSAGES = 40
+const MAX_TEXT_LENGTH = 8000
+/** Found dishes noted per search, enough for the planner to place the one the user picks. */
+const MAX_NOTED_RESULTS = 12
+const MAX_NOTED_SUMMARY = 1200
 const MAX_SYNC_MESSAGES = 100
 const THREAD_LIST_URL = `${MEAL_PLANNER_CHAT_THREADS_KEY}?limit=50`
 
@@ -68,7 +72,9 @@ function mergeChange(earlier: PlanChangeEntry, later: PlanChange): PlanChangeEnt
     })
     days[index] = { ...laterDay, sections }
   }
-  return { ...earlier, days, problems: later.problems }
+  // Dishes left out earlier stay listed; same-day clashes are only current after the later change.
+  const leftOut = earlier.problems.filter(({ code }) => code !== "DAY_CONFLICT")
+  return { ...earlier, days, problems: [...leftOut, ...later.problems] }
 }
 
 /**
@@ -258,6 +264,96 @@ export function messageText(message: UIMessage) {
 
 
 
+const PREFERENCES_TOOL_TYPE = "tool-updatePreferences"
+const ALLERGY_NOTE_TOOL_TYPE = "tool-updateAllergyNote"
+
+// What other planner tools returned, kept as short notes so the next turn can
+// still use the ids the user picks from.
+const foundRecipeSchema = z.object({
+  id: z.string(),
+  title: z.string(),
+  caloriesPerServing: z.number().nullable().optional(),
+  avoidedIngredients: z.array(z.string()).default([]),
+})
+const foundRecipesSchema = z.array(foundRecipeSchema)
+const viewedRecipeSchema = z.object({ id: z.string(), title: z.string() })
+const consultSchema = z.object({ summary: z.string() })
+const preferenceUpdateSchema = z.object({ preferenceNote: z.string().nullable() })
+const allergyUpdateSchema = z.object({ allergyNote: z.string().nullable() })
+
+function recipeLabel({ id, title, caloriesPerServing, avoidedIngredients }: z.infer<typeof foundRecipeSchema>) {
+  const parts = [`id ${id}`]
+  if (typeof caloriesPerServing === "number") parts.push(`~${caloriesPerServing} kcal`)
+  if (avoidedIngredients.length > 0) parts.push(`KIÊNG: ${avoidedIngredients.join(", ")}`)
+  return `${title} (${parts.join(", ")})`
+}
+
+function toolNotes(message: UIMessage): string[] {
+  const notes: string[] = []
+  for (const part of message.parts) {
+    if (!isToolUIPart(part) || part.state !== "output-available") continue
+    if (part.type === "tool-searchRecipes") {
+      const found = foundRecipesSchema.safeParse(part.output)
+      if (!found.success) continue
+      if (found.data.length === 0) {
+        notes.push("[Đã tìm món: không thấy món nào]")
+        continue
+      }
+      const labels = found.data.slice(0, MAX_NOTED_RESULTS).map(recipeLabel)
+      notes.push(`[Đã tìm món: ${labels.join("; ")}]`)
+      continue
+    }
+    if (part.type === "tool-getRecipe") {
+      const recipe = viewedRecipeSchema.safeParse(part.output)
+      if (recipe.success) notes.push(`[Đã xem công thức: ${recipe.data.title} (id ${recipe.data.id})]`)
+      continue
+    }
+    if (part.type === "tool-consultNutritionSubagent") {
+      const consult = consultSchema.safeParse(part.output)
+      if (consult.success) notes.push(`[Chuyên gia dinh dưỡng: ${consult.data.summary.slice(0, MAX_NOTED_SUMMARY)}]`)
+      continue
+    }
+  }
+  for (const update of messageProfileNoteUpdates(message)) {
+    const label = update.kind === "allergy" ? "Dị ứng" : "Sở thích"
+    notes.push(`[Đã cập nhật ${label}: ${update.note ?? "(trống)"}]`)
+  }
+  const restaurantDishes = messageRestaurantDishes(message)
+  if (restaurantDishes.length > 0) {
+    const labels = restaurantDishes
+      .slice(0, MAX_NOTED_RESULTS)
+      .map(({ name, restaurant }) => `${name} (${restaurant.name})`)
+    notes.push(`[Đã gợi ý món nhà hàng: ${labels.join("; ")}]`)
+  }
+  return notes
+}
+
+
+export interface ProfileNoteUpdate {
+  id: string
+  /** Which note in the dietary profile: "Sở thích" or "Dị ứng". */
+  kind: "preference" | "allergy"
+  note: string | null
+}
+
+/** The dietary profile notes the planner rewrote in this message, in order. */
+export function messageProfileNoteUpdates(message: UIMessage): ProfileNoteUpdate[] {
+  const updates: ProfileNoteUpdate[] = []
+  for (const part of message.parts) {
+    if (!isToolUIPart(part) || part.state !== "output-available") continue
+    if (part.type === PREFERENCES_TOOL_TYPE) {
+      const update = preferenceUpdateSchema.safeParse(part.output)
+      if (update.success) updates.push({ id: part.toolCallId, kind: "preference", note: update.data.preferenceNote })
+      continue
+    }
+    if (part.type === ALLERGY_NOTE_TOOL_TYPE) {
+      const update = allergyUpdateSchema.safeParse(part.output)
+      if (update.success) updates.push({ id: part.toolCallId, kind: "allergy", note: update.data.allergyNote })
+    }
+  }
+  return updates
+}
+
 function changeNote(change: PlanChange) {
   const days: string[] = []
   for (const { day, sections } of change.days) {
@@ -282,7 +378,8 @@ function contextText(message: UIMessage) {
   const notes = messagePlanChanges(message).map(changeNote)
   const questions = messageQuestions(message).map(questionNote)
   const webSearchNotes = messageWebSearchRequests(message).map(webSearchNote)
-  return [messageText(message), ...notes, ...questions, ...webSearchNotes].filter(Boolean).join("\n").slice(0, MAX_TEXT_LENGTH)
+  const parts = [messageText(message), ...toolNotes(message), ...notes, ...questions, ...webSearchNotes]
+  return parts.filter(Boolean).join("\n").slice(0, MAX_TEXT_LENGTH)
 }
 
 // a refused request must not ride along as context for the next message
@@ -472,6 +569,14 @@ export function useMealPlannerChat(weekStart: string | undefined) {
     void mutate(isMealPlanKey)
   }, [savedChanges, mutate])
 
+  // The planner can rewrite the "Sở thích" and "Dị ứng" notes, which the dietary profile shows.
+  let profileNoteUpdates = 0
+  for (const message of messages) profileNoteUpdates += messageProfileNoteUpdates(message).length
+  useEffect(() => {
+    if (profileNoteUpdates === 0) return
+    void mutate((key) => Array.isArray(key) && key[0] === MY_DIETARY_KEY)
+  }, [profileNoteUpdates, mutate])
+
   async function selectThread(id: string) {
     const token = latestRef.current.accessToken
     if (!token) return
@@ -636,6 +741,8 @@ export function useMealPlannerChat(weekStart: string | undefined) {
     streamingId: replying ? last.id : null,
     error: error ? errorMessage(error) : null,
     send: (text: string) => sendText(text, webSearch),
+    /** Stops the running turn; what the planner already saved stays saved. */
+    stop: () => void stop(),
     /** The user allowed web search in this conversation. */
     webSearchAllowed: webSearch,
     /** The assistant's request to search the web, waiting for the user's answer. */

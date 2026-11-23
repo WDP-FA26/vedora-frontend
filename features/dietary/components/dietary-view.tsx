@@ -24,6 +24,7 @@ import {
   fetchMyDietary,
   fetchMyNutrition,
   MAX_ALLERGY_NOTE_LENGTH,
+  MAX_PREFERENCE_NOTE_LENGTH,
   MY_DIETARY_KEY,
   MY_NUTRITION_KEY,
   saveMyDietary,
@@ -39,6 +40,7 @@ import { MEAL_PLANNER_PATH } from "@/features/meal-plan/meal-plan"
 import { profilePath } from "@/features/profiles/profiles-cache"
 
 const ALLERGY_NOTE_ID = "dietary-allergy-note"
+const PREFERENCE_NOTE_ID = "dietary-preference-note"
 
 /** Where a user lists what they do not eat and their body profile. */
 export function DietaryView() {
@@ -177,6 +179,7 @@ function DietaryForm({
       groupIds: [],
       ingredientIds: [],
       allergyNote: initialAllergyNote,
+      preferenceNote: restrictions.preferenceNote ?? "",
     },
   })
   const { isSubmitting, isDirty, isSubmitSuccessful, errors } = form.formState
@@ -229,10 +232,37 @@ function DietaryForm({
           </FieldGroup>
         </FieldSet>
 
+        <FieldSet>
+          <FieldLegend>Sở thích và thói quen ăn uống</FieldLegend>
+          <FieldDescription>
+            Trợ lý đọc mục này mỗi lần lên thực đơn và có thể tự ghi thêm khi bạn kể trong lúc trò chuyện. Bạn sửa hoặc xoá lúc nào cũng được.
+          </FieldDescription>
+          <Controller
+            name="preferenceNote"
+            control={form.control}
+            render={({ field, fieldState }) => (
+              <Field data-invalid={fieldState.invalid}>
+                <FieldLabel htmlFor={PREFERENCE_NOTE_ID}>Sở thích</FieldLabel>
+                <Textarea
+                  id={PREFERENCE_NOTE_ID}
+                  value={field.value ?? ""}
+                  onChange={field.onChange}
+                  onBlur={field.onBlur}
+                  maxLength={MAX_PREFERENCE_NOTE_LENGTH}
+                  rows={3}
+                  placeholder="Ví dụ: Không thích nấm; nhà 3 người, chỉ nấu bữa tối; mỗi món tối đa 30 phút; thích canh chua…"
+                  aria-invalid={fieldState.invalid}
+                />
+                {fieldState.invalid && <FieldError errors={[fieldState.error]} />}
+              </Field>
+            )}
+          />
+        </FieldSet>
+
         <div className="flex flex-wrap items-center gap-3">
           <Button type="submit" disabled={isSubmitting || !isDirty}>
             {isSubmitting && <Spinner aria-hidden />}
-            Lưu thực phẩm &amp; dị ứng
+            Lưu hồ sơ ăn uống
           </Button>
           <Button
             variant="outline"

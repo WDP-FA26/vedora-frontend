@@ -149,6 +149,11 @@ const dietaryRestrictionsSchema = z.object({
     .nullable()
     .optional()
     .transform((value) => value ?? null),
+  preferenceNote: z
+    .string()
+    .nullable()
+    .optional()
+    .transform((value) => value ?? null),
 })
 
 export const bodyMetricLogSchema = z.object({
@@ -191,6 +196,7 @@ export type NutritionProfile = z.infer<typeof nutritionProfileSchema>
 
 export const MAX_AVOIDED_INGREDIENTS = 200
 export const MAX_ALLERGY_NOTE_LENGTH = 1000
+export const MAX_PREFERENCE_NOTE_LENGTH = 1000
 
 /** Ids of what the user avoids and free-text allergy description, as the API takes them. */
 export const dietaryFormSchema = z
@@ -202,6 +208,11 @@ export const dietaryFormSchema = z
     allergyNote: z
       .string()
       .max(MAX_ALLERGY_NOTE_LENGTH, `Mô tả tối đa ${MAX_ALLERGY_NOTE_LENGTH} ký tự.`),
+    /** Left out keeps the saved note. */
+    preferenceNote: z
+      .string()
+      .max(MAX_PREFERENCE_NOTE_LENGTH, `Sở thích tối đa ${MAX_PREFERENCE_NOTE_LENGTH} ký tự.`)
+      .optional(),
   })
 export type DietaryFormValues = z.infer<typeof dietaryFormSchema>
 
@@ -232,13 +243,17 @@ export function fetchMyDietary([url, token]: Key) {
 }
 
 export function saveMyDietary(token: string, body: DietaryFormValues) {
-  const allergyNote = body.allergyNote.trim()
+  const payload: Record<string, unknown> = {
+    groupIds: body.groupIds,
+    ingredientIds: body.ingredientIds,
+    allergyNote: body.allergyNote.trim() || null,
+  }
+  if (body.preferenceNote !== undefined) {
+    payload.preferenceNote = body.preferenceNote.trim() || null
+  }
   return sendJson(dietaryRestrictionsSchema, MY_DIETARY_KEY, token, {
     method: "PUT",
-    body: JSON.stringify({
-      ...body,
-      allergyNote: allergyNote || null,
-    }),
+    body: JSON.stringify(payload),
   })
 }
 
