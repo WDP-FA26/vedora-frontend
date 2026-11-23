@@ -14,17 +14,13 @@ import {
   FieldGroup,
   FieldLabel,
   FieldLegend,
-  FieldSeparator,
   FieldSet,
 } from "@/components/ui/field"
 import { Spinner } from "@/components/ui/spinner"
 import { Textarea } from "@/components/ui/textarea"
 import { useAuth } from "@/features/auth/hooks/use-auth"
-import { ApiError } from "@/features/shared/lib/api-client"
 import {
-  DIETARY_OPTIONS_KEY,
   dietaryFormSchema,
-  fetchDietaryOptions,
   fetchMyDietary,
   fetchMyNutrition,
   MAX_ALLERGY_NOTE_LENGTH,
@@ -32,7 +28,6 @@ import {
   MY_NUTRITION_KEY,
   saveMyDietary,
   type DietaryFormValues,
-  type DietaryOptions,
   type DietaryRestrictions,
 } from "@/features/dietary/dietary"
 import {
@@ -42,20 +37,14 @@ import {
 } from "@/features/dietary/components/bmi-charts"
 import { MEAL_PLANNER_PATH } from "@/features/meal-plan/meal-plan"
 import { profilePath } from "@/features/profiles/profiles-cache"
-import {
-  NamedMultiSelect,
-  type SelectOption,
-} from "@/features/recipes/components/named-select"
 
 const ALLERGY_NOTE_ID = "dietary-allergy-note"
-const LIKED_ID = "dietary-liked"
 
-/** Where a user lists what they do not eat and the ingredients they like. */
+/** Where a user lists what they do not eat and their body profile. */
 export function DietaryView() {
   const { user, accessToken } = useAuth()
   const isPageSession = user?.accountType === "PAGE"
   const canLoadDietary = user !== null && user.accountType === "PERSONAL"
-  const options = useAuthedSWR(canLoadDietary ? DIETARY_OPTIONS_KEY : null, fetchDietaryOptions)
   const mine = useAuthedSWR(canLoadDietary ? MY_DIETARY_KEY : null, fetchMyDietary)
   const nutrition = useAuthedSWR(canLoadDietary ? MY_NUTRITION_KEY : null, fetchMyNutrition)
 
@@ -146,16 +135,15 @@ export function DietaryView() {
             </div>
           </div>
         )}
-        {options.data && mine.data && accessToken ? (
+        {mine.data && accessToken ? (
           <DietaryForm
-            options={options.data}
             restrictions={mine.data}
             save={async (values) => {
               const saved = await saveMyDietary(accessToken, values)
               await mine.mutate(saved, { revalidate: false })
             }}
           />
-        ) : options.error || mine.error ? (
+        ) : mine.error ? (
           <p role="alert" className="text-sm text-destructive">
             Không tải được danh sách. Thử tải lại trang nhé.
           </p>
@@ -170,11 +158,9 @@ export function DietaryView() {
 }
 
 function DietaryForm({
-  options,
   restrictions,
   save,
 }: {
-  options: DietaryOptions
   restrictions: DietaryRestrictions
   save: (values: DietaryFormValues) => Promise<void>
 }) {
@@ -190,17 +176,10 @@ function DietaryForm({
     defaultValues: {
       groupIds: [],
       ingredientIds: [],
-      likedIngredientIds: restrictions.liked.map((item) => item.id),
       allergyNote: initialAllergyNote,
     },
   })
   const { isSubmitting, isDirty, isSubmitSuccessful, errors } = form.formState
-
-  const ingredientChoices: SelectOption[] = options.ingredients.map((item) => ({
-    id: item.id,
-    name: item.name,
-    keywords: item.aliases.join(" "),
-  }))
 
   async function onSubmit(values: DietaryFormValues) {
     const nextValues: DietaryFormValues = {
@@ -211,11 +190,7 @@ function DietaryForm({
     try {
       await save(nextValues)
       form.reset(nextValues)
-    } catch (error: unknown) {
-      if (error instanceof ApiError && error.code === "CONFLICTING_PREFERENCE") {
-        form.setError("root", { message: "Có xung đột trong danh sách nguyên liệu. Hãy thử lại." })
-        return
-      }
+    } catch {
       form.setError("root", { message: "Không lưu được. Thử lại nhé." })
     }
   }
@@ -253,30 +228,6 @@ function DietaryForm({
             />
           </FieldGroup>
         </FieldSet>
-
-        <FieldSeparator />
-
-        <Controller
-          name="likedIngredientIds"
-          control={form.control}
-          render={({ field, fieldState }) => (
-            <Field data-invalid={fieldState.invalid}>
-              <FieldLabel htmlFor={LIKED_ID}>Nguyên liệu tôi thích (tùy chọn)</FieldLabel>
-              <NamedMultiSelect
-                id={LIKED_ID}
-                options={ingredientChoices}
-                value={field.value}
-                onChange={field.onChange}
-                placeholder="Tìm nguyên liệu bạn thích"
-                invalid={fieldState.invalid}
-              />
-              <FieldDescription>
-                Trợ lý ưu tiên gợi ý thêm các món có nguyên liệu yêu thích vào thực đơn của bạn.
-              </FieldDescription>
-              {fieldState.invalid && <FieldError errors={[fieldState.error]} />}
-            </Field>
-          )}
-        />
 
         <div className="flex flex-wrap items-center gap-3">
           <Button type="submit" disabled={isSubmitting || !isDirty}>

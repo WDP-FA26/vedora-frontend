@@ -8,7 +8,6 @@ import { sendJson } from "@/features/shared/lib/api-client"
 export const DIETARY_PATH = "/home/dietary"
 
 /** SWR keys are `[url, accessToken]`. */
-export const DIETARY_OPTIONS_KEY = `${API_URL}/dietary/options`
 export const MY_DIETARY_KEY = `${API_URL}/dietary/me`
 export const MY_NUTRITION_KEY = `${API_URL}/dietary/nutrition`
 
@@ -142,15 +141,9 @@ export const NUTRITION_PILLAR_META: Record<
 
 const namedRefSchema = z.object({ id: z.string(), name: z.string() })
 
-const dietaryOptionsSchema = z.object({
-  ingredients: z.array(namedRefSchema.extend({ aliases: z.array(z.string()) })),
-  groups: z.array(namedRefSchema.extend({ ingredients: z.array(z.string()) })),
-})
-
 const dietaryRestrictionsSchema = z.object({
   ingredients: z.array(namedRefSchema),
   groups: z.array(namedRefSchema),
-  liked: z.array(namedRefSchema),
   allergyNote: z
     .string()
     .nullable()
@@ -192,37 +185,24 @@ export const nutritionProfileSchema = z.object({
   history: z.array(bodyMetricLogSchema),
 })
 
-export type DietaryOptions = z.infer<typeof dietaryOptionsSchema>
 export type DietaryRestrictions = z.infer<typeof dietaryRestrictionsSchema>
 export type BodyMetricLog = z.infer<typeof bodyMetricLogSchema>
 export type NutritionProfile = z.infer<typeof nutritionProfileSchema>
 
 export const MAX_AVOIDED_INGREDIENTS = 200
-export const MAX_LIKED_INGREDIENTS = 100
 export const MAX_ALLERGY_NOTE_LENGTH = 1000
 
-/** Ids of what the user avoids, likes, and free-text allergy description, as the API takes them. */
+/** Ids of what the user avoids and free-text allergy description, as the API takes them. */
 export const dietaryFormSchema = z
   .object({
     groupIds: z.array(z.string()),
     ingredientIds: z
       .array(z.string())
       .max(MAX_AVOIDED_INGREDIENTS, `Chọn tối đa ${MAX_AVOIDED_INGREDIENTS} nguyên liệu.`),
-    likedIngredientIds: z
-      .array(z.string())
-      .max(MAX_LIKED_INGREDIENTS, `Chọn tối đa ${MAX_LIKED_INGREDIENTS} nguyên liệu.`),
     allergyNote: z
       .string()
       .max(MAX_ALLERGY_NOTE_LENGTH, `Mô tả tối đa ${MAX_ALLERGY_NOTE_LENGTH} ký tự.`),
   })
-  .refine(
-    ({ ingredientIds, likedIngredientIds }) =>
-      !likedIngredientIds.some((id) => ingredientIds.includes(id)),
-    {
-      path: ["likedIngredientIds"],
-      message: "Một nguyên liệu không thể vừa thích vừa nằm trong danh sách không ăn.",
-    }
-  )
 export type DietaryFormValues = z.infer<typeof dietaryFormSchema>
 
 export type SaveNutritionInput = {
@@ -246,10 +226,6 @@ export type WeightCheckInInput = {
 }
 
 type Key = readonly [string, string]
-
-export function fetchDietaryOptions([url, token]: Key) {
-  return sendJson(dietaryOptionsSchema, url, token)
-}
 
 export function fetchMyDietary([url, token]: Key) {
   return sendJson(dietaryRestrictionsSchema, url, token)

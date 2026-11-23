@@ -7,7 +7,6 @@ import {
   ArrowRightIcon,
   ScaleIcon,
   ShieldCheckIcon,
-  ThumbsUpIcon,
   type LucideIcon,
 } from "lucide-react"
 
@@ -74,9 +73,8 @@ export function DietaryOverviewCard() {
         </Link>
       </div>
 
-      <dl className="mt-5 grid grid-cols-1 gap-x-8 gap-y-5 min-[400px]:grid-cols-3">
+      <dl className="mt-5 grid grid-cols-1 gap-x-8 gap-y-5 min-[400px]:grid-cols-2">
         <OverviewItem icon={ShieldCheckIcon} label="Không ăn" values={avoided} empty="Chưa khai báo" />
-        <OverviewItem icon={ThumbsUpIcon} label="Thích" values={names(data?.liked)} empty="Chưa chọn" />
         <OverviewItem icon={ScaleIcon} label="BMI & Mục tiêu" values={bmiItems} empty="Chưa thiết lập" />
       </dl>
     </section>

@@ -553,7 +553,6 @@ function MealPlannerOnboardingGate({
         saveMyDietary(accessToken, {
           groupIds: [],
           ingredientIds: [],
-          likedIngredientIds: initialRestrictions.liked.map(({ id }) => id),
           allergyNote,
         }),
       ])
@@ -699,7 +698,7 @@ function MealPlannerOnboardingGate({
               href={DIETARY_PATH}
               className="text-xs font-semibold text-primary underline-offset-4 hover:underline"
             >
-              Chọn thêm nguyên liệu yêu thích
+              Chỉnh hồ sơ ăn uống
             </Link>
           </div>
         </form>

@@ -19,7 +19,6 @@ const MAX_CHAT_MESSAGE_LENGTH = 4000
 
 type MealRequestFormProps = {
   savedAvoided?: string[]
-  savedLiked?: string[]
   profileLoading?: boolean
   profileError?: boolean
   onRetryProfile?: () => void
@@ -46,7 +45,6 @@ function seedDetails(text: string) {
 /** Builds a chat draft only; sending and saving remain separate user actions. */
 export function MealRequestForm({
   savedAvoided = [],
-  savedLiked = [],
   profileLoading = false,
   profileError = false,
   onRetryProfile,
@@ -69,8 +67,7 @@ export function MealRequestForm({
 
   const profileReady = !profileLoading && !profileError
   const avoidedNames = uniqueNonEmpty(savedAvoided.map(clean))
-  const likedNames = uniqueNonEmpty(savedLiked.map(clean))
-  const profileSignature = JSON.stringify([avoidedNames, likedNames])
+  const profileSignature = JSON.stringify(avoidedNames)
   const profileConfirmed = profileReady && confirmedSignature === profileSignature
 
   useEffect(() => {
@@ -121,7 +118,6 @@ export function MealRequestForm({
       "Hãy đề xuất bản nháp thực đơn 7 ngày lặp theo thứ trong tuần, từ Thứ Hai đến Chủ nhật.",
       `Các bữa cần lập mỗi ngày: ${MEAL_SECTIONS.filter((meal) => meals.includes(meal)).map((meal) => SECTION_LABELS[meal].toLowerCase()).join(", ")}.`,
       avoidedNames.length ? `Thực phẩm tôi không ăn: ${avoidedNames.join(", ")}.` : "",
-      likedNames.length ? `Nguyên liệu tôi thích: ${likedNames.join(", ")}.` : "",
       people ? `Số người ăn: ${people}.` : "",
       minutes ? `Thời gian nấu tối đa cho mỗi bữa: ${minutes} phút.` : "",
       clean(note) ? `Yêu cầu bổ sung: ${note.trim()}` : "",
@@ -197,7 +193,6 @@ export function MealRequestForm({
             {profileLoading || profileError ? null : (
               <>
                 <p><strong>Không ăn:</strong> {avoidedNames.length > 0 ? avoidedNames.join(", ") : "Chưa khai báo"}</p>
-                <p><strong>Thích:</strong> {likedNames.length > 0 ? likedNames.join(", ") : "Chưa chọn"}</p>
               </>
             )}
           </div>
