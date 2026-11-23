@@ -24,20 +24,13 @@ export function adminWorkspaceKey(id: string) {
   return `${ADMIN_WORKSPACES_KEY}/${id}`
 }
 
-export type MapBounds = { minLng: number; minLat: number; maxLng: number; maxLat: number }
-
-/** Public: approved restaurants inside a map viewport, sorted by proximity when location is set. */
-export function restaurantsInViewKey(bounds: MapBounds, userLocation?: LngLat | null) {
+/** Public: approved restaurants, sorted nearest-first when location is set or A–Z otherwise. */
+export function restaurantsKey(userLocation?: LngLat | null) {
+  if (!userLocation) return `${API_URL}/restaurants`
   const params = new URLSearchParams({
-    minLng: bounds.minLng.toFixed(3),
-    minLat: bounds.minLat.toFixed(3),
-    maxLng: bounds.maxLng.toFixed(3),
-    maxLat: bounds.maxLat.toFixed(3),
+    userLng: userLocation.longitude.toFixed(4),
+    userLat: userLocation.latitude.toFixed(4),
   })
-  if (userLocation) {
-    params.set("userLng", userLocation.longitude.toFixed(4))
-    params.set("userLat", userLocation.latitude.toFixed(4))
-  }
   return `${API_URL}/restaurants?${params}`
 }
 

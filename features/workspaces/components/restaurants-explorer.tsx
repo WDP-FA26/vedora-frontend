@@ -29,36 +29,37 @@ import {
   type RestaurantFocusTarget,
 } from "@/features/workspaces/components/map"
 import { PageHeader } from "@/features/workspaces/components/page-header"
-import { useRestaurantsInView } from "@/features/workspaces/hooks/use-workspaces"
+import { useRestaurants } from "@/features/workspaces/hooks/use-workspaces"
 import { formatDistance, formatRatingScore } from "@/features/workspaces/lib/format"
 import { googleMapsDirectionsUrl, MAPBOX_TOKEN } from "@/features/workspaces/lib/mapbox"
 import type { LngLat, RestaurantPin } from "@/features/workspaces/schemas"
-import type { MapBounds } from "@/features/workspaces/workspaces-cache"
 import { cn } from "@/lib/utils"
 
 function countSummary(
   ready: boolean,
   count: number,
   truncated: boolean,
-  hasLocation: boolean
+  nearestEnabled: boolean
 ): string {
-  if (!ready) return "Đang tải nhà hàng trong khu vực…"
-  if (count === 0) return "Chưa có nhà hàng nào trong khu vực này"
-  const suffix = hasLocation ? " · Gần bạn nhất" : ""
-  if (truncated) return `Hiển thị ${count} nhà hàng · Phóng to để xem thêm${suffix}`
-  return `${count} nhà hàng trong khu vực này${suffix}`
+  if (!ready) return "Đang tải danh sách nhà hàng…"
+  if (count === 0) return "Chưa có nhà hàng nào"
+  const sortLabel = nearestEnabled ? "Gần bạn nhất" : "Theo tên A–Z"
+  if (truncated) return `Hiển thị ${count} nhà hàng đầu tiên · ${sortLabel}`
+  return `${count} nhà hàng · ${sortLabel}`
 }
 
 /** A full-height map of approved vegetarian restaurants with clickable cards in the right column. */
 export function RestaurantsExplorer() {
-  const [bounds, setBounds] = useState<MapBounds | null>(null)
   const [userLocation, setUserLocation] = useState<LngLat | null>(null)
+  const [sortByNearest, setSortByNearest] = useState(false)
   const [locating, setLocating] = useState(false)
   const [locationNotice, setLocationNotice] = useState<string | null>(null)
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [focusTarget, setFocusTarget] = useState<RestaurantFocusTarget | null>(null)
   const [cameraTarget, setCameraTarget] = useState<CameraCenterTarget | null>(null)
-  const { restaurants, truncated, error, isLoading } = useRestaurantsInView(bounds, userLocation)
+  const nearestEnabled = sortByNearest && userLocation !== null
+  const activeLocation = nearestEnabled ? userLocation : null
+  const { restaurants, truncated, error, isLoading } = useRestaurants(activeLocation)
 
   useEffect(() => {
     if (typeof navigator === "undefined" || !("geolocation" in navigator)) return
@@ -71,6 +72,7 @@ export function RestaurantsExplorer() {
           latitude: position.coords.latitude,
         }
         setUserLocation(coords)
+        setSortByNearest(true)
         // Start the map around the visitor instead of the default city.
         setCameraTarget((prev) => ({ ...coords, seq: (prev?.seq ?? 0) + 1 }))
       },
@@ -99,7 +101,17 @@ export function RestaurantsExplorer() {
     )
   }
 
-  function requestMyLocation() {
+  function toggleNearestSort() {
+    if (nearestEnabled) {
+      setSortByNearest(false)
+      setLocationNotice(null)
+      return
+    }
+    if (userLocation !== null) {
+      setSortByNearest(true)
+      setLocationNotice(null)
+      return
+    }
     if (typeof navigator === "undefined" || !("geolocation" in navigator)) {
       setLocationNotice("Trình duyệt không hỗ trợ lấy vị trí hiện tại.")
       return
@@ -113,6 +125,7 @@ export function RestaurantsExplorer() {
           latitude: position.coords.latitude,
         }
         setUserLocation(coords)
+        setSortByNearest(true)
         setCameraTarget((prev) => ({ ...coords, seq: (prev?.seq ?? 0) + 1 }))
         setLocating(false)
       },
@@ -124,6 +137,12 @@ export function RestaurantsExplorer() {
     )
   }
 
+  function handleUserLocation(point: LngLat) {
+    setUserLocation(point)
+    setSortByNearest(true)
+    setLocationNotice(null)
+  }
+
   function focusRestaurant(restaurant: RestaurantPin) {
     setSelectedId(restaurant.pageUserId)
     setFocusTarget((prev) => ({ restaurant, seq: (prev?.seq ?? 0) + 1 }))
@@ -133,7 +152,7 @@ export function RestaurantsExplorer() {
     setSelectedId(restaurant ? restaurant.pageUserId : null)
   }
 
-  const ready = bounds !== null && !(isLoading && restaurants.length === 0)
+  const ready = !(isLoading && restaurants.length === 0)
 
   return (
     <section
@@ -148,8 +167,7 @@ export function RestaurantsExplorer() {
             focusTarget={focusTarget}
             cameraTarget={cameraTarget}
             onSelect={handleMapSelect}
-            onBoundsChange={setBounds}
-            onUserLocation={setUserLocation}
+            onUserLocation={handleUserLocation}
           />
         </div>
       </div>
@@ -165,19 +183,24 @@ export function RestaurantsExplorer() {
             </h1>
             <Button
               type="button"
-              variant={userLocation ? "secondary" : "outline"}
+              variant={nearestEnabled ? "default" : "outline"}
               size="xs"
               shape="pill"
               disabled={locating}
-              onClick={requestMyLocation}
-              title="Tìm và sắp xếp nhà hàng gần vị trí của bạn"
+              aria-pressed={nearestEnabled}
+              onClick={toggleNearestSort}
+              title={
+                nearestEnabled
+                  ? "Đang sắp xếp gần bạn nhất · Nhấn để sắp xếp theo chữ cái A–Z"
+                  : "Bật sắp xếp theo vị trí gần nhất"
+              }
             >
               {locating ? <Spinner aria-hidden /> : <LocateFixedIcon aria-hidden />}
               Gần bạn
             </Button>
           </div>
           <p className="mt-0.5 text-xs text-muted-foreground">
-            {countSummary(ready, restaurants.length, truncated, userLocation !== null)}
+            {countSummary(ready, restaurants.length, truncated, nearestEnabled)}
           </p>
           {locationNotice && (
             <p role="status" className="mt-1 text-xs text-amber-600 dark:text-amber-400">
@@ -192,7 +215,7 @@ export function RestaurantsExplorer() {
               role="alert"
               className="mb-3 rounded-xl border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive"
             >
-              Không tải được danh sách nhà hàng. Thử di chuyển bản đồ lại nhé.
+              Không tải được danh sách nhà hàng. Thử tải lại trang nhé.
             </p>
           )}
           <RestaurantCards
@@ -233,7 +256,7 @@ function RestaurantCards({
     if (hasError) return null
     return (
       <p className="rounded-2xl border border-dashed border-border p-4 text-sm text-muted-foreground">
-        Chưa có nhà hàng nào trong khu vực này. Thử di chuyển hoặc thu nhỏ bản đồ để tìm thêm.
+        Chưa có nhà hàng chay nào được duyệt trên hệ thống.
       </p>
     )
   }

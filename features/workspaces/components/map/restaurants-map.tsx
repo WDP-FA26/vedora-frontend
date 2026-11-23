@@ -11,7 +11,6 @@ import { formatDistance, formatRatingScore } from "@/features/workspaces/lib/for
 import { DEFAULT_CENTER, googleMapsDirectionsUrl } from "@/features/workspaces/lib/mapbox"
 import { profilePath } from "@/features/profiles/profiles-cache"
 import type { LngLat, RestaurantPin } from "@/features/workspaces/schemas"
-import type { MapBounds } from "@/features/workspaces/workspaces-cache"
 
 const FOCUSED_ZOOM = 15
 
@@ -24,32 +23,13 @@ export type CameraCenterTarget = LngLat & {
   seq: number
 }
 
-function boundsOf(map: Pick<MapRef, "getBounds">): MapBounds {
-  const bounds = map.getBounds()
-  if (!bounds) {
-    return {
-      minLng: DEFAULT_CENTER.longitude - 0.1,
-      minLat: DEFAULT_CENTER.latitude - 0.1,
-      maxLng: DEFAULT_CENTER.longitude + 0.1,
-      maxLat: DEFAULT_CENTER.latitude + 0.1,
-    }
-  }
-  return {
-    minLng: bounds.getWest(),
-    minLat: bounds.getSouth(),
-    maxLng: bounds.getEast(),
-    maxLat: bounds.getNorth(),
-  }
-}
-
-/** Restaurants in view, refetched (by the parent) whenever the camera settles. */
+/** Map showing all approved vegetarian restaurants without refetching on pan or zoom. */
 export default function RestaurantsMap({
   restaurants,
   selectedId,
   focusTarget,
   cameraTarget,
   onSelect,
-  onBoundsChange,
   onUserLocation,
 }: {
   restaurants: RestaurantPin[]
@@ -57,7 +37,6 @@ export default function RestaurantsMap({
   focusTarget: RestaurantFocusTarget | null
   cameraTarget?: CameraCenterTarget | null
   onSelect: (restaurant: RestaurantPin | null) => void
-  onBoundsChange: (bounds: MapBounds) => void
   onUserLocation?: (point: LngLat) => void
 }) {
   const mapRef = useRef<MapRef>(null)
@@ -89,8 +68,6 @@ export default function RestaurantsMap({
       ref={mapRef}
       initialViewState={{ ...DEFAULT_CENTER, zoom: 12 }}
       style={{ width: "100%", height: "100%" }}
-      onLoad={(event) => onBoundsChange(boundsOf(event.target))}
-      onMoveEnd={(event) => onBoundsChange(boundsOf(event.target))}
     >
       <GeolocateControl
         position="top-right"

@@ -153,13 +153,15 @@ function calendarErrorMessage(error: unknown) {
  * propose for any plannable week; proposals can be applied from either chat cards or calendar preview.
  */
 export function MealPlannerView() {
-  const { accessToken } = useAuth()
+  const { user, accessToken } = useAuth()
   const { mutate } = useSWRConfig()
   const router = useRouter()
   const searchParams = useSearchParams()
   const requestedWeek = searchParams.get(WEEK_PARAM)
   const weekParam = requestedWeek !== null && WEEK_PATTERN.test(requestedWeek) ? requestedWeek : undefined
-  const plan = useAuthedSWR(mealPlanKey(weekParam), fetchMealPlan)
+  const isPageSession = user?.accountType === "PAGE"
+  const canLoadDietary = user !== null && user.accountType === "PERSONAL"
+  const plan = useAuthedSWR(canLoadDietary ? mealPlanKey(weekParam) : null, fetchMealPlan)
   const weekStart = plan.data?.weekStart
   const chat = useMealPlannerChat(weekStart)
   const plannerChat = useRef<PlannerChatHandle>(null)
@@ -170,8 +172,8 @@ export function MealPlannerView() {
   /** Passed days a saved proposal could not keep, by proposal id. */
   const [skippedDays, setSkippedDays] = useState<Record<string, string[]>>({})
   const [askContext, setAskContext] = useState<AskContext | null>(null)
-  const restrictions = useAuthedSWR(MY_DIETARY_KEY, fetchMyDietary)
-  const nutrition = useAuthedSWR(MY_NUTRITION_KEY, fetchMyNutrition)
+  const restrictions = useAuthedSWR(canLoadDietary ? MY_DIETARY_KEY : null, fetchMyDietary)
+  const nutrition = useAuthedSWR(canLoadDietary ? MY_NUTRITION_KEY : null, fetchMyNutrition)
   // The calendar previews what a card would change in the week on screen.
   const suggestion = chat.pendingProposals.find((proposal) => proposal.weekStart === weekStart) ?? null
   const savedAvoided = [
@@ -307,6 +309,23 @@ export function MealPlannerView() {
       <ArrowLeftIcon aria-hidden />
     </Button>
   )
+
+  if (isPageSession) {
+    return (
+      <section aria-labelledby="meal-planner-title" className="flex min-h-dvh flex-col">
+        <header className="flex items-center gap-2 border-b border-border bg-card px-3 py-2.5">
+          {backButton("icon")}
+          <h1 id="meal-planner-title" className="text-base font-bold">Lên thực đơn</h1>
+        </header>
+        <p className="p-4 text-sm text-muted-foreground sm:px-5">
+          Trang nhà hàng không có hồ sơ ăn uống hay thực đơn cá nhân.{" "}
+          {user.actor
+            ? `Chuyển về tài khoản @${user.actor.username} trong menu tài khoản để sử dụng Trợ lý Vedora.`
+            : "Hãy chuyển về tài khoản cá nhân để sử dụng Trợ lý Vedora."}
+        </p>
+      </section>
+    )
+  }
 
   const hasNutritionProfile =
     nutrition.data !== undefined &&

@@ -53,9 +53,39 @@ const LIKED_ID = "dietary-liked"
 /** Where a user lists what they do not eat and the ingredients they like. */
 export function DietaryView() {
   const { user, accessToken } = useAuth()
-  const options = useAuthedSWR(DIETARY_OPTIONS_KEY, fetchDietaryOptions)
-  const mine = useAuthedSWR(MY_DIETARY_KEY, fetchMyDietary)
-  const nutrition = useAuthedSWR(MY_NUTRITION_KEY, fetchMyNutrition)
+  const isPageSession = user?.accountType === "PAGE"
+  const canLoadDietary = user !== null && user.accountType === "PERSONAL"
+  const options = useAuthedSWR(canLoadDietary ? DIETARY_OPTIONS_KEY : null, fetchDietaryOptions)
+  const mine = useAuthedSWR(canLoadDietary ? MY_DIETARY_KEY : null, fetchMyDietary)
+  const nutrition = useAuthedSWR(canLoadDietary ? MY_NUTRITION_KEY : null, fetchMyNutrition)
+
+  if (isPageSession) {
+    return (
+      <section aria-labelledby="dietary-title">
+        <header className="sticky top-0 z-20 flex items-center gap-2 border-b border-border bg-card/85 px-2 py-2 backdrop-blur-md">
+          <Button
+            variant="ghost"
+            size="icon"
+            shape="pill"
+            aria-label="Quay lại hồ sơ"
+            nativeButton={false}
+            render={<Link href={profilePath(user.id)} />}
+          >
+            <ArrowLeftIcon aria-hidden />
+          </Button>
+          <h1 id="dietary-title" className="text-lg font-bold">
+            Hồ sơ ăn uống &amp; BMI
+          </h1>
+        </header>
+        <p className="p-4 text-sm text-muted-foreground sm:px-5">
+          Trang nhà hàng không có hồ sơ ăn uống.{" "}
+          {user.actor
+            ? `Chuyển về tài khoản @${user.actor.username} trong menu tài khoản để quản lý hồ sơ ăn uống cá nhân.`
+            : "Hãy chuyển về tài khoản cá nhân để quản lý hồ sơ ăn uống."}
+        </p>
+      </section>
+    )
+  }
 
   return (
     <section aria-labelledby="dietary-title">

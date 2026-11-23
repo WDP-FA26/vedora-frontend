@@ -173,7 +173,7 @@ export function ProfileView({
           </Link>
         )}
 
-        {isOwn && <DietaryOverviewCard />}
+        {isOwn && profile.accountType === "PERSONAL" && <DietaryOverviewCard />}
       </div>
 
       {profile.restaurant ? (

@@ -28,9 +28,8 @@ import {
 } from "@/features/workspaces/schemas"
 import {
   MY_WORKSPACES_KEY,
-  restaurantsInViewKey,
+  restaurantsKey,
   workspaceKey,
-  type MapBounds,
 } from "@/features/workspaces/workspaces-cache"
 
 const UPLOAD_TIMEOUT_MS = 60_000
@@ -120,13 +119,10 @@ export function useWorkspaceMembers(id: string) {
   }
 }
 
-/** Public: approved restaurants inside the map's current bounds. */
-export function useRestaurantsInView(
-  bounds: MapBounds | null,
-  userLocation?: LngLat | null
-) {
+/** Public: approved restaurants, sorted nearest-first when location is set or A–Z otherwise. */
+export function useRestaurants(userLocation?: LngLat | null) {
   const { data, error, isLoading } = useSWR(
-    bounds ? restaurantsInViewKey(bounds, userLocation) : null,
+    restaurantsKey(userLocation),
     (url: string) => sendJson(restaurantPinListSchema, url, undefined),
     { keepPreviousData: true }
   )
