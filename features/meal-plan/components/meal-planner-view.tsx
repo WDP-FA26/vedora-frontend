@@ -30,6 +30,7 @@ import {
   type NutritionProfile,
 } from "@/features/dietary/dietary"
 import { CalendarBoard } from "@/features/meal-plan/components/calendar-board"
+import { MealLogButton } from "@/features/meal-plan/components/meal-log-button"
 import { PlannerChat, type PlannerChatHandle } from "@/features/meal-plan/components/planner-chat"
 import { WeekNav } from "@/features/meal-plan/components/week-nav"
 import { useMealPlannerChat } from "@/features/meal-plan/hooks/use-meal-planner-chat"
@@ -321,13 +322,16 @@ export function MealPlannerView() {
                 }}
                 onAskAssistant={askAssistant}
                 action={
-                  <WeekNav
-                    plan={plan.data}
-                    loading={plan.isLoading}
-                    onPrevious={() => plan.data && showWeek(shiftWeek(plan.data.weekStart, -1))}
-                    onNext={() => plan.data && showWeek(shiftWeek(plan.data.weekStart, 1))}
-                    onToday={() => plan.data && showWeek(plan.data.currentWeekStart)}
-                  />
+                  <div className="flex w-full min-w-0 items-center gap-2">
+                    <WeekNav
+                      plan={plan.data}
+                      loading={plan.isLoading}
+                      onPrevious={() => plan.data && showWeek(shiftWeek(plan.data.weekStart, -1))}
+                      onNext={() => plan.data && showWeek(shiftWeek(plan.data.weekStart, 1))}
+                      onToday={() => plan.data && showWeek(plan.data.currentWeekStart)}
+                    />
+                    {plan.data && <MealLogButton plan={plan.data} onAskAssistant={askAssistant} />}
+                  </div>
                 }
                 leading={
                   assistantOpen ? undefined : (
