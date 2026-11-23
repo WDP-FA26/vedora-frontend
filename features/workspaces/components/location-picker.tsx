@@ -504,7 +504,7 @@ function CoordinatesPanel({
             value={activeDraft.lat}
             disabled={disabled}
             aria-invalid={invalid || latInvalid}
-            placeholder="Ví dụ: 21.0285"
+            placeholder="Ví dụ: 10.7769"
             onChange={(event) => updateField("lat", event.target.value)}
             onPaste={handlePaste}
           />
@@ -523,7 +523,7 @@ function CoordinatesPanel({
             value={activeDraft.lng}
             disabled={disabled}
             aria-invalid={invalid || lngInvalid}
-            placeholder="Ví dụ: 105.8542"
+            placeholder="Ví dụ: 106.7009"
             onChange={(event) => updateField("lng", event.target.value)}
             onPaste={handlePaste}
           />
@@ -533,7 +533,7 @@ function CoordinatesPanel({
         </div>
       </div>
       <p className="text-xs text-muted-foreground">
-        Mẹo: có thể dán trực tiếp cặp tọa độ từ Google Maps (ví dụ: 21.0285, 105.8542).
+        Mẹo: có thể dán trực tiếp cặp tọa độ từ Google Maps (ví dụ: 10.7769, 106.7009).
       </p>
     </div>
   )

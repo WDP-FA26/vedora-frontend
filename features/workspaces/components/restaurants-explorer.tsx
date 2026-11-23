@@ -66,10 +66,13 @@ export function RestaurantsExplorer() {
     navigator.geolocation.getCurrentPosition(
       (position) => {
         if (!active) return
-        setUserLocation({
+        const coords: LngLat = {
           longitude: position.coords.longitude,
           latitude: position.coords.latitude,
-        })
+        }
+        setUserLocation(coords)
+        // Start the map around the visitor instead of the default city.
+        setCameraTarget((prev) => ({ ...coords, seq: (prev?.seq ?? 0) + 1 }))
       },
       () => undefined,
       { enableHighAccuracy: false, timeout: 8000, maximumAge: 60_000 }

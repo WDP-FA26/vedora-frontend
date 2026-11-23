@@ -7,8 +7,8 @@ export const MAPBOX_TOKEN = PUBLIC_ENV.mapboxToken
 export const MAP_STYLE = "mapbox://styles/mapbox/streets-v12"
 export const MAP_STYLE_DARK = "mapbox://styles/mapbox/dark-v11"
 
-/** Hoàn Kiếm, Hà Nội: where an empty map starts. */
-export const DEFAULT_CENTER: LngLat = { longitude: 105.8542, latitude: 21.0285 }
+/** Quận 1, TP.HCM: where a map starts until the visitor's own location is known. */
+export const DEFAULT_CENTER: LngLat = { longitude: 106.7009, latitude: 10.7769 }
 
 const GEOCODE_URL = "https://api.mapbox.com/search/geocode/v6"
 

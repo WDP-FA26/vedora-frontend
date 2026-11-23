@@ -10,6 +10,7 @@ import type { LngLat } from "@/features/workspaces/schemas"
 
 const PINNED_ZOOM = 16
 const OVERVIEW_ZOOM = 12
+const NEARBY_ZOOM = 14
 
 function samePoint(a: LngLat | null, b: LngLat | null) {
   if (!a || !b) return a === b
@@ -36,6 +37,27 @@ export default function LocationPickerMap({
     placedHere.current = value
     mapRef.current?.flyTo({ center: [value.longitude, value.latitude], zoom: PINNED_ZOOM })
   }, [value])
+
+  // With no pin yet, start around the visitor rather than the default city.
+  useEffect(() => {
+    if (placedHere.current) return
+    if (typeof navigator === "undefined" || !("geolocation" in navigator)) return
+    let active = true
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        if (!active || placedHere.current) return
+        mapRef.current?.flyTo({
+          center: [position.coords.longitude, position.coords.latitude],
+          zoom: NEARBY_ZOOM,
+        })
+      },
+      () => undefined,
+      { enableHighAccuracy: false, timeout: 8000, maximumAge: 60_000 }
+    )
+    return () => {
+      active = false
+    }
+  }, [])
 
   function place(point: LngLat) {
     placedHere.current = point
