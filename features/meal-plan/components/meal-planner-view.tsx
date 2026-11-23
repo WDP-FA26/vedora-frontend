@@ -2,7 +2,6 @@
 
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
-import { useSWRConfig } from "swr"
 import { useAuthedSWR } from "@/features/auth/hooks/use-authed-swr"
 import Link from "next/link"
 import { ArrowLeftIcon, CalendarRangeIcon, PanelLeftCloseIcon, SparklesIcon } from "lucide-react"
@@ -33,15 +32,9 @@ import {
 import { CalendarBoard } from "@/features/meal-plan/components/calendar-board"
 import { PlannerChat, type PlannerChatHandle } from "@/features/meal-plan/components/planner-chat"
 import { WeekNav } from "@/features/meal-plan/components/week-nav"
-import {
-  proposalIds,
-  useMealPlannerChat,
-  type Proposal,
-} from "@/features/meal-plan/hooks/use-meal-planner-chat"
+import { useMealPlannerChat } from "@/features/meal-plan/hooks/use-meal-planner-chat"
 import {
   DAY_LABELS,
-  discardMealDraft,
-  formatDayMonth,
   fetchMealPlan,
   inputsForChanges,
   mealPlanKey,
@@ -51,8 +44,6 @@ import {
   saveMealDays,
   SECTION_LABELS,
   shiftWeek,
-  type MealDayInput,
-  type MealPlan,
   type MealSection,
   type SlotChange,
   type SlotRef,
@@ -69,72 +60,6 @@ const WEEK_PATTERN = /^\d{4}-\d{2}-\d{2}$/
 type Tab = "chat" | "calendar"
 type AskContext = { title: string; day: Weekday; section: MealSection }
 
-function sameIds(left: string[], right: string[]) {
-  return left.length === right.length && left.every((id, index) => id === right[index])
-}
-
-/** PUT replaces a whole day, so untouched sections must come from fresh server data. */
-function changedDayInputs(proposal: Proposal, current: MealPlan): MealDayInput[] {
-  return proposal.days.flatMap(({ day, sections }) => {
-    const saved = current.days.find((item) => item.day === day)
-    const changed = sections.filter(
-      ({ recipes, previous }) => !sameIds(recipes.map(({ id }) => id), previous.map(({ id }) => id))
-    )
-    if (changed.length === 0) return []
-
-    for (const { section, previous } of changed) {
-      const currentIds = saved?.sections.find((item) => item.section === section)?.recipes.map(({ id }) => id) ?? []
-      if (!sameIds(currentIds, previous.map(({ id }) => id))) {
-        throw new Error("Thực đơn đã thay đổi từ khi trợ lý đề xuất. Hãy yêu cầu đề xuất mới trước khi lưu.")
-      }
-    }
-
-    const ids = (section: MealSection) =>
-      changed.find((item) => item.section === section)?.recipes.map(({ id }) => id) ??
-      saved?.sections.find((item) => item.section === section)?.recipes.map(({ id }) => id) ??
-      []
-
-    return [{
-      day,
-      breakfast: ids("BREAKFAST"),
-      lunch: ids("LUNCH"),
-      dinner: ids("DINNER"),
-      others: ids("OTHER"),
-    }]
-  })
-}
-
-/**
- * Only days that may still change can be saved; a proposal made yesterday may hold
- * one that has passed. Returns the days to save and the passed ones left out.
- */
-function splitPassedDays(inputs: MealDayInput[], current: MealPlan) {
-  const save: MealDayInput[] = []
-  const passed: string[] = []
-  for (const input of inputs) {
-    const day = current.days.find((item) => item.day === input.day)
-    if (day?.editable) {
-      save.push(input)
-      continue
-    }
-    passed.push(day ? `${DAY_LABELS[input.day]} ${formatDayMonth(day.date)}` : DAY_LABELS[input.day])
-  }
-  return { save, passed }
-}
-
-/** Why a proposal could not be saved, in words the user can act on. */
-function applyErrorMessage(error: unknown) {
-  if (error instanceof ApiError && error.code === "MEAL_DAY_LOCKED") {
-    return "Có ngày trong đề xuất đã qua nên không lưu được. Hãy nhờ trợ lý đề xuất lại."
-  }
-  if (error instanceof ApiError && error.code === "MEAL_WEEK_OUT_OF_RANGE") return "Chưa thể lên thực đơn cho tuần xa như vậy."
-  if (error instanceof ApiError && error.status === 409) {
-    return "Thực đơn hoặc thông tin ăn uống đã thay đổi. Hãy nhờ trợ lý đề xuất lại."
-  }
-  if (error instanceof Error && !(error instanceof ApiError)) return error.message
-  return "Không lưu được thực đơn. Hãy thử lại."
-}
-
 /** What went wrong saving a calendar edit, in words the user can act on. */
 function calendarErrorMessage(error: unknown) {
   if (!(error instanceof ApiError)) return "Không lưu được thay đổi. Hãy thử lại."
@@ -149,12 +74,11 @@ function calendarErrorMessage(error: unknown) {
 }
 
 /**
- * One saved week at a time (the `week` URL param, else this week). The assistant may
- * propose for any plannable week; proposals can be applied from either chat cards or calendar preview.
+ * One saved week at a time (the `week` URL param, else this week). The assistant
+ * saves its changes to any plannable week as it goes, and the calendar follows.
  */
 export function MealPlannerView() {
   const { user, accessToken } = useAuth()
-  const { mutate } = useSWRConfig()
   const router = useRouter()
   const searchParams = useSearchParams()
   const requestedWeek = searchParams.get(WEEK_PARAM)
@@ -167,15 +91,9 @@ export function MealPlannerView() {
   const plannerChat = useRef<PlannerChatHandle>(null)
   const [tab, setTab] = useState<Tab>("chat")
   const [assistantOpen, setAssistantOpen] = useState(true)
-  const [applyingId, setApplyingId] = useState<string | null>(null)
-  const [applyErrors, setApplyErrors] = useState<Record<string, string>>({})
-  /** Passed days a saved proposal could not keep, by proposal id. */
-  const [skippedDays, setSkippedDays] = useState<Record<string, string[]>>({})
   const [askContext, setAskContext] = useState<AskContext | null>(null)
   const restrictions = useAuthedSWR(canLoadDietary ? MY_DIETARY_KEY : null, fetchMyDietary)
   const nutrition = useAuthedSWR(canLoadDietary ? MY_NUTRITION_KEY : null, fetchMyNutrition)
-  // The calendar previews what a card would change in the week on screen.
-  const suggestion = chat.pendingProposals.find((proposal) => proposal.weekStart === weekStart) ?? null
   const savedAvoided = [
     ...(restrictions.data?.groups.map(({ name }) => name) ?? []),
     ...(restrictions.data?.ingredients.map(({ name }) => name) ?? []),
@@ -205,7 +123,7 @@ export function MealPlannerView() {
     window.history.pushState(null, "", query ? `?${query}` : window.location.pathname)
   }
 
-  /** Proposals live in the chat and keep their own week, so switching weeks loses nothing. */
+  /** The chat keeps its own week for each change, so switching weeks loses nothing. */
   function showWeek(next: string) {
     if (next !== weekStart) {
       writeWeek(next === plan.data?.currentWeekStart ? undefined : next)
@@ -217,57 +135,6 @@ export function MealPlannerView() {
     setAssistantOpen(true)
     setTab("chat")
     plannerChat.current?.ask(prompt)
-  }
-
-  function setApplyError(id: string, message: string | null) {
-    setApplyErrors((current) => {
-      const next = { ...current }
-      if (message === null) delete next[id]
-      else next[id] = message
-      return next
-    })
-  }
-
-  /** Saves a card's changes to its own week, which need not be the week on screen. */
-  async function applyProposal(proposal: Proposal) {
-    const week = proposal.weekStart
-    if (!accessToken || applyingId || !week) return
-    setApplyingId(proposal.id)
-    setApplyError(proposal.id, null)
-    try {
-      const current = await fetchMealPlan([mealPlanKey(week), accessToken])
-      const { save, passed } = splitPassedDays(changedDayInputs(proposal, current), current)
-      if (save.length === 0) {
-        setApplyError(proposal.id, "Các ngày trong đề xuất đã qua hoặc đã giống thực đơn đang lưu. Hãy nhờ trợ lý đề xuất lại.")
-        return
-      }
-      const saved = await saveMealDays(accessToken, week, save)
-      await mutate([mealPlanKey(week), accessToken], saved, { revalidate: false })
-      // The current week is also cached under the key without `weekStart` (page default, header sheet).
-      if (week === saved.currentWeekStart) await mutate([mealPlanKey(), accessToken], saved, { revalidate: false })
-      if (passed.length > 0) setSkippedDays((current) => ({ ...current, [proposal.id]: passed }))
-      chat.setProposalsStatus(proposalIds(proposal), "saved")
-    } catch (error) {
-      if (error instanceof ApiError && error.status === 401) router.refresh()
-      setApplyError(proposal.id, applyErrorMessage(error))
-    } finally {
-      setApplyingId(null)
-    }
-  }
-
-  async function dismissProposal(proposal: Proposal) {
-    setApplyError(proposal.id, null)
-    chat.setProposalsStatus(proposalIds(proposal), "dismissed")
-    const week = proposal.weekStart
-    if (!accessToken || !week) return
-    // The planner builds on its server draft; drop it so the next turn starts from the saved week.
-    // A failure is harmless: the conversation note already tells the planner the card was dismissed.
-    await discardMealDraft(accessToken, week).catch(() => undefined)
-  }
-
-  function openChat() {
-    setAssistantOpen(true)
-    setTab("chat")
   }
 
   async function changeCalendar(changes: SlotChange[]) {
@@ -397,7 +264,6 @@ export function MealPlannerView() {
             </TabsTrigger>
             <TabsTrigger value="calendar" className="min-w-0">
               <CalendarRangeIcon aria-hidden /> Lịch
-              {suggestion && <span className="rounded-full bg-primary px-1.5 py-0.5 text-[0.625rem] leading-none text-primary-foreground">Mới</span>}
             </TabsTrigger>
           </TabsList>
         </div>
@@ -418,11 +284,6 @@ export function MealPlannerView() {
             <PlannerChat
               handle={plannerChat}
               chat={chat}
-              applyingId={applyingId}
-              applyErrors={applyErrors}
-              skippedDays={skippedDays}
-              onApply={(proposal) => void applyProposal(proposal)}
-              onDismiss={(proposal) => void dismissProposal(proposal)}
               savedAvoided={savedAvoided}
               profileLoading={restrictions.isLoading}
               profileError={Boolean(restrictions.error)}
@@ -450,11 +311,6 @@ export function MealPlannerView() {
                 key={weekStart ?? "loading"}
                 plan={plan.data}
                 failed={Boolean(plan.error)}
-                suggestion={suggestion}
-                onApplySuggestion={() => suggestion && void applyProposal(suggestion)}
-                onDismissSuggestion={() => suggestion && void dismissProposal(suggestion)}
-                applyingSuggestion={Boolean(suggestion && applyingId === suggestion.id)}
-                onOpenChat={openChat}
                 onChange={changeCalendar}
                 onRetry={() => void plan.mutate()}
                 onAsk={askAboutRecipe}

@@ -5,6 +5,7 @@ import Link from "next/link"
 import { Streamdown } from "streamdown"
 import {
   ArrowUpIcon,
+  CalendarCheckIcon,
   CheckIcon,
   GlobeIcon,
   HistoryIcon,
@@ -14,10 +15,21 @@ import {
   RotateCcwIcon,
   StarIcon,
   Trash2Icon,
+  Undo2Icon,
   UtensilsIcon,
   XIcon,
 } from "lucide-react"
 
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 import { Badge } from "@/components/ui/badge"
 import { Bubble, BubbleContent, BubbleGroup } from "@/components/ui/bubble"
 import { Button } from "@/components/ui/button"
@@ -38,15 +50,14 @@ import {
 import { Spinner } from "@/components/ui/spinner"
 import { DIETARY_PATH } from "@/features/dietary/dietary"
 import {
-  decidedStatus,
-  messageProposals,
-  messageCannotPropose,
+  messagePlanChanges,
+  messageQuestions,
   messageRestaurantDishes,
   messageText,
   type MealPlannerChat,
+  type PlanChangeEntry,
   type PlannerRestaurantDish,
-  type Proposal,
-  type ProposalStatus,
+  type UserQuestion,
 } from "@/features/meal-plan/hooks/use-meal-planner-chat"
 import {
   DAY_LABELS,
@@ -103,11 +114,6 @@ function AssistantMessage({ children }: { children: ReactNode }) {
 
 export function PlannerChat({
   chat,
-  applyingId = null,
-  applyErrors = {},
-  skippedDays = {},
-  onApply,
-  onDismiss,
   savedAvoided = [],
   profileLoading = false,
   profileError = false,
@@ -124,26 +130,21 @@ export function PlannerChat({
   /** Shown at the end of the header, e.g. a collapse button. */
   trailing?: ReactNode
   chat: MealPlannerChat
-  /** The proposal being saved. */
-  applyingId?: string | null
-  /** Why saving a proposal failed, by proposal id. */
-  applyErrors?: Record<string, string>
-  /** Passed days a saved proposal left out, by proposal id. */
-  skippedDays?: Record<string, string[]>
-  onApply: (proposal: Proposal) => void
-  onDismiss: (proposal: Proposal) => void
   savedAvoided?: string[]
   profileLoading?: boolean
   profileError?: boolean
   askContext?: MealAskContext | null
   clearAskContext?: () => void
-  /** Shows a proposal's week on the calendar. */
+  /** Shows a week the assistant changed on the calendar. */
   onOpenWeek?: (weekStart: string) => void
 }) {
   const { messages, busy, waiting, pendingId, streamingId, error, send, reset } = chat
   const [input, setInput] = useState("")
   const [inputError, setInputError] = useState("")
   const [historyOpen, setHistoryOpen] = useState(false)
+  /** The user message the rewind dialog asks about. */
+  const [rewindTarget, setRewindTarget] = useState<string | null>(null)
+  const [rewindNotice, setRewindNotice] = useState<string | null>(null)
   const end = useRef<HTMLDivElement>(null)
   const textarea = useRef<HTMLTextAreaElement>(null)
   const pending = useRef<string | null>(null)
@@ -176,6 +177,7 @@ export function PlannerChat({
   }
 
   function sendQuestion(payload: string, original: string) {
+    setRewindNotice(null)
     pending.current = original
     pendingAfterCount.current = messages.length
     setInput("")
@@ -219,8 +221,23 @@ export function PlannerChat({
     sendQuestion(payload, text)
   }
 
+  async function confirmRewind() {
+    const target = rewindTarget
+    setRewindTarget(null)
+    if (!target) return
+    const result = await chat.rewind(target)
+    if (!result) return
+    pending.current = null
+    pendingAfterCount.current = null
+    setInputError("")
+    setInput(result.text)
+    setRewindNotice(rewindSummary(result.weeks))
+    requestAnimationFrame(() => textarea.current?.focus())
+  }
+
   function handleNewThread() {
     reset()
+    setRewindNotice(null)
     setInput("")
     setInputError("")
     pending.current = null
@@ -293,36 +310,40 @@ export function PlannerChat({
         )}
         {messages.map((message) => {
           const text = messageText(message)
-          const proposals = messageProposals(message)
+          const changes = messagePlanChanges(message)
+          const questions = messageQuestions(message)
           const restaurantDishes = messageRestaurantDishes(message)
-          const cannotPropose = messageCannotPropose(message)
           const pending = message.id === pendingId
           if (
             !text &&
-            proposals.length === 0 &&
+            changes.length === 0 &&
+            questions.length === 0 &&
             restaurantDishes.length === 0 &&
-            !cannotPropose &&
             !pending &&
             !hasTrace(message)
           ) {
             return null
           }
-          return message.role === "assistant" ? (
+          if (message.role !== "assistant") {
+            return (
+              <UserMessage
+                key={message.id}
+                text={text}
+                canRewind={!busy && chat.rewindingId === null}
+                rewinding={chat.rewindingId === message.id}
+                onRewind={() => setRewindTarget(message.id)}
+              />
+            )
+          }
+          return (
             <AssistantMessage key={message.id}>
               <AgentTrace message={message} pending={pending} />
               {text && <Bubble variant="ghost"><BubbleContent><Streamdown caret="block" isAnimating={message.id === streamingId} controls={false} disallowedElements={UNSAFE_ELEMENTS} unwrapDisallowed>{text}</Streamdown></BubbleContent></Bubble>}
-              {proposals.map((proposal) => (
-                <ProposalCard
-                  key={proposal.id}
-                  proposal={proposal}
-                  status={chat.statuses[proposal.id]}
-                  superseded={!chat.isLatestProposal(proposal)}
+              {changes.map((change) => (
+                <PlanChangeCard
+                  key={change.id}
+                  change={change}
                   currentWeek={chat.weekStart}
-                  applying={applyingId === proposal.id}
-                  applyError={applyErrors[proposal.id]}
-                  skipped={skippedDays[proposal.id]}
-                  onApply={() => onApply(proposal)}
-                  onDismiss={() => onDismiss(proposal)}
                   onShowWeek={onOpenWeek}
                 />
               ))}
@@ -330,6 +351,18 @@ export function PlannerChat({
                 <RestaurantDishCards dishes={restaurantDishes} />
               )}
               {!pending && message.id !== streamingId && <MessageSources message={message} />}
+              {questions.map((question) => (
+                <QuestionCard
+                  key={question.toolCallId}
+                  question={question}
+                  open={chat.openQuestion?.toolCallId === question.toolCallId}
+                  disabled={busy || !chat.weekStart}
+                  onAnswer={(answer) => {
+                    setRewindNotice(null)
+                    chat.answerQuestion(question.toolCallId, answer)
+                  }}
+                />
+              ))}
               {chat.openWebSearchRequest && message.id === messages.at(-1)?.id && (
                 <WebSearchConsent
                   reason={chat.openWebSearchRequest.reason}
@@ -340,12 +373,11 @@ export function PlannerChat({
                   }}
                 />
               )}
-              {cannotPropose && !text && <p role="status" className="mt-2 rounded-xl border border-border bg-card px-3 py-2 text-sm">Chưa tìm được đủ món phù hợp với yêu cầu này. Bạn có thể chỉnh yêu cầu và thử lại.</p>}
             </AssistantMessage>
-          ) : (
-            <Message key={message.id} align="end"><MessageContent><Bubble align="end"><BubbleContent>{text}</BubbleContent></Bubble></MessageContent></Message>
           )
         })}
+        {chat.historyError && !historyOpen && <p role="alert" className="rounded-xl border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">{chat.historyError}</p>}
+        {rewindNotice && <p role="status" className="rounded-xl border border-border bg-card px-3 py-2 text-sm text-muted-foreground">{rewindNotice}</p>}
         {waiting && !pendingId && <AssistantMessage><span className="shimmer text-sm text-muted-foreground motion-reduce:shimmer-none">Đang suy nghĩ…</span></AssistantMessage>}
         {error && <AssistantMessage><div role="alert" className="space-y-2 text-sm text-destructive"><p>{error} Tin nhắn vẫn ở ô nhập để bạn thử lại.</p><Link href="/billing" target="_blank" rel="noopener noreferrer" className="inline-block text-primary underline underline-offset-4">Xem gói và hạn mức AI</Link><Button variant="outline" size="sm" onClick={() => submit()} disabled={!input.trim() || busy}><RotateCcwIcon aria-hidden /> Thử lại</Button></div></AssistantMessage>}
 
@@ -464,11 +496,72 @@ export function PlannerChat({
           </div>
         </SheetContent>
       </Sheet>
+
+      <AlertDialog open={rewindTarget !== null} onOpenChange={(open) => { if (!open) setRewindTarget(null) }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Quay lại trước tin nhắn này?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Thực đơn trở về như trước khi bạn gửi tin nhắn này, và tin nhắn này cùng mọi tin sau nó sẽ bị xóa khỏi đoạn chat. Nội dung tin nhắn được đưa lại vào ô nhập để bạn sửa và gửi lại.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Hủy</AlertDialogCancel>
+            <AlertDialogAction onClick={() => void confirmRewind()}>Quay lại</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }
 
-/** One proposal in the chat. Applying it saves it to its week straight away, whichever week is on screen. */
+/** What a rewind put back, in one sentence. */
+function rewindSummary(weeks: { weekStart: string; restored: Weekday[]; skipped: Weekday[]; droppedDishes: number }[]) {
+  let restored = 0
+  let dropped = 0
+  const skipped: string[] = []
+  for (const week of weeks) {
+    restored += week.restored.length
+    dropped += week.droppedDishes
+    for (const day of week.skipped) skipped.push(`${DAY_LABELS[day]} (tuần ${weekStartRangeLabel(week.weekStart)})`)
+  }
+  let summary = "Đã quay lại. Thực đơn không có thay đổi nào cần khôi phục."
+  if (restored > 0) summary = `Đã quay lại và khôi phục thực đơn của ${restored} ngày.`
+  if (skipped.length > 0) summary += ` ${skipped.join(", ")} đã qua nên giữ nguyên.`
+  if (dropped > 0) summary += ` ${dropped} món cũ đã bị xóa hoặc nay nằm trong danh sách kiêng nên không thêm lại.`
+  return summary
+}
+
+function UserMessage({ text, canRewind, rewinding, onRewind }: {
+  text: string
+  canRewind: boolean
+  rewinding: boolean
+  onRewind: () => void
+}) {
+  return (
+    <Message align="end" className="group/user">
+      <MessageContent>
+        <Bubble align="end"><BubbleContent>{text}</BubbleContent></Bubble>
+        <div
+          data-rewinding={rewinding}
+          className="flex justify-end opacity-0 transition-opacity group-hover/user:opacity-100 focus-within:opacity-100 data-[rewinding=true]:opacity-100 max-lg:opacity-100 motion-reduce:transition-none"
+        >
+          <Button
+            variant="ghost"
+            size="xs"
+            disabled={!canRewind}
+            onClick={onRewind}
+            aria-label="Quay lại trước tin nhắn này"
+          >
+            {rewinding ? <Spinner aria-hidden /> : <Undo2Icon aria-hidden />}
+            Quay lại
+          </Button>
+        </div>
+      </MessageContent>
+    </Message>
+  )
+}
+
 /** Asks before the assistant may search the web, and says why web answers need checking. */
 function WebSearchConsent({ reason, disabled, onAnswer }: {
   reason: string
@@ -499,115 +592,109 @@ function WebSearchConsent({ reason, disabled, onAnswer }: {
   )
 }
 
-function ProposalCard({ proposal, status, superseded, currentWeek, applying, applyError, skipped, onApply, onDismiss, onShowWeek }: {
-  proposal: Proposal
-  status: ProposalStatus | undefined
-  /** A newer proposal of the same week replaced this one. */
-  superseded: boolean
+/** What the assistant saved to one week in this message, before and after. */
+function PlanChangeCard({ change, currentWeek, onShowWeek }: {
+  change: PlanChangeEntry
   /** The week on screen. */
   currentWeek: string | undefined
-  applying: boolean
-  applyError: string | undefined
-  /** Passed days left out when it was saved. */
-  skipped?: string[]
-  onApply: () => void
-  onDismiss: () => void
-  /** Shows the proposal's week on the calendar. */
+  /** Shows the change's week on the calendar. */
   onShowWeek?: (weekStart: string) => void
 }) {
   const titles = (recipes: { title: string }[]) => recipes.map(({ title }) => title).join(", ")
-  const changedDays = proposal.days
-    .map(({ day, sections }) => ({
-      day,
-      sections: sections.filter(({ recipes, previous }) =>
-        recipes.map(({ id }) => id).join() !== previous.map(({ id }) => id).join()
-      ),
-    }))
-    .filter(({ sections }) => sections.length > 0)
-  const week = proposal.weekStart
-  let heading = `Thực đơn đề xuất cho ${changedDays.map(({ day }) => DAY_LABELS[day]).join(", ")}`
-  if (changedDays.length === 7) heading = "Thực đơn đề xuất cho cả tuần"
-  if (changedDays.length === 0) heading = "Thực đơn hiện tại đã giống đề xuất"
+  const clashes = change.problems.filter(({ code }) => code === "DAY_CONFLICT")
   return (
-    <article aria-label="Đề xuất thực đơn" className="mt-2 w-full rounded-xl border border-border bg-card px-4 py-3">
-      <h3 className="text-sm font-semibold">{heading}</h3>
-      {week && (
-        <p className="mt-0.5 text-xs text-muted-foreground">
-          Tuần {weekStartRangeLabel(week)}{week === currentWeek ? " · đang xem trên lịch" : ""}
-        </p>
-      )}
-      {changedDays.map(({ day, sections }) => (
-        <section key={day} className="mt-3 border-t border-border pt-2.5">
+    <article aria-label="Thực đơn đã cập nhật" className="mt-2 w-full rounded-xl border border-border bg-card px-4 py-3">
+      <div className="flex items-start gap-2">
+        <CalendarCheckIcon aria-hidden className="mt-0.5 size-4 shrink-0 text-primary" />
+        <div className="min-w-0 flex-1">
+          <h3 className="text-sm font-semibold">Đã cập nhật thực đơn</h3>
+          <p className="mt-0.5 text-xs text-muted-foreground">
+            Tuần {weekStartRangeLabel(change.weekStart)}{change.weekStart === currentWeek ? " · đang xem trên lịch" : ""}
+          </p>
+        </div>
+        {onShowWeek && (
+          <span className="shrink-0">
+            <Button variant="link" size="xs" onClick={() => onShowWeek(change.weekStart)}>
+              Xem lịch
+            </Button>
+          </span>
+        )}
+      </div>
+      {change.days.map(({ day, sections }) => (
+        <section key={day} className="mt-2.5 border-t border-border pt-2">
           <h4 className="text-xs font-semibold text-muted-foreground">{DAY_LABELS[day]}</h4>
           <dl className="mt-1 text-sm leading-6">
-            {sections.map(({ section, recipes, previous }) => (
-              <div key={section} className="flex gap-3">
-                <dt className="w-10 shrink-0 text-muted-foreground">{SECTION_LABELS[section]}</dt>
-                <dd className="min-w-0">
-                  {recipes.length > 0 ? titles(recipes) : <span className="text-muted-foreground">Để trống</span>}
-                  {previous.length > 0 && (
-                    <span className="text-muted-foreground"> · thay {titles(previous)}</span>
-                  )}
-                </dd>
-              </div>
-            ))}
+            {sections.map(({ section, recipes, previous }) => {
+              const same = recipes.length === previous.length && recipes.every(({ id }, index) => id === previous[index].id)
+              if (same) return null
+              return (
+                <div key={section} className="flex gap-3">
+                  <dt className="w-10 shrink-0 text-muted-foreground">{SECTION_LABELS[section]}</dt>
+                  <dd className="min-w-0">
+                    {recipes.length > 0 ? titles(recipes) : <span className="text-muted-foreground">Để trống</span>}
+                    {previous.length > 0 && <span className="text-muted-foreground"> · thay {titles(previous)}</span>}
+                  </dd>
+                </div>
+              )
+            })}
           </dl>
         </section>
       ))}
-      <ProposalFooter
-        week={week}
-        status={decidedStatus(status)}
-        superseded={superseded}
-        hasChanges={changedDays.length > 0}
-        applying={applying}
-        applyError={applyError}
-        skipped={skipped}
-        onApply={onApply}
-        onDismiss={onDismiss}
-        onShowWeek={onShowWeek}
-      />
+      {clashes.length > 0 && (
+        <p className="mt-2 rounded-lg bg-amber-500/15 px-2.5 py-1.5 text-xs text-amber-800 dark:text-amber-300">
+          Lưu ý: có món không nên ăn cùng ngày ({clashes.map(({ ingredients }) => ingredients.join(" + ")).join("; ")}).
+        </p>
+      )}
     </article>
   )
 }
 
-function ProposalFooter({ week, status, superseded, hasChanges, applying, applyError, skipped, onApply, onDismiss, onShowWeek }: {
-  week: string | undefined
-  skipped?: string[]
-  status: "saved" | "dismissed" | undefined
-  superseded: boolean
-  hasChanges: boolean
-  applying: boolean
-  applyError: string | undefined
-  onApply: () => void
-  onDismiss: () => void
-  onShowWeek?: (weekStart: string) => void
+/** The assistant's question, with its options as buttons; only the newest one can still be answered. */
+function QuestionCard({ question, open, disabled, onAnswer }: {
+  question: UserQuestion
+  open: boolean
+  disabled: boolean
+  onAnswer: (answer: string) => void
 }) {
-  const showWeek = week && onShowWeek
-    ? <Button variant="link" size="sm" onClick={() => onShowWeek(week)}>Xem trên lịch</Button>
-    : null
-  if (!week) {
-    return <p className="mt-3 text-sm text-muted-foreground">Đề xuất này từ trước khi thực đơn chia theo tuần nên không rõ dành cho tuần nào. Hãy nhờ trợ lý đề xuất lại.</p>
+  const [picked, setPicked] = useState<string[]>([])
+  const answered = question.answer !== undefined
+  const canAnswer = open && !answered && !disabled
+
+  function toggle(option: string) {
+    setPicked((current) => (current.includes(option) ? current.filter((item) => item !== option) : [...current, option]))
   }
-  if (status === "saved") {
-    const note = skipped && skipped.length > 0 ? ` Bỏ qua ${skipped.join(", ")} vì đã qua.` : ""
-    return <div className="mt-3 flex flex-wrap items-center gap-2"><p role="status" className="text-sm text-primary">Đã lưu vào thực đơn.{note}</p>{showWeek}</div>
+
+  function isChosen(option: string) {
+    if (question.answer !== undefined) return question.answer.split(", ").includes(option)
+    return picked.includes(option)
   }
-  if (status === "dismissed") return <p role="status" className="mt-3 text-sm text-muted-foreground">Đã bỏ đề xuất.</p>
-  if (superseded) return <p className="mt-3 text-sm text-muted-foreground">Trợ lý đã có đề xuất mới hơn cho tuần này ở bên dưới.</p>
-  if (!hasChanges) return null
+
   return (
-      <div className="mt-3 space-y-2">
-        {applyError && <p role="alert" className="text-sm text-destructive">{applyError}</p>}
-        <div className="flex flex-wrap items-center gap-2">
-          <Button size="sm" disabled={applying} onClick={onApply}>
-            {applying ? <Spinner aria-hidden /> : <CheckIcon aria-hidden />}
-            {applying ? "Đang lưu…" : "Áp dụng"}
+    <section aria-label="Câu hỏi của trợ lý" className="mt-2 flex w-full flex-col gap-2 rounded-xl border border-border bg-card p-3">
+      <p className="text-sm font-semibold">{question.question}</p>
+      <div className="flex flex-wrap gap-2">
+        {question.options.map((option) => (
+          <Button
+            key={option}
+            size="sm"
+            variant={isChosen(option) ? "default" : "outline"}
+            disabled={!canAnswer}
+            aria-pressed={question.multiple ? isChosen(option) : undefined}
+            onClick={() => (question.multiple ? toggle(option) : onAnswer(option))}
+            className="h-auto min-h-8 whitespace-normal text-left"
+          >
+            {option}
           </Button>
-          <Button variant="outline" size="sm" disabled={applying} onClick={onDismiss}>Bỏ đề xuất</Button>
-          {showWeek}
-        </div>
+        ))}
       </div>
-    )
+      {question.multiple && canAnswer && (
+        <Button size="sm" className="self-start" disabled={picked.length === 0} onClick={() => onAnswer(picked.join(", "))}>
+          <CheckIcon aria-hidden /> Gửi lựa chọn
+        </Button>
+      )}
+      {canAnswer && <p className="text-xs text-muted-foreground">Hoặc nhập câu trả lời khác ở ô bên dưới.</p>}
+    </section>
+  )
 }
 
 function RestaurantDishCards({ dishes }: { dishes: PlannerRestaurantDish[] }) {

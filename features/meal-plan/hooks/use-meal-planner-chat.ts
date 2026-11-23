@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
+import { useSWRConfig } from "swr"
 import { useChat } from "@ai-sdk/react"
 import { APICallError, DefaultChatTransport, isToolUIPart, type UIMessage } from "ai"
 import { z } from "zod"
@@ -13,16 +14,20 @@ import {
   deleteChatThread,
   fetchChatThread,
   fetchChatThreads,
+  isMealPlanKey,
   MEAL_PLANNER_CHAT_THREADS_KEY,
   MEAL_PLANNER_CHAT_URL,
-  proposalSchema,
+  planChangeSchema,
+  rewindChatThread,
   SECTION_LABELS,
   updateChatThread,
   type ChatMessageRecord,
+  type ChatRewind,
   type ChatThreadSummary,
-  type MealPlanProposal,
+  type PlanChange,
   type SyncChatMessageInput,
 } from "@/features/meal-plan/meal-plan"
+import { ApiError } from "@/features/shared/lib/api-client"
 
 /** Mirror `MealPlannerChatDto` in vedora-api. */
 const CONTEXT_MESSAGES = 10
@@ -30,57 +35,105 @@ const MAX_TEXT_LENGTH = 4000
 const MAX_SYNC_MESSAGES = 100
 const THREAD_LIST_URL = `${MEAL_PLANNER_CHAT_THREADS_KEY}?limit=50`
 
-/** `staged` comes from threads saved before proposals were applied from the chat; it reads as pending. */
-export type ProposalStatus = "staged" | "saved" | "dismissed"
-type Statuses = Record<string, ProposalStatus>
+/** The planner's tools that write the saved plan; each output is a `PlanChange`. */
+const PLAN_CHANGE_TOOL_TYPES = [
+  "tool-fillSlots",
+  "tool-autoBalancePlan",
+  "tool-editPlan",
+  "tool-verifyMealPlanAllergies",
+]
 
-/** Whether the user has decided on the proposal: saved it or dismissed it. */
-export function decidedStatus(status: ProposalStatus | undefined): "saved" | "dismissed" | undefined {
-  if (status === "saved" || status === "dismissed") return status
-  return undefined
-}
-
-export interface Proposal extends MealPlanProposal {
+export interface PlanChangeEntry extends PlanChange {
+  /** The tool call that made the first change of this week in the message. */
   id: string
-  /** Set on a merged proposal: the ids of every proposal it was built from. */
-  mergedIds?: string[]
 }
 
-export function proposalIds(proposal: Proposal): string[] {
-  return proposal.mergedIds ?? [proposal.id]
+function sameIds(left: readonly { id: string }[], right: readonly { id: string }[]) {
+  return left.length === right.length && left.every(({ id }, index) => id === right[index].id)
+}
+
+/** Lays `later` over `earlier`: each day keeps its dishes from before `earlier`. */
+function mergeChange(earlier: PlanChangeEntry, later: PlanChange): PlanChangeEntry {
+  const days = [...earlier.days]
+  for (const laterDay of later.days) {
+    const index = days.findIndex(({ day }) => day === laterDay.day)
+    if (index < 0) {
+      days.push(laterDay)
+      continue
+    }
+    const before = days[index]
+    const sections = laterDay.sections.map((section) => {
+      const old = before.sections.find((item) => item.section === section.section)
+      return { ...section, previous: old?.previous ?? section.previous }
+    })
+    days[index] = { ...laterDay, sections }
+  }
+  return { ...earlier, days, problems: later.problems }
 }
 
 /**
- * Cumulative draft tools (`fillSlots` and `editDraft`) always return the full
- * unsaved week against the saved plan, so the newest proposal replaces earlier
- * ones while tracking all contributing proposal ids for status updates.
+ * What the assistant saved to the plan in this message, one entry per week,
+ * each day from before the message to after it. Days the message changed and
+ * then put back as they were are left out.
  */
-export function mergeProposals(open: Proposal[]): Proposal | null {
-  const last = open.at(-1)
-  if (!last) return null
-  if (open.length === 1) return last
-
-  const seen = new Set<string>()
-  const mergedIds: string[] = []
-  for (const proposal of open) {
-    for (const id of proposalIds(proposal)) {
-      if (seen.has(id)) continue
-      seen.add(id)
-      mergedIds.push(id)
-    }
+export function messagePlanChanges(message: UIMessage): PlanChangeEntry[] {
+  const byWeek = new Map<string, PlanChangeEntry>()
+  for (const part of message.parts) {
+    if (!isToolUIPart(part) || !PLAN_CHANGE_TOOL_TYPES.includes(part.type)) continue
+    if (part.state !== "output-available") continue
+    const change = planChangeSchema.safeParse(part.output)
+    if (!change.success || !change.data.applied) continue
+    const earlier = byWeek.get(change.data.weekStart)
+    if (earlier) byWeek.set(change.data.weekStart, mergeChange(earlier, change.data))
+    else byWeek.set(change.data.weekStart, { ...change.data, id: part.toolCallId })
   }
-  return { id: last.id, ok: true, weekStart: last.weekStart, days: last.days, mergedIds }
+  const changes: PlanChangeEntry[] = []
+  for (const change of byWeek.values()) {
+    const days = change.days.filter(({ sections }) =>
+      sections.some(({ recipes, previous }) => !sameIds(recipes, previous))
+    )
+    if (days.length > 0) changes.push({ ...change, days })
+  }
+  return changes
 }
 
-/** The planner's tools whose output is a proposal card. */
-const PROPOSAL_TOOL_TYPES = [
-  "tool-proposeMealPlan",
-  "tool-generateMealPlan",
-  "tool-fillSlots",
-  "tool-autoBalanceDraft",
-  "tool-verifyMealPlanAllergies",
-  "tool-editDraft",
-]
+// Mirror vedora-api's `askUser` tool: it has no output on the server. The app
+// records the pick as the tool output and sends it as the next user message.
+const ASK_USER_TYPE = "tool-askUser"
+const askUserInputSchema = z.object({
+  question: z.string(),
+  options: z.array(z.string()).min(1),
+  multiple: z.boolean().optional(),
+})
+const askUserOutputSchema = z.object({ answer: z.string() })
+
+export interface UserQuestion {
+  toolCallId: string
+  question: string
+  options: string[]
+  multiple: boolean
+  /** Undefined until the user answers on the card. */
+  answer: string | undefined
+}
+
+/** The assistant's questions to the user in this message, in order. */
+export function messageQuestions(message: UIMessage): UserQuestion[] {
+  const questions: UserQuestion[] = []
+  for (const part of message.parts) {
+    if (!isToolUIPart(part) || part.type !== ASK_USER_TYPE) continue
+    const input = askUserInputSchema.safeParse(part.input)
+    if (!input.success) continue
+    const output = part.state === "output-available" ? askUserOutputSchema.safeParse(part.output) : undefined
+    questions.push({
+      toolCallId: part.toolCallId,
+      question: input.data.question,
+      options: input.data.options,
+      multiple: input.data.multiple === true,
+      answer: output?.success ? output.data.answer : undefined,
+    })
+  }
+  return questions
+}
 
 // Mirror vedora-api's `requestWebSearch` tool: it asks for consent and has no
 // output until the user answers on the card.
@@ -203,79 +256,33 @@ export function messageText(message: UIMessage) {
     .join("\n\n")
 }
 
-/**
- * The proposals the planner showed in this message, one per week; rejected ones
- * never reach the user. Each draft tool returns its whole week, so the last
- * proposal of a week stands for the others.
- */
-export function messageProposals(message: UIMessage): Proposal[] {
-  const byWeek = new Map<string, Proposal[]>()
-  for (const part of message.parts) {
-    if (!isToolUIPart(part) || !PROPOSAL_TOOL_TYPES.includes(part.type) || part.state !== "output-available") continue
-    const proposal = proposalSchema.safeParse(part.output)
-    if (!proposal.success || !proposal.data.ok) continue
-    const week = proposal.data.weekStart ?? ""
-    const list = byWeek.get(week) ?? []
-    list.push({ ...proposal.data, id: part.toolCallId })
-    byWeek.set(week, list)
-  }
-  const proposals: Proposal[] = []
-  for (const list of byWeek.values()) {
-    const merged = mergeProposals(list)
-    if (merged) proposals.push(merged)
-  }
-  return proposals
-}
 
-/**
- * The newest proposal of every week in the conversation. An older one of the
- * same week is out of date: the planner built the newer one on top of it.
- */
-export function latestProposals(messages: readonly UIMessage[]): Map<string, Proposal> {
-  const latest = new Map<string, Proposal>()
-  for (const message of messages) {
-    for (const proposal of messageProposals(message)) {
-      if (proposal.weekStart) latest.set(proposal.weekStart, proposal)
+
+function changeNote(change: PlanChange) {
+  const days: string[] = []
+  for (const { day, sections } of change.days) {
+    const slots: string[] = []
+    for (const { section, recipes, previous } of sections) {
+      if (sameIds(recipes, previous)) continue
+      const names = recipes.length > 0 ? recipes.map(({ title, id }) => `${title} (id ${id})`).join(", ") : "trống"
+      slots.push(`${SECTION_LABELS[section].toLowerCase()}: ${names}`)
     }
+    days.push(`${DAY_LABELS[day]} (${slots.join("; ")})`)
   }
-  return latest
+  return `[Đã lưu vào thực đơn tuần ${change.weekStart}: ${days.join(" | ")}]`
 }
 
-export function messageCannotPropose(message: UIMessage) {
-  if (messageProposals(message).length > 0) return false
-  return message.parts.some((part) => {
-    if (!isToolUIPart(part) || !PROPOSAL_TOOL_TYPES.includes(part.type) || part.state !== "output-available") return false
-    const proposal = proposalSchema.safeParse(part.output)
-    return proposal.success && !proposal.data.ok
-  })
+function questionNote({ question, options }: UserQuestion) {
+  return `[Đã hỏi người dùng: ${question} — lựa chọn: ${options.join(" | ")}]`
 }
 
-// The API takes plain text turns, so a proposal rides along as a note the
-// planner can read: what it offered and whether the user took it.
-function contextText(message: UIMessage, statuses: Statuses, latest: Map<string, Proposal>) {
-  const notes = messageProposals(message).map((proposal) => {
-    const meals = proposal.days
-      .map(({ day, sections }) => {
-        const filled = sections
-          .filter(({ recipes }) => recipes.length > 0)
-          .map(
-            ({ section, recipes }) =>
-              `${SECTION_LABELS[section].toLowerCase()}: ${recipes.map(({ title, id }) => `${title} (id ${id})`).join(", ")}`
-          )
-        return `${DAY_LABELS[day]} (${filled.length > 0 ? filled.join("; ") : "trống"})`
-      })
-      .join(" | ")
-    const decided = decidedStatus(statuses[proposal.id])
-    let status = "chưa áp dụng"
-    if (decided === "saved") status = "người dùng đã áp dụng, đã lưu vào thực đơn"
-    if (decided === "dismissed") status = "người dùng đã bỏ"
-    const newer = proposal.weekStart !== undefined && latest.get(proposal.weekStart)?.id !== proposal.id
-    if (decided === undefined && newer) status = "đã được thay bằng đề xuất mới hơn"
-    const week = proposal.weekStart ? ` tuần ${proposal.weekStart}` : ""
-    return `[Đề xuất${week} (${status}): ${meals}]`
-  })
+// The API takes plain text turns, so what the planner saved and asked rides
+// along as notes it can read on the next turn.
+function contextText(message: UIMessage) {
+  const notes = messagePlanChanges(message).map(changeNote)
+  const questions = messageQuestions(message).map(questionNote)
   const webSearchNotes = messageWebSearchRequests(message).map(webSearchNote)
-  return [messageText(message), ...notes, ...webSearchNotes].filter(Boolean).join("\n").slice(0, MAX_TEXT_LENGTH)
+  return [messageText(message), ...notes, ...questions, ...webSearchNotes].filter(Boolean).join("\n").slice(0, MAX_TEXT_LENGTH)
 }
 
 // a refused request must not ride along as context for the next message
@@ -360,9 +367,7 @@ function deserializeMessage(record: ChatMessageRecord): PlannerMessage {
 const transport = new DefaultChatTransport<PlannerMessage>({
   api: MEAL_PLANNER_CHAT_URL,
   prepareSendMessagesRequest: ({ messages, headers, body }) => {
-    const statuses = (body?.statuses ?? {}) as Statuses
     const threadId = typeof body?.threadId === "string" ? body.threadId : undefined
-    const latest = latestProposals(messages)
     return {
       headers,
       body: {
@@ -371,7 +376,7 @@ const transport = new DefaultChatTransport<PlannerMessage>({
         allowWebSearch: body?.allowWebSearch === true,
         requestId: messages.filter((message) => message.role === "user").at(-1)?.id,
         messages: withoutRefusals(messages.filter((message) => message.id !== WELCOME.id))
-          .map((message) => ({ role: message.role, text: contextText(message, statuses, latest) }))
+          .map((message) => ({ role: message.role, text: contextText(message) }))
           .filter((message) => message.text)
           .slice(-CONTEXT_MESSAGES),
       },
@@ -399,44 +404,38 @@ function errorMessage(error: Error) {
 /**
  * The conversation with vedora-api's `POST /meal-plan/chat` and persisted threads.
  * `weekStart` is the week on screen (Monday, `YYYY-MM-DD`), the planner's default week:
- * undefined while it is still loading, and then nothing can be sent. The planner may
- * still propose for any other plannable week.
+ * undefined while it is still loading, and then nothing can be sent. The planner
+ * saves its changes to the plan as it goes; `rewind` takes them back.
  */
 export function useMealPlannerChat(weekStart: string | undefined) {
   const router = useRouter()
+  const { mutate } = useSWRConfig()
   const { accessToken } = useAuth()
   const [threadId, setThreadId] = useState<string>(() => crypto.randomUUID())
-  const [statuses, setStatuses] = useState<Statuses>({})
   const [loadingThreadId, setLoadingThreadId] = useState<string | null>(null)
   const [deletingThreadId, setDeletingThreadId] = useState<string | null>(null)
+  const [rewindingId, setRewindingId] = useState<string | null>(null)
   const [historyError, setHistoryError] = useState<string | null>(null)
 
   const threads = useAuthedSWR(THREAD_LIST_URL, fetchChatThreads)
-  const restoredInitialRef = useRef(false)
-  const manualActionRef = useRef(false)
   const loadNonceRef = useRef(0)
 
   const latestRef = useRef({
     accessToken,
     threadId,
-    statuses,
     messages: [WELCOME] as PlannerMessage[],
   })
 
   async function syncThread(
     token: string | undefined,
     targetThreadId: string,
-    messagesToSync: readonly PlannerMessage[],
-    statusesToSync: Statuses
+    messagesToSync: readonly PlannerMessage[]
   ) {
     if (!token) return
     const payload = serializeMessages(messagesToSync)
     if (payload.length === 0) return
     try {
-      await updateChatThread(token, targetThreadId, {
-        messages: payload,
-        proposalStatuses: statusesToSync,
-      })
+      await updateChatThread(token, targetThreadId, { messages: payload })
       void threads.mutate()
     } catch {
       // Server-side stream persistence already captured the turn; avoid breaking chat UI.
@@ -448,32 +447,34 @@ export function useMealPlannerChat(weekStart: string | undefined) {
       transport,
       messages: [WELCOME],
       onFinish: ({ messages: finishedMessages }) => {
-        const { accessToken: token, threadId: activeId, statuses: currentStatuses } = latestRef.current
-        void syncThread(token, activeId, finishedMessages, currentStatuses)
+        const { accessToken: token, threadId: activeId } = latestRef.current
+        void syncThread(token, activeId, finishedMessages)
       },
       onError: (err) => {
         if (APICallError.isInstance(err) && err.statusCode === 401) {
           router.refresh()
           return
         }
-        const {
-          accessToken: token,
-          threadId: activeId,
-          messages: currentMessages,
-          statuses: currentStatuses,
-        } = latestRef.current
-        void syncThread(token, activeId, currentMessages, currentStatuses)
+        const { accessToken: token, threadId: activeId, messages: currentMessages } = latestRef.current
+        void syncThread(token, activeId, currentMessages)
       },
     })
 
   useEffect(() => {
-    latestRef.current = { accessToken, threadId, statuses, messages }
-  }, [accessToken, threadId, statuses, messages])
+    latestRef.current = { accessToken, threadId, messages }
+  }, [accessToken, threadId, messages])
+
+  // Every change the planner saves shows on the calendar as soon as its tool finishes.
+  let savedChanges = 0
+  for (const message of messages) savedChanges += messagePlanChanges(message).length
+  useEffect(() => {
+    if (savedChanges === 0) return
+    void mutate(isMealPlanKey)
+  }, [savedChanges, mutate])
 
   async function selectThread(id: string) {
     const token = latestRef.current.accessToken
     if (!token) return
-    manualActionRef.current = true
     const nonce = ++loadNonceRef.current
     setHistoryError(null)
     setLoadingThreadId(id)
@@ -483,51 +484,22 @@ export function useMealPlannerChat(weekStart: string | undefined) {
       const detail = await fetchChatThread(token, id)
       if (loadNonceRef.current !== nonce) return
       setThreadId(detail.id)
-      setStatuses(detail.proposalStatuses)
       setMessages([WELCOME, ...detail.messages.map(deserializeMessage)])
     } catch (err) {
       if (loadNonceRef.current !== nonce) return
-      if (APICallError.isInstance(err) && err.statusCode === 401) router.refresh()
+      if (err instanceof ApiError && err.status === 401) router.refresh()
       setHistoryError("Không tải được lịch sử đoạn chat.")
     } finally {
       if (loadNonceRef.current === nonce) setLoadingThreadId(null)
     }
   }
 
-  useEffect(() => {
-    if (restoredInitialRef.current || manualActionRef.current) return
-    const items = threads.data?.items
-    if (!items) return
-    restoredInitialRef.current = true
-    if (items.length === 0) return
-    const latestThread = items[0]
-    if (!latestThread || latestRef.current.messages.length > 1) return
-
-    const token = latestRef.current.accessToken
-    if (!token) return
-    const nonce = ++loadNonceRef.current
-    setLoadingThreadId(latestThread.id)
-    void fetchChatThread(token, latestThread.id)
-      .then((detail) => {
-        if (loadNonceRef.current !== nonce || manualActionRef.current) return
-        setThreadId(detail.id)
-        setStatuses(detail.proposalStatuses)
-        setMessages([WELCOME, ...detail.messages.map(deserializeMessage)])
-      })
-      .catch(() => undefined)
-      .finally(() => {
-        if (loadNonceRef.current === nonce) setLoadingThreadId(null)
-      })
-  }, [threads.data, setMessages])
-
   function startNewThread() {
-    manualActionRef.current = true
     loadNonceRef.current += 1
     void stop()
     clearError()
     setHistoryError(null)
     setLoadingThreadId(null)
-    setStatuses({})
     setMessages([WELCOME])
     setThreadId(crypto.randomUUID())
   }
@@ -563,27 +535,17 @@ export function useMealPlannerChat(weekStart: string | undefined) {
     }
   }
 
-  function updateProposalStatuses(updates: Statuses) {
-    setStatuses((current) => ({ ...current, ...updates }))
-    const { accessToken: token, threadId: activeId, messages: currentMessages } = latestRef.current
-    if (!token || !currentMessages.some((message) => message.id !== WELCOME.id)) return
-    void updateChatThread(token, activeId, { proposalStatuses: updates })
-      .then(() => threads.mutate())
-      .catch(() => undefined)
-  }
-
   const busy = status === "submitted" || status === "streaming"
 
   function sendText(text: string, allowWebSearch: boolean) {
     if (!weekStart) return
-    manualActionRef.current = true
     clearError()
     setHistoryError(null)
     void sendMessage(
       { text },
       {
         headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : undefined,
-        body: { statuses, threadId, weekStart, allowWebSearch },
+        body: { threadId, weekStart, allowWebSearch },
       }
     )
   }
@@ -594,12 +556,57 @@ export function useMealPlannerChat(weekStart: string | undefined) {
     sendText(approved ? WEB_SEARCH_APPROVED_TEXT : WEB_SEARCH_DECLINED_TEXT, approved)
   }
 
+  async function answerQuestion(toolCallId: string, answer: string) {
+    const text = answer.trim()
+    if (busy || !weekStart || !text) return
+    await addToolOutput({ tool: "askUser", toolCallId, output: { answer: text } })
+    sendText(text, webSearchAllowed(latestRef.current.messages))
+  }
+
+  /**
+   * Goes back to just before the user message `messageId`: the API puts back the
+   * dishes the planner changed from there on and drops those messages. Resolves
+   * what was restored, or null when it failed (see `historyError`).
+   */
+  async function rewind(messageId: string): Promise<ChatRewind | null> {
+    const token = latestRef.current.accessToken
+    const current = latestRef.current.messages
+    const index = current.findIndex((message) => message.id === messageId)
+    if (!token || busy || index < 0) return null
+    setHistoryError(null)
+    setRewindingId(messageId)
+    try {
+      const result = await rewindChatThread(token, latestRef.current.threadId, messageId)
+      setMessages(current.slice(0, index))
+      void mutate(isMealPlanKey)
+      void threads.mutate()
+      return result
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 401) {
+        router.refresh()
+        return null
+      }
+      // Never saved on the server (the turn failed before it was recorded), so
+      // nothing in the plan came from it.
+      if (err instanceof ApiError && err.status === 404) {
+        setMessages(current.slice(0, index))
+        return { text: messageText(current[index]), weeks: [] }
+      }
+      setHistoryError("Không quay lại được. Hãy thử lại.")
+      return null
+    } finally {
+      setRewindingId(null)
+    }
+  }
+
   const webSearch = webSearchAllowed(messages)
   const lastMessage = messages.at(-1)
   const lastRequest = lastMessage?.role === "assistant" ? messageWebSearchRequests(lastMessage).at(-1) : undefined
   // Only the newest message can still be answered; an older one the user typed past stays unanswered.
   const openWebSearchRequest =
     !busy && lastRequest !== undefined && lastRequest.approved === undefined ? lastRequest : null
+  const lastQuestion = lastMessage?.role === "assistant" ? messageQuestions(lastMessage).at(-1) : undefined
+  const openQuestion = !busy && lastQuestion !== undefined && lastQuestion.answer === undefined ? lastQuestion : null
   const last = messages.at(-1)
   const runningTool =
     busy && last?.role === "assistant"
@@ -608,15 +615,6 @@ export function useMealPlannerChat(weekStart: string | undefined) {
   const replying =
     busy && last?.role === "assistant" && messageText(last) !== "" && runningTool === undefined
 
-  const latest = latestProposals(messages)
-  // One open proposal per week, oldest week first; any week can be applied from its card.
-  const pendingProposals: Proposal[] = []
-  for (const proposal of latest.values()) {
-    if (decidedStatus(statuses[proposal.id]) !== undefined) continue
-    if (proposal.days.length === 0) continue
-    pendingProposals.push(proposal)
-  }
-  pendingProposals.sort((left, right) => (left.weekStart ?? "").localeCompare(right.weekStart ?? ""))
   const threadList: ChatThreadSummary[] = threads.data?.items ?? []
   const activeThread = threadList.find((item) => item.id === threadId) ?? null
 
@@ -636,18 +634,6 @@ export function useMealPlannerChat(weekStart: string | undefined) {
     /** The assistant message whose trace shows the waiting, once the reply has started. */
     pendingId: busy && !replying && last?.role === "assistant" ? last.id : null,
     streamingId: replying ? last.id : null,
-    /** The newest proposal of each week not yet saved or dismissed. */
-    pendingProposals,
-    /** True when `proposal` is the newest one of its week, so it may still be applied. */
-    isLatestProposal: (proposal: Proposal) =>
-      proposal.weekStart !== undefined && latest.get(proposal.weekStart)?.id === proposal.id,
-    statuses,
-    setProposalStatus: (id: string, next: ProposalStatus) => updateProposalStatuses({ [id]: next }),
-    setProposalsStatus: (ids: string[], next: ProposalStatus) => {
-      const updates: Statuses = {}
-      for (const id of ids) updates[id] = next
-      updateProposalStatuses(updates)
-    },
     error: error ? errorMessage(error) : null,
     send: (text: string) => sendText(text, webSearch),
     /** The user allowed web search in this conversation. */
@@ -655,6 +641,12 @@ export function useMealPlannerChat(weekStart: string | undefined) {
     /** The assistant's request to search the web, waiting for the user's answer. */
     openWebSearchRequest,
     answerWebSearch: (toolCallId: string, approved: boolean) => void answerWebSearch(toolCallId, approved),
+    /** The assistant's question at the end of the conversation, waiting for the user's pick. */
+    openQuestion,
+    answerQuestion: (toolCallId: string, answer: string) => void answerQuestion(toolCallId, answer),
+    /** The user message being rewound to. */
+    rewindingId,
+    rewind,
     selectThread,
     startNewThread,
     removeThread,

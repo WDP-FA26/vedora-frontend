@@ -141,6 +141,30 @@ export const proposalSchema = z.object({
 })
 
 /**
+ * What a planner tool (`fillSlots`, `editPlan`, `autoBalancePlan`,
+ * `verifyMealPlanAllergies`) changed in the saved plan: each changed day with
+ * all four sections, before (`previous`) and after (`recipes`). `applied` is
+ * false when nothing was saved; outputs from the old draft flow have no `applied`.
+ */
+export const planChangeSchema = z.object({
+  weekStart: z.string(),
+  applied: z.boolean(),
+  days: z.array(
+    z.object({
+      day: daySchema,
+      sections: z.array(
+        z.object({
+          section: sectionSchema,
+          recipes: z.array(recipeRefSchema),
+          previous: z.array(recipeRefSchema),
+        })
+      ),
+    })
+  ),
+  problems: z.array(problemSchema).default([]),
+})
+
+/**
  * `GET /meal-plan/shopping-list`: the saved plan's ingredients, summed per
  * ingredient and unit. Quantities are decimal text; each time a recipe is on
  * the plan it adds its full quantities, not scaled per person.
@@ -176,6 +200,7 @@ export type MealRecipe = z.infer<typeof mealRecipeSchema>
 export type MealPlan = z.infer<typeof mealPlanSchema>
 export type MealPlanProblem = z.infer<typeof problemSchema>
 export type MealPlanProposal = z.infer<typeof proposalSchema>
+export type PlanChange = z.infer<typeof planChangeSchema>
 export type PlannedDay = MealPlan["days"][number]
 export type ShoppingList = z.infer<typeof shoppingListSchema>
 export type ShoppingItem = ShoppingList["items"][number]
@@ -367,11 +392,6 @@ export function saveMealDays(token: string, weekStart: string, days: MealDayInpu
   })
 }
 
-/** `DELETE /meal-plan/draft`: drops the assistant's unsaved draft of one week. */
-export async function discardMealDraft(token: string, weekStart: string) {
-  await send(`${MEAL_PLAN_URL}/draft?weekStart=${weekStart}`, token, { method: "DELETE" })
-}
-
 /** The list of one week for `days`, in week order; all seven days is the API default, so no `days` query. */
 export function shoppingListKey(weekStart: string, days: readonly Weekday[]) {
   const picked = WEEKDAYS.filter((day) => days.includes(day))
@@ -462,7 +482,6 @@ export function updateChatThread(
   threadId: string,
   body: {
     title?: string
-    proposalStatuses?: Record<string, z.infer<typeof proposalStatusSchema>>
     messages?: SyncChatMessageInput[]
   }
 ) {
@@ -470,6 +489,42 @@ export function updateChatThread(
     method: "PATCH",
     body: JSON.stringify(body),
   })
+}
+
+export const chatRewindSchema = z.object({
+  /** The removed user message, to put back in the input. */
+  text: z.string(),
+  weeks: z.array(
+    z.object({
+      weekStart: z.string(),
+      restored: z.array(daySchema),
+      /** Days that have passed since, so they kept the assistant's dishes. */
+      skipped: z.array(daySchema),
+      /** Dishes left out because they were deleted or are now avoided. */
+      droppedDishes: z.number().int().nonnegative(),
+    })
+  ),
+})
+
+export type ChatRewind = z.infer<typeof chatRewindSchema>
+
+/**
+ * `POST /meal-plan/chat/threads/:id/rewind`: puts back the dishes the assistant
+ * changed from that user message on, and removes it and every later message.
+ */
+export function rewindChatThread(token: string, threadId: string, messageId: string) {
+  return sendJson(chatRewindSchema, `${MEAL_PLANNER_CHAT_THREADS_KEY}/${threadId}/rewind`, token, {
+    method: "POST",
+    body: JSON.stringify({ messageId }),
+  })
+}
+
+/** Every cached week of the plan: `mutate` it after the assistant or a rewind changed the plan. */
+export function isMealPlanKey(key: unknown): boolean {
+  if (!Array.isArray(key)) return false
+  const url: unknown = key[0]
+  if (typeof url !== "string") return false
+  return url === MEAL_PLAN_URL || url.startsWith(`${MEAL_PLAN_URL}?`) || url.startsWith(SHOPPING_LIST_URL)
 }
 
 export async function deleteChatThread(token: string, threadId: string) {

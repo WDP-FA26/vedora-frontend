@@ -5,7 +5,6 @@ import { z } from "zod"
 import {
   ArrowRightLeftIcon,
   BookOpenIcon,
-  CheckIcon,
   EllipsisIcon,
   MessageCircleIcon,
   PlusIcon,
@@ -66,7 +65,6 @@ import {
   todayOf,
   WEEKDAYS,
   type MealPlan,
-  type MealPlanProposal,
   type MealSection,
   type RecipeOption,
   type SlotChange,
@@ -84,16 +82,6 @@ type Dragged = SlotRef & { recipeId: string }
 type CalendarBoardProps = {
   plan: MealPlan | undefined
   failed: boolean
-  /**
-   * A proposal for this week that the user has not decided on yet, previewed on the
-   * grid and directly applicable or dismissible from the preview banner.
-   */
-  suggestion?: MealPlanProposal | null
-  onApplySuggestion?: () => void
-  onDismissSuggestion?: () => void
-  applyingSuggestion?: boolean
-  /** Brings the chat, where the proposal's card is, into view. */
-  onOpenChat?: () => void
   /** Applies the new content of one or more meal slots; rejects with a user-facing message. */
   onChange: (changes: SlotChange[]) => Promise<void>
   onAsk?: (recipe: RecipeRef, day: Weekday, section: MealSection) => void
@@ -134,11 +122,6 @@ function slotLabel({ day, section }: SlotRef) {
 export function CalendarBoard({
   plan,
   failed,
-  suggestion = null,
-  onApplySuggestion,
-  onDismissSuggestion,
-  applyingSuggestion = false,
-  onOpenChat,
   onChange,
   onAsk,
   onSuggestSlot,
@@ -166,10 +149,8 @@ export function CalendarBoard({
   /** A day before today can only be read. */
   const dayEditable = (day: Weekday) => (plan ? isDayEditable(plan, day) : false)
 
-  const overlay = suggestion
-  const locked = overlay !== null
-  const view = displayDays(plan, overlay)
-  const warnings = plan && !locked ? dishWarnings(plan.problems) : new Map<string, string[]>()
+  const view = displayDays(plan, null)
+  const warnings = plan ? dishWarnings(plan.problems) : new Map<string, string[]>()
   const dayNutritionByDay = new Map(
     (plan?.days ?? []).map((dayItem) => [
       dayItem.day,
@@ -177,16 +158,6 @@ export function CalendarBoard({
     ])
   )
   const selectedDayNutrition = dayNutritionByDay.get(selectedDay)
-
-  /** Dishes the proposal drops from a slot, shown struck through. */
-  function removedAt({ day, section }: SlotRef): RecipeRef[] {
-    if (!overlay) return []
-    const proposed = overlay.days.find((item) => item.day === day)
-      ?.sections.find((item) => item.section === section)
-    if (!proposed) return []
-    const kept = new Set(proposed.recipes.map(({ id }) => id))
-    return proposed.previous.filter(({ id }) => !kept.has(id))
-  }
 
   async function apply(changes: SlotChange[]) {
     setSaving(true)
@@ -252,7 +223,7 @@ export function CalendarBoard({
   function handleDrop(event: DragEvent, to: SlotRef) {
     event.preventDefault()
     setDropTarget(null)
-    if (locked || saving) return
+    if (saving) return
     const from = parseDragged(event)
     if (from) move(from, to)
   }
@@ -282,17 +253,13 @@ export function CalendarBoard({
 
   return (
     <div className="relative flex h-[calc(100dvh-4.5rem)] min-h-[24rem] min-w-0 flex-col bg-card pb-[env(safe-area-inset-bottom)] lg:h-full lg:min-h-0 lg:pb-0">
-      {locked ? (
-        action && <div className="flex h-14 shrink-0 items-center justify-end gap-2 border-b border-border px-3">{action}</div>
-      ) : (
-        <NutritionCompanionBar
-          plan={plan}
-          nutrition={nutrition}
-          onNutritionSaved={onNutritionSaved ?? (() => undefined)}
-          onAskAssistant={onAskAssistant}
-          trailing={action}
-        />
-      )}
+      <NutritionCompanionBar
+        plan={plan}
+        nutrition={nutrition}
+        onNutritionSaved={onNutritionSaved ?? (() => undefined)}
+        onAskAssistant={onAskAssistant}
+        trailing={action}
+      />
       {saving && (
         <span
           role="status"
@@ -302,37 +269,6 @@ export function CalendarBoard({
         </span>
       )}
 
-      {suggestion && (
-        <div className="px-4 pt-4 sm:px-5">
-          <Alert>
-            <SparklesIcon aria-hidden />
-            <AlertTitle>Trợ lý đề xuất thay đổi</AlertTitle>
-            <AlertDescription>
-              Các món có viền nét đứt là món mới, món bị gạch sẽ được thay. Chưa có gì được lưu.
-              {(onApplySuggestion || onDismissSuggestion || onOpenChat) && (
-                <span className="mt-2 flex flex-wrap items-center gap-2">
-                  {onApplySuggestion && (
-                    <Button size="sm" disabled={applyingSuggestion} onClick={onApplySuggestion}>
-                      {applyingSuggestion ? <Spinner aria-hidden /> : <CheckIcon aria-hidden />}
-                      {applyingSuggestion ? "Đang lưu…" : "Áp dụng"}
-                    </Button>
-                  )}
-                  {onDismissSuggestion && (
-                    <Button variant="outline" size="sm" disabled={applyingSuggestion} onClick={onDismissSuggestion}>
-                      Bỏ đề xuất
-                    </Button>
-                  )}
-                  {onOpenChat && (
-                    <Button variant="ghost" size="sm" onClick={onOpenChat}>
-                      <MessageCircleIcon aria-hidden /> Xem trong đoạn chat
-                    </Button>
-                  )}
-                </span>
-              )}
-            </AlertDescription>
-          </Alert>
-        </div>
-      )}
       {error && (
         <div className="px-4 pt-4 sm:px-5">
           <p role="alert" className="rounded-xl border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
@@ -354,7 +290,6 @@ export function CalendarBoard({
                 ?.sections.some(({ recipes }) => recipes.length > 0) ?? false
             const dayHasWarning = Boolean(
               plan &&
-                !locked &&
                 plan.problems.some((problem) => problem.day === day)
             )
             return (
@@ -447,7 +382,6 @@ export function CalendarBoard({
               view
                 .find((item) => item.day === selectedDay)
                 ?.sections.find((item) => item.section === section)?.recipes ?? []
-            const removed = removedAt(slot)
             return (
               <article
                 key={section}
@@ -462,14 +396,13 @@ export function CalendarBoard({
                     {recipes.length} món
                   </span>
                 </div>
-                {recipes.length === 0 && removed.length === 0 && (
+                {recipes.length === 0 && (
                   <p className="text-xs text-muted-foreground">Chưa có món cho bữa này.</p>
                 )}
                 {recipes.length > 0 && (
                   <div className="flex flex-col gap-1.5">
                     {recipes.map((recipe) => {
                       const detail = recipe.detail
-                      const isNew = overlay !== null && !idsAt(slot).includes(recipe.id)
                       return (
                         <CalendarChip
                           key={recipe.id}
@@ -478,8 +411,7 @@ export function CalendarBoard({
                           slot={slot}
                           recipeId={recipe.id}
                           warnings={warnings.get(dishKey(selectedDay, recipe.id)) ?? []}
-                          isNew={isNew}
-                          disabled={locked || saving || !dayEditable(selectedDay)}
+                          disabled={saving || !dayEditable(selectedDay)}
                           onOpen={() => {
                             setOpened({
                               recipeId: recipe.id,
@@ -505,15 +437,7 @@ export function CalendarBoard({
                     })}
                   </div>
                 )}
-                {removed.map((recipe) => (
-                  <p
-                    key={recipe.id}
-                    className="rounded-xl border border-dashed border-border px-2.5 py-1.5 text-xs text-muted-foreground line-through"
-                  >
-                    {recipe.title}
-                  </p>
-                ))}
-                {!locked && dayEditable(selectedDay) && (
+                {dayEditable(selectedDay) && (
                   <div className="flex flex-wrap items-center gap-2 pt-0.5">
                     {recipes.length < MAX_DISHES_PER_SECTION && (
                       <Button
@@ -615,7 +539,7 @@ export function CalendarBoard({
                     role="cell"
                     aria-label={slotLabel(slot)}
                     onDragOver={(event) => {
-                      if (locked || saving || !dayEditable(day)) return
+                      if (saving || !dayEditable(day)) return
                       event.preventDefault()
                       setDropTarget(slot)
                     }}
@@ -630,7 +554,6 @@ export function CalendarBoard({
                   >
                     {recipes.map((recipe) => {
                       const detail = recipe.detail
-                      const isNew = overlay !== null && !idsAt(slot).includes(recipe.id)
                       return (
                         <CalendarChip
                           key={recipe.id}
@@ -639,8 +562,7 @@ export function CalendarBoard({
                           slot={slot}
                           recipeId={recipe.id}
                           warnings={warnings.get(dishKey(day, recipe.id)) ?? []}
-                          isNew={isNew}
-                          disabled={locked || saving || !dayEditable(day)}
+                          disabled={saving || !dayEditable(day)}
                           onOpen={() => {
                             setOpened({ recipeId: recipe.id, title: recipe.title, day, section, detail })
                             setSheetOpen(true)
@@ -651,15 +573,7 @@ export function CalendarBoard({
                         />
                       )
                     })}
-                    {removedAt(slot).map((recipe) => (
-                      <p
-                        key={recipe.id}
-                        className="rounded-xl border border-dashed border-border px-2 py-1 text-xs text-muted-foreground line-through"
-                      >
-                        {recipe.title}
-                      </p>
-                    ))}
-                    {!locked && dayEditable(day) && (
+                    {dayEditable(day) && (
                       <div
                         className={cn(
                           "mt-auto flex items-center gap-0.5 transition-opacity",
@@ -709,11 +623,11 @@ export function CalendarBoard({
           onAsk({ id: opened.recipeId, title: opened.title, tag: opened.detail?.tag ?? null }, opened.day, opened.section)
           setSheetOpen(false)
         } : undefined}
-        onMove={opened && !locked && dayEditable(opened.day) ? () => {
+        onMove={opened && dayEditable(opened.day) ? () => {
           setMoving({ day: opened.day, section: opened.section, recipeId: opened.recipeId, title: opened.title })
           setSheetOpen(false)
         } : undefined}
-        onRemove={opened && !locked && dayEditable(opened.day) ? () => {
+        onRemove={opened && dayEditable(opened.day) ? () => {
           remove({ day: opened.day, section: opened.section, recipeId: opened.recipeId })
           setSheetOpen(false)
         } : undefined}
@@ -747,7 +661,6 @@ function CalendarChip({
   slot,
   recipeId,
   warnings,
-  isNew,
   disabled,
   onOpen,
   onMove,
@@ -759,7 +672,6 @@ function CalendarChip({
   slot: SlotRef
   recipeId: string
   warnings: string[]
-  isNew: boolean
   disabled: boolean
   onOpen: () => void
   onMove: () => void
@@ -776,8 +688,7 @@ function CalendarChip({
         event.dataTransfer.effectAllowed = "move"
       }}
       className={cn(
-        "group flex min-w-0 items-center gap-0.5 rounded-lg border py-0.5 pr-0.5 pl-1.5 text-xs",
-        isNew ? "border-dashed border-primary bg-primary/20" : "border-transparent bg-primary/10",
+        "group flex min-w-0 items-center gap-0.5 rounded-lg border border-transparent bg-primary/10 py-0.5 pr-0.5 pl-1.5 text-xs",
         !disabled && "cursor-grab active:cursor-grabbing"
       )}
     >
