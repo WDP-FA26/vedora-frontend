@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import { useAuthedSWR } from "@/features/auth/hooks/use-authed-swr"
 import { DeleteBlogDialog } from "@/features/blogs/components/delete-blog-dialog"
-import { MY_BLOGS_KEY, NEW_BLOG_PATH, editBlogPath } from "@/features/blogs/blogs-cache"
+import { MY_BLOGS_KEY, MY_BLOG_DRAFTS_KEY, NEW_BLOG_PATH, editBlogPath } from "@/features/blogs/blogs-cache"
 import { fetchBlogPage } from "@/features/blogs/lib/blogs-api"
 import { RelativeTime } from "@/features/shared/components/relative-time"
 import type { ApiPost } from "@/features/posts/schemas"
@@ -42,7 +42,26 @@ export function MyBlogsView() {
 
 /** The signed-in author's blogs with their status; shared by the blogs page and the profile tab. */
 export function MyBlogsList() {
-  const { data, error, isLoading } = useAuthedSWR(MY_BLOGS_KEY, fetchBlogPage)
+  return (
+    <BlogList
+      swrKey={MY_BLOGS_KEY}
+      empty="Bạn chưa có bài nào. Bắt đầu bằng một công thức dài của riêng bạn."
+    />
+  )
+}
+
+/** The signed-in author's unpublished blogs; shown on the drafts page. */
+export function MyBlogDraftsList() {
+  return (
+    <BlogList
+      swrKey={MY_BLOG_DRAFTS_KEY}
+      empty="Chưa có blog nháp. Blog bạn lưu mà chưa đăng sẽ hiện ở đây."
+    />
+  )
+}
+
+function BlogList({ swrKey, empty }: { swrKey: string; empty: string }) {
+  const { data, error, isLoading } = useAuthedSWR(swrKey, fetchBlogPage)
 
   return (
     <>
@@ -54,9 +73,7 @@ export function MyBlogsList() {
       )}
       {error && <p className="p-4 text-sm text-destructive">Không tải được danh sách blog.</p>}
       {data?.items.length === 0 && (
-        <p className="p-6 text-center text-muted-foreground">
-          Bạn chưa có bài nào. Bắt đầu bằng một công thức dài của riêng bạn.
-        </p>
+        <p className="p-6 text-center text-muted-foreground">{empty}</p>
       )}
       <ul className="divide-y divide-border">
         {data?.items.map((item) => (
