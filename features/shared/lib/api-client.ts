@@ -1,4 +1,5 @@
 import { z } from "zod"
+import { notifyApiMutation } from "./api-events"
 
 // Client Components call vedora-api directly with the token from `useAuth()`.
 // Public endpoints are called without one when the visitor is signed out.
@@ -35,6 +36,7 @@ export async function send(url: string, token: string | undefined, init: Request
   if (init.body && !(init.body instanceof FormData)) headers.set("Content-Type", "application/json")
 
   const response = await fetch(url, { ...init, headers })
+  notifyApiMutation(init.method)
   if (!response.ok) {
     const error = apiErrorSchema.safeParse(await response.json().catch(() => null))
     if (!error.success)
