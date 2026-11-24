@@ -7,6 +7,9 @@ const REASON_LABELS: Record<string, string> = {
   self_harm: "nội dung liên quan đến tự hại",
   illegal: "nội dung bất hợp pháp hoặc lừa đảo",
   spam: "spam hoặc quảng cáo",
+  profanity: "ngôn từ tục tĩu",
+  political: "nội dung chính trị hoặc kích động",
+  manipulation: "nội dung tìm cách can thiệp vào hệ thống kiểm duyệt",
 }
 
 /**

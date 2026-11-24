@@ -33,6 +33,7 @@ import { blogTheme } from "@/features/blogs/editor/theme"
 import { BLOG_TRANSFORMERS } from "@/features/blogs/editor/transformers"
 import { useBlogDraft, type SaveState } from "@/features/blogs/hooks/use-blog-draft"
 import { MAX_BLOG_TITLE_LENGTH, type ApiBlog } from "@/features/blogs/schemas"
+import { ModerationFindings } from "@/features/posts/components/moderation-findings"
 import { rejectionMessage } from "@/features/posts/lib/moderation-labels"
 import { formatPostDateLong } from "@/features/shared/lib/format"
 
@@ -157,6 +158,9 @@ export function BlogEditor({ initial }: { initial: ApiBlog | null }) {
                       : rejectionMessage(initial.moderationVerdict, "Blog", initial.moderationReason)}
                   </span>
                 </div>
+                {draft.status === "REJECTED" && (
+                  <ModerationFindings findings={initial.moderationFindings ?? []} />
+                )}
                 {appeal?.activeTicket ? (
                   <div className="flex flex-wrap items-center justify-between gap-2 border-t border-destructive/20 pt-2.5 text-foreground">
                     <div className="flex flex-wrap items-center gap-2 text-xs">

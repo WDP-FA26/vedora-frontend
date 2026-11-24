@@ -60,6 +60,26 @@ export const blogSummarySchema = z.object({
   recipes: z.array(z.object({ id: z.string(), title: z.string(), imageUrl: z.string().nullable() })),
 })
 
+/** One part of rejected content that broke the policy, and why. */
+export const moderationFindingSchema = z.object({
+  /** Where the part is; comments leave it out. */
+  field: z.enum(["body", "title", "content", "transcript", "frame", "image"]).optional(),
+  /** The offending words; for frames and images, text read in the picture or null. */
+  quote: z.string().nullable(),
+  reason: z.string(),
+  reasonText: z.string().nullable().optional(),
+  /** Frames: the second of the video. */
+  seconds: z.number().nullable().optional(),
+})
+export type ModerationFinding = z.infer<typeof moderationFindingSchema>
+
+/** `details` of a 422 `CONTENT_REJECTED` on a comment. */
+export const contentRejectedDetailsSchema = z.object({
+  category: z.string().nullable().optional(),
+  reasonText: z.string().nullable().optional(),
+  findings: z.array(moderationFindingSchema).optional(),
+})
+
 export const apiPostSchema = z.object({
   id: z.string(),
   type: z.enum(["POST", "BLOG"]),
@@ -77,6 +97,8 @@ export const apiPostSchema = z.object({
   moderationVerdict: z.string().nullable().optional(),
   /** `moderationVerdict` worded for the author, from the current policy. */
   moderationReason: z.string().nullable().optional(),
+  /** The parts of a `REJECTED` post that broke the policy; empty otherwise. */
+  moderationFindings: z.array(moderationFindingSchema).optional(),
   /** Why an admin soft-deleted this post, shown only to the author. */
   removalReason: z.string().nullable().optional(),
   /** Appeal eligibility and active/latest ticket summary; author-only. */

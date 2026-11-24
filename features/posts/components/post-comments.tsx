@@ -47,9 +47,13 @@ import { useComments } from "@/features/posts/hooks/use-comments"
 import { ReportDialog } from "@/features/posts/components/report-dialog"
 import { COMMENTS_ANCHOR, commentsKey } from "@/features/posts/posts-cache"
 import { fetchComment } from "@/features/posts/lib/posts-api"
+import { ModerationFindings } from "@/features/posts/components/moderation-findings"
+import { rejectionMessage } from "@/features/posts/lib/moderation-labels"
 import {
   MAX_COMMENT_LENGTH,
   commentFormSchema,
+  contentRejectedDetailsSchema,
+  type ModerationFinding,
   type ApiComment,
   type CommentFormValues,
 } from "@/features/posts/schemas"
@@ -64,12 +68,24 @@ import { RelativeTime } from "@/features/shared/components/relative-time"
 /** Saves within this long of creation are the create itself, not an edit. */
 const EDIT_GRACE_MS = 1000
 
+/** The words of a rejected comment that broke the policy, and why. */
+function rejectedParts(error: unknown): ModerationFinding[] {
+  if (!(error instanceof ApiError) || error.code !== "CONTENT_REJECTED") return []
+  const details = contentRejectedDetailsSchema.safeParse(error.details ?? {})
+  if (!details.success) return []
+  return details.data.findings ?? []
+}
+
 function writeError(error: unknown) {
   if (error instanceof ApiError) {
     if (error.status === 401) return "Phiên đăng nhập đã hết hạn. Tải lại trang rồi thử lại nhé."
     if (error.status === 403) return "Bạn không có quyền làm việc này."
     if (error.status === 404) return "Bài viết hoặc bình luận này không còn nữa."
-    if (error.code === "CONTENT_REJECTED") return "Bình luận này vi phạm tiêu chuẩn cộng đồng nên không được đăng."
+    if (error.code === "CONTENT_REJECTED") {
+      const details = contentRejectedDetailsSchema.safeParse(error.details ?? {})
+      if (!details.success) return rejectionMessage(null, "Bình luận")
+      return rejectionMessage(details.data.category, "Bình luận", details.data.reasonText)
+    }
     if (error.status === 503) return "Chưa kiểm duyệt được bình luận lúc này. Thử lại sau giây lát."
   }
   return "Không lưu được. Thử lại nhé."
@@ -612,12 +628,15 @@ function CommentForm({
   })
   const { isSubmitting, errors } = form.formState
   const length = useWatch({ control: form.control, name: "body" }).length
+  const [findings, setFindings] = useState<ModerationFinding[]>([])
 
   async function submit({ body }: CommentFormValues) {
+    setFindings([])
     try {
       await onSubmit(body)
       if (resetOnSubmit) form.reset({ body: "" })
     } catch (error) {
+      setFindings(rejectedParts(error))
       form.setError("root", { message: writeError(error) })
     }
   }
@@ -652,6 +671,12 @@ function CommentForm({
           </Field>
         )}
       />
+
+      {findings.length > 0 && (
+        <div className="rounded-xl bg-destructive/10 p-2">
+          <ModerationFindings findings={findings} />
+        </div>
+      )}
 
       <div className="flex items-center justify-end gap-2">
         {errors.root && (

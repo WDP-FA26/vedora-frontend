@@ -10,6 +10,7 @@ import { CreateAppealDialog } from "@/features/support/components/create-appeal-
 import { TicketStatusBadge } from "@/features/support/components/ticket-status-badge"
 import { APPEAL_BLOCKED_LABELS, type PostAppealSummary } from "@/features/support/schemas"
 import { supportTicketPath } from "@/features/support/support-cache"
+import { ModerationFindings } from "@/features/posts/components/moderation-findings"
 import { useProcessingPost } from "@/features/posts/hooks/use-feed-posts"
 import { rejectionMessage } from "@/features/posts/lib/moderation-labels"
 import { REPORT_REASONS, REPORT_REASON_LABELS, type ApiPost, type ReportReason } from "@/features/posts/schemas"
@@ -49,7 +50,9 @@ export function ModerationNotice({ post }: { post: ApiPost }) {
         subject={subject}
         appeal={post.appeal ?? null}
         message={`${rejectionMessage(post.moderationVerdict, subject, post.moderationReason)} Chỉ bạn thấy ${subject.toLowerCase()} này.`}
-      />
+      >
+        <ModerationFindings findings={post.moderationFindings ?? []} />
+      </AppealableNotice>
     )
   }
   if (post.status === "REMOVED") {
@@ -82,11 +85,14 @@ function AppealableNotice({
   subject,
   appeal,
   message,
+  children,
 }: {
   postId: string
   subject: string
   appeal: PostAppealSummary | null
   message: string
+  /** Details under the message, such as the parts that broke the policy. */
+  children?: React.ReactNode
 }) {
   const [open, setOpen] = useState(false)
 
@@ -99,6 +105,7 @@ function AppealableNotice({
         <ShieldAlertIcon aria-hidden className="mt-0.5 size-4 shrink-0" />
         <span>{message}</span>
       </div>
+      {children}
 
       {appeal?.activeTicket ? (
         <div className="flex flex-wrap items-center justify-between gap-2 border-t border-destructive/20 pt-2.5 text-foreground">

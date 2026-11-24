@@ -1,7 +1,7 @@
 import { z } from "zod"
 
 import { postAppealSummarySchema } from "@/features/support/summary-schema"
-import { signedUploadSchema } from "@/features/posts/schemas"
+import { moderationFindingSchema, signedUploadSchema } from "@/features/posts/schemas"
 import { presignedUploadSchema } from "@/features/shared/lib/storage-upload"
 
 // Mirrors vedora-api's `/blogs` responses and DTOs (docs/docs-for-FE/blogs.md).
@@ -27,6 +27,7 @@ export const apiBlogSchema = z.object({
   status: blogStatusSchema,
   moderationVerdict: z.string().nullable().optional(),
   moderationReason: z.string().nullable().optional(),
+  moderationFindings: z.array(moderationFindingSchema).optional(),
   removalReason: z.string().nullable().optional(),
   appeal: postAppealSummarySchema.nullable().optional(),
   content: z.string(),
