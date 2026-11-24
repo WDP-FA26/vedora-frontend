@@ -12,7 +12,8 @@ test.describe("admin moderation settings", () => {
     await page.goto("/admin/settings")
     await expect(page).toHaveTitle(/Cài đặt · Vedora Quản trị/)
     await expect(page.getByRole("heading", { name: "Kiểm duyệt nội dung" })).toBeVisible()
-    await expect(page.getByRole("heading", { name: "Mức nghiêm ngặt" })).toBeVisible()
+    await expect(page.getByRole("heading", { name: "Mức rủi ro" })).toBeVisible()
+    await expect(page.getByText("Giữ lại, chờ admin duyệt.")).toBeVisible()
     await expect(page.getByLabel("Sửa tiêu chí Spam")).toBeVisible()
     await expect(page.getByLabel("Sửa tiêu chí Bạo lực")).toBeVisible()
     await expect(page.getByText("Không có thay đổi.")).toBeVisible()
@@ -20,7 +21,7 @@ test.describe("admin moderation settings", () => {
     await expect(page.getByRole("button", { name: "Hoàn tác" })).toBeDisabled()
   })
 
-  test("choosing a strictness preset marks the draft dirty and saves it", async ({ page }) => {
+  test("editing the instructions marks the draft dirty and saves only the policy", async ({ page }) => {
     const saves = await mockApi(
       page,
       "/admin/moderation/settings",
@@ -29,18 +30,26 @@ test.describe("admin moderation settings", () => {
       }),
       "PUT"
     )
+    const instructions = "Block harmful content and obvious spam."
     await page.goto("/admin/settings")
-    await page.getByRole("button", { name: /Thoải mái/ }).click()
+    await page.getByRole("button", { name: "Nâng cao" }).click()
+    await page.getByLabel("Hướng dẫn chung cho model (tiếng Anh)").fill(instructions)
     await expect(page.getByText("Có thay đổi chưa lưu.")).toBeVisible()
     await page.getByRole("button", { name: "Lưu thay đổi" }).click()
     await expect(page.getByText("Không có thay đổi.")).toBeVisible()
     expect(saves).toHaveLength(1)
-    expect(saves[0].body).toMatchObject({ reviewThreshold: 0.5, rejectThreshold: 0.95, version: 3 })
+    expect(saves[0].body).toEqual({
+      instructions,
+      allowDescription: moderationSettings.allowDescription,
+      choices: moderationSettings.choices,
+      version: 3,
+    })
   })
 
   test("undo discards the draft", async ({ page }) => {
     await page.goto("/admin/settings")
-    await page.getByRole("button", { name: /Thoải mái/ }).click()
+    await page.getByLabel("Xoá tiêu chí Bạo lực").click()
+    await expect(page.getByText("Có thay đổi chưa lưu.")).toBeVisible()
     await page.getByRole("button", { name: "Hoàn tác" }).click()
     await expect(page.getByText("Không có thay đổi.")).toBeVisible()
   })
@@ -60,21 +69,25 @@ test.describe("admin moderation settings", () => {
       "PUT"
     )
     await page.goto("/admin/settings")
-    await page.getByRole("button", { name: /Thoải mái/ }).click()
+    await page.getByLabel("Xoá tiêu chí Bạo lực").click()
     await page.getByRole("button", { name: "Lưu thay đổi" }).click()
     await expect(appAlerts(page)).toContainText("Có quản trị viên khác vừa lưu cài đặt.")
   })
 
   test("the policy test runs against the draft", async ({ page }) => {
     const tests = await mockApi(page, "/admin/moderation/settings/test", {
-      body: { decision: "review", category: "spam", violationScore: 0.6, scores: { spam: 0.6 } },
+      body: { decision: "review", category: "spam", riskLevel: 2, summary: "Có dấu hiệu quảng cáo." },
     }, "POST")
     await page.goto("/admin/settings")
     const run = page.getByRole("button", { name: "Chạy thử" })
     await expect(run).toBeDisabled()
     await page.getByLabel("Văn bản cần thử").fill("Mua ngay giá rẻ!!!")
     await run.click()
-    await expect(page.getByRole("status").filter({ hasText: "khả năng vi phạm 60%" })).toBeVisible()
+    const result = page.getByRole("status").filter({ hasText: "Sẽ bị giữ chờ quản trị viên" })
+    await expect(result).toBeVisible()
+    await expect(result).toContainText("Trung bình")
+    await expect(result).toContainText("Spam")
+    await expect(result).toContainText("Có dấu hiệu quảng cáo.")
     expect(tests).toHaveLength(1)
     expect(tests[0].body).toMatchObject({ text: "Mua ngay giá rẻ!!!" })
   })

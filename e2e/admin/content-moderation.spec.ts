@@ -68,6 +68,7 @@ test.describe("admin moderation queue", () => {
     await expect(page.getByRole("button", { name: "Cần xem xét", exact: true })).toHaveAttribute("aria-pressed", "true")
     const row = page.getByRole("row", { name: /Bài chờ duyệt thủ công/ })
     await expect(row).toBeVisible()
+    await expect(row).toContainText("Trung bình")
     await expect(row.getByRole("button", { name: "Chặn" })).toBeVisible()
     await expect(row.getByRole("button", { name: "Cho đăng" })).toBeVisible()
   })
@@ -108,6 +109,20 @@ test.describe("admin moderation queue", () => {
     await page.goto("/admin/reports")
     await page.getByRole("button", { name: "Đã chặn", exact: true }).click()
     await expect(page.getByRole("row", { name: /Bài bị chặn/ })).toContainText("Đã chặn")
+    await expect(page.getByRole("row", { name: /Bài bị chặn/ })).toContainText("Cao")
+  })
+
+  test("a blocked post shows its risk level and the model's evidence", async ({ page }) => {
+    await page.goto("/admin/reports")
+    await page.getByRole("button", { name: "Đã chặn", exact: true }).click()
+    await page.getByRole("row", { name: /Bài bị chặn/ }).getByRole("button", { name: "Xem" }).click()
+    const panel = page.getByRole("dialog").getByRole("region", { name: "Kiểm duyệt tự động" })
+    await expect(panel).toContainText("Mức rủi ro")
+    await expect(panel).toContainText("Cao")
+    await expect(panel).toContainText("Bài quảng cáo lặp lại, kèm liên kết bán hàng.")
+    await expect(panel.getByRole("button", { name: /Phân tích/ })).toHaveCount(0)
+    await expect(panel.getByRole("button", { name: "Cho phép đăng" })).toBeEnabled()
+    await expect(panel.getByRole("button", { name: "Từ chối" })).toBeDisabled()
   })
 
   test("shows the empty message when nothing needs review", async ({ page }) => {

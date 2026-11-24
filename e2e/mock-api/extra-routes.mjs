@@ -249,7 +249,7 @@ export async function handleExtra({ path, method, body, q, me, res, send, error 
     return ok({ ...moderationSettings, isDefault: true, version: 0 })
   }
   if (path === "/admin/moderation/settings/test") {
-    return ok({ decision: "review", category: "spam", violationScore: 0.6, scores: { spam: 0.6 } })
+    return ok({ decision: "review", category: "spam", riskLevel: 2, summary: "Có dấu hiệu quảng cáo." })
   }
 
   // --- admin: dashboard, AI cost, payments -------------------------------

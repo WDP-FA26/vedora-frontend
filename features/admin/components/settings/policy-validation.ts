@@ -7,51 +7,8 @@ export const MANIPULATION_KEY = "manipulation"
 
 /** The editable part of saved settings, which is what the API takes back. */
 export function policyOf(settings: ModerationSettings): ModerationPolicyDraft {
-  const { instructions, allowDescription, choices, rejectThreshold, reviewThreshold, manipulationThreshold } =
-    settings
-  // Left undefined (and so out of the saved JSON) for an API that does not know it.
-  return {
-    instructions,
-    allowDescription,
-    choices,
-    rejectThreshold,
-    reviewThreshold,
-    manipulationThreshold,
-  }
-}
-
-/** How strict the check is: where a violation chance turns into "wait for an admin" and "blocked". */
-export const STRICTNESS_LEVELS = [
-  {
-    id: "relaxed",
-    label: "Thoải mái",
-    detail: "Hợp với cộng đồng nhỏ hoặc khi admin ít thời gian. Bài hơi đáng ngờ vẫn được đăng.",
-    review: 0.5,
-    reject: 0.95,
-  },
-  {
-    id: "balanced",
-    label: "Cân bằng",
-    detail: "Cân giữa an toàn và công sức duyệt. Bài rõ ràng vi phạm bị chặn, bài lưng chừng chờ admin.",
-    review: 0.3,
-    reject: 0.85,
-  },
-  {
-    id: "strict",
-    label: "Nghiêm ngặt",
-    detail: "Hợp khi cần an toàn cao, ví dụ mới ra mắt hoặc có người dùng nhỏ tuổi. Sẽ có nhiều bài chờ duyệt hơn.",
-    review: 0.15,
-    reject: 0.7,
-  },
-] as const
-
-/** The level the thresholds match, or null for custom ones set under "Nâng cao". */
-export function strictnessOf(settings: Pick<ModerationSettings, "rejectThreshold" | "reviewThreshold">) {
-  return (
-    STRICTNESS_LEVELS.find(
-      (level) => level.reject === settings.rejectThreshold && level.review === settings.reviewThreshold
-    ) ?? null
-  )
+  const { instructions, allowDescription, choices } = settings
+  return { instructions, allowDescription, choices }
 }
 
 /** "Thông tin sai lệch" -> "thong_tin_sai_lech": a code the model and stored verdicts can use. */
@@ -107,9 +64,6 @@ export function normalizeDraft(draft: ModerationPolicyDraft): ModerationPolicyDr
       reasonText: reasonText.trim(),
       description: description.trim(),
     })),
-    rejectThreshold: draft.rejectThreshold,
-    reviewThreshold: draft.reviewThreshold,
-    manipulationThreshold: draft.manipulationThreshold,
   }
 }
 
@@ -128,14 +82,6 @@ export function draftProblems(draft: ModerationPolicyDraft) {
   if (draft.choices.length < 1) problems.push("Cần ít nhất một tiêu chí vi phạm.")
   for (const choice of draft.choices) {
     for (const problem of criterionProblems(choice)) problems.push(`${choice.label || choice.key}: ${problem}`)
-  }
-  const { reviewThreshold, rejectThreshold } = draft
-  if (!(reviewThreshold >= 0 && rejectThreshold <= 1 && reviewThreshold < rejectThreshold)) {
-    problems.push("Ngưỡng chờ admin phải nhỏ hơn ngưỡng chặn (trong khoảng 0–100%).")
-  }
-  const manipulation = draft.manipulationThreshold
-  if (manipulation !== undefined && !(manipulation >= 0 && manipulation <= 1)) {
-    problems.push("Ngưỡng chặn nội dung chèo lái AI phải trong khoảng 0–100%.")
   }
   return problems
 }

@@ -105,9 +105,6 @@ export const appealPostSnapshotSchema = z.object({
   excerpt: z.string().nullable(),
   verdict: z.string().nullable(),
   reason: z.string().nullable(),
-  routeRule: z.string().nullable(),
-  routeAppliedBy: z.enum(["SYSTEM_ONE", "SYSTEM_TWO"]).nullable(),
-  routeCategory: z.string().nullable(),
   blockedAt: z.string(),
 })
 

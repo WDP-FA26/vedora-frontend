@@ -9,6 +9,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { useModerateAdminPost } from "@/features/admin/hooks/use-admin-posts"
 import { useCategoryLabel } from "@/features/admin/hooks/use-category-label"
 import { ModerationEvidence } from "@/features/admin/components/content/moderation-evidence"
+import { RiskLevelBadge } from "@/features/admin/components/moderation/risk-level-badge"
 import type { AdminPostDetail } from "@/features/admin/schemas"
 import { formatPostDateLong } from "@/features/shared/lib/format"
 
@@ -21,12 +22,18 @@ export const CATEGORY_LABELS: Record<string, string> = {
   self_harm: "Tự hại",
   illegal: "Bất hợp pháp",
   spam: "Spam",
-  provider_blocked: "Model từ chối đọc nội dung (nghi vi phạm nặng)",
+  provider_blocked: "Model từ chối đọc nội dung",
+  moderation_failed: "Kiểm duyệt tự động lỗi, cần duyệt tay",
   manipulation: "Chèo lái AI",
 }
 
-function percent(score: number) {
-  return `${Math.round(score * 100)}%`
+/** Verdicts that are not a policy category: the check itself could not rate the post. */
+const SYSTEM_VERDICTS = new Set(["provider_blocked", "moderation_failed"])
+
+function verdictText(verdict: string, labelOf: (key: string) => string) {
+  if (verdict === "allow") return "Không phát hiện vi phạm."
+  if (SYSTEM_VERDICTS.has(verdict)) return `${labelOf(verdict)}.`
+  return `Nhóm vi phạm: ${labelOf(verdict)}.`
 }
 
 /**
@@ -43,16 +50,13 @@ export function ModerationPanel({ post }: { post: AdminPostDetail }) {
   if (!moderation) {
     return (
       <p className="text-muted-foreground">
-        Bài này chưa được chấm điểm vi phạm tự động (đăng trước khi có kiểm duyệt).
+        Bài này chưa được kiểm duyệt tự động (đăng trước khi có kiểm duyệt).
       </p>
     )
   }
 
-  // A post the reviewer model published can still be taken down (REJECT only).
-  const publishedByReviewer = post.status === "PUBLISHED" && moderation.route?.appliedBy === "SYSTEM_TWO"
-  const decidable = post.status === "PENDING_REVIEW" || post.status === "REJECTED" || publishedByReviewer
-  const scores = Object.entries(moderation.scores ?? {})
-    .sort(([, left], [, right]) => right - left)
+  // The API only takes a decision on a held or rejected post.
+  const decidable = post.status === "PENDING_REVIEW" || post.status === "REJECTED"
 
   async function decide(decision: "APPROVE" | "REJECT") {
     setFailed(false)
@@ -71,42 +75,15 @@ export function ModerationPanel({ post }: { post: AdminPostDetail }) {
     <section aria-label="Kiểm duyệt tự động" className="flex flex-col gap-3 border-b pb-5">
       <div className="flex items-baseline justify-between gap-3">
         <h3 className="font-medium">Kiểm duyệt tự động</h3>
-        {moderation.violationScore !== null && (
-          <p className="text-muted-foreground">
-            Khả năng vi phạm{" "}
-            <span className="font-semibold text-foreground tabular-nums">
-              {percent(moderation.violationScore)}
-            </span>
-          </p>
-        )}
+        <p className="flex items-center gap-2 text-muted-foreground">
+          Mức rủi ro
+          <RiskLevelBadge level={moderation.riskLevel} />
+        </p>
       </div>
 
-      {scores.length > 0 ? (
-        <ul className="flex flex-col gap-2">
-          {scores.map(([category, score]) => (
-            <li key={category} className="flex items-center gap-3">
-              <span className="w-36 shrink-0">{labelOf(category)}</span>
-              <div
-                role="meter"
-                aria-label={labelOf(category)}
-                aria-valuemin={0}
-                aria-valuemax={100}
-                aria-valuenow={Math.round(score * 100)}
-                className="h-2 flex-1 overflow-hidden rounded-full bg-muted"
-              >
-                <div className="h-full rounded-full bg-primary" style={{ width: percent(score) }} />
-              </div>
-              <span className="w-10 text-right tabular-nums">{percent(score)}</span>
-            </li>
-          ))}
-        </ul>
-      ) : (
-        <p className="text-muted-foreground">
-          {moderation.verdict === "allow"
-            ? "Không phát hiện vi phạm."
-            : `Nhóm nghi ngờ: ${labelOf(moderation.verdict)}.`}
-        </p>
-      )}
+      <p className="text-muted-foreground">
+        {verdictText(moderation.verdict, labelOf)}
+      </p>
 
       <ModerationEvidence post={post} />
 
@@ -140,7 +117,7 @@ export function ModerationPanel({ post }: { post: AdminPostDetail }) {
               {pending === "REJECT" ? <Spinner aria-hidden /> : <XIcon aria-hidden />}
               Từ chối
             </Button>
-            <Button disabled={pending !== null || publishedByReviewer} onClick={() => void decide("APPROVE")}>
+            <Button disabled={pending !== null} onClick={() => void decide("APPROVE")}>
               {pending === "APPROVE" ? <Spinner aria-hidden /> : <CheckIcon aria-hidden />}
               Cho phép đăng
             </Button>

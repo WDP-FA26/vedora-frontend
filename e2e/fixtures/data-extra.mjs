@@ -392,9 +392,8 @@ export const adminPost = (id, status, by, body, extra = {}) => ({
 })
 
 const heldModeration = {
-  verdict: "review",
-  violationScore: 0.55,
-  scores: { spam: 0.55 },
+  verdict: "spam",
+  riskLevel: 2,
   checkedAt: iso(80),
   reviewedById: null,
   reviewedAt: null,
@@ -405,7 +404,31 @@ export const adminPosts = [
   adminPost("p-1", "PUBLISHED", users.chef, posts[0].body),
   adminPost("p-held", "PENDING_REVIEW", users.member, "Bài chờ duyệt thủ công", { moderation: heldModeration }),
   adminPost("p-blocked", "REJECTED", users.member, "Bài bị chặn", {
-    moderation: { ...heldModeration, verdict: "reject", violationScore: 0.95 },
+    moderation: {
+      ...heldModeration,
+      riskLevel: 3,
+      evidence: {
+        status: "READY",
+        summary: "Bài quảng cáo lặp lại, kèm liên kết bán hàng.",
+        items: [
+          {
+            field: "body",
+            category: "spam",
+            reason: "Lời mời mua hàng không liên quan tới ẩm thực.",
+            quote: "Bài bị chặn",
+            start: 0,
+            end: 11,
+            mediaId: null,
+            seconds: null,
+            imageUrl: null,
+            box: null,
+          },
+        ],
+        dropped: 0,
+        model: "anthropic/claude-haiku",
+        createdAt: iso(80),
+      },
+    },
   }),
 ]
 
@@ -430,8 +453,6 @@ export const moderationSettings = {
     { key: "spam", label: "Spam", reasonText: "spam hoặc quảng cáo", description: "Quảng cáo, lừa đảo." },
     { key: "violence", label: "Bạo lực", reasonText: "bạo lực", description: "Hình ảnh, lời lẽ bạo lực." },
   ],
-  rejectThreshold: 0.85,
-  reviewThreshold: 0.5,
   version: 3,
   updatedAt: iso(2000),
   updatedById: users.admin.id,

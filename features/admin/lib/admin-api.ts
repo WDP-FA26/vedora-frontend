@@ -59,7 +59,7 @@ export function fetchAdminPost([url, token]: readonly [string, string]) {
   return sendJson(adminPostDetailSchema, url, token)
 }
 
-/** Approves or rejects a post held for review, or overturns a rejection. */
+/** Approves or rejects a post held for review, or overturns a rejection (PENDING_REVIEW / REJECTED only). */
 export function moderateAdminPost(
   token: string,
   id: string,
@@ -69,13 +69,6 @@ export function moderateAdminPost(
   return sendJson(adminPostDetailSchema, `${adminPostKey(id)}/moderation`, token, {
     method: "POST",
     body: JSON.stringify(note ? { decision, note } : { decision }),
-  })
-}
-
-/** Asks the explainer model again which parts of a flagged post break the policy. */
-export function explainAdminPost(token: string, id: string) {
-  return sendJson(adminPostDetailSchema, `${adminPostKey(id)}/moderation/evidence`, token, {
-    method: "POST",
   })
 }
 

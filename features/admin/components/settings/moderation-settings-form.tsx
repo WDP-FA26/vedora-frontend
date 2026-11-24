@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Spinner } from "@/components/ui/spinner"
 import { toast } from "@/components/ui/toast"
+import { CATEGORY_LABELS } from "@/features/admin/components/content/moderation-panel"
 import { AdvancedSettings } from "@/features/admin/components/settings/advanced-settings"
 import { CriteriaList } from "@/features/admin/components/settings/criteria-list"
 import { CriterionDialog, type CriterionTarget } from "@/features/admin/components/settings/criterion-dialog"
@@ -18,7 +19,7 @@ import {
   normalizeDraft,
   policyOf,
 } from "@/features/admin/components/settings/policy-validation"
-import { StrictnessPicker } from "@/features/admin/components/settings/strictness-picker"
+import { RiskLevelsNote } from "@/features/admin/components/settings/risk-levels-note"
 import { useModerationSettings, useModerationSettingsActions } from "@/features/admin/hooks/use-moderation-settings"
 import type { ModerationChoice, ModerationPolicyDraft, ModerationSettings } from "@/features/admin/schemas"
 import { ApiError } from "@/features/shared/lib/api-client"
@@ -124,8 +125,8 @@ function SettingsView({ settings }: { settings: ModerationSettings }) {
   }
 
   function labelOf(key: string) {
-    if (key === "allow") return "Không vi phạm"
-    return draft.choices.find((choice) => choice.key === key)?.label ?? key
+    if (key === "allow") return CATEGORY_LABELS.allow
+    return draft.choices.find((choice) => choice.key === key)?.label ?? CATEGORY_LABELS[key] ?? key
   }
 
   return (
@@ -137,7 +138,7 @@ function SettingsView({ settings }: { settings: ModerationSettings }) {
         </p>
       </header>
 
-      <StrictnessPicker value={draft} onChange={(thresholds) => change(thresholds)} />
+      <RiskLevelsNote />
 
       <CriteriaList
         choices={draft.choices}
@@ -156,12 +157,9 @@ function SettingsView({ settings }: { settings: ModerationSettings }) {
 
       <AdvancedSettings
         instructions={draft.instructions}
-        manipulationThreshold={draft.manipulationThreshold}
-        manipulationEnforced={settings.manipulationEnforced}
         canReset={!settings.isDefault || dirty}
         busy={saving}
         onChange={(instructions) => change({ instructions })}
-        onManipulationChange={(manipulationThreshold) => change({ manipulationThreshold })}
         onReset={() => void reset()}
       />
 

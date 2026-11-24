@@ -54,43 +54,19 @@ const evidenceItemSchema = z.object({
   box: z.array(z.number()).length(4).nullable(),
 })
 
-/** Mirrors `moderation.evidence`: which parts the explainer model says break the policy. */
+/**
+ * Mirrors `moderation.evidence`: which parts of the post the model says break the
+ * policy. Written together with the verdict. Records from older APIs may still
+ * carry `decision`/`category`; they are ignored.
+ */
 const evidenceSchema = z.object({
+  /** READY: quotes below. FAILED / REFUSED: no explanation, an admin decides by hand. */
   status: z.enum(["READY", "FAILED", "REFUSED"]),
-  /** The reviewer model's call; absent on records from before it decided anything. */
-  decision: z
-    .enum(["accept", "reject", "escalate"])
-    .nullish()
-    .transform((decision) => decision ?? null),
-  category: z
-    .string()
-    .nullish()
-    .transform((category) => category ?? null),
   summary: z.string().nullable(),
   items: z.array(evidenceItemSchema),
   dropped: z.number().int().nonnegative(),
   model: z.string(),
   createdAt: z.string(),
-})
-
-export const ROUTE_RULES = [
-  "PROVIDER_BLOCKED",
-  "MANIPULATION",
-  "REVIEWER_UNAVAILABLE",
-  "REVIEWER_REJECT",
-  "UNVERIFIED_REJECT",
-  "REVIEWER_ESCALATE",
-  "REVIEWER_ACCEPT",
-] as const
-
-/** Mirrors `moderation.route`: where the router sent a flagged post, and who applied it. */
-const routeSchema = z.object({
-  outcome: z.enum(["PUBLISH", "REJECT", "ADMIN"]),
-  rule: z.enum(ROUTE_RULES),
-  category: z.string().nullable(),
-  /** Null when it was only recorded (shadow mode, or a rerun on a decided post). */
-  appliedBy: z.enum(["SYSTEM_ONE", "SYSTEM_TWO"]).nullable(),
-  decidedAt: z.string(),
 })
 
 const adminPostRemovalSchema = z.object({
@@ -127,23 +103,24 @@ const adminPostSchema = z.object({
   blog: z
     .object({ title: z.string(), coverImageUrl: z.string().nullable(), excerpt: z.string() })
     .nullable(),
-  /** The automated content check; `scores` is Jev's chance for each category. */
+  /** The automated content check: one model call that rates the post's risk. */
   moderation: z
     .object({
+      /** `allow`, a policy category key, `provider_blocked` or `moderation_failed`. */
       verdict: z.string(),
-      violationScore: z.number().nullable(),
-      scores: z.record(z.string(), z.number()).nullable(),
+      /** Null for unrated and legacy posts, which may omit it. */
+      riskLevel: z
+        .number()
+        .int()
+        .min(0)
+        .max(3)
+        .nullish()
+        .transform((riskLevel) => riskLevel ?? null),
       checkedAt: z.string(),
       reviewedById: z.string().nullable(),
       reviewedAt: z.string().nullable(),
       reviewNote: z.string().nullable(),
-      /** Null until the explainer ran; absent from APIs that predate it. */
       evidence: evidenceSchema.nullish().transform((evidence) => evidence ?? null),
-      route: routeSchema.nullish().transform((route) => route ?? null),
-      heldAt: z
-        .string()
-        .nullish()
-        .transform((heldAt) => heldAt ?? null),
     })
     .nullable(),
   removal: adminPostRemovalSchema.nullish().transform((removal) => removal ?? null),
@@ -206,7 +183,6 @@ export type AdminPostDetail = z.infer<typeof adminPostDetailSchema>
 export type AdminMediaDetail = AdminPostDetail["media"][number]
 export type ModerationEvidence = z.infer<typeof evidenceSchema>
 export type EvidenceItem = ModerationEvidence["items"][number]
-export type ModerationRoute = z.infer<typeof routeSchema>
 
 const moderationChoiceSchema = z.object({
   key: z.string(),
@@ -220,12 +196,6 @@ export const moderationSettingsSchema = z.object({
   instructions: z.string(),
   allowDescription: z.string(),
   choices: z.array(moderationChoiceSchema),
-  rejectThreshold: z.number(),
-  reviewThreshold: z.number(),
-  /** A `manipulation` chance at or above this is rejected outright; absent from APIs that predate it. */
-  manipulationThreshold: z.number().min(0).max(1).optional(),
-  /** True when the API enforces that rule (MODERATION_MODE=enforce); otherwise it is only recorded. */
-  manipulationEnforced: z.boolean().default(false),
   /** 0 while the built-in defaults are in force. */
   version: z.number().int().nonnegative(),
   updatedAt: z.string().nullable(),
@@ -236,15 +206,12 @@ export const moderationSettingsSchema = z.object({
 export const moderationTestResultSchema = z.object({
   decision: z.enum(["publish", "review", "reject"]),
   category: z.string().nullable(),
-  violationScore: z.number(),
-  scores: z.record(z.string(), z.number()).nullable(),
+  riskLevel: z.number().int().min(0).max(3).nullable(),
+  summary: z.string().nullable(),
 })
 
 export type ModerationChoice = z.infer<typeof moderationChoiceSchema>
 export type ModerationSettings = z.infer<typeof moderationSettingsSchema>
 /** The part of the settings an admin edits and the test endpoint accepts. */
-export type ModerationPolicyDraft = Pick<
-  ModerationSettings,
-  "instructions" | "allowDescription" | "choices" | "rejectThreshold" | "reviewThreshold" | "manipulationThreshold"
->
+export type ModerationPolicyDraft = Pick<ModerationSettings, "instructions" | "allowDescription" | "choices">
 export type ModerationTestResult = z.infer<typeof moderationTestResultSchema>

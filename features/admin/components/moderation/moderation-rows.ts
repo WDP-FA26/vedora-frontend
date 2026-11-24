@@ -11,8 +11,8 @@ export type QueueRow = {
   /** The text a moderator reads first: the post, or a blog's title. */
   excerpt: string
   author: { fullName: string; username: string }
-  /** Jev's chance that the post breaks the policy, 0 to 1; null if never scored. */
-  violationScore: number | null
+  /** The model's risk level, 0 (none) to 3 (high); null if never rated. */
+  riskLevel: number | null
   /** The category the post most likely breaks. */
   category: string | null
   /** For `held` and `blocked`: what the automated check decided. For `report`: the reporter's reason. */
@@ -25,9 +25,10 @@ function excerptOf(post: { body: string | null; blog: { title: string } | null }
   return text.trim() || "(Bài chỉ có video)"
 }
 
-function scoreOf(post: AdminPost | undefined) {
+/** The automated check's risk level and category for a post, if it was rated. */
+function moderationOf(post: AdminPost | undefined) {
   return {
-    violationScore: post?.moderation?.violationScore ?? null,
+    riskLevel: post?.moderation?.riskLevel ?? null,
     category: post?.moderation && post.moderation.verdict !== "allow" ? post.moderation.verdict : null,
   }
 }
@@ -45,7 +46,7 @@ export function buildQueue(posts: AdminPost[], reports: AdminReport[]): QueueRow
       postId: post.id,
       excerpt: excerptOf(post),
       author: post.author,
-      ...scoreOf(post),
+      ...moderationOf(post),
       report: null,
       createdAt: post.createdAt,
     })
@@ -60,7 +61,7 @@ export function buildQueue(posts: AdminPost[], reports: AdminReport[]): QueueRow
       postId: report.postId,
       excerpt: post ? excerptOf(post) : (report.post.body ?? "").trim() || "(Bài chỉ có video)",
       author: report.post.author,
-      ...scoreOf(post),
+      ...moderationOf(post),
       report,
       createdAt: report.createdAt,
     })
