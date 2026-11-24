@@ -421,7 +421,6 @@ export const adminPosts = [
             mediaId: null,
             seconds: null,
             imageUrl: null,
-            box: null,
           },
         ],
         dropped: 0,

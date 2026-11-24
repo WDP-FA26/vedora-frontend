@@ -145,7 +145,7 @@ export function useBlogDraft(initial: ApiBlog | null) {
       if (blog.status === "PROCESSING") {
         setSaveState("saved")
         setDirty(false)
-        setError("Đã lưu. Blog đang được kiểm duyệt lại, chỉ bạn thấy cho đến khi xong.")
+        setError("Đã lưu. Blog đang được kiểm duyệt, chỉ bạn thấy cho đến khi xong. Bạn sẽ nhận thông báo khi có kết quả.")
         return true
       }
       if (blog.status === "PENDING_REVIEW") {

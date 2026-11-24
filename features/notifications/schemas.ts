@@ -8,6 +8,7 @@ export const notificationSchema = z.object({
     "COMMENT_REPLY",
     "REPOST",
     "FOLLOW",
+    "POST_PUBLISHED",
     "POST_PENDING_REVIEW",
     "POST_APPROVED",
     "POST_REJECTED",

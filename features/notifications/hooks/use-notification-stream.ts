@@ -18,6 +18,25 @@ import {
   type NotificationPage,
 } from "@/features/notifications/schemas"
 
+/**
+ * Ids of the notifications this tab already handled. A tab can briefly hold
+ * two streams (a reconnect overlapping the old one, a remounted layout), and
+ * each delivers the same notification, so it is toasted and counted once.
+ */
+const handledIds = new Set<string>()
+const MAX_HANDLED_IDS = 200
+
+/** True the first time an id is seen in this tab. */
+function firstDelivery(id: string): boolean {
+  if (handledIds.has(id)) return false
+  handledIds.add(id)
+  if (handledIds.size > MAX_HANDLED_IDS) {
+    const [oldest] = handledIds
+    handledIds.delete(oldest)
+  }
+  return true
+}
+
 /** Thrown from `onopen`/`onerror` to stop `fetchEventSource` from retrying. */
 class FatalStreamError extends Error {}
 
@@ -60,6 +79,7 @@ export function useNotificationStream() {
         const parsed = notificationSchema.safeParse(JSON.parse(event.data))
         if (!parsed.success) return
         const incoming = parsed.data
+        if (!firstDelivery(incoming.id)) return
         // The list on /home/notifications already shows it arriving.
         if (window.location.pathname !== "/home/notifications") {
           const { from, text } = describeNotification(incoming)

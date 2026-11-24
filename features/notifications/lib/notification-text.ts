@@ -46,6 +46,8 @@ export function describeNotification(notification: ApiNotification) {
         from: "Vedora",
         text: `${subject} của bạn ${PENDING_REVIEW_MESSAGE} và chưa hiển thị công khai. Bạn sẽ nhận thông báo khi có kết quả.`,
       }
+    case "POST_PUBLISHED":
+      return { from: "Vedora", text: `${subject} của bạn đã qua kiểm duyệt và được đăng.` }
     case "POST_APPROVED":
       return { from: "Vedora", text: `${subject} của bạn đã được duyệt và hiển thị công khai.` }
     case "POST_REMOVED": {

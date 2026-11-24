@@ -50,8 +50,6 @@ const evidenceItemSchema = z.object({
   mediaId: z.string().nullable(),
   seconds: z.number().nullable(),
   imageUrl: z.string().nullable(),
-  /** Approximate region [x0, y0, x1, y1] scaled 0-1000. */
-  box: z.array(z.number()).length(4).nullable(),
 })
 
 /**

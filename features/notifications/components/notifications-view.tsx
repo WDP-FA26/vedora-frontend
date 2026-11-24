@@ -45,6 +45,7 @@ const ICONS = {
   COMMENT_REPLY: MessageCircleIcon,
   REPOST: Repeat2Icon,
   FOLLOW: UserPlusIcon,
+  POST_PUBLISHED: CircleCheckIcon,
   POST_PENDING_REVIEW: HourglassIcon,
   POST_APPROVED: CircleCheckIcon,
   POST_REJECTED: ShieldAlertIcon,

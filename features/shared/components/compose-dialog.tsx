@@ -120,7 +120,7 @@ export function ComposeDialog({
     }
     setNotice(
       post.status === "PROCESSING"
-        ? `${wasVideo ? "Video" : "Bài viết"} đang được xử lý và kiểm duyệt, sẽ hiển thị nếu đạt.`
+        ? `${wasVideo ? "Video" : "Bài viết"} đang được kiểm duyệt. Bạn sẽ nhận thông báo khi có kết quả.`
         : `${wasVideo ? "Video" : "Bài viết"} đã đăng.`
     )
   }

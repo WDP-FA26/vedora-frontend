@@ -20,26 +20,13 @@ function formatSeconds(seconds: number) {
   return `${minutes}:${rest}`
 }
 
-/** A frame or image with the region the model pointed at, if it gave one. */
+/** The frame or image an item points at. */
 function EvidencePicture({ item }: { item: EvidenceItem }) {
   if (!item.imageUrl) return null
-  const box = item.box
   return (
-    <div className="relative w-40 shrink-0 self-start overflow-hidden rounded-lg bg-muted">
+    <div className="w-40 shrink-0 self-start overflow-hidden rounded-lg bg-muted">
       {/* eslint-disable-next-line @next/next/no-img-element -- a Cloudinary frame or a storage image, shown as the model saw it */}
       <img src={item.imageUrl} alt={FIELD_LABELS[item.field]} className="block w-full" />
-      {box && (
-        <div
-          aria-hidden
-          className="absolute rounded-sm border-2 border-destructive"
-          style={{
-            left: `${box[0] / 10}%`,
-            top: `${box[1] / 10}%`,
-            width: `${(box[2] - box[0]) / 10}%`,
-            height: `${(box[3] - box[1]) / 10}%`,
-          }}
-        />
-      )}
     </div>
   )
 }
@@ -65,9 +52,6 @@ function EvidenceEntry({ item }: { item: EvidenceItem }) {
           </blockquote>
         )}
         <p className="text-muted-foreground">{item.reason}</p>
-        {picture && item.box && (
-          <p className="text-xs text-muted-foreground">Khung đỏ là vùng gần đúng, chỉ để tham khảo.</p>
-        )}
       </div>
     </li>
   )
