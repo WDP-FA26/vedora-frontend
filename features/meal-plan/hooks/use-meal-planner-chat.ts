@@ -10,7 +10,6 @@ import { z } from "zod"
 import { useAuth } from "@/features/auth/hooks/use-auth"
 import { useAuthedSWR } from "@/features/auth/hooks/use-authed-swr"
 import {
-  DAY_LABELS,
   deleteChatThread,
   fetchChatThread,
   fetchChatThreads,
@@ -19,24 +18,14 @@ import {
   MEAL_PLANNER_CHAT_URL,
   planChangeSchema,
   rewindChatThread,
-  SECTION_LABELS,
-  updateChatThread,
   type ChatMessageRecord,
   type ChatRewind,
   type ChatThreadSummary,
   type PlanChange,
-  type SyncChatMessageInput,
 } from "@/features/meal-plan/meal-plan"
 import { MY_DIETARY_KEY } from "@/features/dietary/dietary"
 import { ApiError } from "@/features/shared/lib/api-client"
 
-/** Mirror `MealPlannerChatDto` in vedora-api. */
-const CONTEXT_MESSAGES = 40
-const MAX_TEXT_LENGTH = 8000
-/** Found dishes noted per search, enough for the planner to place the one the user picks. */
-const MAX_NOTED_RESULTS = 12
-const MAX_NOTED_SUMMARY = 1200
-const MAX_SYNC_MESSAGES = 100
 const THREAD_LIST_URL = `${MEAL_PLANNER_CHAT_THREADS_KEY}?limit=50`
 
 /** The planner's tools that write the saved plan; each output is a `PlanChange`. */
@@ -231,13 +220,6 @@ export function webSearchAllowed(messages: readonly UIMessage[]): boolean {
   return allowed
 }
 
-function webSearchNote({ reason, approved }: WebSearchRequest): string {
-  let answer = "người dùng chưa trả lời"
-  if (approved === true) answer = "người dùng đã cho phép"
-  if (approved === false) answer = "người dùng đã từ chối"
-  return `[Đã xin phép tìm trên web (${reason}): ${answer}]`
-}
-
 const WEB_SEARCH_APPROVED_TEXT = "Đồng ý, bạn cứ tìm trên web."
 const WEB_SEARCH_DECLINED_TEXT = "Không cần tìm trên web."
 
@@ -262,72 +244,11 @@ export function messageText(message: UIMessage) {
     .join("\n\n")
 }
 
-
-
 const PREFERENCES_TOOL_TYPE = "tool-updatePreferences"
 const ALLERGY_NOTE_TOOL_TYPE = "tool-updateAllergyNote"
 
-// What other planner tools returned, kept as short notes so the next turn can
-// still use the ids the user picks from.
-const foundRecipeSchema = z.object({
-  id: z.string(),
-  title: z.string(),
-  caloriesPerServing: z.number().nullable().optional(),
-  avoidedIngredients: z.array(z.string()).default([]),
-})
-const foundRecipesSchema = z.array(foundRecipeSchema)
-const viewedRecipeSchema = z.object({ id: z.string(), title: z.string() })
-const consultSchema = z.object({ summary: z.string() })
 const preferenceUpdateSchema = z.object({ preferenceNote: z.string().nullable() })
 const allergyUpdateSchema = z.object({ allergyNote: z.string().nullable() })
-
-function recipeLabel({ id, title, caloriesPerServing, avoidedIngredients }: z.infer<typeof foundRecipeSchema>) {
-  const parts = [`id ${id}`]
-  if (typeof caloriesPerServing === "number") parts.push(`~${caloriesPerServing} kcal`)
-  if (avoidedIngredients.length > 0) parts.push(`KIÊNG: ${avoidedIngredients.join(", ")}`)
-  return `${title} (${parts.join(", ")})`
-}
-
-function toolNotes(message: UIMessage): string[] {
-  const notes: string[] = []
-  for (const part of message.parts) {
-    if (!isToolUIPart(part) || part.state !== "output-available") continue
-    if (part.type === "tool-searchRecipes") {
-      const found = foundRecipesSchema.safeParse(part.output)
-      if (!found.success) continue
-      if (found.data.length === 0) {
-        notes.push("[Đã tìm món: không thấy món nào]")
-        continue
-      }
-      const labels = found.data.slice(0, MAX_NOTED_RESULTS).map(recipeLabel)
-      notes.push(`[Đã tìm món: ${labels.join("; ")}]`)
-      continue
-    }
-    if (part.type === "tool-getRecipe") {
-      const recipe = viewedRecipeSchema.safeParse(part.output)
-      if (recipe.success) notes.push(`[Đã xem công thức: ${recipe.data.title} (id ${recipe.data.id})]`)
-      continue
-    }
-    if (part.type === "tool-consultNutritionSubagent") {
-      const consult = consultSchema.safeParse(part.output)
-      if (consult.success) notes.push(`[Chuyên gia dinh dưỡng: ${consult.data.summary.slice(0, MAX_NOTED_SUMMARY)}]`)
-      continue
-    }
-  }
-  for (const update of messageProfileNoteUpdates(message)) {
-    const label = update.kind === "allergy" ? "Dị ứng" : "Sở thích"
-    notes.push(`[Đã cập nhật ${label}: ${update.note ?? "(trống)"}]`)
-  }
-  const restaurantDishes = messageRestaurantDishes(message)
-  if (restaurantDishes.length > 0) {
-    const labels = restaurantDishes
-      .slice(0, MAX_NOTED_RESULTS)
-      .map(({ name, restaurant }) => `${name} (${restaurant.name})`)
-    notes.push(`[Đã gợi ý món nhà hàng: ${labels.join("; ")}]`)
-  }
-  return notes
-}
-
 
 export interface ProfileNoteUpdate {
   id: string
@@ -352,41 +273,6 @@ export function messageProfileNoteUpdates(message: UIMessage): ProfileNoteUpdate
     }
   }
   return updates
-}
-
-function changeNote(change: PlanChange) {
-  const days: string[] = []
-  for (const { day, sections } of change.days) {
-    const slots: string[] = []
-    for (const { section, recipes, previous } of sections) {
-      if (sameIds(recipes, previous)) continue
-      const names = recipes.length > 0 ? recipes.map(({ title, id }) => `${title} (id ${id})`).join(", ") : "trống"
-      slots.push(`${SECTION_LABELS[section].toLowerCase()}: ${names}`)
-    }
-    days.push(`${DAY_LABELS[day]} (${slots.join("; ")})`)
-  }
-  return `[Đã lưu vào thực đơn tuần ${change.weekStart}: ${days.join(" | ")}]`
-}
-
-function questionNote({ question, options }: UserQuestion) {
-  return `[Đã hỏi người dùng: ${question} — lựa chọn: ${options.join(" | ")}]`
-}
-
-// The API takes plain text turns, so what the planner saved and asked rides
-// along as notes it can read on the next turn.
-function contextText(message: UIMessage) {
-  const notes = messagePlanChanges(message).map(changeNote)
-  const questions = messageQuestions(message).map(questionNote)
-  const webSearchNotes = messageWebSearchRequests(message).map(webSearchNote)
-  const parts = [messageText(message), ...toolNotes(message), ...notes, ...questions, ...webSearchNotes]
-  return parts.filter(Boolean).join("\n").slice(0, MAX_TEXT_LENGTH)
-}
-
-// a refused request must not ride along as context for the next message
-function withoutRefusals(messages: PlannerMessage[]) {
-  return messages.filter(
-    (message, index) => !message.metadata?.refused && !messages[index + 1]?.metadata?.refused
-  )
 }
 
 function isUIMessagePart(part: Record<string, unknown>): part is PlannerMessage["parts"][number] {
@@ -416,35 +302,6 @@ function isUIMessagePart(part: Record<string, unknown>): part is PlannerMessage[
   return false
 }
 
-function serializeMessage(message: PlannerMessage): SyncChatMessageInput | null {
-  if (message.id === WELCOME.id) return null
-  if (message.role !== "user" && message.role !== "assistant") return null
-  const text = messageText(message)
-  const parts: Record<string, unknown>[] = []
-  for (const part of message.parts) {
-    parts.push({ ...part })
-  }
-  const hasContent = text.trim().length > 0 || parts.some((part) => typeof part.type === "string" && part.type !== "step-start" && (part.type !== "text" || (typeof part.text === "string" && part.text.trim().length > 0)))
-  if (!hasContent) return null
-
-  return {
-    id: message.id,
-    role: message.role,
-    text,
-    parts,
-    ...(message.metadata?.refused !== undefined ? { metadata: { refused: message.metadata.refused } } : {}),
-  }
-}
-
-function serializeMessages(messages: readonly PlannerMessage[]): SyncChatMessageInput[] {
-  const result: SyncChatMessageInput[] = []
-  for (const message of messages) {
-    const serialized = serializeMessage(message)
-    if (serialized) result.push(serialized)
-  }
-  return result.slice(-MAX_SYNC_MESSAGES)
-}
-
 function deserializeMessage(record: ChatMessageRecord): PlannerMessage {
   const parts = record.parts.filter(isUIMessagePart)
   const normalizedParts: PlannerMessage["parts"] =
@@ -461,21 +318,50 @@ function deserializeMessage(record: ChatMessageRecord): PlannerMessage {
   }
 }
 
+type PlannerToolOutputPayload = {
+  tool: "askUser" | "requestWebSearch"
+  toolCallId: string
+  output: Record<string, unknown>
+}
+
+function isPlainRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value)
+}
+
+function parseToolOutputPayload(value: unknown): PlannerToolOutputPayload | undefined {
+  if (!isPlainRecord(value)) return undefined
+  if (value.tool !== "askUser" && value.tool !== "requestWebSearch") return undefined
+  if (typeof value.toolCallId !== "string" || value.toolCallId.length === 0) return undefined
+  if (!isPlainRecord(value.output)) return undefined
+  return {
+    tool: value.tool,
+    toolCallId: value.toolCallId,
+    output: value.output,
+  }
+}
+
 const transport = new DefaultChatTransport<PlannerMessage>({
   api: MEAL_PLANNER_CHAT_URL,
   prepareSendMessagesRequest: ({ messages, headers, body }) => {
     const threadId = typeof body?.threadId === "string" ? body.threadId : undefined
+    const toolOutput = parseToolOutputPayload(body?.toolOutput)
+    let lastUser: PlannerMessage | undefined
+    for (let index = messages.length - 1; index >= 0; index -= 1) {
+      const candidate = messages[index]
+      if (candidate.role === "user" && candidate.id !== WELCOME.id) {
+        lastUser = candidate
+        break
+      }
+    }
     return {
       headers,
       body: {
         weekStart: body?.weekStart,
         ...(threadId ? { threadId } : {}),
         allowWebSearch: body?.allowWebSearch === true,
-        requestId: messages.filter((message) => message.role === "user").at(-1)?.id,
-        messages: withoutRefusals(messages.filter((message) => message.id !== WELCOME.id))
-          .map((message) => ({ role: message.role, text: contextText(message) }))
-          .filter((message) => message.text)
-          .slice(-CONTEXT_MESSAGES),
+        ...(lastUser ? { requestId: lastUser.id } : {}),
+        ...(toolOutput ? { toolOutput } : {}),
+        message: lastUser ? messageText(lastUser) : "",
       },
     }
   },
@@ -523,37 +409,19 @@ export function useMealPlannerChat(weekStart: string | undefined) {
     messages: [WELCOME] as PlannerMessage[],
   })
 
-  async function syncThread(
-    token: string | undefined,
-    targetThreadId: string,
-    messagesToSync: readonly PlannerMessage[]
-  ) {
-    if (!token) return
-    const payload = serializeMessages(messagesToSync)
-    if (payload.length === 0) return
-    try {
-      await updateChatThread(token, targetThreadId, { messages: payload })
-      void threads.mutate()
-    } catch {
-      // Server-side stream persistence already captured the turn; avoid breaking chat UI.
-    }
-  }
-
   const { messages, status, error, sendMessage, setMessages, stop, clearError, addToolOutput } =
     useChat<PlannerMessage>({
       transport,
       messages: [WELCOME],
-      onFinish: ({ messages: finishedMessages }) => {
-        const { accessToken: token, threadId: activeId } = latestRef.current
-        void syncThread(token, activeId, finishedMessages)
+      onFinish: () => {
+        void threads.mutate()
       },
       onError: (err) => {
         if (APICallError.isInstance(err) && err.statusCode === 401) {
           router.refresh()
           return
         }
-        const { accessToken: token, threadId: activeId, messages: currentMessages } = latestRef.current
-        void syncThread(token, activeId, currentMessages)
+        void threads.mutate()
       },
     })
 
@@ -642,7 +510,7 @@ export function useMealPlannerChat(weekStart: string | undefined) {
 
   const busy = status === "submitted" || status === "streaming"
 
-  function sendText(text: string, allowWebSearch: boolean) {
+  function sendText(text: string, allowWebSearch: boolean, toolOutput?: PlannerToolOutputPayload) {
     if (!weekStart) return
     clearError()
     setHistoryError(null)
@@ -650,22 +518,37 @@ export function useMealPlannerChat(weekStart: string | undefined) {
       { text },
       {
         headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : undefined,
-        body: { threadId, weekStart, allowWebSearch },
+        body: {
+          threadId,
+          weekStart,
+          allowWebSearch,
+          ...(toolOutput ? { toolOutput } : {}),
+        },
       }
     )
   }
 
   async function answerWebSearch(toolCallId: string, approved: boolean) {
     if (busy || !weekStart) return
-    await addToolOutput({ tool: "requestWebSearch", toolCallId, output: { approved } })
-    sendText(approved ? WEB_SEARCH_APPROVED_TEXT : WEB_SEARCH_DECLINED_TEXT, approved)
+    const output = { approved }
+    await addToolOutput({ tool: "requestWebSearch", toolCallId, output })
+    sendText(approved ? WEB_SEARCH_APPROVED_TEXT : WEB_SEARCH_DECLINED_TEXT, approved, {
+      tool: "requestWebSearch",
+      toolCallId,
+      output,
+    })
   }
 
   async function answerQuestion(toolCallId: string, answer: string) {
     const text = answer.trim()
     if (busy || !weekStart || !text) return
-    await addToolOutput({ tool: "askUser", toolCallId, output: { answer: text } })
-    sendText(text, webSearchAllowed(latestRef.current.messages))
+    const output = { answer: text }
+    await addToolOutput({ tool: "askUser", toolCallId, output })
+    sendText(text, webSearchAllowed(latestRef.current.messages), {
+      tool: "askUser",
+      toolCallId,
+      output,
+    })
   }
 
   /**
@@ -723,6 +606,16 @@ export function useMealPlannerChat(weekStart: string | undefined) {
   const threadList: ChatThreadSummary[] = threads.data?.items ?? []
   const activeThread = threadList.find((item) => item.id === threadId) ?? null
 
+  // A reply typed while the assistant's question is open answers that question,
+  // so its tool call gets an output; the API drops calls that never get one.
+  function sendTyped(text: string) {
+    if (openQuestion) {
+      void answerQuestion(openQuestion.toolCallId, text)
+      return
+    }
+    sendText(text, webSearch)
+  }
+
   return {
     weekStart,
     threadId,
@@ -740,7 +633,7 @@ export function useMealPlannerChat(weekStart: string | undefined) {
     pendingId: busy && !replying && last?.role === "assistant" ? last.id : null,
     streamingId: replying ? last.id : null,
     error: error ? errorMessage(error) : null,
-    send: (text: string) => sendText(text, webSearch),
+    send: sendTyped,
     /** Stops the running turn; what the planner already saved stays saved. */
     stop: () => void stop(),
     /** The user allowed web search in this conversation. */
