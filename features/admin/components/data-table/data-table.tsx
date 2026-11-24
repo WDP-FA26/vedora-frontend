@@ -10,15 +10,13 @@ import {
   type RowData,
   type RowSelectionState,
   type SortingState,
+  type PaginationState,
+  type OnChangeFn,
 } from "@tanstack/react-table"
 import { SearchIcon, type LucideIcon } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
-import {
-  InputGroup,
-  InputGroupAddon,
-  InputGroupInput,
-} from "@/components/ui/input-group"
+import { InputGroup, InputGroupAddon, InputGroupInput } from "@/components/ui/input-group"
 import {
   Table,
   TableBody,
@@ -60,6 +58,7 @@ export function DataTable<TData extends RowData>({
   emptyMessage = "Không có kết quả.",
   selectionActions,
   actions,
+  pagination,
 }: {
   columns: ColumnDef<DataTableFeatures, TData>[]
   data: TData[]
@@ -78,13 +77,20 @@ export function DataTable<TData extends RowData>({
   selectionActions?: (table: ReactTable<DataTableFeatures, TData>) => ReactNode
   /** Page-level actions at the end of the bar. */
   actions?: ReactNode
+  /** Optional server pagination; existing tables keep their local pagination. */
+  pagination?: {
+    state: PaginationState
+    onChange: OnChangeFn<PaginationState>
+    rowCount: number
+    pageSizes?: number[]
+    isPending?: boolean
+  }
 }) {
   const [sorting, setSorting] = useState<SortingState>([])
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>(
     () => views.find((view) => view.id === defaultView)?.columnFilters ?? []
   )
-  const [columnVisibility, setColumnVisibility] =
-    useState<ColumnVisibilityState>({})
+  const [columnVisibility, setColumnVisibility] = useState<ColumnVisibilityState>({})
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({})
 
   const table = useTable({
@@ -98,7 +104,20 @@ export function DataTable<TData extends RowData>({
     onColumnFiltersChange: setColumnFilters,
     onColumnVisibilityChange: setColumnVisibility,
     onRowSelectionChange: setRowSelection,
-    state: { sorting, columnFilters, columnVisibility, rowSelection },
+    state: {
+      sorting,
+      columnFilters,
+      columnVisibility,
+      rowSelection,
+      ...(pagination ? { pagination: pagination.state } : {}),
+    },
+    ...(pagination
+      ? {
+          manualPagination: true,
+          rowCount: pagination.rowCount,
+          onPaginationChange: pagination.onChange,
+        }
+      : {}),
   })
 
   const rows = table.getRowModel().rows
@@ -155,13 +174,8 @@ export function DataTable<TData extends RowData>({
           {table.getHeaderGroups().map((headerGroup) => (
             <TableRow key={headerGroup.id}>
               {headerGroup.headers.map((header) => (
-                <TableHead
-                  key={header.id}
-                  className={header.column.columnDef.meta?.className}
-                >
-                  {header.isPlaceholder ? null : (
-                    <table.FlexRender header={header} />
-                  )}
+                <TableHead key={header.id} className={header.column.columnDef.meta?.className}>
+                  {header.isPlaceholder ? null : <table.FlexRender header={header} />}
                 </TableHead>
               ))}
             </TableRow>
@@ -170,15 +184,9 @@ export function DataTable<TData extends RowData>({
         <TableBody>
           {rows.length ? (
             rows.map((row) => (
-              <TableRow
-                key={row.id}
-                data-state={row.getIsSelected() && "selected"}
-              >
+              <TableRow key={row.id} data-state={row.getIsSelected() && "selected"}>
                 {row.getVisibleCells().map((cell) => (
-                  <TableCell
-                    key={cell.id}
-                    className={cell.column.columnDef.meta?.className}
-                  >
+                  <TableCell key={cell.id} className={cell.column.columnDef.meta?.className}>
                     <table.FlexRender cell={cell} />
                   </TableCell>
                 ))}
@@ -195,7 +203,12 @@ export function DataTable<TData extends RowData>({
       </Table>
 
       <div className="mt-auto">
-        <DataTablePagination table={table} />
+        <DataTablePagination
+          table={table}
+          rowCount={pagination?.rowCount}
+          pageSizes={pagination?.pageSizes}
+          isPending={pagination?.isPending}
+        />
       </div>
     </div>
   )
