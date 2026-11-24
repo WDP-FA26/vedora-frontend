@@ -21,13 +21,7 @@ import {
 import { cn } from "cn"
 
 import { Button } from "@/components/ui/button"
-import {
-  Empty,
-  EmptyDescription,
-  EmptyHeader,
-  EmptyMedia,
-  EmptyTitle,
-} from "@/components/ui/empty"
+import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty"
 import { Spinner } from "@/components/ui/spinner"
 import { supportTicketPath } from "@/features/support/support-cache"
 import { toAuthor } from "@/features/auth/lib/to-author"
@@ -43,6 +37,11 @@ const ICONS = {
   LIKE: HeartIcon,
   COMMENT: MessageCircleIcon,
   COMMENT_REPLY: MessageCircleIcon,
+  COMMENT_REMOVED: Trash2Icon,
+  COMMENT_REMOVED_BY_POST_OWNER: Trash2Icon,
+  COMMENT_THREAD_REMOVED: MessageCircleIcon,
+  COMMENT_REPORT_RESOLVED: FlagIcon,
+  COMMENT_REPORT_DISMISSED: FlagOffIcon,
   REPOST: Repeat2Icon,
   FOLLOW: UserPlusIcon,
   POST_PUBLISHED: CircleCheckIcon,
@@ -103,6 +102,14 @@ function hrefFor(notification: ApiNotification) {
     return `/posts/${postId}?comment=${encodeURIComponent(notification.commentId)}#comments`
   }
   if (postId) return `/posts/${postId}`
+  if (
+    type === "COMMENT_REMOVED" ||
+    type === "COMMENT_REMOVED_BY_POST_OWNER" ||
+    type === "COMMENT_THREAD_REMOVED" ||
+    type === "COMMENT_REPORT_RESOLVED" ||
+    type === "COMMENT_REPORT_DISMISSED"
+  )
+    return "/home/notifications"
   return actor ? profilePath(actor.id) : "/home"
 }
 
@@ -116,7 +123,13 @@ export function NotificationsView() {
         <h1 id="notifications-title" className="text-lg font-bold">
           Thông báo
         </h1>
-        <Button variant="ghost" size="sm" shape="pill" disabled={unread === 0} onClick={() => void markRead()}>
+        <Button
+          variant="ghost"
+          size="sm"
+          shape="pill"
+          disabled={unread === 0}
+          onClick={() => void markRead()}
+        >
           <CheckCheckIcon aria-hidden />
           Đánh dấu đã đọc
         </Button>
@@ -175,10 +188,16 @@ export function NotificationsView() {
                           {noteText(notification, notification.note)}
                         </p>
                       )}
-                      <RelativeTime iso={notification.createdAt} className="text-xs text-muted-foreground" />
+                      <RelativeTime
+                        iso={notification.createdAt}
+                        className="text-xs text-muted-foreground"
+                      />
                     </div>
                     {!notification.readAt && (
-                      <span aria-label="Chưa đọc" className="mt-2 size-2 shrink-0 rounded-full bg-primary" />
+                      <span
+                        aria-label="Chưa đọc"
+                        className="mt-2 size-2 shrink-0 rounded-full bg-primary"
+                      />
                     )}
                   </Link>
                 </li>
