@@ -247,9 +247,8 @@ export const VOICE_POINT_MS = 700
 /** How long the target keeps glowing in total. */
 export const VOICE_GLOW_MS = 1800
 
-/** The glow around whatever the voice agent is about to open. */
-export const VOICE_HIGHLIGHT =
-  "rounded-2xl ring-2 ring-primary ring-offset-2 ring-offset-background motion-safe:animate-pulse"
+/** The 7-color rainbow glow around whatever the voice agent is acting on or about to open. */
+export const VOICE_HIGHLIGHT = "voice-ai-glow z-30"
 
 export function isFreshFocus(request: { at: number } | undefined) {
   if (!request) return false

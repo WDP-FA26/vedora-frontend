@@ -218,22 +218,47 @@ export function MealPlannerView() {
     setTab("chat")
   }
 
-  const voiceButton = (size: "icon" | "icon-sm") => (
-    <Button
-      variant="tool"
-      size={size}
-      aria-label="Trò chuyện bằng giọng nói"
-      title="Trò chuyện bằng giọng nói"
-      disabled={!weekStart || voice.open}
-      onClick={() => {
-        setAssistantOpen(true)
-        setTab("chat")
-        void voice.start()
-      }}
-    >
-      <AudioLinesIcon aria-hidden />
-    </Button>
-  )
+  function startVoice() {
+    setAssistantOpen(true)
+    setTab("chat")
+    if (!voice.open && weekStart) {
+      void voice.start()
+    }
+  }
+
+  const voicePillButton = (className?: string) =>
+    voice.open ? (
+      <Button
+        type="button"
+        variant="secondary"
+        size="pill-sm"
+        shape="pill"
+        aria-label="Mở màn hình trò chuyện giọng nói"
+        onClick={() => {
+          setAssistantOpen(true)
+          setTab("chat")
+        }}
+        className={cn("shrink-0", className)}
+      >
+        <span className="size-2 rounded-full bg-primary animate-pulse motion-reduce:animate-none" aria-hidden />
+        <span>Đang nói</span>
+      </Button>
+    ) : (
+      <Button
+        type="button"
+        variant="default"
+        size="pill-sm"
+        shape="pill"
+        aria-label="Trò chuyện bằng giọng nói"
+        title="Trò chuyện bằng giọng nói"
+        disabled={!weekStart}
+        onClick={startVoice}
+        className={cn("shrink-0", className)}
+      >
+        <AudioLinesIcon aria-hidden />
+        <span>Nói</span>
+      </Button>
+    )
 
   const hideAssistantButton = (
     <Button
@@ -347,6 +372,7 @@ export function MealPlannerView() {
               <CalendarRangeIcon aria-hidden /> Lịch
             </TabsTrigger>
           </TabsList>
+          {tab === "calendar" && voicePillButton()}
         </div>
 
         <div
@@ -378,13 +404,10 @@ export function MealPlannerView() {
                 askContext={askContext}
                 clearAskContext={() => setAskContext(null)}
                 leading={<span className="hidden lg:block">{backButton("icon")}</span>}
-                trailing={
-                  <>
-                    {voiceButton("icon")}
-                    {hideAssistantButton}
-                  </>
-                }
+                trailing={hideAssistantButton}
                 onOpenWeek={showWeek}
+                onStartVoice={startVoice}
+                voiceDisabled={!weekStart || voice.open}
               />
             )}
             </div>
@@ -417,13 +440,13 @@ export function MealPlannerView() {
                     {plan.data && (
                       <MealLogButton plan={plan.data} onAskAssistant={askAssistant} voiceFocus={diaryFocus} />
                     )}
+                    {!assistantOpen && voicePillButton("hidden lg:inline-flex")}
                   </div>
                 }
                 leading={
                   assistantOpen ? undefined : (
                     <span className="hidden flex-col items-center gap-1 animate-in fade-in duration-300 lg:flex">
                       {backButton("icon-sm")}
-                      {voiceButton("icon-sm")}
                       <Button
                         variant="ghost"
                         size="icon-sm"

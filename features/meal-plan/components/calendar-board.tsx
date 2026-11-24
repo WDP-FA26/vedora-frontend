@@ -548,7 +548,7 @@ export function CalendarBoard({
                   title={kcalTitle || undefined}
                   className={cn(
                     "sticky top-0 z-10 flex min-h-16 flex-col items-center justify-center gap-0.5 bg-card py-1 shadow-[0_1px_0_0_var(--border)]",
-                    glow?.day === day && VOICE_HIGHLIGHT
+                    glow?.day === day && ["rounded-xl", VOICE_HIGHLIGHT]
                   )}
                 >
                   <span className={cn("text-[0.6875rem] font-semibold", day === today ? "text-primary" : "text-muted-foreground")}>
@@ -589,6 +589,7 @@ export function CalendarBoard({
                 const recipes = view.find((item) => item.day === day)
                   ?.sections.find((item) => item.section === section)?.recipes ?? []
                 const targeted = dropTarget?.day === day && dropTarget.section === section
+                const cellHighlighted = glow?.day === day && recipes.some((recipe) => recipe.id === glow.recipeId)
                 return (
                   <div
                     key={day}
@@ -605,7 +606,8 @@ export function CalendarBoard({
                       "group/cell flex min-h-24 flex-col gap-1.5 bg-card p-1.5 transition-colors",
                       day === today && "bg-secondary/30",
                       !dayEditable(day) && "bg-muted/50",
-                      targeted && "bg-primary/10 ring-2 ring-inset ring-primary/40"
+                      targeted && "bg-primary/10 ring-2 ring-inset ring-primary/40",
+                      cellHighlighted && "relative z-30"
                     )}
                   >
                     {recipes.map((recipe) => {
@@ -750,7 +752,7 @@ function CalendarChip({
       className={cn(
         "group flex min-w-0 items-center gap-0.5 rounded-lg border border-transparent bg-primary/10 py-0.5 pr-0.5 pl-1.5 text-xs",
         !disabled && "cursor-grab active:cursor-grabbing",
-        highlighted && VOICE_HIGHLIGHT
+        highlighted && ["bg-card", VOICE_HIGHLIGHT]
       )}
     >
       <button

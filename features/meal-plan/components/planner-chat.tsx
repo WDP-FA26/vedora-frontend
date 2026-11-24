@@ -5,6 +5,7 @@ import Link from "next/link"
 import { Streamdown } from "streamdown"
 import {
   ArrowUpIcon,
+  AudioLinesIcon,
   CalendarCheckIcon,
   CheckIcon,
   GlobeIcon,
@@ -125,6 +126,8 @@ export function PlannerChat({
   askContext,
   clearAskContext,
   onOpenWeek,
+  onStartVoice,
+  voiceDisabled = false,
   leading,
   trailing,
   handle,
@@ -142,6 +145,9 @@ export function PlannerChat({
   clearAskContext?: () => void
   /** Shows a week the assistant changed on the calendar. */
   onOpenWeek?: (weekStart: string) => void
+  /** Starts a live voice conversation from the chat composer. */
+  onStartVoice?: () => void
+  voiceDisabled?: boolean
 }) {
   const { messages, busy, waiting, pendingId, streamingId, error, send, reset } = chat
   const [input, setInput] = useState("")
@@ -439,6 +445,20 @@ export function PlannerChat({
             <InputGroupAddon align="inline-end">{busy && !input.trim() ? (
                 <InputGroupButton type="button" size="icon-sm" variant="default" aria-label="Dừng" title="Dừng" onClick={chat.stop}>
                   <SquareIcon aria-hidden />
+                </InputGroupButton>
+              ) : !busy && !input.trim() && onStartVoice ? (
+                <InputGroupButton
+                  type="button"
+                  size="sm"
+                  shape="pill"
+                  variant="default"
+                  aria-label="Trò chuyện bằng giọng nói"
+                  title="Trò chuyện bằng giọng nói"
+                  disabled={voiceDisabled}
+                  onClick={onStartVoice}
+                >
+                  <AudioLinesIcon aria-hidden />
+                  <span>Nói</span>
                 </InputGroupButton>
               ) : (
                 <InputGroupButton type="submit" size="icon-sm" variant="default" aria-label={busy ? "Gửi sau khi trợ lý xong" : "Gửi"} disabled={!chat.weekStart || !input.trim()}>

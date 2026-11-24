@@ -355,6 +355,90 @@
   .vedora-main-shell:has(> main[data-wide="true"]) {
     max-width: 112rem;
   }
+
+  /* Grok-on-Tesla style 7-color rainbow AI focus ring & aura */
+  .voice-ai-glow {
+    position: relative;
+    isolation: isolate;
+  }
+
+  .sticky.voice-ai-glow {
+    position: sticky;
+  }
+
+  .voice-ai-glow::before,
+  .voice-ai-glow::after {
+    content: "";
+    position: absolute;
+    border-radius: inherit;
+    pointer-events: none;
+    background: conic-gradient(
+      from var(--voice-glow-angle),
+      #ff3b30,
+      #ff9500,
+      #ffcc00,
+      #34c759,
+      #00c7be,
+      #007aff,
+      #af52de,
+      #ff3b30
+    );
+    animation: voice-glow-spin 2.2s linear infinite;
+  }
+
+  .voice-ai-glow::before {
+    inset: -2px;
+    padding: 2px;
+    z-index: 1;
+    -webkit-mask:
+      linear-gradient(#000 0 0) content-box,
+      linear-gradient(#000 0 0);
+    -webkit-mask-composite: xor;
+    mask:
+      linear-gradient(#000 0 0) content-box,
+      linear-gradient(#000 0 0);
+    mask-composite: exclude;
+  }
+
+  .voice-ai-glow::after {
+    inset: -5px;
+    z-index: -1;
+    filter: blur(8px);
+    animation:
+      voice-glow-spin 2.2s linear infinite,
+      voice-glow-breathe 1.6s ease-in-out infinite;
+  }
+
+  /* Sticky day headers sit at y=0 of an overflow-auto grid; keep the top edge inside the viewport. */
+  .sticky.voice-ai-glow::before {
+    inset: 1px;
+  }
+
+  .sticky.voice-ai-glow::after {
+    inset: 0;
+  }
+}
+
+@property --voice-glow-angle {
+  syntax: "<angle>";
+  initial-value: 0deg;
+  inherits: false;
+}
+
+@keyframes voice-glow-spin {
+  to {
+    --voice-glow-angle: 360deg;
+  }
+}
+
+@keyframes voice-glow-breathe {
+  0%,
+  100% {
+    opacity: 0.55;
+  }
+  50% {
+    opacity: 0.85;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

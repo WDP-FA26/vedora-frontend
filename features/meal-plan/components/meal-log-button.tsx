@@ -204,7 +204,7 @@ export function MealLogButton({
 
   return (
     <Sheet open={open} onOpenChange={setOpen}>
-      <span className={cn("inline-flex", glow && VOICE_HIGHLIGHT)}>
+      <span className={cn("inline-flex rounded-2xl", glow && VOICE_HIGHLIGHT)}>
         <SheetTrigger render={<Button variant="outline" size="sm" />}>
           <NotebookPenIcon aria-hidden />
           Nhật ký
