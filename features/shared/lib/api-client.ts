@@ -32,12 +32,13 @@ export class ApiError extends Error {
 export async function send(url: string, token: string | undefined, init: RequestInit = {}) {
   const headers = new Headers(init.headers)
   if (token) headers.set("Authorization", `Bearer ${token}`)
-  if (init.body) headers.set("Content-Type", "application/json")
+  if (init.body && !(init.body instanceof FormData)) headers.set("Content-Type", "application/json")
 
   const response = await fetch(url, { ...init, headers })
   if (!response.ok) {
     const error = apiErrorSchema.safeParse(await response.json().catch(() => null))
-    if (!error.success) throw new ApiError(response.status, undefined, response.statusText, undefined)
+    if (!error.success)
+      throw new ApiError(response.status, undefined, response.statusText, undefined)
     throw new ApiError(response.status, error.data.code, error.data.message, error.data.details)
   }
   return response
