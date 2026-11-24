@@ -153,6 +153,13 @@ const reportUserSchema = z.object({
 })
 
 export const adminReportSchema = z.object({
+  evidence: z
+    .array(
+      z.object({ id: z.string(), url: z.string(), contentType: z.string(), sizeBytes: z.number() })
+    )
+    .default([]),
+  reportCount: z.number().int().nonnegative().optional(),
+  pendingReportCount: z.number().int().nonnegative().optional(),
   id: z.string(),
   postId: z.string(),
   reason: z.enum(REPORT_REASONS),
@@ -211,5 +218,8 @@ export const moderationTestResultSchema = z.object({
 export type ModerationChoice = z.infer<typeof moderationChoiceSchema>
 export type ModerationSettings = z.infer<typeof moderationSettingsSchema>
 /** The part of the settings an admin edits and the test endpoint accepts. */
-export type ModerationPolicyDraft = Pick<ModerationSettings, "instructions" | "allowDescription" | "choices">
+export type ModerationPolicyDraft = Pick<
+  ModerationSettings,
+  "instructions" | "allowDescription" | "choices"
+>
 export type ModerationTestResult = z.infer<typeof moderationTestResultSchema>

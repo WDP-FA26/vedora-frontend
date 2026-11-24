@@ -1,4 +1,5 @@
 import { API_URL } from "@/features/auth/lib/api"
+import { z } from "zod"
 import { send, sendJson } from "@/features/shared/lib/api-client"
 import { postKey } from "@/features/posts/posts-cache"
 import {
@@ -77,7 +78,7 @@ export function setPostBookmark(token: string, id: string, bookmarked: boolean) 
 export async function reportPost(
   token: string,
   id: string,
-  input: { reason: ReportReason; details?: string }
+  input: { reason: ReportReason; details?: string; evidenceIds?: string[] }
 ) {
   await send(`${postKey(id)}/report`, token, {
     method: "POST",
@@ -94,6 +95,16 @@ export async function reportComment(
   await send(`${postKey(postId)}/comments/${commentId}/report`, token, {
     method: "POST",
     body: JSON.stringify(input),
+  })
+}
+
+export function uploadPostReportEvidence(token: string, postId: string, file: File) {
+  const body = new FormData()
+  body.set("file", file)
+  return sendJson(z.object({ id: z.string() }), `${postKey(postId)}/report/evidence`, token, {
+    method: "POST",
+    body,
+    signal: AbortSignal.timeout(60_000),
   })
 }
 

@@ -77,9 +77,7 @@ export async function deleteAdminPost(token: string, id: string, reason?: string
   await send(
     adminPostKey(id),
     token,
-    trimmed
-      ? { method: "DELETE", body: JSON.stringify({ reason: trimmed }) }
-      : { method: "DELETE" }
+    trimmed ? { method: "DELETE", body: JSON.stringify({ reason: trimmed }) } : { method: "DELETE" }
   )
 }
 
@@ -103,11 +101,10 @@ export async function fetchTranscript(url: string) {
 export async function fetchAllReports([url, token]: readonly [string, string]) {
   const reports: AdminReport[] = []
   for (let page = 1; ; page++) {
-    const { items, meta } = await sendJson(
-      adminReportPageSchema,
-      `${url}?page=${page}&limit=${PAGE_LIMIT}`,
-      token
-    )
+    const pageUrl = new URL(url)
+    pageUrl.searchParams.set("page", String(page))
+    pageUrl.searchParams.set("limit", String(PAGE_LIMIT))
+    const { items, meta } = await sendJson(adminReportPageSchema, pageUrl.toString(), token)
     reports.push(...items)
     if (!meta.hasNextPage) return reports
   }
@@ -151,7 +148,11 @@ export function fetchModerationSettings([url, token]: readonly [string, string])
 }
 
 /** Replaces the policy; `version` is the one that was loaded, so a stale save answers 409. */
-export function saveModerationSettings(token: string, draft: ModerationPolicyDraft, version: number) {
+export function saveModerationSettings(
+  token: string,
+  draft: ModerationPolicyDraft,
+  version: number
+) {
   return sendJson(moderationSettingsSchema, MODERATION_SETTINGS_KEY, token, {
     method: "PUT",
     body: JSON.stringify({ ...draft, version }),

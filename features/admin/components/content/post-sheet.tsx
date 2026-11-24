@@ -44,6 +44,7 @@ import { NEW_RECIPE_PATH } from "@/features/recipes/recipes-cache"
 import { AuthorAvatar } from "@/features/shared/components/author-avatar"
 import { ApiError } from "@/features/shared/lib/api-client"
 import { formatCount, formatPostDateLong } from "@/features/shared/lib/format"
+import { PostReportHistory } from "@/features/admin/components/moderation/post-report-history"
 
 const FAILURE_MESSAGES: Record<NonNullable<AdminMediaDetail["failureReason"]>, string> = {
   TOO_LONG: "Video dài quá giới hạn.",
@@ -203,6 +204,7 @@ function PostBody({ post }: { post: AdminPostDetail }) {
             label={media.length === 1 ? "Video" : `Video ${index + 1}/${media.length}`}
           />
         ))}
+        <PostReportHistory postId={post.id} postStatus={post.status} />
       </div>
 
       <SheetFooter>

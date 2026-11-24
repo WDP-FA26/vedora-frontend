@@ -10,8 +10,6 @@ import {
   SUPPORT_ATTACHMENT_TYPES,
 } from "@/features/support/schemas"
 
-const MAX_BYTES = MAX_ATTACHMENT_MB * 1024 * 1024
-
 function isAllowedType(type: string): boolean {
   return SUPPORT_ATTACHMENT_TYPES.some((allowed) => allowed === type)
 }
@@ -32,14 +30,18 @@ export function TicketImagePicker({
   images,
   onChange,
   disabled,
+  maxImages = MAX_ATTACHMENTS_PER_MESSAGE,
+  maxMb = MAX_ATTACHMENT_MB,
 }: {
   images: PickedImage[]
   onChange: (images: PickedImage[]) => void
   disabled?: boolean
+  maxImages?: number
+  maxMb?: number
 }) {
   const inputRef = useRef<HTMLInputElement>(null)
   const [error, setError] = useState<string | null>(null)
-  const full = images.length >= MAX_ATTACHMENTS_PER_MESSAGE
+  const full = images.length >= maxImages
 
   function handlePick(event: React.ChangeEvent<HTMLInputElement>) {
     const picked = Array.from(event.target.files ?? [])
@@ -51,15 +53,15 @@ export function TicketImagePicker({
         setError("Chỉ hỗ trợ ảnh JPG, PNG hoặc WebP.")
         continue
       }
-      if (file.size > MAX_BYTES) {
-        setError(`Mỗi ảnh tối đa ${MAX_ATTACHMENT_MB} MB.`)
+      if (file.size > maxMb * 1024 * 1024) {
+        setError(`Mỗi ảnh tối đa ${maxMb} MB.`)
         continue
       }
       accepted.push(file)
     }
-    const room = MAX_ATTACHMENTS_PER_MESSAGE - images.length
+    const room = maxImages - images.length
     if (accepted.length > room) {
-      setError(`Tối đa ${MAX_ATTACHMENTS_PER_MESSAGE} ảnh mỗi tin.`)
+      setError(`Tối đa ${maxImages} ảnh mỗi lần gửi.`)
     }
     const added = accepted
       .slice(0, room)
@@ -95,7 +97,7 @@ export function TicketImagePicker({
           Đính kèm ảnh
         </Button>
         <span className="font-mono text-xs text-muted-foreground tabular-nums">
-          {images.length}/{MAX_ATTACHMENTS_PER_MESSAGE} ảnh · tối đa {MAX_ATTACHMENT_MB} MB/ảnh
+          {images.length}/{maxImages} ảnh · tối đa {maxMb} MB/ảnh
         </span>
       </div>
       {images.length > 0 && (
