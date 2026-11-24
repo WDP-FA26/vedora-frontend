@@ -17,6 +17,8 @@ export type QueueRow = {
   category: string | null
   /** For `held` and `blocked`: what the automated check decided. For `report`: the reporter's reason. */
   report: AdminReport | null
+  reportCount?: number
+  pendingReportCount?: number
   createdAt: string
 }
 
@@ -29,7 +31,8 @@ function excerptOf(post: { body: string | null; blog: { title: string } | null }
 function moderationOf(post: AdminPost | undefined) {
   return {
     riskLevel: post?.moderation?.riskLevel ?? null,
-    category: post?.moderation && post.moderation.verdict !== "allow" ? post.moderation.verdict : null,
+    category:
+      post?.moderation && post.moderation.verdict !== "allow" ? post.moderation.verdict : null,
   }
 }
 
@@ -52,17 +55,27 @@ export function buildQueue(posts: AdminPost[], reports: AdminReport[]): QueueRow
     })
   }
 
+  const grouped = new Map<string, AdminReport[]>()
   for (const report of reports) {
     if (report.status !== "PENDING") continue
+    const group = grouped.get(report.postId) ?? []
+    group.push(report)
+    grouped.set(report.postId, group)
+  }
+  for (const group of grouped.values()) {
+    const report = [...group].sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0]
     const post = postById.get(report.postId)
     rows.push({
-      id: `report:${report.id}`,
+      id: `report:${report.postId}`,
       kind: "report",
       postId: report.postId,
       excerpt: post ? excerptOf(post) : (report.post.body ?? "").trim() || "(Bài chỉ có video)",
       author: report.post.author,
       ...moderationOf(post),
       report,
+      reportCount:
+        report.reportCount ?? reports.filter((item) => item.postId === report.postId).length,
+      pendingReportCount: report.pendingReportCount ?? group.length,
       createdAt: report.createdAt,
     })
   }

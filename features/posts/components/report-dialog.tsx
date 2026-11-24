@@ -1,6 +1,6 @@
 "use client"
 
-import { useId, useState } from "react"
+import { useEffect, useId, useRef, useState } from "react"
 import { Controller, useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { CircleCheckIcon } from "lucide-react"
@@ -26,7 +26,12 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Spinner } from "@/components/ui/spinner"
 import { Textarea } from "@/components/ui/textarea"
 import { useAuth } from "@/features/auth/hooks/use-auth"
-import { reportComment, reportPost } from "@/features/posts/lib/posts-api"
+import { reportComment, reportPost, uploadPostReportEvidence } from "@/features/posts/lib/posts-api"
+import {
+  TicketImagePicker,
+  releasePickedImages,
+  type PickedImage,
+} from "@/features/support/components/ticket-image-picker"
 import {
   MAX_REPORT_DETAILS_LENGTH,
   REPORT_REASON_LABELS,
@@ -53,6 +58,13 @@ export function ReportDialog({
   const { accessToken } = useAuth()
   const formId = useId()
   const [sent, setSent] = useState(false)
+  const [images, setImages] = useState<PickedImage[]>([])
+  const imageRef = useRef(images)
+  const uploaded = useRef(new Map<File, string>())
+  useEffect(() => {
+    imageRef.current = images
+  }, [images])
+  useEffect(() => () => releasePickedImages(imageRef.current), [])
   const subject = commentId ? "bình luận" : "bài viết"
   const form = useForm<ReportFormValues>({
     resolver: zodResolver(reportFormSchema),
@@ -68,7 +80,21 @@ export function ReportDialog({
     try {
       const input = { reason, details: details || undefined }
       if (commentId) await reportComment(accessToken, postId, commentId, input)
-      else await reportPost(accessToken, postId, input)
+      else {
+        const evidenceIds: string[] = []
+        for (const image of images) {
+          let id = uploaded.current.get(image.file)
+          if (!id) {
+            id = (await uploadPostReportEvidence(accessToken, postId, image.file)).id
+            uploaded.current.set(image.file, id)
+          }
+          evidenceIds.push(id)
+        }
+        await reportPost(accessToken, postId, {
+          ...input,
+          ...(evidenceIds.length ? { evidenceIds } : {}),
+        })
+      }
       setSent(true)
     } catch (error) {
       // Already in the queue, which is what the reporter wanted.
@@ -85,18 +111,20 @@ export function ReportDialog({
     }
   }
 
+  function changeOpen(next: boolean) {
+    if (isSubmitting) return
+    if (!next) {
+      form.reset()
+      setSent(false)
+      releasePickedImages(images)
+      setImages([])
+      uploaded.current.clear()
+    }
+    onOpenChange(next)
+  }
+
   return (
-    <Dialog
-      open={open}
-      onOpenChange={(next) => {
-        if (isSubmitting) return
-        onOpenChange(next)
-        if (!next) {
-          form.reset()
-          setSent(false)
-        }
-      }}
-    >
+    <Dialog open={open} onOpenChange={changeOpen}>
       <DialogContent>
         {sent ? (
           <>
@@ -110,9 +138,7 @@ export function ReportDialog({
             <DialogFooter>
               <Button
                 onClick={() => {
-                  form.reset()
-                  setSent(false)
-                  onOpenChange(false)
+                  changeOpen(false)
                 }}
               >
                 Xong
@@ -131,8 +157,8 @@ export function ReportDialog({
             <form
               id={formId}
               noValidate
-              onSubmit={form.handleSubmit(onSubmit)}
-              className="flex flex-col gap-5"
+              onSubmit={(event) => void form.handleSubmit(onSubmit)(event)}
+              className="flex max-h-[60dvh] flex-col gap-5 overflow-y-auto"
             >
               <Controller
                 name="reason"
@@ -182,6 +208,21 @@ export function ReportDialog({
                   </Field>
                 )}
               />
+              {!commentId && (
+                <Field>
+                  <FieldLabel>Ảnh minh chứng (không bắt buộc)</FieldLabel>
+                  <TicketImagePicker
+                    images={images}
+                    onChange={setImages}
+                    disabled={isSubmitting}
+                    maxImages={3}
+                    maxMb={5}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Chỉ đội ngũ quản trị xem được ảnh đính kèm báo cáo.
+                  </p>
+                </Field>
+              )}
             </form>
 
             <DialogFooter>
@@ -190,7 +231,7 @@ export function ReportDialog({
                   {errors.root.message}
                 </p>
               )}
-              <Button variant="outline" disabled={isSubmitting} onClick={() => onOpenChange(false)}>
+              <Button variant="outline" disabled={isSubmitting} onClick={() => changeOpen(false)}>
                 Huỷ
               </Button>
               <Button type="submit" form={formId} variant="destructive" disabled={isSubmitting}>
