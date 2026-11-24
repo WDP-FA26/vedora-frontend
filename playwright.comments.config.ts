@@ -10,5 +10,6 @@ export default defineConfig({
     "**/public/comment-reports.spec.ts",
     "**/admin/comment-reports.spec.ts",
     "**/home/notifications.spec.ts",
+    "**/home/comment-notifications.spec.ts",
   ],
 })
