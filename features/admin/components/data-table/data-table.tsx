@@ -108,7 +108,7 @@ export function DataTable<TData extends RowData>({
     <div className="flex min-h-0 flex-1 flex-col">
       <div className="flex min-h-12 flex-wrap items-center gap-x-4 gap-y-2 border-b px-3 py-2">
         {views.length > 0 && (
-          <div className="flex items-center gap-1">
+          <div className="flex max-w-full flex-wrap items-center gap-1">
             {views.map(({ id, label, icon: Icon, columnFilters: filters }) => {
               const active = sameFilters(columnFilters, filters)
               return (
