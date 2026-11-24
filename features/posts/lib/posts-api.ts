@@ -85,6 +85,18 @@ export async function reportPost(
   })
 }
 
+export async function reportComment(
+  token: string,
+  postId: string,
+  commentId: string,
+  input: { reason: ReportReason; details?: string }
+) {
+  await send(`${postKey(postId)}/comments/${commentId}/report`, token, {
+    method: "POST",
+    body: JSON.stringify(input),
+  })
+}
+
 /** SWR fetcher for `[commentsKey(id), accessToken]` pages. Guests may read comments. */
 export function fetchCommentPage([url, token]: readonly [string, string | undefined]) {
   return sendJson(commentPageSchema, url, token)
