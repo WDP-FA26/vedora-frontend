@@ -205,7 +205,7 @@ export const reportFormSchema = z
   })
   .refine((values) => values.reason !== "OTHER" || values.details !== "", {
     path: ["details"],
-    message: "Mô tả ngắn gọn vấn đề của bài viết",
+    message: "Mô tả ngắn gọn nội dung cần báo cáo",
   })
 
 export const postFormSchema = z
