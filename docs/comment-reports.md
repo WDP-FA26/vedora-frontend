@@ -12,7 +12,11 @@
 
 Vào **Quản trị → Kiểm duyệt → Bình luận** (`/admin/reports`). Tab **Bài viết** giữ hàng đợi kiểm duyệt/báo cáo bài viết hiện có.
 
-Tab bình luận mặc định lọc `PENDING`, có bộ lọc trạng thái và phân trang ở server. Mỗi báo cáo hiển thị nội dung tại lúc gửi, nội dung hiện tại nếu đã sửa, lý do, chi tiết, tác giả, người báo cáo và kết quả xử lý.
+Tab bình luận dùng cùng `DataTable` với kiểm duyệt bài viết: mặc định **Chờ xử lý**, các view **Đã xử lý**, **Đã bỏ qua**, **Tất cả**, tìm kiếm nội dung/tác giả, sắp xếp, chọn cột và bộ phân trang chung. Mỗi dòng hiển thị nội dung rút gọn, tác giả, lý do, trạng thái, người báo cáo, thời gian và thao tác.
+
+Nhấn **Xem** mở khung chi tiết bên phải (Sheet) cùng kiểu với bài viết, để đọc toàn bộ bằng chứng, nội dung đã sửa, chi tiết báo cáo và kết quả xử lý. Desktop dùng khung rộng tối đa `xl`; mobile mở toàn chiều rộng. Thanh view tự xuống dòng và bảng cuộn ngang trong vùng riêng trên màn hình hẹp.
+
+API vẫn phân trang; FE đọc đầy đủ các trang trước khi đưa dữ liệu vào bảng, giống hàng đợi báo cáo bài viết hiện có. Tìm kiếm, lọc, sắp xếp và phân trang hiển thị chạy trên toàn bộ tập dữ liệu đã tải. Nếu một trang API lỗi, UI báo lỗi và cho thử lại, không hiển thị danh sách thiếu. Cách này phù hợp quy mô hàng đợi quản trị hiện tại; nếu dữ liệu tăng lớn cần bổ sung API tìm kiếm/sắp xếp trước khi chuyển sang phân trang hoàn toàn ở server.
 
 - **Bỏ qua báo cáo**: giữ nguyên bình luận và đóng báo cáo được chọn.
 - **Gỡ bình luận**: yêu cầu xác nhận. Nếu là bình luận gốc, cả các trả lời bị xóa. Nếu là phản hồi, chỉ phản hồi đó bị xóa. Các báo cáo đang chờ của nội dung bị xóa cũng được đóng.
@@ -37,5 +41,6 @@ Playwright chạy Next.js thật với API fixture. Có kiểm thử gửi bình
 ### Kết quả xác minh ngày 24/11/2026
 
 - Production build, TypeScript và ESLint: pass. Dùng env fixture công khai khi build, không cần API key thật.
-- `npx playwright test --config playwright.comments.config.ts`: 36/36 pass, gồm 15 ca báo cáo mới và hồi quy bình luận, phản hồi, thông báo, trang chi tiết bài viết.
+- Sau khi đồng bộ giao diện, suite admin báo cáo bình luận có 14 ca, bao gồm table/Sheet, lọc/sắp xếp/ẩn cột, tìm kiếm từ trang API sau, đổi số dòng, reset trang khi đổi view, lỗi tải trang sau, desktop/mobile và chuyển tab với hàng đợi bài viết hiện có.
+- Bộ kiểm thử tập trung `playwright.comments.config.ts`: 41 ca; ảnh desktop/mobile của bảng và Sheet được lưu trong `test-results` để kiểm tra trực quan. Bản đồng bộ giao diện nằm trên nhánh `fix/comment-report-admin-ui`, tiếp nối tính năng báo cáo đã merge vào main.
 - Khi chạy thêm suite admin cũ, 8 ca hàng đợi kiểm duyệt bài viết pass. Hai ca ở `/admin/content` đang dùng selector `Xoá bài đăng`, trong khi code main `c241b6f` đã đổi thành `Gỡ bài đăng`; các selector cũ không được sửa trong tính năng này. Không khẳng định toàn bộ suite admin đã pass.

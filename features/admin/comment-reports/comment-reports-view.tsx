@@ -1,8 +1,9 @@
 "use client"
 
 import { useState } from "react"
-import Link from "next/link"
-import { Button, buttonVariants } from "@/components/ui/button"
+import { CheckIcon, CircleAlertIcon, FlagIcon, XIcon } from "lucide-react"
+import { Alert, AlertDescription } from "@/components/ui/alert"
+import { Button } from "@/components/ui/button"
 import {
   AlertDialog,
   AlertDialogContent,
@@ -12,45 +13,64 @@ import {
   AlertDialogFooter,
   AlertDialogCancel,
 } from "@/components/ui/alert-dialog"
+import { Skeleton } from "@/components/ui/skeleton"
 import { Spinner } from "@/components/ui/spinner"
+import { DataTable, type DataTableView } from "@/features/admin/components/data-table/data-table"
 import { useAuth } from "@/features/auth/hooks/use-auth"
 import { useAuthedSWR } from "@/features/auth/hooks/use-authed-swr"
-import { API_URL } from "@/features/auth/lib/api"
-import { ApiError, sendJson } from "@/features/shared/lib/api-client"
-import { REPORT_REASON_LABELS } from "@/features/posts/schemas"
-import {
-  commentReportPageSchema,
-  commentReportSchema,
-  type AdminCommentReport,
-  type CommentReportStatus,
-} from "./schema"
+import { ApiError } from "@/features/shared/lib/api-client"
+import { COMMENT_REPORTS_KEY, fetchAllCommentReports, reviewCommentReport } from "./api"
+import { commentReportColumns, CommentReportActionsContext } from "./report-columns"
+import { CommentReportSheet } from "./report-sheet"
+import type { AdminCommentReport } from "./schema"
 
-const BASE = `${API_URL}/admin/comment-reports`
-const LABELS = { PENDING: "Chờ xử lý", RESOLVED: "Đã xử lý", DISMISSED: "Đã bỏ qua" }
+const VIEWS: DataTableView[] = [
+  {
+    id: "pending",
+    label: "Chờ xử lý",
+    icon: FlagIcon,
+    columnFilters: [{ id: "status", value: "PENDING" }],
+  },
+  {
+    id: "resolved",
+    label: "Đã xử lý",
+    icon: CheckIcon,
+    columnFilters: [{ id: "status", value: "RESOLVED" }],
+  },
+  {
+    id: "dismissed",
+    label: "Đã bỏ qua",
+    icon: XIcon,
+    columnFilters: [{ id: "status", value: "DISMISSED" }],
+  },
+  { id: "all", label: "Tất cả", columnFilters: [] },
+]
+const NO_REPORTS: AdminCommentReport[] = []
+const getRowId = (report: AdminCommentReport) => report.id
 
 export function CommentReportsView() {
   const { accessToken } = useAuth()
-  const [status, setStatus] = useState<CommentReportStatus | "">("PENDING")
-  const [page, setPage] = useState(1)
-  const [selected, setSelected] = useState<AdminCommentReport | null>(null)
+  const { data, error, isLoading, mutate } = useAuthedSWR(
+    COMMENT_REPORTS_KEY,
+    fetchAllCommentReports
+  )
+  const reports = data ?? NO_REPORTS
+  const [openId, setOpenId] = useState<string | null>(null)
+  const [confirmId, setConfirmId] = useState<string | null>(null)
   const [busy, setBusy] = useState<string | null>(null)
   const [actionError, setActionError] = useState<string | null>(null)
-  const url = `${BASE}?page=${page}&limit=20${status ? `&status=${status}` : ""}`
-  const { data, error, isLoading, mutate } = useAuthedSWR(
-    url,
-    ([key, token]: readonly [string, string]) => sendJson(commentReportPageSchema, key, token)
-  )
+  const selected = reports.find((report) => report.id === confirmId)
 
   async function review(report: AdminCommentReport, action: "DISMISS" | "REMOVE") {
     if (!accessToken || busy) return
     setBusy(report.id)
     setActionError(null)
     try {
-      await sendJson(commentReportSchema, `${BASE}/${report.id}/review`, accessToken, {
-        method: "POST",
-        body: JSON.stringify({ action }),
+      const reviewed = await reviewCommentReport(accessToken, report.id, action)
+      setConfirmId(null)
+      await mutate((rows) => rows?.map((row) => (row.id === reviewed.id ? reviewed : row)), {
+        revalidate: false,
       })
-      setSelected(null)
       await mutate()
     } catch (failure) {
       setActionError(
@@ -59,7 +79,7 @@ export function CommentReportsView() {
           : "Không xử lý được báo cáo. Vui lòng thử lại."
       )
       if (failure instanceof ApiError && failure.status === 409) {
-        setSelected(null)
+        setConfirmId(null)
         await mutate()
       }
     } finally {
@@ -67,172 +87,73 @@ export function CommentReportsView() {
     }
   }
 
+  function requestRemoval(id: string) {
+    setConfirmId(id)
+    setActionError(null)
+  }
+
   return (
-    <section aria-label="Báo cáo bình luận" className="space-y-4 p-4 sm:p-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-xl font-semibold">Báo cáo bình luận</h1>
-        <label className="flex items-center gap-2 text-sm">
-          Trạng thái
-          <select
-            value={status}
-            onChange={(event) => {
-              setStatus(event.target.value as CommentReportStatus | "")
-              setPage(1)
-              setActionError(null)
-            }}
-            className="rounded-md border bg-background px-3 py-2"
-          >
-            <option value="">Tất cả</option>
-            {Object.entries(LABELS).map(([value, label]) => (
-              <option key={value} value={value}>
-                {label}
-              </option>
-            ))}
-          </select>
-        </label>
-      </div>
+    <section aria-label="Báo cáo bình luận" className="flex min-h-0 flex-1 flex-col">
+      <h2 className="sr-only">Báo cáo bình luận</h2>
       {actionError && !selected && (
-        <p role="alert" className="text-sm text-destructive">
-          {actionError}
-        </p>
+        <Alert variant="destructive" className="m-4 w-auto">
+          <CircleAlertIcon aria-hidden />
+          <AlertDescription>{actionError}</AlertDescription>
+        </Alert>
       )}
       {isLoading ? (
-        <Spinner aria-label="Đang tải báo cáo bình luận" />
+        <div className="space-y-2 p-4" aria-label="Đang tải báo cáo bình luận">
+          {Array.from({ length: 8 }, (_, index) => (
+            <Skeleton key={index} className="h-10 w-full" />
+          ))}
+        </div>
       ) : error ? (
-        <div role="alert" className="space-y-2 text-sm text-destructive">
-          <p>
-            {error instanceof ApiError && error.status === 403
-              ? "Bạn không có quyền xem báo cáo bình luận."
-              : "Không tải được báo cáo bình luận."}
-          </p>
-          <Button variant="outline" onClick={() => void mutate()}>
-            Thử lại
-          </Button>
+        <div className="p-4">
+          <Alert variant="destructive">
+            <CircleAlertIcon aria-hidden />
+            <AlertDescription>
+              <p>
+                {error instanceof ApiError && error.status === 403
+                  ? "Bạn không có quyền xem báo cáo bình luận."
+                  : "Không tải được báo cáo bình luận."}
+              </p>
+              <Button variant="outline" size="sm" onClick={() => void mutate()}>
+                Thử lại
+              </Button>
+            </AlertDescription>
+          </Alert>
         </div>
       ) : (
-        <>
-          <p className="text-sm text-muted-foreground">{data?.meta.totalItems ?? 0} báo cáo</p>
-          {!data?.items.length && (
-            <p className="py-8 text-center text-muted-foreground">
-              Không có báo cáo bình luận trong mục này.
-            </p>
-          )}
-          <ul className="space-y-4">
-            {data?.items.map((report) => (
-              <li key={report.id}>
-                <article
-                  aria-label={`Báo cáo bình luận của ${report.comment.author.fullName}`}
-                  className="space-y-3 rounded-xl border p-4"
-                >
-                  <div className="flex flex-wrap justify-between gap-2 text-sm">
-                    <p>
-                      <strong>{report.comment.author.fullName}</strong> ·{" "}
-                      {report.comment.parentId ? "Phản hồi" : "Bình luận gốc"}
-                    </p>
-                    <span>{LABELS[report.status]}</span>
-                  </div>
-                  <div>
-                    <p className="mb-1 text-xs text-muted-foreground">Nội dung lúc báo cáo</p>
-                    <blockquote className="border-l-2 pl-3 whitespace-pre-wrap break-words">
-                      {report.comment.body}
-                    </blockquote>
-                  </div>
-                  {report.comment.isAvailable &&
-                    report.comment.currentBody !== report.comment.body && (
-                      <div>
-                        <p className="mb-1 text-xs text-muted-foreground">
-                          Nội dung hiện tại (đã sửa)
-                        </p>
-                        <p className="whitespace-pre-wrap break-words">
-                          {report.comment.currentBody}
-                        </p>
-                      </div>
-                    )}
-                  {!report.comment.isAvailable && (
-                    <p className="text-sm text-muted-foreground">
-                      Bình luận đã bị xóa. Bằng chứng báo cáo vẫn được giữ lại.
-                    </p>
-                  )}
-                  <p className="text-sm">
-                    <strong>Lý do:</strong> {REPORT_REASON_LABELS[report.reason]}
-                  </p>
-                  {report.details && (
-                    <p className="text-sm whitespace-pre-wrap break-words">{report.details}</p>
-                  )}
-                  <p className="text-xs text-muted-foreground">
-                    Người báo cáo: {report.reporter?.fullName ?? "Tài khoản không còn tồn tại"} ·{" "}
-                    {new Date(report.createdAt).toLocaleString("vi-VN")}
-                  </p>
-                  {report.reviewedAt && (
-                    <p className="text-xs text-muted-foreground">
-                      Xử lý lúc {new Date(report.reviewedAt).toLocaleString("vi-VN")} ·{" "}
-                      {report.action === "ALREADY_REMOVED"
-                        ? "Nội dung đã được xóa trước đó"
-                        : report.action === "REMOVED"
-                          ? "Đã gỡ nội dung"
-                          : "Đã bỏ qua"}
-                    </p>
-                  )}
-                  <div className="flex flex-wrap gap-2">
-                    {report.postAvailable && report.comment.isAvailable && (
-                      <Link
-                        className={buttonVariants({ variant: "outline", size: "sm" })}
-                        href={`/posts/${report.postId}?comment=${report.commentId}#comment-${report.commentId}`}
-                      >
-                        Xem trong bài viết
-                      </Link>
-                    )}
-                    {report.status === "PENDING" && (
-                      <>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          disabled={Boolean(busy)}
-                          onClick={() => void review(report, "DISMISS")}
-                        >
-                          Bỏ qua báo cáo
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="destructive"
-                          disabled={Boolean(busy)}
-                          onClick={() => {
-                            setSelected(report)
-                            setActionError(null)
-                          }}
-                        >
-                          {report.comment.isAvailable ? "Gỡ bình luận" : "Xác nhận đã xóa"}
-                        </Button>
-                      </>
-                    )}
-                  </div>
-                </article>
-              </li>
-            ))}
-          </ul>
-          <div className="flex items-center justify-end gap-3">
-            <Button
-              variant="outline"
-              disabled={!data?.meta.hasPreviousPage || Boolean(busy)}
-              onClick={() => setPage((value) => value - 1)}
-            >
-              Trang trước
-            </Button>
-            <span className="text-sm">Trang {page}</span>
-            <Button
-              variant="outline"
-              disabled={!data?.meta.hasNextPage || Boolean(busy)}
-              onClick={() => setPage((value) => value + 1)}
-            >
-              Trang sau
-            </Button>
-          </div>
-        </>
+        <CommentReportActionsContext
+          value={{
+            open: setOpenId,
+            dismiss: (report) => void review(report, "DISMISS"),
+            remove: requestRemoval,
+            busy: Boolean(busy),
+          }}
+        >
+          <DataTable
+            columns={commentReportColumns}
+            data={reports}
+            getRowId={getRowId}
+            views={VIEWS}
+            defaultView="pending"
+            searchPlaceholder="Tìm theo nội dung hoặc tác giả"
+            emptyMessage="Không có báo cáo bình luận trong mục này."
+          />
+        </CommentReportActionsContext>
       )}
+      <CommentReportSheet
+        report={reports.find((report) => report.id === openId) ?? null}
+        busy={Boolean(busy)}
+        onClose={() => setOpenId(null)}
+        onDismiss={(report) => void review(report, "DISMISS")}
+        onRemove={requestRemoval}
+      />
       <AlertDialog
         open={Boolean(selected)}
         onOpenChange={(open) => {
-          if (!open && !busy) setSelected(null)
+          if (!open && !busy) setConfirmId(null)
         }}
       >
         <AlertDialogContent>
