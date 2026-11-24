@@ -33,3 +33,9 @@ npx playwright test --config playwright.comments.config.ts e2e/public/comment-re
 ```
 
 Playwright chạy Next.js thật với API fixture. Có kiểm thử gửi bình luận gốc/phản hồi, mobile, quyền guest/tác giả, lỗi và retry, trùng báo cáo, bằng chứng đã sửa/xóa, bỏ qua, xác nhận xóa cả luồng, lỗi gỡ và quyền admin. API thật, transaction và MongoDB được kiểm thử riêng trong repo BE.
+
+### Kết quả xác minh ngày 24/11/2026
+
+- Production build, TypeScript và ESLint: pass. Dùng env fixture công khai khi build, không cần API key thật.
+- `npx playwright test --config playwright.comments.config.ts`: 36/36 pass, gồm 15 ca báo cáo mới và hồi quy bình luận, phản hồi, thông báo, trang chi tiết bài viết.
+- Khi chạy thêm suite admin cũ, 8 ca hàng đợi kiểm duyệt bài viết pass. Hai ca ở `/admin/content` đang dùng selector `Xoá bài đăng`, trong khi code main `c241b6f` đã đổi thành `Gỡ bài đăng`; các selector cũ không được sửa trong tính năng này. Không khẳng định toàn bộ suite admin đã pass.
