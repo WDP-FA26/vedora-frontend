@@ -7,22 +7,25 @@ import {
 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
-import {
-  NativeSelect,
-  NativeSelectOption,
-} from "@/components/ui/native-select"
+import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select"
 import type { DataTableFeatures } from "@/features/admin/components/data-table/data-table-features"
 
 const PAGE_SIZES = [10, 20, 50, 100]
 
 export function DataTablePagination<TData extends RowData>({
   table,
+  rowCount,
+  pageSizes = PAGE_SIZES,
+  isPending = false,
 }: {
   table: ReactTable<DataTableFeatures, TData>
+  rowCount?: number
+  pageSizes?: number[]
+  isPending?: boolean
 }) {
   const { pageIndex, pageSize } = table.state.pagination
   const pageCount = Math.max(table.getPageCount(), 1)
-  const total = table.getFilteredRowModel().rows.length
+  const total = rowCount ?? table.getFilteredRowModel().rows.length
 
   return (
     <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-2 border-t px-4 py-2.5 text-sm">
@@ -37,9 +40,10 @@ export function DataTablePagination<TData extends RowData>({
           <NativeSelect
             size="sm"
             value={pageSize}
+            disabled={isPending}
             onChange={(event) => table.setPageSize(Number(event.target.value))}
           >
-            {PAGE_SIZES.map((size) => (
+            {pageSizes.map((size) => (
               <NativeSelectOption key={size} value={size}>
                 {size}
               </NativeSelectOption>
@@ -56,7 +60,7 @@ export function DataTablePagination<TData extends RowData>({
             className="hidden lg:inline-flex"
             aria-label="Trang đầu"
             onClick={() => table.setPageIndex(0)}
-            disabled={!table.getCanPreviousPage()}
+            disabled={isPending || !table.getCanPreviousPage()}
           >
             <ChevronsLeftIcon aria-hidden />
           </Button>
@@ -65,7 +69,7 @@ export function DataTablePagination<TData extends RowData>({
             size="icon-sm"
             aria-label="Trang trước"
             onClick={() => table.previousPage()}
-            disabled={!table.getCanPreviousPage()}
+            disabled={isPending || !table.getCanPreviousPage()}
           >
             <ChevronLeftIcon aria-hidden />
           </Button>
@@ -74,7 +78,7 @@ export function DataTablePagination<TData extends RowData>({
             size="icon-sm"
             aria-label="Trang sau"
             onClick={() => table.nextPage()}
-            disabled={!table.getCanNextPage()}
+            disabled={isPending || !table.getCanNextPage()}
           >
             <ChevronRightIcon aria-hidden />
           </Button>
@@ -84,7 +88,7 @@ export function DataTablePagination<TData extends RowData>({
             className="hidden lg:inline-flex"
             aria-label="Trang cuối"
             onClick={() => table.setPageIndex(pageCount - 1)}
-            disabled={!table.getCanNextPage()}
+            disabled={isPending || !table.getCanNextPage()}
           >
             <ChevronsRightIcon aria-hidden />
           </Button>

@@ -6,6 +6,7 @@ import {
   LibraryIcon,
   LifeBuoyIcon,
   SettingsIcon,
+  ScrollTextIcon,
   StoreIcon,
   ShieldAlertIcon,
   UsersIcon,
@@ -55,6 +56,7 @@ export const adminNavSections: AdminNavSection[] = [
   {
     label: "Hệ thống",
     items: [
+      { href: "/admin/system-logs", label: "Nhật ký hệ thống", icon: ScrollTextIcon },
       { href: "/admin/ai-costs", label: "Chi phí AI", icon: ChartColumnIcon },
       { href: "/admin/payments", label: "Thanh toán", icon: ChartColumnIcon },
       {
