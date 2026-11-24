@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import { useSearchParams } from "next/navigation"
 import {
   BadgeCheckIcon,
   CircleAlertIcon,
@@ -54,8 +55,9 @@ function loadErrorMessage(error: unknown) {
 
 /** Restaurant page applications, for admins to approve or reject. */
 export function AdminWorkspacesTable() {
+  const params = useSearchParams()
   const { workspaces, error, isLoading } = useAdminWorkspaces()
-  const [reviewing, setReviewing] = useState<string | null>(null)
+  const [reviewing, setReviewing] = useState<string | null>(() => params.get("workspaceId"))
 
   if (isLoading) {
     return (

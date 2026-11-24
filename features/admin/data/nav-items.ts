@@ -4,6 +4,7 @@ import {
   ChartColumnIcon,
   FileTextIcon,
   LibraryIcon,
+  LayoutDashboardIcon,
   LifeBuoyIcon,
   SettingsIcon,
   ScrollTextIcon,
@@ -17,6 +18,8 @@ export type AdminNavItem = {
   href: string;
   label: string;
   icon: LucideIcon;
+  workBadge?: "total" | "moderation" | "verification" | "workspaces" | "support" | "knowledge";
+  workCount?: "POST_REVIEW";
 };
 
 export type AdminNavSection = {
@@ -25,16 +28,18 @@ export type AdminNavSection = {
 };
 
 /** Where `/admin` lands. */
-export const ADMIN_HOME = "/admin/users";
+export const ADMIN_HOME = "/admin/overview";
 
 export const adminNavItems: AdminNavItem[] = [
+  { href: "/admin/overview", label: "Tổng quan", icon: LayoutDashboardIcon, workBadge: "total" },
   { href: "/admin/users", label: "Người dùng", icon: UsersIcon },
   {
     href: "/admin/verification",
     label: "Xác minh chuyên gia",
     icon: BadgeCheckIcon,
+    workBadge: "verification",
   },
-  { href: "/admin/workspaces", label: "Trang nhà hàng", icon: StoreIcon },
+  { href: "/admin/workspaces", label: "Trang nhà hàng", icon: StoreIcon, workBadge: "workspaces" },
   { href: "/admin/insights", label: "Thống kê", icon: ChartColumnIcon },
 ];
 
@@ -42,14 +47,15 @@ export const adminNavSections: AdminNavSection[] = [
   {
     label: "Nội dung",
     items: [
-      { href: "/admin/content", label: "Bài đăng", icon: FileTextIcon },
-      { href: "/admin/reports", label: "Kiểm duyệt", icon: ShieldAlertIcon },
-      { href: "/admin/support", label: "Hỗ trợ & Kháng cáo", icon: LifeBuoyIcon },
+      { href: "/admin/content", label: "Bài đăng", icon: FileTextIcon, workCount: "POST_REVIEW" },
+      { href: "/admin/reports", label: "Kiểm duyệt", icon: ShieldAlertIcon, workBadge: "moderation" },
+      { href: "/admin/support", label: "Hỗ trợ & Kháng cáo", icon: LifeBuoyIcon, workBadge: "support" },
       { href: "/admin/recipes", label: "Công thức", icon: BookOpenIcon },
       {
         href: "/admin/knowledge",
         label: "Tài liệu kiến thức",
         icon: LibraryIcon,
+        workBadge: "knowledge",
       },
     ],
   },

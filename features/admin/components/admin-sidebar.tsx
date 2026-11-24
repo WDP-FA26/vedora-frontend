@@ -2,12 +2,7 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import {
-  ArrowLeftIcon,
-  LogOutIcon,
-  MoreHorizontalIcon,
-  SunMoonIcon,
-} from "lucide-react"
+import { ArrowLeftIcon, LogOutIcon, MoreHorizontalIcon, SunMoonIcon } from "lucide-react"
 
 import {
   DropdownMenu,
@@ -26,6 +21,7 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
+  SidebarMenuBadge,
   SidebarRail,
   SidebarSeparator,
   SidebarTrigger,
@@ -43,6 +39,7 @@ import {
   isAdminNavActive,
   type AdminNavItem,
 } from "@/features/admin/data/nav-items"
+import { useAdminWorkQueue } from "@/features/admin/overview/work-queue-provider"
 
 /**
  * Admin navigation: brand on top, the main tools, labelled sections, then
@@ -118,9 +115,17 @@ function NavMenu({ items, label }: { items: AdminNavItem[]; label: string }) {
 function NavItems({ items }: { items: AdminNavItem[] }) {
   const pathname = usePathname()
   const { setOpenMobile } = useSidebar()
+  const queue = useAdminWorkQueue()
 
-  return items.map(({ href, label, icon: Icon }) => {
+  return items.map(({ href, label, icon: Icon, workBadge, workCount }) => {
     const active = isAdminNavActive(href, pathname)
+    const count = queue.error
+      ? undefined
+      : workBadge
+        ? queue.data?.badges[workBadge]
+        : workCount
+          ? queue.data?.counts[workCount]
+          : undefined
     return (
       <SidebarMenuItem key={href}>
         <SidebarMenuButton
@@ -129,6 +134,7 @@ function NavItems({ items }: { items: AdminNavItem[] }) {
             <Link
               href={href}
               aria-current={active ? "page" : undefined}
+              aria-label={count ? `${label}, ${count} việc chưa xử lý` : label}
               onClick={() => setOpenMobile(false)}
             />
           }
@@ -136,6 +142,18 @@ function NavItems({ items }: { items: AdminNavItem[] }) {
           <Icon aria-hidden />
           <span>{label}</span>
         </SidebarMenuButton>
+        {(workBadge || workCount) && queue.error ? (
+          <SidebarMenuBadge
+            aria-label={`${label}: chưa tải được số việc`}
+            title="Chưa tải được số việc"
+          >
+            !
+          </SidebarMenuBadge>
+        ) : count ? (
+          <SidebarMenuBadge aria-hidden="true" title={`${count} việc chưa xử lý`}>
+            {count > 99 ? "99+" : count}
+          </SidebarMenuBadge>
+        ) : null}
       </SidebarMenuItem>
     )
   })
@@ -151,11 +169,7 @@ function ThemeMenu() {
           <SunMoonIcon aria-hidden />
           <span>Giao diện</span>
         </DropdownMenuTrigger>
-        <DropdownMenuContent
-          side={isMobile ? "top" : "right"}
-          align="end"
-          className="w-52"
-        >
+        <DropdownMenuContent side={isMobile ? "top" : "right"} align="end" className="w-52">
           <ThemeMenuGroup />
         </DropdownMenuContent>
       </DropdownMenu>
@@ -178,16 +192,10 @@ function AccountMenu() {
             aria-label={`Menu tài khoản của ${author.name}`}
           >
             <AuthorAvatar author={author} size="sm" />
-            <span className="min-w-0 flex-1 truncate font-medium">
-              {author.name}
-            </span>
+            <span className="min-w-0 flex-1 truncate font-medium">{author.name}</span>
             <MoreHorizontalIcon aria-hidden className="text-muted-foreground" />
           </DropdownMenuTrigger>
-          <DropdownMenuContent
-            side={isMobile ? "top" : "right"}
-            align="end"
-            className="w-56"
-          >
+          <DropdownMenuContent side={isMobile ? "top" : "right"} align="end" className="w-56">
             <DropdownMenuItem render={<Link href="/home" />}>
               <ArrowLeftIcon aria-hidden />
               Về trang chính

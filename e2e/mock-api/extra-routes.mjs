@@ -253,6 +253,12 @@ export async function handleExtra({ path, method, body, q, me, res, send, error 
   }
 
   // --- admin: dashboard, AI cost, payments -------------------------------
+  if (path === "/admin/dashboard/work-queue") return ok({
+    generatedAt: new Date().toISOString(), refreshAfterSeconds: 30, previewLimit: 10,
+    counts: { POST_REVIEW: 0, POST_REPORTS: 0, COMMENT_REPORTS: 0, VERIFICATION: 0, WORKSPACES: 0, SUPPORT: 0, KNOWLEDGE: 0 },
+    badges: { total: 0, moderation: 0, verification: 0, workspaces: 0, support: 0, knowledge: 0 },
+    support: { appeals: 0, assignedToMe: 0 }, items: [],
+  })
   if (path === "/admin/dashboard") return ok(dashboard(q.get("from"), q.get("to")))
   if (path === "/admin/ai-costs") return ok(aiCostReport(q.get("from"), q.get("to")))
   if (path === "/admin/ai-costs/calls") return ok(aiCostCalls)
