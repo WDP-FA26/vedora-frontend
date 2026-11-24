@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import { useSearchParams } from "next/navigation"
 import { CircleAlertIcon, FlagIcon, ShieldAlertIcon, ShieldXIcon } from "lucide-react"
 
 import { Alert, AlertDescription } from "@/components/ui/alert"
@@ -51,11 +52,13 @@ const getRowId = (row: QueueRow) => row.id
  * the chance that the post breaks the policy.
  */
 export function ModerationTable() {
+  const params = useSearchParams()
+  const defaultView = VIEWS.find((view) => view.id === params.get("view"))?.id ?? "held"
   const posts = useAdminPosts()
   const reports = useAdminReports()
   const moderate = useModerateAdminPost()
   const closeReport = useReviewReport()
-  const [openPostId, setOpenPostId] = useState<string | null>(null)
+  const [openPostId, setOpenPostId] = useState<string | null>(() => params.get("postId"))
 
   const error = posts.error ?? reports.error
   if (posts.isLoading || reports.isLoading) {
@@ -95,7 +98,8 @@ export function ModerationTable() {
         data={buildQueue(posts.posts, reports.reports)}
         getRowId={getRowId}
         views={VIEWS}
-        defaultView="held"
+        key={defaultView}
+        defaultView={defaultView}
         searchPlaceholder="Tìm theo nội dung hoặc tác giả"
         emptyMessage="Không có bài nào cần xem xét."
       />

@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import { useSearchParams } from "next/navigation"
 import { CheckIcon, CircleAlertIcon, FlagIcon, XIcon } from "lucide-react"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
@@ -49,13 +50,14 @@ const NO_REPORTS: AdminCommentReport[] = []
 const getRowId = (report: AdminCommentReport) => report.id
 
 export function CommentReportsView() {
+  const params = useSearchParams()
   const { accessToken } = useAuth()
   const { data, error, isLoading, mutate } = useAuthedSWR(
     COMMENT_REPORTS_KEY,
     fetchAllCommentReports
   )
   const reports = data ?? NO_REPORTS
-  const [openId, setOpenId] = useState<string | null>(null)
+  const [openId, setOpenId] = useState<string | null>(() => params.get("reportId"))
   const [confirmId, setConfirmId] = useState<string | null>(null)
   const [busy, setBusy] = useState<string | null>(null)
   const [actionError, setActionError] = useState<string | null>(null)

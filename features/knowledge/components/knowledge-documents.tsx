@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import { useSearchParams } from "next/navigation"
 import { useDropzone } from "react-dropzone"
 import {
   BanIcon,
@@ -79,6 +80,8 @@ const getDocumentId = (document: KnowledgeDocument) => document.id
  * is the drop target; "Tải lên" opens the file picker.
  */
 export function KnowledgeDocuments() {
+  const params = useSearchParams()
+  const defaultView = VIEWS.find((view) => view.id === params.get("view"))?.id ?? "all"
   const { documents, error: loadError, isLoading } = useKnowledgeDocuments()
   const { uploads, error: uploadError, add, cancel } = useKnowledgeUploads()
   const deleteDocument = useDeleteKnowledgeDocument()
@@ -129,6 +132,8 @@ export function KnowledgeDocuments() {
       ) : (
         <DeleteKnowledgeDocumentContext value={onDelete}>
           <DataTable
+            key={defaultView}
+            defaultView={defaultView}
             columns={knowledgeColumns}
             data={documents}
             getRowId={getDocumentId}

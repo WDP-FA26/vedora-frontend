@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import { useSearchParams } from "next/navigation"
 import {
   BadgeCheckIcon,
   CircleAlertIcon,
@@ -50,8 +51,9 @@ const getRequestId = (request: AdminVerificationRequest) => request.id
 
 /** Professional verification requests, for admins to approve or reject. */
 export function VerificationRequestsTable() {
+  const params = useSearchParams()
   const { requests, error, isLoading } = useVerificationRequests()
-  const [reviewing, setReviewing] = useState<string | null>(null)
+  const [reviewing, setReviewing] = useState<string | null>(() => params.get("requestId"))
 
   if (isLoading) {
     return (
