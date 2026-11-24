@@ -2,10 +2,15 @@
 
 import { useEffect, useState, useSyncExternalStore } from "react"
 import Link from "next/link"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 import { FileVideoIcon, Trash2Icon } from "lucide-react"
 import { Button, buttonVariants } from "@/components/ui/button"
 import { Spinner } from "@/components/ui/spinner"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { useAuthedSWR } from "@/features/auth/hooks/use-authed-swr"
+import { MY_BLOG_DRAFTS_KEY } from "@/features/blogs/blogs-cache"
+import { MyBlogDraftsList } from "@/features/blogs/components/my-blogs-view"
+import { fetchBlogPage } from "@/features/blogs/lib/blogs-api"
 import { Composer } from "@/features/shared/components/composer"
 import { usePostDraftManager } from "./provider"
 import { EMPTY } from "./manager"
@@ -27,19 +32,62 @@ function useDraftState() {
   return { manager, state }
 }
 
-export function PostDraftsView() {
-  const { manager, state } = useDraftState()
-  const [confirm, setConfirm] = useState<string | null>(null)
-  const drafts = state.drafts
+type DraftState = ReturnType<typeof useDraftState>
+
+function visibleDrafts(state: DraftState["state"]) {
+  return state.drafts
     .filter(
       (draft) =>
         !draft.deleted && (draft.version !== null || draft.files.length > 0 || Boolean(draft.body))
     )
     .sort((a, b) => b.updatedAt - a.updatedAt)
+}
+
+type DraftsTab = "video" | "blog"
+
+/** Unpublished video posts (kept by the draft manager) and blogs, one tab each. */
+export function PostDraftsView() {
+  // Read from the URL (not state) so Back from a blog editor lands on the same tab.
+  const tab: DraftsTab = useSearchParams().get("tab") === "blog" ? "blog" : "video"
+  const draftState = useDraftState()
+  const videoCount = draftState.state.loaded ? visibleDrafts(draftState.state).length : null
+  const { data: blogDrafts } = useAuthedSWR(MY_BLOG_DRAFTS_KEY, fetchBlogPage)
+  const blogCount = blogDrafts ? blogDrafts.items.length : null
   return (
     <section className="p-4 sm:p-6">
       <h1 className="text-xl font-bold">Bản nháp</h1>
-      <p className="mt-2 text-sm text-muted-foreground">
+      <Tabs
+        value={tab}
+        onValueChange={(next) => {
+          if (next !== "video" && next !== "blog") return
+          window.history.replaceState(null, "", next === "video" ? "?" : `?tab=${next}`)
+        }}
+        className="mt-4"
+      >
+        <TabsList aria-label="Loại bản nháp">
+          <TabsTrigger value="video">Video{videoCount !== null && ` (${videoCount})`}</TabsTrigger>
+          <TabsTrigger value="blog">Blog{blogCount !== null && ` (${blogCount})`}</TabsTrigger>
+        </TabsList>
+        <TabsContent value="video">
+          <VideoDrafts {...draftState} />
+        </TabsContent>
+        <TabsContent value="blog" className="-mx-4">
+          <p className="px-4 pt-2 text-sm text-muted-foreground">
+            Blog chưa được công khai. Mở blog để viết tiếp và đăng khi bạn đã sẵn sàng.
+          </p>
+          <MyBlogDraftsList />
+        </TabsContent>
+      </Tabs>
+    </section>
+  )
+}
+
+function VideoDrafts({ manager, state }: DraftState) {
+  const [confirm, setConfirm] = useState<string | null>(null)
+  const drafts = visibleDrafts(state)
+  return (
+    <div className="pt-2">
+      <p className="text-sm text-muted-foreground">
         Video chưa được công khai. Mở nháp và bấm Đăng khi bạn đã sẵn sàng.
       </p>
       <p className="mt-2 text-xs text-muted-foreground">
@@ -131,7 +179,7 @@ export function PostDraftsView() {
           ))}
         </ul>
       )}
-    </section>
+    </div>
   )
 }
 

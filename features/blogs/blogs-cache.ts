@@ -6,6 +6,9 @@ export const BLOGS_KEY = `${API_URL}/blogs`
 /** The signed-in user (fetched with `fetchBlogPage` as `[key, accessToken]`)'s blogs, drafts included, newest first. */
 export const MY_BLOGS_KEY = `${BLOGS_KEY}/mine?limit=50`
 
+/** The signed-in user's unpublished blogs only (same fetcher as `MY_BLOGS_KEY`). */
+export const MY_BLOG_DRAFTS_KEY = `${BLOGS_KEY}/mine?status=DRAFT&limit=50`
+
 export function blogKey(id: string) {
   return `${BLOGS_KEY}/${id}`
 }
