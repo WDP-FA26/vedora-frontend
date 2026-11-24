@@ -16,6 +16,7 @@ const metrics = z.object({
   outputTokens: count,
   reasoningTokens: count,
   cachedTokens: count,
+  cacheWriteTokens: count,
   unknownTokenCalls: count,
 });
 export const costReportSchema = z.object({
@@ -75,6 +76,7 @@ export const costCallSchema = z.object({
   outputTokens: count.nullable(),
   reasoningTokens: count.nullable(),
   cachedTokens: count.nullable(),
+  cacheWriteTokens: count.nullable(),
   startedAt: z.iso.datetime(),
   finishedAt: z.iso.datetime().nullable(),
   reconciledAt: z.iso.datetime().nullable(),

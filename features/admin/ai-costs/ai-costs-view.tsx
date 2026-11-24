@@ -94,7 +94,7 @@ function Report({ data }: { data: CostReport }) {
           [
             "Token input / output",
             `${number.format(s.inputTokens)} / ${number.format(s.outputTokens)}`,
-            `${number.format(s.unknownTokenCalls)} lần gọi thiếu input/output; ${number.format(s.failedCalls)} lần lỗi/ngắt`,
+            `Cache đọc / ghi: ${number.format(s.cachedTokens)} / ${number.format(s.cacheWriteTokens)} · ${number.format(s.unknownTokenCalls)} thiếu token; ${number.format(s.failedCalls)} lỗi/ngắt`,
           ],
         ].map(([title, value, note]) => (
           <Card key={title}>
