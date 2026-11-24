@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, type ReactNode } from "react"
+import { useEffect, useState, type ReactNode } from "react"
 import Link from "next/link"
 import {
   ActivityIcon,
@@ -57,6 +57,13 @@ import {
   type DayNutritionSummary,
   type MealPlan,
 } from "@/features/meal-plan/meal-plan"
+import {
+  isFreshFocus,
+  VOICE_GLOW_MS,
+  VOICE_HIGHLIGHT,
+  VOICE_POINT_MS,
+  type VoiceFocusRequest,
+} from "@/features/meal-plan/voice"
 import { cn } from "@/lib/utils"
 
 const weeklyChartConfig = {
@@ -228,15 +235,38 @@ export function NutritionCompanionBar({
   onNutritionSaved,
   onAskAssistant,
   trailing,
+  voiceFocus,
 }: {
   plan: MealPlan
   nutrition: NutritionProfile | undefined
   onNutritionSaved: (next: NutritionProfile) => Promise<void> | void
   onAskAssistant?: (prompt: string) => void
   trailing?: ReactNode
+  /** The voice agent's request to show the BMI panel. */
+  voiceFocus?: VoiceFocusRequest<object>
 }) {
   const [sheetOpen, setSheetOpen] = useState(false)
   const [activeTab, setActiveTab] = useState<"weekly" | "bmi">("weekly")
+  const [glowBmi, setGlowBmi] = useState(false)
+  const [handledFocus, setHandledFocus] = useState(0)
+
+  // The voice agent "clicks" the BMI chip: it glows, then the BMI tab opens.
+  useEffect(() => {
+    if (!voiceFocus || voiceFocus.nonce === handledFocus || !isFreshFocus(voiceFocus)) return
+    const nonce = voiceFocus.nonce
+    const timers = [
+      setTimeout(() => {
+        setHandledFocus(nonce)
+        setGlowBmi(true)
+      }, 0),
+      setTimeout(() => {
+        setActiveTab("bmi")
+        setSheetOpen(true)
+      }, VOICE_POINT_MS),
+      setTimeout(() => setGlowBmi(false), VOICE_GLOW_MS),
+    ]
+    return () => timers.forEach(clearTimeout)
+  }, [voiceFocus, handledFocus])
   const [editingProfile, setEditingProfile] = useState(false)
 
   const weekSummary = computeWeekNutrition(plan, nutrition)
@@ -333,7 +363,10 @@ export function NutritionCompanionBar({
           <button
             type="button"
             onClick={() => openSheet("bmi")}
-            className="inline-flex max-w-full items-center gap-1.5 rounded-full border border-border bg-card px-2.5 py-1 font-medium transition-colors hover:border-primary/40"
+            className={cn(
+              "inline-flex max-w-full items-center gap-1.5 rounded-full border border-border bg-card px-2.5 py-1 font-medium transition-colors hover:border-primary/40",
+              glowBmi && VOICE_HIGHLIGHT
+            )}
           >
             <ScaleIcon aria-hidden className="size-3.5 shrink-0 text-primary" />
             <span className="truncate tabular-nums">{bmiLabel}</span>

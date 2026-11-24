@@ -42,6 +42,13 @@ import {
   ComboboxList,
 } from "@/components/ui/combobox"
 import { RecipeSheet, type OpenedDish } from "@/features/meal-plan/components/recipe-sheet"
+import {
+  isFreshFocus,
+  VOICE_GLOW_MS,
+  VOICE_HIGHLIGHT,
+  VOICE_POINT_MS,
+  type VoiceFocusRequest,
+} from "@/features/meal-plan/voice"
 import { NutritionCompanionBar } from "@/features/meal-plan/components/nutrition-companion-bar"
 import {
   DAY_SHORT,
@@ -79,6 +86,16 @@ const PAST_DAY_MESSAGE = "Ngày đã qua nên không thể thay đổi."
 
 type Dragged = SlotRef & { recipeId: string }
 
+/** A dish opened from the grid always has its slot. */
+type PlannedDish = OpenedDish & { day: Weekday; section: MealSection }
+
+/** What the voice agent points at on the calendar: a day, a dish on it, or the BMI chip. */
+export type CalendarVoiceFocus = VoiceFocusRequest<{
+  day?: Weekday
+  recipeId?: string
+  bodyMetrics?: boolean
+}>
+
 type CalendarBoardProps = {
   plan: MealPlan | undefined
   failed: boolean
@@ -95,6 +112,8 @@ type CalendarBoardProps = {
   action?: ReactNode
   /** Controls in the top-left corner cell (shown when the assistant is hidden). */
   leading?: ReactNode
+  /** The voice agent's latest request to show a day, a dish or the BMI panel. */
+  voiceFocus?: CalendarVoiceFocus
 }
 
 const draggedSchema = z.object({
@@ -131,6 +150,7 @@ export function CalendarBoard({
   onAskAssistant,
   action,
   leading,
+  voiceFocus,
 }: CalendarBoardProps) {
   // Today, the dates and which days may change all come from the server's answer.
   const today = plan ? todayOf(plan) : undefined
@@ -138,8 +158,38 @@ export function CalendarBoard({
   const [pickedDay, setPickedDay] = useState<Weekday | null>(null)
   const selectedDay: Weekday = pickedDay ?? today ?? (plan ? editableDaysOf(plan)[0] : undefined) ?? "MON"
   const setSelectedDay = setPickedDay
-  const [opened, setOpened] = useState<OpenedDish | null>(null)
+  const [opened, setOpened] = useState<PlannedDish | null>(null)
   const [sheetOpen, setSheetOpen] = useState(false)
+  const [glow, setGlow] = useState<{ day?: Weekday; recipeId?: string } | null>(null)
+  const [handledFocus, setHandledFocus] = useState(0)
+
+  // The voice agent "clicks" through the calendar: the day and dish glow, then the dish opens.
+  useEffect(() => {
+    if (!plan || !voiceFocus || voiceFocus.nonce === handledFocus || !isFreshFocus(voiceFocus)) return
+    const focus = voiceFocus
+    const timers = [
+      setTimeout(() => {
+        setHandledFocus(focus.nonce)
+        if (focus.day) setPickedDay(focus.day)
+        if (focus.day || focus.recipeId) setGlow({ day: focus.day, recipeId: focus.recipeId })
+      }, 0),
+      setTimeout(() => setGlow(null), VOICE_GLOW_MS),
+    ]
+    const day = focus.day
+    const sections = plan.days.find((item) => item.day === day)?.sections ?? []
+    for (const { section, recipes } of sections) {
+      const recipe = recipes.find((item) => item.id === focus.recipeId)
+      if (!day || !recipe) continue
+      timers.push(
+        setTimeout(() => {
+          setOpened({ recipeId: recipe.id, title: recipe.title, day, section, detail: recipe })
+          setSheetOpen(true)
+        }, VOICE_POINT_MS)
+      )
+      break
+    }
+    return () => timers.forEach(clearTimeout)
+  }, [plan, voiceFocus, handledFocus])
   const [adding, setAdding] = useState<SlotRef | null>(null)
   const [moving, setMoving] = useState<(Dragged & { title: string }) | null>(null)
   const [dropTarget, setDropTarget] = useState<SlotRef | null>(null)
@@ -259,6 +309,7 @@ export function CalendarBoard({
         onNutritionSaved={onNutritionSaved ?? (() => undefined)}
         onAskAssistant={onAskAssistant}
         trailing={action}
+        voiceFocus={voiceFocus?.bodyMetrics ? voiceFocus : undefined}
       />
       {saving && (
         <span
@@ -306,7 +357,8 @@ export function CalendarBoard({
                 className={cn(
                   "relative flex flex-col items-center gap-1 rounded-xl py-1.5 outline-none transition-colors focus-visible:ring-3 focus-visible:ring-ring/30",
                   selected ? "bg-primary/10" : "hover:bg-accent/60",
-                  !dayEditable(day) && !selected && "opacity-60"
+                  !dayEditable(day) && !selected && "opacity-60",
+                  glow?.day === day && VOICE_HIGHLIGHT
                 )}
               >
                 <span
@@ -412,6 +464,7 @@ export function CalendarBoard({
                           recipeId={recipe.id}
                           warnings={warnings.get(dishKey(selectedDay, recipe.id)) ?? []}
                           disabled={saving || !dayEditable(selectedDay)}
+                          highlighted={glow?.recipeId === recipe.id && glow.day === selectedDay}
                           onOpen={() => {
                             setOpened({
                               recipeId: recipe.id,
@@ -493,7 +546,10 @@ export function CalendarBoard({
                   role="columnheader"
                   aria-label={DAY_LABELS[day] + (day === today ? ", hôm nay" : "")}
                   title={kcalTitle || undefined}
-                  className="sticky top-0 z-10 flex min-h-16 flex-col items-center justify-center gap-0.5 bg-card py-1 shadow-[0_1px_0_0_var(--border)]"
+                  className={cn(
+                    "sticky top-0 z-10 flex min-h-16 flex-col items-center justify-center gap-0.5 bg-card py-1 shadow-[0_1px_0_0_var(--border)]",
+                    glow?.day === day && VOICE_HIGHLIGHT
+                  )}
                 >
                   <span className={cn("text-[0.6875rem] font-semibold", day === today ? "text-primary" : "text-muted-foreground")}>
                     {DAY_SHORT[day]}
@@ -563,6 +619,7 @@ export function CalendarBoard({
                           recipeId={recipe.id}
                           warnings={warnings.get(dishKey(day, recipe.id)) ?? []}
                           disabled={saving || !dayEditable(day)}
+                          highlighted={glow?.recipeId === recipe.id && glow.day === day}
                           onOpen={() => {
                             setOpened({ recipeId: recipe.id, title: recipe.title, day, section, detail })
                             setSheetOpen(true)
@@ -666,6 +723,7 @@ function CalendarChip({
   onMove,
   onRemove,
   onAsk,
+  highlighted = false,
 }: {
   title: string
   tag: RecipeTag | null
@@ -677,6 +735,8 @@ function CalendarChip({
   onMove: () => void
   onRemove: () => void
   onAsk?: () => void
+  /** The voice agent is pointing at this dish. */
+  highlighted?: boolean
 }) {
   const { icon: TagIcon, label: tagLabel } = tagView(tag)
   const warning = warnings.join("; ")
@@ -689,7 +749,8 @@ function CalendarChip({
       }}
       className={cn(
         "group flex min-w-0 items-center gap-0.5 rounded-lg border border-transparent bg-primary/10 py-0.5 pr-0.5 pl-1.5 text-xs",
-        !disabled && "cursor-grab active:cursor-grabbing"
+        !disabled && "cursor-grab active:cursor-grabbing",
+        highlighted && VOICE_HIGHLIGHT
       )}
     >
       <button

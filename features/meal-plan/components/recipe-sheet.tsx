@@ -30,8 +30,9 @@ import { usePublicRecipe } from "@/features/recipes/hooks/use-recipe-catalog"
 export type OpenedDish = {
   recipeId: string
   title: string
-  day: Weekday
-  section: MealSection
+  /** The slot the dish sits in; a dish opened from outside the plan (the voice agent) has none. */
+  day?: Weekday
+  section?: MealSection
   /** What the saved plan already knows about the dish; shown while the full recipe loads. */
   detail?: MealRecipe
 }
@@ -100,15 +101,17 @@ export function RecipeSheet({ open, dish, onClose, onAsk, onMove, onRemove }: Pr
         {dish && (
           <>
             <MealArt
-              section={dish.section}
+              section={dish.section ?? "OTHER"}
               imageUrl={view?.imageUrl}
               className="aspect-[16/10] size-auto w-full shrink-0 rounded-none"
               photoClassName="aspect-auto h-auto max-h-[60dvh] object-contain"
             />
             <SheetHeader>
-              <p className="text-xs font-semibold text-primary">
-                {DAY_LABELS[dish.day]} · Bữa {SECTION_LABELS[dish.section].toLowerCase()}
-              </p>
+              {dish.day && dish.section && (
+                <p className="text-xs font-semibold text-primary">
+                  {DAY_LABELS[dish.day]} · Bữa {SECTION_LABELS[dish.section].toLowerCase()}
+                </p>
+              )}
               <SheetTitle size="lg">{dish.title}</SheetTitle>
               <SheetDescription>{meta.join(" · ")}</SheetDescription>
             </SheetHeader>

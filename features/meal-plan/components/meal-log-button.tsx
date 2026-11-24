@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, type FormEvent } from "react"
+import { useEffect, useState, type FormEvent } from "react"
 import { useRouter } from "next/navigation"
 import {
   CheckIcon,
@@ -53,6 +53,13 @@ import {
   type MealLogWeek,
   type NewMealLogEntry,
 } from "@/features/meal-plan/meal-log"
+import {
+  isFreshFocus,
+  VOICE_GLOW_MS,
+  VOICE_HIGHLIGHT,
+  VOICE_POINT_MS,
+  type VoiceFocusRequest,
+} from "@/features/meal-plan/voice"
 import {
   DAY_LABELS,
   formatDayMonth,
@@ -148,12 +155,36 @@ function plannedRecipes(plan: MealPlan, day: Weekday, section: MealSection): Mea
 export function MealLogButton({
   plan,
   onAskAssistant,
+  voiceFocus,
 }: {
   plan: MealPlan
   onAskAssistant?: (prompt: string) => void
+  /** The voice agent's request to open the diary, on `date` or today. */
+  voiceFocus?: VoiceFocusRequest<{ date: string | null }>
 }) {
   const [open, setOpen] = useState(false)
   const [pickedDay, setPickedDay] = useState<Weekday | null>(null)
+  const [glow, setGlow] = useState(false)
+  const [handledFocus, setHandledFocus] = useState(0)
+
+  // The voice agent "clicks" the diary button: it glows, then the diary opens on that day.
+  useEffect(() => {
+    if (!voiceFocus || voiceFocus.nonce === handledFocus || !isFreshFocus(voiceFocus)) return
+    const focus = voiceFocus
+    const day = plan.days.find((item) => item.date === focus.date)?.day ?? null
+    const timers = [
+      setTimeout(() => {
+        setHandledFocus(focus.nonce)
+        setGlow(true)
+      }, 0),
+      setTimeout(() => {
+        setPickedDay(day)
+        setOpen(true)
+      }, VOICE_POINT_MS),
+      setTimeout(() => setGlow(false), VOICE_GLOW_MS),
+    ]
+    return () => timers.forEach(clearTimeout)
+  }, [voiceFocus, handledFocus, plan.days])
   const router = useRouter()
   const log = useAuthedSWR(open ? mealLogKey(plan.weekStart) : null, fetchMealLog, {
     onError: (error) => {
@@ -173,10 +204,12 @@ export function MealLogButton({
 
   return (
     <Sheet open={open} onOpenChange={setOpen}>
-      <SheetTrigger render={<Button variant="outline" size="sm" />}>
-        <NotebookPenIcon aria-hidden />
-        Nhật ký
-      </SheetTrigger>
+      <span className={cn("inline-flex", glow && VOICE_HIGHLIGHT)}>
+        <SheetTrigger render={<Button variant="outline" size="sm" />}>
+          <NotebookPenIcon aria-hidden />
+          Nhật ký
+        </SheetTrigger>
+      </span>
       <SheetContent className="data-[side=right]:w-full data-[side=right]:sm:max-w-md">
         <SheetHeader>
           <SheetTitle>Nhật ký ăn uống</SheetTitle>

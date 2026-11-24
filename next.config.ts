@@ -28,6 +28,8 @@ const dishImages = "https://upload.wikimedia.org https://images.unsplash.com htt
 // geocoding (api.mapbox.com) and the SDK's usage telemetry (events.mapbox.com).
 // The map renders in a blob: worker and draws tiles as blob:/data: images.
 const mapbox = "https://api.mapbox.com https://*.tiles.mapbox.com https://events.mapbox.com";
+// Meal planner voice agent: the browser streams audio to Vercel AI Gateway's realtime WebSocket.
+const aiGatewayRealtime = "wss://ai-gateway.vercel.sh";
 // Cloudflare Turnstile: the script and the challenge iframe of the guest chat.
 const turnstile = "https://challenges.cloudflare.com";
 
@@ -43,7 +45,7 @@ const csp = [
   `img-src 'self' blob: data: ${cloudinaryCdn} ${storageOrigin} https://vietqr.app ${dishImages}${toolbar("https://vercel.live", "https://vercel.com")}`,
   // The Cloudinary player's icon font is inlined as a data: URI.
   `font-src 'self' data:${toolbar("https://vercel.live", "https://assets.vercel.com")}`,
-  `connect-src 'self' ${apiOrigin} ${cloudinaryUpload} ${cloudinaryCdn} ${cloudinaryAnalytics} ${storageOrigin} ${cloudinaryPlayer} ${mapbox}${toolbar("https://vercel.live", "wss://ws-us3.pusher.com")}`,
+  `connect-src 'self' ${apiOrigin} ${cloudinaryUpload} ${cloudinaryCdn} ${cloudinaryAnalytics} ${storageOrigin} ${cloudinaryPlayer} ${mapbox} ${aiGatewayRealtime}${toolbar("https://vercel.live", "wss://ws-us3.pusher.com")}`,
   `media-src 'self' blob: ${cloudinaryCdn}`,
   "worker-src 'self' blob:",
   "child-src 'self' blob:",
@@ -64,7 +66,8 @@ const securityHeaders = [
   { key: "Cross-Origin-Opener-Policy", value: "same-origin" },
   {
     key: "Permissions-Policy",
-    value: "camera=(), microphone=(), geolocation=(self), payment=(), usb=(), browsing-topics=()",
+    // The meal planner's voice agent needs the microphone on this origin only.
+    value: "camera=(), microphone=(self), geolocation=(self), payment=(), usb=(), browsing-topics=()",
   },
 ];
 

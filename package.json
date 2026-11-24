@@ -12,7 +12,7 @@
     "test:e2e:ui": "playwright test --ui"
   },
   "dependencies": {
-    "@ai-sdk/react": "^4.0.121",
+    "@ai-sdk/react": "^4.0.186",
     "@base-ui/react": "^1.8.0",
     "@gsap/react": "^2.1.2",
     "@hookform/resolvers": "^5.9.1",
@@ -32,7 +32,7 @@
     "@uppy/aws-s3": "^6.2.2",
     "@uppy/core": "^6.2.0",
     "@wrksz/themes": "^2.0.2",
-    "ai": "^7.0.118",
+    "ai": "^7.0.181",
     "class-variance-authority": "^0.7.1",
     "cmdk": "^1.1.1",
     "cn": "^0.3.0",
