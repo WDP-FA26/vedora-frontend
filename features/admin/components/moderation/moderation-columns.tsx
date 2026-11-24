@@ -27,9 +27,7 @@ function RiskCell({ row }: { row: QueueRow }) {
     <div className="flex min-w-24 flex-col items-start gap-1">
       <RiskLevelBadge level={row.riskLevel} />
       {row.category && (
-        <p className="max-w-full truncate text-xs text-muted-foreground">
-          {labelOf(row.category)}
-        </p>
+        <p className="max-w-full truncate text-xs text-muted-foreground">{labelOf(row.category)}</p>
       )}
     </div>
   )
@@ -62,7 +60,7 @@ function Actions({ row }: { row: QueueRow }) {
           Cho đăng
         </Button>
       )}
-      {row.kind === "report" && row.report && (
+      {row.kind === "report" && row.report && row.pendingReportCount === 1 && (
         <>
           <Button
             variant="action"
@@ -125,6 +123,24 @@ export const queueColumns = helper.columns([
     filterFn: "equalsString",
     enableGlobalFilter: false,
     meta: { label: "Loại", className: "hidden" },
+  }),
+  helper.accessor((row) => row.reportCount ?? 0, {
+    id: "reportCount",
+    header: ({ column }) => <DataTableColumnHeader column={column} title="Lượt báo cáo" />,
+    cell: ({ row }) =>
+      row.original.kind === "report" ? (
+        <div className="text-sm tabular-nums">
+          <p>{row.original.reportCount} lượt</p>
+          <p className="text-xs text-muted-foreground">
+            {row.original.pendingReportCount} chờ xử lý
+          </p>
+        </div>
+      ) : (
+        <span className="text-muted-foreground">—</span>
+      ),
+    sortFn: "alphanumeric",
+    enableGlobalFilter: false,
+    meta: { label: "Lượt báo cáo" },
   }),
   helper.accessor("createdAt", {
     header: ({ column }) => <DataTableColumnHeader column={column} title="Lúc" />,
