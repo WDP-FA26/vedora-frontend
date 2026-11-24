@@ -26,6 +26,8 @@ Báo cáo đã đóng không còn nút xử lý. Nếu admin khác đã xử lý
 
 ## Hợp đồng và thứ tự triển khai
 
+Thông báo khi xử lý bình luận được mô tả tại [comment-notifications.md](./comment-notifications.md).
+
 BE phải có `POST /posts/:postId/comments/:commentId/report`, `GET /admin/comment-reports`, `POST /admin/comment-reports/:id/review` trước khi phát hành FE này. Schema phía FE kiểm tra response bằng Zod. Không cần thêm env.
 
 Chi tiết API: repo BE, `docs/docs-for-FE/comment-reports.md`.

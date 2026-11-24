@@ -1,8 +1,5 @@
 import type { ApiNotification } from "@/features/notifications/schemas"
-import {
-  PENDING_REVIEW_MESSAGE,
-  rejectionMessage,
-} from "@/features/posts/lib/moderation-labels"
+import { PENDING_REVIEW_MESSAGE, rejectionMessage } from "@/features/posts/lib/moderation-labels"
 import { REPORT_REASONS, REPORT_REASON_LABELS, type ReportReason } from "@/features/posts/schemas"
 
 /** What a member did, worded for "<name> <text>". */
@@ -40,7 +37,10 @@ export function describeNotification(notification: ApiNotification) {
   const subject = subjectOf(notification)
   switch (type) {
     case "POST_REJECTED":
-      return { from: "Vedora", text: rejectionMessage(notification.reason, subject, notification.reasonText) }
+      return {
+        from: "Vedora",
+        text: rejectionMessage(notification.reason, subject, notification.reasonText),
+      }
     case "POST_PENDING_REVIEW":
       return {
         from: "Vedora",
@@ -61,6 +61,33 @@ export function describeNotification(notification: ApiNotification) {
       return {
         from: "Vedora",
         text: `${subject} của bạn đã được quản trị viên khôi phục.`,
+      }
+    case "COMMENT_REMOVED": {
+      const reason = reportReasonLabel(notification.reason)
+      return {
+        from: "Vedora",
+        text: `Bình luận${quoted(notification.note)} của bạn đã bị quản trị viên gỡ bỏ${reason ? ` (${reason})` : ""}.`,
+      }
+    }
+    case "COMMENT_REMOVED_BY_POST_OWNER":
+      return {
+        from: "Vedora",
+        text: `Bình luận${quoted(notification.note)} của bạn đã bị chủ bài viết xóa.`,
+      }
+    case "COMMENT_THREAD_REMOVED":
+      return {
+        from: "Vedora",
+        text: `Phản hồi${quoted(notification.note)} của bạn đã bị xóa do bình luận gốc trong luồng đã bị xóa.`,
+      }
+    case "COMMENT_REPORT_RESOLVED":
+      return {
+        from: "Vedora",
+        text: `Bình luận${quoted(notification.note)} mà bạn báo cáo đã bị xóa. Cảm ơn bạn đã báo cáo.`,
+      }
+    case "COMMENT_REPORT_DISMISSED":
+      return {
+        from: "Vedora",
+        text: `Chúng tôi đã xem xét và bỏ qua báo cáo của bạn về bình luận${quoted(notification.note)}.`,
       }
     case "SUPPORT_TICKET_REPLIED":
       return {
