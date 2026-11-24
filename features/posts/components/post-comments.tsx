@@ -8,6 +8,7 @@ import { Controller, useForm, useWatch } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import {
   EllipsisIcon,
+  FlagIcon,
   MessageCircleIcon,
   PencilIcon,
   Trash2Icon,
@@ -43,6 +44,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { useAuth } from "@/features/auth/hooks/use-auth"
 import { toAuthor } from "@/features/auth/lib/to-author"
 import { useComments } from "@/features/posts/hooks/use-comments"
+import { ReportDialog } from "@/features/posts/components/report-dialog"
 import { COMMENTS_ANCHOR, commentsKey } from "@/features/posts/posts-cache"
 import { fetchComment } from "@/features/posts/lib/posts-api"
 import {
@@ -395,9 +397,12 @@ function CommentItem({
   highlighted?: boolean
 }) {
   const author = toAuthor(comment.author)
+  const { user, isAuthenticated } = useAuth()
+  const canReport = isAuthenticated && user?.id !== comment.author.id
   const isSystem = comment.author.isSystem
   const profileHref = profilePath(comment.author.id)
   const [editing, setEditing] = useState(false)
+  const [reporting, setReporting] = useState(false)
   const [confirming, setConfirming] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [deleteError, setDeleteError] = useState<string | null>(null)
@@ -465,7 +470,7 @@ function CommentItem({
             {edited && <span className="text-xs text-muted-foreground">(đã sửa)</span>}
           </p>
 
-          {(canEdit || canDelete) && !editing && (
+          {(canEdit || canDelete || canReport) && !editing && (
             <DropdownMenu>
               <DropdownMenuTrigger
                 render={<Button variant="action" size="icon-sm" shape="pill" className="-my-1 -mr-2" />}
@@ -474,6 +479,12 @@ function CommentItem({
                 <EllipsisIcon aria-hidden />
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-48">
+                {canReport && (
+                  <DropdownMenuItem onClick={() => setReporting(true)}>
+                    <FlagIcon aria-hidden />
+                    Báo cáo bình luận
+                  </DropdownMenuItem>
+                )}
                 {canEdit && (
                   <DropdownMenuItem onClick={() => setEditing(true)}>
                     <PencilIcon aria-hidden />
@@ -528,6 +539,15 @@ function CommentItem({
         {!editing && <div className="mt-1 flex flex-wrap items-center gap-1">{children}</div>}
       </div>
 
+      {reporting && (
+        <ReportDialog
+          postId={comment.postId}
+          commentId={comment.id}
+          authorName={author.name}
+          open={reporting}
+          onOpenChange={setReporting}
+        />
+      )}
       <AlertDialog
         open={confirming}
         onOpenChange={(open) => {
