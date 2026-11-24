@@ -7,6 +7,7 @@ import { AdminSidebar } from "@/features/admin/components/admin-sidebar"
 import { AuthProvider } from "@/features/auth/components/auth-provider"
 import { redirect } from "next/navigation"
 import { getAccessToken, requireAuth } from "@/features/auth/server/session"
+import { AdminWorkQueueProvider } from "@/features/admin/overview/work-queue-provider"
 
 /** Written by `SidebarProvider` whenever the sidebar is expanded or collapsed. */
 const SIDEBAR_COOKIE = "sidebar_state"
@@ -23,16 +24,18 @@ export default async function AdminLayout({ children }: LayoutProps<"/admin">) {
 
   return (
     <AuthProvider accessToken={accessToken} user={user}>
-      <SidebarProvider
-        defaultOpen={sidebarOpen}
-        style={{ "--sidebar-width": "15rem" } as CSSProperties}
-      >
-        <AdminSidebar />
-        <SidebarInset className="min-w-0">
-          <AdminHeader />
-          {children}
-        </SidebarInset>
-      </SidebarProvider>
+      <AdminWorkQueueProvider>
+        <SidebarProvider
+          defaultOpen={sidebarOpen}
+          style={{ "--sidebar-width": "15rem" } as CSSProperties}
+        >
+          <AdminSidebar />
+          <SidebarInset className="min-w-0">
+            <AdminHeader />
+            {children}
+          </SidebarInset>
+        </SidebarProvider>
+      </AdminWorkQueueProvider>
     </AuthProvider>
   )
 }
