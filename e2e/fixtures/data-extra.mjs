@@ -140,19 +140,9 @@ export const filledMealPlan = {
   problems: [],
 }
 
-export const dietaryOptions = {
-  ingredients: [
-    { id: "i-1", name: "Đậu phộng", aliases: ["lạc"] },
-    { id: "i-2", name: "Nấm hương", aliases: [] },
-    { id: "i-3", name: "Cà chua", aliases: [] },
-  ],
-  groups: [{ id: "g-1", name: "Hạt", ingredients: ["Đậu phộng"] }],
-}
-
 export const myDietary = {
-  ingredients: [{ id: "i-1", name: "Đậu phộng" }],
-  groups: [],
-  liked: [{ id: "i-2", name: "Nấm hương" }],
+  allergies: ["Dị ứng đậu phộng"],
+  preferences: ["Thích nấm hương"],
 }
 
 export const shoppingList = {

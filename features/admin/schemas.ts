@@ -16,6 +16,7 @@ export const adminUserSchema = z.object({
   email: z.string(),
   role: z.enum(["USER", "ADMIN"]),
   status: z.enum(ACCOUNT_STATUSES),
+  accountType: z.enum(["PERSONAL", "PAGE"]).default("PERSONAL"),
   /** Goes up by one with every role or status change; those updates must send it back. */
   accountVersion: z.number().int().nonnegative(),
   createdAt: z.string(),
@@ -182,6 +183,13 @@ export const adminReportPageSchema = z.object({
 
 export type AdminReport = z.infer<typeof adminReportSchema>
 export type AdminUser = z.infer<typeof adminUserSchema>
+
+/** Restaurant page accounts use an internal placeholder email that admins do not need to see. */
+export function visibleUserEmail(user: Pick<AdminUser, "accountType" | "email">): string | null {
+  if (user.accountType === "PAGE") return null
+  const trimmed = user.email.trim()
+  return trimmed || null
+}
 export type CaptionStatus = (typeof CAPTION_STATUSES)[number]
 export type AdminPost = z.infer<typeof adminPostSchema>
 export type AdminPostDetail = z.infer<typeof adminPostDetailSchema>

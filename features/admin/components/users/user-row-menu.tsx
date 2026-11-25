@@ -44,7 +44,7 @@ import {
   type AccountRoleChange,
   type AccountStatusChange,
 } from "@/features/admin/lib/admin-api"
-import type { AdminUser } from "@/features/admin/schemas"
+import { visibleUserEmail, type AdminUser } from "@/features/admin/schemas"
 import { useAuth } from "@/features/auth/hooks/use-auth"
 import { profilePath } from "@/features/profiles/profiles-cache"
 import { ApiError } from "@/features/shared/lib/api-client"
@@ -124,6 +124,7 @@ export function UserRowMenu({ user }: { user: AdminUser }) {
   const [reloaded, setReloaded] = useState(false)
   const [refusal, setRefusal] = useState<string | null>(null)
 
+  const email = visibleUserEmail(user)
   const isSelf = me?.id === user.id
   const next = nextStatus(user.status)
   // Once the row reloads with the change already made, there is nothing left to confirm.
@@ -207,10 +208,12 @@ export function UserRowMenu({ user }: { user: AdminUser }) {
             <UserRoundIcon aria-hidden />
             Xem hồ sơ
           </DropdownMenuItem>
-          <DropdownMenuItem onClick={() => navigator.clipboard.writeText(user.email)}>
-            <CopyIcon aria-hidden />
-            Sao chép email
-          </DropdownMenuItem>
+          {email && (
+            <DropdownMenuItem onClick={() => navigator.clipboard.writeText(email)}>
+              <CopyIcon aria-hidden />
+              Sao chép email
+            </DropdownMenuItem>
+          )}
           <DropdownMenuSeparator />
           {user.role === "ADMIN" ? (
             <DropdownMenuItem variant="destructive" onClick={() => open({ kind: "role", role: "USER" })}>

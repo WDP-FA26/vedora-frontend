@@ -673,16 +673,17 @@ function leftOutLabel(problem: MealPlanProblem) {
   return `${day}: ${problem.recipes.join(", ")} (có ${problem.ingredients.join(", ")} bạn không ăn)`
 }
 
-/** The assistant rewrote the "Sở thích" or "Dị ứng" note in the dietary profile. */
+/** The assistant changed the "Dị ứng" or "Sở thích" lines in the dietary profile. */
 function ProfileNoteCard({ update }: { update: ProfileNoteUpdate }) {
-  const label = update.kind === "allergy" ? "Dị ứng" : "Sở thích"
+  const label = update.section === "allergies" ? "Dị ứng" : "Sở thích"
+  const note = update.lines.length > 0 ? update.lines.map((line) => `• ${line}`).join("\n") : null
   return (
     <article aria-label={`${label} đã cập nhật`} className="mt-2 w-full rounded-xl border border-border bg-card px-4 py-3">
       <div className="flex items-start gap-2">
         <SparklesIcon aria-hidden className="mt-0.5 size-4 shrink-0 text-primary" />
         <div className="min-w-0 flex-1">
           <h3 className="text-sm font-semibold">Đã cập nhật {label} trong hồ sơ</h3>
-          <p className="mt-1 whitespace-pre-line text-sm text-muted-foreground">{update.note ?? `Đã xoá hết mục ${label}.`}</p>
+          <p className="mt-1 whitespace-pre-line text-sm text-muted-foreground">{note ?? `Đã xoá hết mục ${label}.`}</p>
         </div>
         <Link href={DIETARY_PATH} className="shrink-0 text-xs font-semibold text-primary underline-offset-4 hover:underline">
           Chỉnh

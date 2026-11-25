@@ -29,12 +29,7 @@ function compactList(values: string[]) {
 export function DietaryOverviewCard() {
   const { data } = useAuthedSWR(MY_DIETARY_KEY, fetchMyDietary)
   const { data: nutrition } = useAuthedSWR(MY_NUTRITION_KEY, fetchMyNutrition)
-  const names = (items: { name: string }[] | undefined) => items?.map(({ name }) => name) ?? []
-  const avoided = [
-    ...names(data?.groups),
-    ...names(data?.ingredients),
-    ...(data?.allergyNote ? [data.allergyNote] : []),
-  ]
+  const avoided = data?.allergies ?? []
 
   const bmiItems: string[] = []
   if (nutrition && nutrition.bmi !== null && nutrition.bmiCategory !== null) {

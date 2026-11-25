@@ -8,7 +8,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { UserRowMenu } from "@/features/admin/components/users/user-row-menu"
 import { DataTableColumnHeader } from "@/features/admin/components/data-table/data-table-column-header"
 import type { DataTableFeatures } from "@/features/admin/components/data-table/data-table-features"
-import type { AdminUser } from "@/features/admin/schemas"
+import { visibleUserEmail, type AdminUser } from "@/features/admin/schemas"
 import { toAuthor } from "@/features/auth/lib/to-author"
 import { profilePath } from "@/features/profiles/profiles-cache"
 import { AuthorAvatar } from "@/features/shared/components/author-avatar"
@@ -102,10 +102,15 @@ export const userColumns = helper.columns([
     sortFn: "text",
     meta: { label: "Tên đăng nhập" },
   }),
-  helper.accessor("email", {
+  helper.accessor((user) => visibleUserEmail(user) ?? "", {
+    id: "email",
     header: ({ column }) => (
       <DataTableColumnHeader column={column} title="Email" />
     ),
+    cell: ({ row }) => {
+      const email = visibleUserEmail(row.original)
+      return email ?? <span className="text-muted-foreground">—</span>
+    },
     sortFn: "text",
     meta: { label: "Email", className: "hidden lg:table-cell" },
   }),

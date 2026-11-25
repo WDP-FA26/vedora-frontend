@@ -236,9 +236,11 @@ async function handle(req, res, url, body) {
       (user) =>
         (!status || user.status === status) &&
         (!term ||
-          [user.username, user.fullName, user.email].some((field) =>
-            field.toLowerCase().includes(term)
-          ))
+          [
+            user.username,
+            user.fullName,
+            user.accountType === "PAGE" ? "" : user.email,
+          ].some((field) => field.toLowerCase().includes(term)))
     )
     return send(res, 200, adminPage(rows))
   }

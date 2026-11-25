@@ -244,33 +244,29 @@ export function messageText(message: UIMessage) {
     .join("\n\n")
 }
 
-const PREFERENCES_TOOL_TYPE = "tool-updatePreferences"
-const ALLERGY_NOTE_TOOL_TYPE = "tool-updateAllergyNote"
+const MEMORY_TOOL_TYPE = "tool-updateMemory"
 
-const preferenceUpdateSchema = z.object({ preferenceNote: z.string().nullable() })
-const allergyUpdateSchema = z.object({ allergyNote: z.string().nullable() })
+const memoryUpdateSchema = z.object({
+  section: z.enum(["allergies", "preferences"]),
+  lines: z.array(z.string()),
+})
 
 export interface ProfileNoteUpdate {
   id: string
-  /** Which note in the dietary profile: "Sở thích" or "Dị ứng". */
-  kind: "preference" | "allergy"
-  note: string | null
+  /** Which memory section: "Dị ứng" or "Sở thích". */
+  section: "allergies" | "preferences"
+  /** The section's lines after the change. */
+  lines: string[]
 }
 
-/** The dietary profile notes the planner rewrote in this message, in order. */
+/** The memory sections the planner changed in this message, in order. */
 export function messageProfileNoteUpdates(message: UIMessage): ProfileNoteUpdate[] {
   const updates: ProfileNoteUpdate[] = []
   for (const part of message.parts) {
     if (!isToolUIPart(part) || part.state !== "output-available") continue
-    if (part.type === PREFERENCES_TOOL_TYPE) {
-      const update = preferenceUpdateSchema.safeParse(part.output)
-      if (update.success) updates.push({ id: part.toolCallId, kind: "preference", note: update.data.preferenceNote })
-      continue
-    }
-    if (part.type === ALLERGY_NOTE_TOOL_TYPE) {
-      const update = allergyUpdateSchema.safeParse(part.output)
-      if (update.success) updates.push({ id: part.toolCallId, kind: "allergy", note: update.data.allergyNote })
-    }
+    if (part.type !== MEMORY_TOOL_TYPE) continue
+    const update = memoryUpdateSchema.safeParse(part.output)
+    if (update.success) updates.push({ id: part.toolCallId, ...update.data })
   }
   return updates
 }
@@ -437,7 +433,7 @@ export function useMealPlannerChat(weekStart: string | undefined) {
     void mutate(isMealPlanKey)
   }, [savedChanges, mutate])
 
-  // The planner can rewrite the "Sở thích" and "Dị ứng" notes, which the dietary profile shows.
+  // The planner can change the "Dị ứng" and "Sở thích" lines, which the dietary profile shows.
   let profileNoteUpdates = 0
   for (const message of messages) profileNoteUpdates += messageProfileNoteUpdates(message).length
   useEffect(() => {

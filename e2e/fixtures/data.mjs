@@ -190,9 +190,23 @@ export const adminUsers = [
     avatarUrl: null,
     role: "USER",
     status: "SUSPENDED",
+    accountType: "PERSONAL",
     accountVersion: 3,
     createdAt: "2025-03-01T08:00:00.000Z",
     updatedAt: "2025-03-01T08:00:00.000Z",
+  },
+  {
+    id: "u-page",
+    username: "bepanlanh",
+    fullName: "Bếp An Lành",
+    email: "page.u-page@page.vedora.internal",
+    avatarUrl: null,
+    role: "USER",
+    status: "ACTIVE",
+    accountType: "PAGE",
+    accountVersion: 0,
+    createdAt: "2025-03-02T08:00:00.000Z",
+    updatedAt: "2025-03-02T08:00:00.000Z",
   },
 ]
 

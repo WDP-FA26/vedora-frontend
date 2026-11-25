@@ -304,7 +304,7 @@ export type VoiceFocus =
 export const VOICE_GLOW_MS = 1800
 
 const PLAN_TOOLS = new Set(["fillSlots", "editPlan", "autoBalancePlan", "verifyMealPlanAllergies"])
-const DIETARY_NOTE_TOOLS = new Set(["updatePreferences", "updateAllergyNote"])
+const DIETARY_NOTE_TOOLS = new Set(["updateMemory"])
 
 export type VoiceEffects = {
   /** What to open on screen: the last panel a tool asked for, else the last changed day. */

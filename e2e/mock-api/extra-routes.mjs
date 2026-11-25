@@ -19,7 +19,6 @@ import {
   billingOverview,
   conversation,
   dashboard,
-  dietaryOptions,
   emptyMealPlan,
   ingredientGroups,
   ingredients,
@@ -119,15 +118,8 @@ export async function handleExtra({ path, method, body, q, me, res, send, error 
   if (path === "/meal-plan" && method === "GET") return ok(emptyMealPlan)
   if (path === "/meal-plan/days" && method === "PUT") return ok(emptyMealPlan)
   if (path === "/meal-plan/shopping-list") return ok(shoppingList)
-  if (path === "/dietary/options") return ok(dietaryOptions)
   if (path === "/dietary/me") {
-    if (method === "PUT") {
-      return ok({
-        ingredients: dietaryOptions.ingredients.filter((i) => body.ingredientIds?.includes(i.id)),
-        groups: dietaryOptions.groups.filter((g) => body.groupIds?.includes(g.id)),
-        liked: dietaryOptions.ingredients.filter((i) => body.likedIngredientIds?.includes(i.id)),
-      })
-    }
+    if (method === "PUT") return ok({ ...myDietary, ...body })
     return ok(myDietary)
   }
 

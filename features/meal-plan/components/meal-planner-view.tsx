@@ -18,14 +18,16 @@ import {
   DIETARY_PATH,
   fetchMyDietary,
   fetchMyNutrition,
-  MAX_ALLERGY_NOTE_LENGTH,
+  MAX_MEMORY_ITEM_LENGTH,
+  MAX_MEMORY_ITEMS,
+  memoryLines,
   MY_DIETARY_KEY,
   MY_NUTRITION_KEY,
   NUTRITION_GOALS,
   NUTRITION_GOAL_LABELS,
   saveMyDietary,
   saveMyNutrition,
-  type DietaryRestrictions,
+  type DietaryMemory,
   type NutritionGoal,
   type NutritionProfile,
 } from "@/features/dietary/dietary"
@@ -117,11 +119,7 @@ export function MealPlannerView() {
   const [askContext, setAskContext] = useState<AskContext | null>(null)
   const restrictions = useAuthedSWR(canLoadDietary ? MY_DIETARY_KEY : null, fetchMyDietary)
   const nutrition = useAuthedSWR(canLoadDietary ? MY_NUTRITION_KEY : null, fetchMyNutrition)
-  const savedAvoided = [
-    ...(restrictions.data?.groups.map(({ name }) => name) ?? []),
-    ...(restrictions.data?.ingredients.map(({ name }) => name) ?? []),
-    ...(restrictions.data?.allergyNote ? [restrictions.data.allergyNote] : []),
-  ]
+  const savedAvoided = restrictions.data?.allergies ?? []
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -549,15 +547,11 @@ function MealPlannerOnboardingGate({
 }: {
   backButton: ReactNode
   initialNutrition: NutritionProfile
-  initialRestrictions: DietaryRestrictions
-  onCompleted: (savedNutrition: NutritionProfile, savedDietary: DietaryRestrictions) => Promise<void>
+  initialRestrictions: DietaryMemory
+  onCompleted: (savedNutrition: NutritionProfile, savedDietary: DietaryMemory) => Promise<void>
 }) {
   const { accessToken } = useAuth()
-  const existingAvoided = [
-    ...initialRestrictions.groups.map(({ name }) => name),
-    ...initialRestrictions.ingredients.map(({ name }) => name),
-  ]
-  const initialNote = initialRestrictions.allergyNote?.trim() || existingAvoided.join(", ")
+  const initialNote = initialRestrictions.allergies.join("\n")
 
   const [heightCm, setHeightCm] = useState(initialNutrition.heightCm?.toString() ?? "")
   const [weightKg, setWeightKg] = useState(initialNutrition.weightKg?.toString() ?? "")
@@ -584,6 +578,12 @@ function MealPlannerOnboardingGate({
       return
     }
 
+    const allergies = memoryLines(allergyNote)
+    if (allergies.length > MAX_MEMORY_ITEMS || allergies.some((line) => line.length > MAX_MEMORY_ITEM_LENGTH)) {
+      setError(`Dị ứng tối đa ${MAX_MEMORY_ITEMS} dòng, mỗi dòng tối đa ${MAX_MEMORY_ITEM_LENGTH} ký tự.`)
+      return
+    }
+
     setSaving(true)
     setError(null)
     try {
@@ -593,11 +593,7 @@ function MealPlannerOnboardingGate({
           weightKg: Math.round(weightNum * 10) / 10,
           nutritionGoal,
         }),
-        saveMyDietary(accessToken, {
-          groupIds: [],
-          ingredientIds: [],
-          allergyNote,
-        }),
+        saveMyDietary(accessToken, { allergies }),
       ])
       await onCompleted(savedNutrition, savedDietary)
     } catch (caught) {
@@ -710,15 +706,14 @@ function MealPlannerOnboardingGate({
 
             <Field>
               <FieldLabel htmlFor="gate-allergy-note">
-                Ghi chú dị ứng hoặc thực phẩm không ăn (tùy chọn)
+                Dị ứng hoặc thực phẩm không ăn (tùy chọn, mỗi dòng một ý)
               </FieldLabel>
               <Textarea
                 id="gate-allergy-note"
                 rows={3}
-                maxLength={MAX_ALLERGY_NOTE_LENGTH}
                 value={allergyNote}
                 onChange={(event) => setAllergyNote(event.target.value)}
-                placeholder="Ví dụ: Mình dị ứng đậu phộng, mè/vừng và không ăn đồ cay…"
+                placeholder={"Ví dụ:\nDị ứng đậu phộng\nKhông ăn đồ cay"}
               />
               <FieldDescription>
                 Trợ lý sẽ tự tránh các món có nguyên liệu, gia vị hoặc cách nấu không hợp với bạn.

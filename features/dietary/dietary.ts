@@ -139,21 +139,10 @@ export const NUTRITION_PILLAR_META: Record<
   },
 }
 
-const namedRefSchema = z.object({ id: z.string(), name: z.string() })
-
-const dietaryRestrictionsSchema = z.object({
-  ingredients: z.array(namedRefSchema),
-  groups: z.array(namedRefSchema),
-  allergyNote: z
-    .string()
-    .nullable()
-    .optional()
-    .transform((value) => value ?? null),
-  preferenceNote: z
-    .string()
-    .nullable()
-    .optional()
-    .transform((value) => value ?? null),
+/** What the meal planner remembers about the user, one natural-language line each. */
+const dietaryMemorySchema = z.object({
+  allergies: z.array(z.string()),
+  preferences: z.array(z.string()),
 })
 
 export const bodyMetricLogSchema = z.object({
@@ -190,31 +179,37 @@ export const nutritionProfileSchema = z.object({
   history: z.array(bodyMetricLogSchema),
 })
 
-export type DietaryRestrictions = z.infer<typeof dietaryRestrictionsSchema>
+export type DietaryMemory = z.infer<typeof dietaryMemorySchema>
 export type BodyMetricLog = z.infer<typeof bodyMetricLogSchema>
 export type NutritionProfile = z.infer<typeof nutritionProfileSchema>
 
-export const MAX_AVOIDED_INGREDIENTS = 200
-export const MAX_ALLERGY_NOTE_LENGTH = 1000
-export const MAX_PREFERENCE_NOTE_LENGTH = 1000
+export const MAX_MEMORY_ITEMS = 30
+export const MAX_MEMORY_ITEM_LENGTH = 200
 
-/** Ids of what the user avoids and free-text allergy description, as the API takes them. */
-export const dietaryFormSchema = z
-  .object({
-    groupIds: z.array(z.string()),
-    ingredientIds: z
-      .array(z.string())
-      .max(MAX_AVOIDED_INGREDIENTS, `Chọn tối đa ${MAX_AVOIDED_INGREDIENTS} nguyên liệu.`),
-    allergyNote: z
-      .string()
-      .max(MAX_ALLERGY_NOTE_LENGTH, `Mô tả tối đa ${MAX_ALLERGY_NOTE_LENGTH} ký tự.`),
-    /** Left out keeps the saved note. */
-    preferenceNote: z
-      .string()
-      .max(MAX_PREFERENCE_NOTE_LENGTH, `Sở thích tối đa ${MAX_PREFERENCE_NOTE_LENGTH} ký tự.`)
-      .optional(),
-  })
+/** One line per fact: trimmed, without blanks or repeats. */
+export function memoryLines(text: string): string[] {
+  const lines: string[] = []
+  for (const raw of text.split("\n")) {
+    const line = raw.trim()
+    if (line !== "" && !lines.includes(line)) lines.push(line)
+  }
+  return lines
+}
+
+const memoryText = z
+  .string()
+  .refine((text) => memoryLines(text).length <= MAX_MEMORY_ITEMS, `Tối đa ${MAX_MEMORY_ITEMS} dòng.`)
+  .refine(
+    (text) => memoryLines(text).every((line) => line.length <= MAX_MEMORY_ITEM_LENGTH),
+    `Mỗi dòng tối đa ${MAX_MEMORY_ITEM_LENGTH} ký tự.`
+  )
+
+/** The two memory sections as the form edits them: one line per fact. */
+export const dietaryFormSchema = z.object({ allergies: memoryText, preferences: memoryText })
 export type DietaryFormValues = z.infer<typeof dietaryFormSchema>
+
+/** A section left out keeps its saved lines. */
+export type SaveDietaryInput = { allergies?: string[]; preferences?: string[] }
 
 export type SaveNutritionInput = {
   heightCm?: number | null
@@ -239,21 +234,13 @@ export type WeightCheckInInput = {
 type Key = readonly [string, string]
 
 export function fetchMyDietary([url, token]: Key) {
-  return sendJson(dietaryRestrictionsSchema, url, token)
+  return sendJson(dietaryMemorySchema, url, token)
 }
 
-export function saveMyDietary(token: string, body: DietaryFormValues) {
-  const payload: Record<string, unknown> = {
-    groupIds: body.groupIds,
-    ingredientIds: body.ingredientIds,
-    allergyNote: body.allergyNote.trim() || null,
-  }
-  if (body.preferenceNote !== undefined) {
-    payload.preferenceNote = body.preferenceNote.trim() || null
-  }
-  return sendJson(dietaryRestrictionsSchema, MY_DIETARY_KEY, token, {
+export function saveMyDietary(token: string, body: SaveDietaryInput) {
+  return sendJson(dietaryMemorySchema, MY_DIETARY_KEY, token, {
     method: "PUT",
-    body: JSON.stringify(payload),
+    body: JSON.stringify(body),
   })
 }
 

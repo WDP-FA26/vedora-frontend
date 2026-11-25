@@ -23,13 +23,13 @@ import {
   dietaryFormSchema,
   fetchMyDietary,
   fetchMyNutrition,
-  MAX_ALLERGY_NOTE_LENGTH,
-  MAX_PREFERENCE_NOTE_LENGTH,
+  memoryLines,
   MY_DIETARY_KEY,
   MY_NUTRITION_KEY,
   saveMyDietary,
   type DietaryFormValues,
-  type DietaryRestrictions,
+  type DietaryMemory,
+  type SaveDietaryInput,
 } from "@/features/dietary/dietary"
 import {
   AsianBmiSpectrumBar,
@@ -39,8 +39,8 @@ import {
 import { MEAL_PLANNER_PATH } from "@/features/meal-plan/meal-plan"
 import { profilePath } from "@/features/profiles/profiles-cache"
 
-const ALLERGY_NOTE_ID = "dietary-allergy-note"
-const PREFERENCE_NOTE_ID = "dietary-preference-note"
+const ALLERGIES_ID = "dietary-allergies"
+const PREFERENCES_ID = "dietary-preferences"
 
 /** Where a user lists what they do not eat and their body profile. */
 export function DietaryView() {
@@ -139,7 +139,7 @@ export function DietaryView() {
         )}
         {mine.data && accessToken ? (
           <DietaryForm
-            restrictions={mine.data}
+            memory={mine.data}
             save={async (values) => {
               const saved = await saveMyDietary(accessToken, values)
               await mine.mutate(saved, { revalidate: false })
@@ -160,39 +160,27 @@ export function DietaryView() {
 }
 
 function DietaryForm({
-  restrictions,
+  memory,
   save,
 }: {
-  restrictions: DietaryRestrictions
-  save: (values: DietaryFormValues) => Promise<void>
+  memory: DietaryMemory
+  save: (values: SaveDietaryInput) => Promise<void>
 }) {
-  const legacyAvoided = [
-    ...restrictions.groups.map((group) => group.name),
-    ...restrictions.ingredients.map((item) => item.name),
-  ]
-  const existingNote = restrictions.allergyNote?.trim() ?? ""
-  const initialAllergyNote = existingNote || legacyAvoided.join(", ")
-
   const form = useForm<DietaryFormValues>({
     resolver: zodResolver(dietaryFormSchema),
     defaultValues: {
-      groupIds: [],
-      ingredientIds: [],
-      allergyNote: initialAllergyNote,
-      preferenceNote: restrictions.preferenceNote ?? "",
+      allergies: memory.allergies.join("\n"),
+      preferences: memory.preferences.join("\n"),
     },
   })
   const { isSubmitting, isDirty, isSubmitSuccessful, errors } = form.formState
 
   async function onSubmit(values: DietaryFormValues) {
-    const nextValues: DietaryFormValues = {
-      ...values,
-      groupIds: [],
-      ingredientIds: [],
-    }
+    const allergies = memoryLines(values.allergies)
+    const preferences = memoryLines(values.preferences)
     try {
-      await save(nextValues)
-      form.reset(nextValues)
+      await save({ allergies, preferences })
+      form.reset({ allergies: allergies.join("\n"), preferences: preferences.join("\n") })
     } catch {
       form.setError("root", { message: "Không lưu được. Thử lại nhé." })
     }
@@ -200,91 +188,81 @@ function DietaryForm({
 
   return (
     <form noValidate onSubmit={form.handleSubmit(onSubmit)}>
-      <FieldGroup>
-        <FieldSet>
-          <FieldLegend>Thực phẩm không ăn hoặc dị ứng</FieldLegend>
-          <FieldDescription>
-            Loại trừ hoàn toàn món có thành phần dị ứng hoặc không hợp khi trợ lý lên lịch ăn hằng ngày.
-          </FieldDescription>
-          <FieldGroup>
-            <Controller
-              name="allergyNote"
-              control={form.control}
-              render={({ field, fieldState }) => (
-                <Field data-invalid={fieldState.invalid}>
-                  <FieldLabel htmlFor={ALLERGY_NOTE_ID}>
-                    Ghi chú dị ứng hoặc lưu ý ăn uống riêng
-                  </FieldLabel>
-                  <Textarea
-                    id={ALLERGY_NOTE_ID}
-                    value={field.value}
-                    onChange={field.onChange}
-                    onBlur={field.onBlur}
-                    maxLength={MAX_ALLERGY_NOTE_LENGTH}
-                    rows={3}
-                    placeholder="Ví dụ: Mình dị ứng đậu phộng, mè/vừng và nước tương có gluten; ăn cay hoặc nhiều nước cốt dừa hay bị đầy bụng…"
-                    aria-invalid={fieldState.invalid}
-                  />
-                  {fieldState.invalid && <FieldError errors={[fieldState.error]} />}
-                </Field>
-              )}
-            />
-          </FieldGroup>
-        </FieldSet>
-
-        <FieldSet>
-          <FieldLegend>Sở thích và thói quen ăn uống</FieldLegend>
-          <FieldDescription>
-            Trợ lý đọc mục này mỗi lần lên thực đơn và có thể tự ghi thêm khi bạn kể trong lúc trò chuyện. Bạn sửa hoặc xoá lúc nào cũng được.
-          </FieldDescription>
+      <FieldSet>
+        <FieldLegend>Ghi nhớ của trợ lý</FieldLegend>
+        <FieldDescription>
+          Trợ lý đọc mục này mỗi lần lên thực đơn và tự ghi thêm khi bạn kể trong lúc trò chuyện. Mỗi dòng một ý; bạn sửa hoặc xoá lúc nào cũng được.
+        </FieldDescription>
+        <FieldGroup>
           <Controller
-            name="preferenceNote"
+            name="allergies"
             control={form.control}
             render={({ field, fieldState }) => (
               <Field data-invalid={fieldState.invalid}>
-                <FieldLabel htmlFor={PREFERENCE_NOTE_ID}>Sở thích</FieldLabel>
+                <FieldLabel htmlFor={ALLERGIES_ID}>Dị ứng &amp; không ăn</FieldLabel>
+                <FieldDescription>
+                  Trợ lý tuyệt đối không xếp món có những thứ này vào thực đơn.
+                </FieldDescription>
                 <Textarea
-                  id={PREFERENCE_NOTE_ID}
-                  value={field.value ?? ""}
+                  id={ALLERGIES_ID}
+                  value={field.value}
                   onChange={field.onChange}
                   onBlur={field.onBlur}
-                  maxLength={MAX_PREFERENCE_NOTE_LENGTH}
-                  rows={3}
-                  placeholder="Ví dụ: Không thích nấm; nhà 3 người, chỉ nấu bữa tối; mỗi món tối đa 30 phút; thích canh chua…"
+                  rows={4}
+                  placeholder={"Ví dụ:\nDị ứng đậu phộng\nĂn mè bị nổi mẩn\nĂn chay ngũ vị tân"}
                   aria-invalid={fieldState.invalid}
                 />
                 {fieldState.invalid && <FieldError errors={[fieldState.error]} />}
               </Field>
             )}
           />
-        </FieldSet>
+          <Controller
+            name="preferences"
+            control={form.control}
+            render={({ field, fieldState }) => (
+              <Field data-invalid={fieldState.invalid}>
+                <FieldLabel htmlFor={PREFERENCES_ID}>Sở thích &amp; thói quen</FieldLabel>
+                <Textarea
+                  id={PREFERENCES_ID}
+                  value={field.value}
+                  onChange={field.onChange}
+                  onBlur={field.onBlur}
+                  rows={4}
+                  placeholder={"Ví dụ:\nKhông thích nấm\nNhà 3 người, chỉ nấu bữa tối\nMỗi món tối đa 30 phút"}
+                  aria-invalid={fieldState.invalid}
+                />
+                {fieldState.invalid && <FieldError errors={[fieldState.error]} />}
+              </Field>
+            )}
+          />
 
-        <div className="flex flex-wrap items-center gap-3">
-          <Button type="submit" disabled={isSubmitting || !isDirty}>
-            {isSubmitting && <Spinner aria-hidden />}
-            Lưu hồ sơ ăn uống
-          </Button>
-          <Button
-            variant="outline"
-            disabled={isSubmitting || !isDirty}
-            onClick={() => form.reset()}
-          >
-            Huỷ thay đổi
-          </Button>
-          <p
-            role="status"
-            className={
-              errors.root ? "text-sm text-destructive" : "text-sm text-muted-foreground"
-            }
-          >
-            {errors.root
-              ? errors.root.message
-              : isDirty
-                ? "Có thay đổi chưa lưu."
-                : isSubmitSuccessful && "Đã lưu."}
-          </p>
-        </div>
-      </FieldGroup>
+          <div className="flex flex-wrap items-center gap-3">
+            <Button type="submit" disabled={isSubmitting || !isDirty}>
+              {isSubmitting && <Spinner aria-hidden />}
+              Lưu hồ sơ ăn uống
+            </Button>
+            <Button
+              variant="outline"
+              disabled={isSubmitting || !isDirty}
+              onClick={() => form.reset()}
+            >
+              Huỷ thay đổi
+            </Button>
+            <p
+              role="status"
+              className={
+                errors.root ? "text-sm text-destructive" : "text-sm text-muted-foreground"
+              }
+            >
+              {errors.root
+                ? errors.root.message
+                : isDirty
+                  ? "Có thay đổi chưa lưu."
+                  : isSubmitSuccessful && "Đã lưu."}
+            </p>
+          </div>
+        </FieldGroup>
+      </FieldSet>
     </form>
   )
 }

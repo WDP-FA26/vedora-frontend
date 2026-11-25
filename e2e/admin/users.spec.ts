@@ -21,6 +21,9 @@ test.describe("admin users (admin)", () => {
     await expect(table.getByRole("row", { name: /Phạm Bị Đình Chỉ/ })).toContainText("Đình chỉ")
     await expect(table.getByRole("row", { name: /Trần Quản Trị/ })).toContainText("Hoạt động")
     await expect(table.getByRole("link", { name: "@minhanh" })).toHaveAttribute("href", "/profile/u-member")
+    const pageRow = table.getByRole("row", { name: /Bếp An Lành/ })
+    await expect(pageRow).toContainText("—")
+    await expect(pageRow).not.toContainText("page.vedora.internal")
   })
 
   test("the admin sidebar links to the other sections", async ({ page }) => {

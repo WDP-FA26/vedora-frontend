@@ -20,7 +20,7 @@ import {
 } from "@/features/admin/components/data-table/data-table"
 import { STATUS_LABELS, userColumns } from "@/features/admin/components/users/user-columns"
 import { useAdminUsers } from "@/features/admin/hooks/use-admin-users"
-import { ACCOUNT_STATUSES, type AdminUser } from "@/features/admin/schemas"
+import { ACCOUNT_STATUSES, visibleUserEmail, type AdminUser } from "@/features/admin/schemas"
 import { ApiError } from "@/features/shared/lib/api-client"
 
 /** The API's limit on `q`. */
@@ -117,23 +117,24 @@ export function UsersTable() {
         </>
       }
       emptyMessage="Không có người dùng nào khớp."
-      selectionActions={(table) => (
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() =>
-            navigator.clipboard.writeText(
-              table
-                .getFilteredSelectedRowModel()
-                .rows.map((row) => row.original.email)
-                .join(", ")
-            )
-          }
-        >
-          <CopyIcon aria-hidden />
-          Sao chép email
-        </Button>
-      )}
+      selectionActions={(table) => {
+        const emails: string[] = []
+        for (const row of table.getFilteredSelectedRowModel().rows) {
+          const email = visibleUserEmail(row.original)
+          if (email) emails.push(email)
+        }
+        if (emails.length === 0) return null
+        return (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => navigator.clipboard.writeText(emails.join(", "))}
+          >
+            <CopyIcon aria-hidden />
+            Sao chép email
+          </Button>
+        )
+      }}
     />
   )
 }
