@@ -178,7 +178,7 @@ function ReviewBody({
         </dl>
 
         {MAPBOX_TOKEN && (
-          <div className="h-48 overflow-hidden rounded-xl border border-border">
+          <div className="h-48 shrink-0 overflow-hidden rounded-xl border border-border">
             <RestaurantLocationMap
               point={{ longitude: workspace.longitude, latitude: workspace.latitude }}
             />
