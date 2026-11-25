@@ -21,7 +21,10 @@ export type Snapshot = {
   drafts: LocalPostDraft[]
   loaded: boolean
   storageError: string | null
+  /** Local writes in flight; guards leaving the page. */
   saving: number
+  /** Writes that store video files, which take long enough to show. */
+  savingFiles: number
   progress: Record<string, number>
   previews: Record<string, string>
   notice: string | null
@@ -32,6 +35,7 @@ export const EMPTY: Snapshot = {
   loaded: false,
   storageError: null,
   saving: 0,
+  savingFiles: 0,
   progress: {},
   previews: {},
   notice: null,
@@ -149,9 +153,11 @@ export class PostDraftManager {
     removedKeys: string[] = []
   ) {
     if (!this.active) return
+    const withFiles = added.length > 0 ? 1 : 0
     this.emit({
       drafts: [...this.snapshot.drafts.filter((item) => item.id !== draft.id), draft],
       saving: this.snapshot.saving + 1,
+      savingFiles: this.snapshot.savingFiles + withFiles,
     })
     const queued = this.writes
       .catch(() => undefined)
@@ -175,7 +181,10 @@ export class PostDraftManager {
       })
       throw new Error("Local draft could not be persisted")
     } finally {
-      this.emit({ saving: Math.max(0, this.snapshot.saving - 1) })
+      this.emit({
+        saving: Math.max(0, this.snapshot.saving - 1),
+        savingFiles: Math.max(0, this.snapshot.savingFiles - withFiles),
+      })
       this.kick()
     }
   }
