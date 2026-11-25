@@ -9,16 +9,20 @@ import { ApiError, sendJson } from "@/features/shared/lib/api-client"
  * session's access token to vedora-api, which mints a short-lived AI Gateway token.
  * The response is the hook's setup shape: `{ token, url, expiresAt? }`.
  */
-export async function POST() {
+export async function POST(request: Request) {
   const accessToken = await getAccessToken()
   if (!accessToken) {
     return Response.json({ message: "Authentication required" }, { status: 401 })
   }
 
+  const threadId = new URL(request.url).searchParams.get("threadId")
+  const body = threadId ? JSON.stringify({ threadId }) : undefined
+
   try {
     const session = await sendJson(voiceSessionSchema, `${API_URL}/meal-plan/voice/session`, accessToken, {
       method: "POST",
       cache: "no-store",
+      ...(body ? { body } : {}),
     })
     return Response.json({
       token: session.token,

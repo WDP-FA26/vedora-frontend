@@ -11,10 +11,12 @@ import {
   replyText,
   streamVoiceTurn,
   VOICE_QUOTA_STATUS,
+  VOICE_SESSION_ROUTE,
   voiceEffects,
   voiceErrorText,
   voiceRecipeContext,
   voiceSessionConfig,
+  voiceSessionRoute,
   type VoiceAction,
 } from "@/features/meal-plan/voice"
 import { ApiError } from "@/features/shared/lib/api-client"
@@ -86,6 +88,11 @@ describe("voiceSessionConfig", () => {
 
   it("greets without a name when there is none", () => {
     expect(JSON.stringify(voiceSessionConfig(undefined).providerOptions)).not.toContain("full name")
+  })
+
+  it("appends threadId to the session route when provided", () => {
+    expect(voiceSessionRoute()).toBe(VOICE_SESSION_ROUTE)
+    expect(voiceSessionRoute("thread-1")).toBe(`${VOICE_SESSION_ROUTE}?threadId=thread-1`)
   })
 })
 

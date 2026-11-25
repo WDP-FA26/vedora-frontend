@@ -21,12 +21,12 @@ import {
   VOICE_MAX_SECONDS,
   VOICE_MODEL_ID,
   VOICE_RECIPE_CLOSED_CONTEXT,
-  VOICE_SESSION_ROUTE,
   voiceEffects,
   voiceErrorText,
   voicePageContext,
   voiceRecipeContext,
   voiceSessionConfig,
+  voiceSessionRoute,
   type VoiceAction,
   type VoiceEffects,
   type VoiceOpenRecipe,
@@ -194,6 +194,7 @@ export function useMealPlannerVoice({
   const { mutate } = useSWRConfig()
   // Built once per mount: a new object would replace the session.
   const [sessionConfig] = useState(() => voiceSessionConfig(user?.fullName))
+  const [sessionApi] = useState(() => ({ token: voiceSessionRoute(threadId) }))
   const [pending, setPending] = useState(0)
   /** The agent asked to hang up: the call ends once its farewell has been spoken. */
   const [ending, setEnding] = useState(false)
@@ -211,7 +212,7 @@ export function useMealPlannerVoice({
 
   const realtime = experimental_useRealtime({
     model,
-    api: { token: VOICE_SESSION_ROUTE },
+    api: sessionApi,
     sessionConfig,
     // The SDK keeps every server event, audio chunks included, and re-renders on each one;
     // the planner reads none of them, so keeping one stops it holding seconds of audio.

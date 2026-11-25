@@ -24,6 +24,12 @@ import { send } from "@/features/shared/lib/api-client"
  */
 export const VOICE_SESSION_ROUTE = "/api/meal-planner/voice/session"
 
+/** Setup route URL with optional `threadId` so the API can warm the sticky prompt cache. */
+export function voiceSessionRoute(threadId?: string) {
+  if (!threadId) return VOICE_SESSION_ROUTE
+  return `${VOICE_SESSION_ROUTE}?threadId=${encodeURIComponent(threadId)}`
+}
+
 /**
  * Status the session route answers with when the API refuses a session because the
  * user's AI allowance is used up (`429 AI_QUOTA_EXCEEDED`): `experimental_useRealtime`
