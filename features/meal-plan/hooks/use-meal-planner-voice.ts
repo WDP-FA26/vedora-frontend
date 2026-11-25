@@ -46,6 +46,12 @@ const TRANSCRIPT_SETTLE_MS = 700
 /** Saved changes are said aloud only once a turn has run this long; quick turns just answer. */
 const PROGRESS_AFTER_MS = 6000
 /**
+ * A saved change is said aloud only when the reply has not followed it within this long, so
+ * GPT-Live does not say the change and then the reply that repeats it. GPT-Live knows of the
+ * change from the start (`thinking`) and can answer "xong chưa" with it.
+ */
+const PROGRESS_SPEAK_DELAY_MS = 2000
+/**
  * How long the orb stays "speaking" after playback stops. A late audio chunk briefly empties
  * the queue mid-sentence; without this the orb would flip to listening and back.
  */
@@ -92,6 +98,31 @@ function useHeldTrue(value: boolean, holdMs: number) {
     return () => clearTimeout(timer)
   }, [value, held, holdMs])
   return value || held
+}
+
+type SendRealtimeEvent = ReturnType<typeof experimental_useRealtime>["sendEvent"]
+
+/**
+ * Tells GPT-Live something. The SDK throws, even synchronously, once the session stops taking
+ * events (the call is closing, ended or failed); there is no one left to tell then, and the
+ * SDK reports transport failures through `onError` itself.
+ */
+async function sendContext(
+  sendEvent: SendRealtimeEvent,
+  delegationId: string | null,
+  channel: "thinking" | "commentary",
+  content: string
+) {
+  try {
+    await sendEvent({
+      type: "context-append",
+      delegationId,
+      content: appendableText(content),
+      providerOptions: { openai: { channel } },
+    })
+  } catch (error) {
+    console.warn("Voice context not sent", error)
+  }
 }
 
 function isAbort(error: unknown) {
@@ -195,22 +226,9 @@ export function useMealPlannerVoice({
     onError: (cause) => setError(voiceErrorText(cause.message)),
   })
 
-  /**
-   * Tells GPT-Live something. The SDK throws once the session stops taking events (the call
-   * ended or failed while a turn ran); there is no one left to tell then, and the SDK reports
-   * transport failures through `onError` itself.
-   */
-  async function append(delegationId: string | null, channel: "thinking" | "commentary", content: string) {
-    try {
-      await realtime.sendEvent({
-        type: "context-append",
-        delegationId,
-        content: appendableText(content),
-        providerOptions: { openai: { channel } },
-      })
-    } catch (error) {
-      console.warn("Voice context not sent", error)
-    }
+  const sendRealtimeEvent = realtime.sendEvent
+  function append(delegationId: string | null, channel: "thinking" | "commentary", content: string) {
+    return sendContext(sendRealtimeEvent, delegationId, channel, content)
   }
 
   function handleEvent(event: Experimental_RealtimeServerEvent) {
@@ -338,6 +356,7 @@ export function useMealPlannerVoice({
     let ended = false
     // The API saves the user message before it streams, so the thread exists once a reply starts.
     let saved = false
+    let spokenProgress: ReturnType<typeof setTimeout> | undefined
     setPending((count) => count + 1)
     try {
       const turn = streamVoiceTurn(
@@ -362,13 +381,19 @@ export function useMealPlannerVoice({
           refresh(effects)
           if (touchesScreen(effects)) onEffects(effects)
           const line = progressLine(action)
-          if (line && ledger.runningFor(delegationId) > PROGRESS_AFTER_MS) {
-            void append(delegationId, "commentary", line)
+          if (line) {
+            void append(delegationId, "thinking", line)
+            clearTimeout(spokenProgress)
+            spokenProgress = setTimeout(() => {
+              if (ledger.runningFor(delegationId) > PROGRESS_AFTER_MS) void append(delegationId, "commentary", line)
+            }, PROGRESS_SPEAK_DELAY_MS)
           }
         }
         reply = replyText(update)
         webSearch = pendingWebSearch(update)
       }
+      // The reply is next; a progress line after it would only repeat it.
+      clearTimeout(spokenProgress)
       ledger.awaitWebSearchAnswer(webSearch)
       // Marked before the farewell is sent: GPT-Live can acknowledge it before `append` resolves.
       if (ended) farewell.sent()
@@ -389,6 +414,7 @@ export function useMealPlannerVoice({
       if (controller.signal.aborted || isAbort(cause)) refreshAll()
       else await append(delegationId, "commentary", failureText(cause))
     } finally {
+      clearTimeout(spokenProgress)
       ledger.finish(delegationId)
       setPending((count) => count - 1)
       if (saved) onTurnEnd(threadId)
@@ -397,7 +423,6 @@ export function useMealPlannerVoice({
 
   const connectRealtime = realtime.connect
   const closeRealtime = realtime.close
-  const sendRealtimeEvent = realtime.sendEvent
 
   async function start() {
     setError(null)
@@ -472,22 +497,12 @@ export function useMealPlannerVoice({
       const key = `${openRecipe.id}:${openRecipe.ingredients.length}:${openRecipe.steps.length}`
       if (lastSentRecipeKey.current === key) return
       lastSentRecipeKey.current = key
-      void sendRealtimeEvent({
-        type: "context-append",
-        delegationId: null,
-        content: voiceRecipeContext(openRecipe),
-        providerOptions: { openai: { channel: "thinking" } },
-      })
+      void sendContext(sendRealtimeEvent, null, "thinking", voiceRecipeContext(openRecipe))
       return
     }
     if (lastSentRecipeKey.current !== null) {
       lastSentRecipeKey.current = null
-      void sendRealtimeEvent({
-        type: "context-append",
-        delegationId: null,
-        content: VOICE_RECIPE_CLOSED_CONTEXT,
-        providerOptions: { openai: { channel: "thinking" } },
-      })
+      void sendContext(sendRealtimeEvent, null, "thinking", VOICE_RECIPE_CLOSED_CONTEXT)
     }
   }, [connected, openRecipe, sendRealtimeEvent])
   const usedSeconds = usageAnchor?.seconds ?? 0
