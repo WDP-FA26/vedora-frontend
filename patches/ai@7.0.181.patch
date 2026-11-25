@@ -1,0 +1,113 @@
+diff --git a/dist/index.js b/dist/index.js
+index 8f1889e0e95e35514a9b3779e1a1afb2c32646bb..4ae3fa1a952155d163fcb3af3a80d6b7e05b2ac6 100644
+--- a/dist/index.js
++++ b/dist/index.js
+@@ -14184,6 +14184,21 @@ function resolveRealtimeToolDescription({ tool, toolName, toolsContext }) {
+ }
+ //#endregion
+ //#region src/realtime/browser-realtime-audio.ts
++/**
++ * vedora patch: adaptive jitter buffer with decay and gentle catch-up. Playback that starts
++ * from an empty queue starts PLAYBACK_PREBUFFER_MIN_SECONDS ahead; mid-utterance gaps within
++ * PLAYBACK_GAP_SECONDS grow the lead up to PLAYBACK_PREBUFFER_MAX_SECONDS, smooth playback
++ * decays it back down, and large bursts speed up slightly to catch up to real time.
++ */
++const PLAYBACK_PREBUFFER_MIN_SECONDS = 0.15;
++const PLAYBACK_PREBUFFER_MAX_SECONDS = 1;
++const PLAYBACK_PREBUFFER_GROWTH = 1.4;
++const PLAYBACK_PREBUFFER_DECAY = 0.85;
++const PLAYBACK_DECAY_AFTER_SECONDS = 8;
++const PLAYBACK_GAP_SECONDS = 0.45;
++const PLAYBACK_CATCHUP_START_SECONDS = 2.5;
++const PLAYBACK_CATCHUP_STOP_SECONDS = 0.6;
++const PLAYBACK_CATCHUP_RATE = 1.06;
+ var BrowserRealtimeAudio = class {
+ 	constructor(options) {
+ 		this.captureContext = null;
+@@ -14200,6 +14215,10 @@ var BrowserRealtimeAudio = class {
+ 		this.activeSources = /* @__PURE__ */ new Set();
+ 		this.isPlaying = false;
+ 		this.playbackPaused = false;
++		this.prebufferSeconds = PLAYBACK_PREBUFFER_MIN_SECONDS;
++		this.lastDrainTime = -Infinity;
++		this.smoothSince = 0;
++		this.catchingUp = false;
+ 		this.captureSampleRate = options.captureSampleRate;
+ 		this.playbackSampleRate = options.playbackSampleRate;
+ 		this.onAudio = options.onAudio;
+@@ -14305,12 +14324,16 @@ var BrowserRealtimeAudio = class {
+ 		} catch {}
+ 		this.activeSources.clear();
+ 		if (this.playbackContext != null) this.playbackTime = this.playbackContext.currentTime;
++		// A deliberate stop (barge-in) is not a network gap.
++		this.lastDrainTime = -Infinity;
++		this.smoothSince = 0;
++		this.catchingUp = false;
+ 		this.setPlaying(false);
+ 	}
+ 	getPlaybackOffsetMs() {
+ 		const ctx = this.playbackContext;
+ 		if (ctx == null) return 0;
+-		return (ctx.currentTime - this.playbackStartTime) * 1e3;
++		return Math.max(0, ctx.currentTime - this.playbackStartTime) * 1e3;
+ 	}
+ 	dispose() {
+ 		this.stopCapture();
+@@ -14320,6 +14343,10 @@ var BrowserRealtimeAudio = class {
+ 		this.playbackContext = null;
+ 		this.playbackTime = 0;
+ 		this.playbackPaused = false;
++		this.prebufferSeconds = PLAYBACK_PREBUFFER_MIN_SECONDS;
++		this.lastDrainTime = -Infinity;
++		this.smoothSince = 0;
++		this.catchingUp = false;
+ 	}
+ 	setPlaying(isPlaying) {
+ 		if (isPlaying && !this.isPlaying) this.playbackStartTime = this.playbackContext?.currentTime ?? 0;
+@@ -14338,16 +14365,43 @@ var BrowserRealtimeAudio = class {
+ 			const source = ctx.createBufferSource();
+ 			source.buffer = buffer;
+ 			source.connect(ctx.destination);
+-			const startTime = Math.max(this.playbackTime, ctx.currentTime);
++			// vedora patch: adaptive jitter buffer with decay and gentle catch-up.
++			const wasPlaying = this.isPlaying;
++			const queuedAhead = this.playbackTime - ctx.currentTime;
++			const queued = queuedAhead > 0;
++			if (!queued) {
++				if (ctx.currentTime - this.lastDrainTime < PLAYBACK_GAP_SECONDS) {
++					this.prebufferSeconds = Math.min(PLAYBACK_PREBUFFER_MAX_SECONDS, this.prebufferSeconds * PLAYBACK_PREBUFFER_GROWTH);
++				}
++				this.smoothSince = ctx.currentTime;
++				this.catchingUp = false;
++			} else {
++				if (this.smoothSince === 0) this.smoothSince = ctx.currentTime;
++				if (this.prebufferSeconds > PLAYBACK_PREBUFFER_MIN_SECONDS && ctx.currentTime - this.smoothSince >= PLAYBACK_DECAY_AFTER_SECONDS) {
++					this.prebufferSeconds = Math.max(PLAYBACK_PREBUFFER_MIN_SECONDS, this.prebufferSeconds * PLAYBACK_PREBUFFER_DECAY);
++					this.smoothSince = ctx.currentTime;
++				}
++				if (queuedAhead >= PLAYBACK_CATCHUP_START_SECONDS) this.catchingUp = true;
++				else if (queuedAhead <= PLAYBACK_CATCHUP_STOP_SECONDS) this.catchingUp = false;
++			}
++			const rate = this.catchingUp ? PLAYBACK_CATCHUP_RATE : 1;
++			if (rate !== 1) source.playbackRate.value = rate;
++			const startTime = queued ? this.playbackTime : ctx.currentTime + this.prebufferSeconds;
+ 			source.start(startTime);
+-			this.playbackTime = startTime + buffer.duration;
++			this.playbackTime = startTime + buffer.duration / rate;
+ 			this.activeSources.add(source);
+ 			this.setPlaying(ctx.state === "running");
++			// Playback offsets (truncation on barge-in) count from when audio is heard, not queued.
++			if (!wasPlaying && this.isPlaying) this.playbackStartTime = startTime;
+ 			if (this.playbackContext !== ctx) return;
+ 			source.onended = () => {
+ 				source.disconnect();
+ 				this.activeSources.delete(source);
+-				if (this.playbackQueue.length === 0 && this.activeSources.size === 0) this.setPlaying(false);
++				if (this.playbackQueue.length === 0 && this.activeSources.size === 0) {
++					this.lastDrainTime = ctx.currentTime;
++					this.catchingUp = false;
++					this.setPlaying(false);
++				}
+ 			};
+ 		}
+ 	}
