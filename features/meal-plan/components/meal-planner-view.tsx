@@ -53,7 +53,7 @@ import {
   type SlotRef,
   type Weekday,
 } from "@/features/meal-plan/meal-plan"
-import { VOICE_GLOW_MS, type VoiceEffects } from "@/features/meal-plan/voice"
+import { VOICE_GLOW_MS, type VoiceEffects, type VoiceScreen, type VoiceScreenPanel } from "@/features/meal-plan/voice"
 import { ApiError } from "@/features/shared/lib/api-client"
 import { z } from "zod"
 import { cn } from "@/lib/utils"
@@ -152,43 +152,83 @@ export function MealPlannerView() {
   }
 
   /**
-   * Lights the screen glow for anything the voice agent changed or opened, then opens
-   * it in the planner's own UI: the dish on the calendar (or its recipe sheet when it
-   * is not planned), the food diary, the BMI panel, or the day it just changed.
+   * What the page shows now, for the voice agent: the week and day on the calendar and the
+   * panel over it. Read when a turn starts, so it matches what the user saw as they spoke.
    */
-  function showVoiceEffects({ focus }: VoiceEffects) {
+  function voiceScreen(): VoiceScreen | null {
+    if (!weekStart) return null
+    const board = calendar.current?.screen()
+    const diary = mealLog.current?.screen()
+    const screen: VoiceScreen = { weekStart, day: board?.day, panel: "none" }
+    if (voiceDishOpen && voiceDish) {
+      return { ...screen, panel: "recipe", recipeId: voiceDish.recipeId, recipeSection: voiceDish.voice?.section ?? undefined }
+    }
+    if (board?.recipe) {
+      return { ...screen, panel: "recipe", recipeId: board.recipe.id, recipeSection: board.recipe.section ?? undefined }
+    }
+    if (diary?.open) return { ...screen, panel: "eatingLog", eatingLogDate: diary.date ?? undefined }
+    if (board?.bodyMetricsOpen) return { ...screen, panel: "bodyMetrics" }
+    return screen
+  }
+
+  /** Closes panels the voice agent opened (or the user did), all but `keep`. */
+  function closeVoicePanels(panel: VoiceScreenPanel, keep?: VoiceScreenPanel) {
+    const closes = (name: VoiceScreenPanel) => name !== keep && (panel === "all" || panel === name)
+    if (closes("recipe")) {
+      setVoiceDishOpen(false)
+      calendar.current?.closeDish()
+    }
+    if (closes("eatingLog")) mealLog.current?.close()
+    if (closes("bodyMetrics")) calendar.current?.hideBodyMetrics()
+  }
+
+  /**
+   * Lights the screen glow for anything the voice agent changed, opened or closed, then
+   * does it in the planner's own UI: the dish on the calendar (or its recipe sheet when it
+   * is not planned), the food diary, the BMI panel, or the day it showed or changed.
+   * Opening one panel closes the others, so the agent never stacks sheets.
+   */
+  function showVoiceEffects({ focus, close }: VoiceEffects) {
     setLastVoiceFocusAt(Date.now())
+    if (close) closeVoicePanels(close)
     if (!focus) return
     if (focus.kind === "eatingLog") {
+      closeVoicePanels("all", "eatingLog")
       setTab("calendar")
       mealLog.current?.openDay(focus.date)
       return
     }
     if (focus.kind === "bodyMetrics") {
+      closeVoicePanels("all", "bodyMetrics")
       setTab("calendar")
       calendar.current?.showBodyMetrics()
       return
     }
     if (focus.kind === "planDay") {
+      closeVoicePanels("all")
       if (focus.weekStart === weekStart) {
         setTab("calendar")
-        calendar.current?.showDay(focus.day)
+        if (focus.day) calendar.current?.showDay(focus.day)
         return
       }
       // Another week remounts the calendar, so the day goes in as its initial pick.
-      setVoiceDay({ weekStart: focus.weekStart, day: focus.day })
+      if (focus.day) setVoiceDay({ weekStart: focus.weekStart, day: focus.day })
       showWeek(focus.weekStart)
       return
     }
     const planned = plan.data?.days.find((day) =>
       day.sections.some(({ recipes }) => recipes.some(({ id }) => id === focus.recipeId))
     )
+    closeVoicePanels("all", "recipe")
+    const voice = { section: focus.section, requestedAt: Date.now() }
     if (planned) {
+      setVoiceDishOpen(false)
       setTab("calendar")
-      calendar.current?.openDish(planned.day, focus.recipeId)
+      calendar.current?.openDish(planned.day, focus.recipeId, focus.section)
       return
     }
-    setVoiceDish({ recipeId: focus.recipeId, title: focus.title })
+    calendar.current?.closeDish()
+    setVoiceDish({ recipeId: focus.recipeId, title: focus.title, voice })
     setVoiceDishOpen(true)
   }
 
@@ -404,6 +444,7 @@ export function MealPlannerView() {
                 // Voice turns are saved in the chat's thread; reloading it shows them in the chat.
                 onTurnEnd={(threadId) => void chat.selectThread(threadId)}
                 onClose={() => setVoiceOpen(false)}
+                getScreen={voiceScreen}
                 leading={<span className="hidden lg:block">{backButton("icon")}</span>}
                 trailing={hideAssistantButton}
               />

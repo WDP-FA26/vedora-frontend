@@ -1,5 +1,6 @@
 "use client"
 
+import { useEffect, useRef } from "react"
 import { ArrowRightLeftIcon, FlameIcon, MessageCircleIcon, Trash2Icon } from "lucide-react"
 
 import { Badge } from "@/components/ui/badge"
@@ -25,6 +26,7 @@ import {
   type MealSection,
   type Weekday,
 } from "@/features/meal-plan/meal-plan"
+import type { RecipeSection } from "@/features/meal-plan/voice"
 import { usePublicRecipe } from "@/features/recipes/hooks/use-recipe-catalog"
 
 export type OpenedDish = {
@@ -35,6 +37,12 @@ export type OpenedDish = {
   section?: MealSection
   /** What the saved plan already knows about the dish; shown while the full recipe loads. */
   detail?: MealRecipe
+  /**
+   * Set when the voice agent opened the dish: the user is listening, maybe cooking, so the
+   * sheet leads with the ingredients and steps instead of the photo, and scrolls to
+   * `section` (the top when null). A new `requestedAt` scrolls again.
+   */
+  voice?: { section: RecipeSection | null; requestedAt: number }
 }
 
 type RecipeView = {
@@ -65,6 +73,9 @@ type Props = {
 /** A large side sheet with the photo, ingredients and steps of one dish. */
 export function RecipeSheet({ open, dish, onClose, onAsk, onMove, onRemove }: Props) {
   const { recipe: full, error } = usePublicRecipe(open && dish ? dish.recipeId : null)
+  const top = useRef<HTMLDivElement>(null)
+  const ingredients = useRef<HTMLElement>(null)
+  const steps = useRef<HTMLElement>(null)
 
   let view: RecipeView | null = null
   if (full) {
@@ -91,6 +102,21 @@ export function RecipeSheet({ open, dish, onClose, onAsk, onMove, onRemove }: Pr
     }
   }
 
+  const voice = dish?.voice
+  const loaded = view !== null
+  useEffect(() => {
+    if (!open || !voice || !loaded) return
+    const targets = { ingredients, steps }
+    const target =
+      voice.section === null || voice.section === "top" ? top.current : targets[voice.section].current
+    const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches
+    // The sheet animates in; scroll once it has laid out.
+    const frame = requestAnimationFrame(() =>
+      target?.scrollIntoView({ behavior: reduceMotion ? "auto" : "smooth", block: "start" })
+    )
+    return () => cancelAnimationFrame(frame)
+  }, [open, voice, loaded])
+
   const meta: string[] = []
   if (view && view.servings > 0) meta.push(`Công thức gốc ${view.servings} khẩu phần`)
   if (view && view.minutes !== null) meta.push(`khoảng ${view.minutes} phút`)
@@ -100,12 +126,15 @@ export function RecipeSheet({ open, dish, onClose, onAsk, onMove, onRemove }: Pr
       <SheetContent className="overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden data-[side=right]:w-full data-[side=right]:sm:max-w-xl data-[side=right]:lg:max-w-2xl">
         {dish && (
           <>
-            <MealArt
-              section={dish.section ?? "OTHER"}
-              imageUrl={view?.imageUrl}
-              className="aspect-[16/10] size-auto w-full shrink-0 rounded-none"
-              photoClassName="aspect-auto h-auto max-h-[60dvh] object-contain"
-            />
+            <div ref={top} aria-hidden />
+            {!voice && (
+              <MealArt
+                section={dish.section ?? "OTHER"}
+                imageUrl={view?.imageUrl}
+                className="aspect-[16/10] size-auto w-full shrink-0 rounded-none"
+                photoClassName="aspect-auto h-auto max-h-[60dvh] object-contain"
+              />
+            )}
             <SheetHeader>
               {dish.day && dish.section && (
                 <p className="text-xs font-semibold text-primary">
@@ -148,7 +177,7 @@ export function RecipeSheet({ open, dish, onClose, onAsk, onMove, onRemove }: Pr
               )}
               {view?.description && <p className="leading-6 text-muted-foreground">{view.description}</p>}
               {view && (
-                <section className="flex flex-col gap-2">
+                <section ref={ingredients} className="flex scroll-mt-4 flex-col gap-2">
                   <h3 className="font-semibold">Nguyên liệu</h3>
                   {view.ingredients.length > 0 ? (
                     <ul className="list-disc space-y-1 pl-5">
@@ -165,7 +194,7 @@ export function RecipeSheet({ open, dish, onClose, onAsk, onMove, onRemove }: Pr
                 </section>
               )}
               {view && view.steps.length > 0 && (
-                <section className="flex flex-col gap-2">
+                <section ref={steps} className="flex scroll-mt-4 flex-col gap-2">
                   <h3 className="font-semibold">Cách làm</h3>
                   <ol className="list-decimal space-y-2 pl-5">
                     {view.steps.map((step, index) => <li key={index}>{step}</li>)}

@@ -61,8 +61,7 @@ const MAX_APPEND_CHARACTERS = 1200
  * https://developers.openai.com/api/docs/guides/live-prompting
  */
 const VOICE_INSTRUCTIONS = `Bạn là Vedora, trợ lý giọng nói điềm tĩnh, thân thiện của Vedora, ứng dụng nấu ăn thuần chay.
-Nói tiếng Việt tự nhiên, ấm áp, nhịp vừa phải. Rõ ràng và đi thẳng vào ý, không quá hớn hở. Xưng "mình", gọi người dùng là "bạn".
-Nếu người dùng bực bội, ghi nhận ngắn gọn rồi tập trung vào bước hữu ích tiếp theo.
+Nói tiếng Việt tự nhiên, ấm áp, ngắn gọn. Xưng "mình", gọi người dùng là "bạn".
 
 Backchannel policy: Dùng âm đệm vừa phải. Ghi nhận tự nhiên, không lấn át câu trả lời chính.
 
@@ -70,25 +69,21 @@ Interruption policy: Dừng nói khi người dùng chen vào. Lắng nghe đi�
 
 Delegation policy:
 Backend tools:
-- Thực đơn: xem, lên, đổi, cân đối món trong thực đơn tuần và kiểm tra dị ứng.
-- Công thức: tìm món chay của Vedora, xem nguyên liệu và cách nấu, hiện công thức lên màn hình.
-- Nhật ký ăn uống: đọc và ghi món đã ăn, mở nhật ký trên màn hình.
-- Chỉ số cơ thể: xem và cập nhật chiều cao, cân nặng, cân nặng mục tiêu, mức vận động, mục tiêu; tính BMI và định mức kcal; hiện bảng chỉ số.
-- Dinh dưỡng: trả lời câu hỏi dinh dưỡng thuần chay, lưu ghi chú dị ứng và sở thích.
-- Hoàn tác: đưa thực đơn về như trước lần thay đổi gần nhất.
-- Tìm trên web: chỉ khi người dùng đồng ý.
+- Thực đơn tuần, công thức, nhật ký ăn uống, chỉ số cơ thể và dinh dưỡng chay: xem, thay đổi, hoàn tác.
+- Màn hình: mở, cuộn và đóng những gì người dùng cần xem.
+- Cuộc gọi: kết thúc khi người dùng chào tạm biệt.
+- Tìm trên web: khi người dùng đồng ý.
 
 Delegate to the backend when:
-- Người dùng hỏi về hoặc muốn thay đổi thực đơn, công thức, nhật ký ăn uống, chỉ số cơ thể, dị ứng hay sở thích.
-- Người dùng muốn xem một thứ trên màn hình.
-- Câu trả lời cần số liệu (kcal, BMI, tên món) hoặc lập luận dinh dưỡng cẩn thận.
+- Yêu cầu cần một khả năng của backend, số liệu, hoặc lập luận dinh dưỡng cẩn thận.
+- Người dùng muốn xem, chuyển tới, cuộn hoặc đóng một thứ trên màn hình.
 - Một lời sửa thay đổi việc đã nhờ.
-- Người dùng muốn dừng, hủy hoặc hoàn tác việc vừa làm.
-- Người dùng trả lời câu hỏi có cho tìm trên web không.
+- Người dùng chào tạm biệt hoặc muốn kết thúc cuộc gọi.
 
 Do not delegate when:
-- Người dùng chào hỏi, cảm ơn, hoặc nhờ nhắc lại kết quả vừa nói.
+- Bạn trả lời được từ cuộc trò chuyện hoặc một kết quả vừa nhận còn đúng.
 - Bạn cần hỏi lại ngắn để hiểu yêu cầu.
+- Người dùng nói chuyện phiếm hoặc hỏi điều ngoài ứng dụng: trả lời ngắn, tự nhiên như một người bạn.
 
 Delegate to the backend before giving an answer that depends on backend work.
 Do not guess the result while waiting.`
@@ -100,10 +95,8 @@ Do not guess the result while waiting.`
  */
 function voiceGreeting(fullName: string | undefined) {
   const name = fullName?.trim()
-  if (!name) {
-    return "Chào người dùng ngay bằng tiếng Việt. Giới thiệu bạn là trợ lý Vedora và hỏi bạn có thể giúp gì cho thực đơn. Rồi dừng lại và lắng nghe."
-  }
-  return `Chào người dùng ngay bằng tiếng Việt, gọi họ bằng tên. Họ tên của họ là "${name}"; gọi bằng tên gọi như người Việt vẫn gọi nhau (với tên tiếng Việt thường là chữ cuối của họ tên). Giới thiệu bạn là trợ lý Vedora và hỏi bạn có thể giúp gì cho thực đơn. Rồi dừng lại và lắng nghe.`
+  const address = name ? `, gọi họ bằng tên như người Việt vẫn gọi (họ tên: "${name}")` : ""
+  return `Chào người dùng ngay bằng tiếng Việt${address}. Giới thiệu ngắn bạn là trợ lý Vedora, rồi lắng nghe.`
 }
 
 /** The session settings. Build it once per call: a new object would replace the hook's session. */
@@ -155,6 +148,7 @@ export type VoiceTurnRequest = {
   threadId?: string
   requestId?: string
   webSearchRequest?: VoiceWebSearchRequest
+  screen?: VoiceScreen
 }
 
 const webSearchInputSchema = z.object({ reason: z.string() })
@@ -237,13 +231,33 @@ export function progressLine(action: VoiceAction): string | null {
   return null
 }
 
-const showRecipeOutputSchema = z.object({
-  shown: z.boolean(),
-  recipeId: z.string(),
-  title: z.string().nullable(),
-})
+/** Parts of a recipe sheet the voice agent can scroll to; `top` is the start. */
+export const RECIPE_SECTIONS = ["top", "ingredients", "steps"] as const
+export type RecipeSection = (typeof RECIPE_SECTIONS)[number]
 
-const openEatingLogOutputSchema = z.object({ date: z.string().nullable() })
+/** Panels the voice agent can close; `all` is whatever is open. */
+export type VoiceScreenPanel = "recipe" | "eatingLog" | "bodyMetrics" | "all"
+
+/** What the planner page shows while the user speaks, sent with each turn (`screen`). */
+export type VoiceScreen = {
+  weekStart: string
+  day?: Weekday
+  panel: "none" | "recipe" | "eatingLog" | "bodyMetrics"
+  recipeId?: string
+  recipeSection?: RecipeSection
+  eatingLogDate?: string
+}
+
+const setScreenOutputSchema = z.object({
+  applied: z.boolean(),
+  view: z.enum(["calendar", "recipe", "eatingLog", "bodyMetrics"]),
+  recipeId: z.string().nullable(),
+  title: z.string().nullable(),
+  section: z.enum(RECIPE_SECTIONS).nullable(),
+  weekStart: z.string().nullable(),
+  day: z.enum(WEEKDAYS).nullable(),
+  date: z.string().nullable(),
+})
 
 const logMealOutputSchema = z.object({ entry: z.object({ date: z.string() }) })
 
@@ -253,10 +267,11 @@ const undoOutputSchema = z.object({
 
 /** The part of the existing planner UI the voice agent points at and opens. */
 export type VoiceFocus =
-  | { kind: "recipe"; recipeId: string; title: string }
+  | { kind: "recipe"; recipeId: string; title: string; section: RecipeSection | null }
   | { kind: "eatingLog"; date: string | null }
   | { kind: "bodyMetrics" }
-  | { kind: "planDay"; weekStart: string; day: Weekday }
+  /** `day: null` shows the week without picking a day. */
+  | { kind: "planDay"; weekStart: string; day: Weekday | null }
 
 /** How long the screen keeps glowing after the agent last opened something. */
 export const VOICE_GLOW_MS = 1800
@@ -267,20 +282,45 @@ const DIETARY_NOTE_TOOLS = new Set(["updatePreferences", "updateAllergyNote"])
 export type VoiceEffects = {
   /** What to open on screen: the last panel a tool asked for, else the last changed day. */
   focus: VoiceFocus | null
+  /** A panel the agent closed. */
+  close: VoiceScreenPanel | null
   planChanged: boolean
   logChanged: boolean
   nutritionChanged: boolean
   dietaryChanged: boolean
+  /** The agent decided to hang up once its reply is spoken. */
+  endCall: boolean
+}
+
+/** Puts a `setScreen` result into the effects: the view to open, or the calendar with panels closed. */
+function applyScreen(effects: VoiceEffects, screen: z.infer<typeof setScreenOutputSchema>) {
+  if (screen.view === "recipe" && screen.recipeId !== null && screen.title !== null) {
+    effects.focus = { kind: "recipe", recipeId: screen.recipeId, title: screen.title, section: screen.section }
+    return
+  }
+  if (screen.view === "eatingLog") {
+    effects.focus = { kind: "eatingLog", date: screen.date }
+    return
+  }
+  if (screen.view === "bodyMetrics") {
+    effects.focus = { kind: "bodyMetrics" }
+    return
+  }
+  if (screen.view !== "calendar") return
+  effects.close = "all"
+  if (screen.weekStart !== null) effects.focus = { kind: "planDay", weekStart: screen.weekStart, day: screen.day }
 }
 
 /** What a turn's finished tools mean for the page: what to open and which caches to refresh. */
 export function voiceEffects(actions: VoiceAction[]): VoiceEffects {
   const effects: VoiceEffects = {
     focus: null,
+    close: null,
     planChanged: false,
     logChanged: false,
     nutritionChanged: false,
     dietaryChanged: false,
+    endCall: false,
   }
   let changedDay: VoiceFocus | null = null
   for (const action of actions) {
@@ -297,16 +337,13 @@ export function voiceEffects(actions: VoiceAction[]): VoiceEffects {
       effects.dietaryChanged = true
       continue
     }
-    if (action.tool === "showRecipe") {
-      const output = showRecipeOutputSchema.safeParse(action.output)
-      if (output.success && output.data.shown && output.data.title !== null) {
-        effects.focus = { kind: "recipe", recipeId: output.data.recipeId, title: output.data.title }
-      }
+    if (action.tool === "endCall") {
+      effects.endCall = true
       continue
     }
-    if (action.tool === "openEatingLog") {
-      const output = openEatingLogOutputSchema.safeParse(action.output)
-      if (output.success) effects.focus = { kind: "eatingLog", date: output.data.date }
+    if (action.tool === "setScreen") {
+      const output = setScreenOutputSchema.safeParse(action.output)
+      if (output.success && output.data.applied) applyScreen(effects, output.data)
       continue
     }
     if (action.tool === "logMeal") {
@@ -326,12 +363,26 @@ export function voiceEffects(actions: VoiceAction[]): VoiceEffects {
     if (action.tool === "updateBodyMetrics") {
       effects.nutritionChanged = true
       effects.focus = { kind: "bodyMetrics" }
-      continue
-    }
-    if (action.tool === "showBodyMetrics") {
-      effects.focus = { kind: "bodyMetrics" }
     }
   }
   if (effects.focus === null) effects.focus = changedDay
   return effects
+}
+
+/** What words spoken during a running turn mean for it; see `POST /meal-plan/voice/interruptions`. */
+export type VoiceInterruption = "progress" | "supersede" | "queue"
+
+const interruptionSchema = z.object({ action: z.enum(["progress", "supersede", "queue"]) })
+
+export async function classifyInterruption(
+  token: string,
+  request: { running: string; utterance: string },
+  signal?: AbortSignal
+): Promise<VoiceInterruption> {
+  const response = await send(`${API_URL}/meal-plan/voice/interruptions`, token, {
+    method: "POST",
+    body: JSON.stringify(request),
+    signal,
+  })
+  return interruptionSchema.parse(await response.json()).action
 }

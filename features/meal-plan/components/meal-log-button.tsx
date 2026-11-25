@@ -141,7 +141,12 @@ function plannedRecipes(plan: MealPlan, day: Weekday, section: MealSection): Mea
 }
 
 /** `openDay(null)` opens the diary on today. */
-export type MealLogHandle = { openDay: (date: string | null) => void }
+export type MealLogHandle = {
+  openDay: (date: string | null) => void
+  close: () => void
+  /** Whether the diary is open and on which day, for the voice agent's view of the page. */
+  screen: () => { open: boolean; date: string | null }
+}
 
 /**
  * Header button of the week: what the user actually ate, beside the plan.
@@ -155,7 +160,7 @@ export function MealLogButton({
 }: {
   plan: MealPlan
   onAskAssistant?: (prompt: string) => void
-  /** Lets the voice agent open the diary. */
+  /** Lets the voice agent open and close the diary. */
   handle?: Ref<MealLogHandle>
 }) {
   const [open, setOpen] = useState(false)
@@ -165,6 +170,13 @@ export function MealLogButton({
     openDay(date) {
       setPickedDay(plan.days.find((item) => item.date === date)?.day ?? null)
       setOpen(true)
+    },
+    close() {
+      setOpen(false)
+    },
+    screen() {
+      const date = plan.days.find((item) => item.day === selectedDay)?.date ?? null
+      return { open, date }
     },
   }))
   const router = useRouter()

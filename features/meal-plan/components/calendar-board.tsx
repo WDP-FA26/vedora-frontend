@@ -42,6 +42,7 @@ import {
   ComboboxList,
 } from "@/components/ui/combobox"
 import { RecipeSheet, type OpenedDish } from "@/features/meal-plan/components/recipe-sheet"
+import type { RecipeSection } from "@/features/meal-plan/voice"
 import {
   NutritionCompanionBar,
   type NutritionCompanionBarHandle,
@@ -88,9 +89,20 @@ type PlannedDish = OpenedDish & { day: Weekday; section: MealSection }
 /** What the voice agent can open on the calendar. */
 export type CalendarBoardHandle = {
   showDay: (day: Weekday) => void
-  /** Shows the day and opens the dish's recipe sheet; just the day when the dish is not on it. */
-  openDish: (day: Weekday, recipeId: string) => void
+  /**
+   * Shows the day and opens the dish's recipe sheet the way the voice agent does (no photo,
+   * scrolled to `section`); just the day when the dish is not on it.
+   */
+  openDish: (day: Weekday, recipeId: string, section: RecipeSection | null) => void
+  closeDish: () => void
   showBodyMetrics: () => void
+  hideBodyMetrics: () => void
+  /** The selected day, the open recipe sheet and the BMI panel, for the voice agent's view of the page. */
+  screen: () => {
+    day: Weekday
+    recipe: { id: string; section: RecipeSection | null } | null
+    bodyMetricsOpen: boolean
+  }
 }
 
 type CalendarBoardProps = {
@@ -111,7 +123,7 @@ type CalendarBoardProps = {
   leading?: ReactNode
   /** The day selected when the board mounts; the voice agent uses it after switching weeks. */
   initialDay?: Weekday
-  /** Lets the voice agent show a day, a dish or the BMI panel. */
+  /** Lets the voice agent show a day, open or close a dish or the BMI panel. */
   handle?: Ref<CalendarBoardHandle>
 }
 
@@ -166,19 +178,37 @@ export function CalendarBoard({
     showDay(day) {
       setPickedDay(day)
     },
-    openDish(day, recipeId) {
+    openDish(day, recipeId, scrollTo) {
       setPickedDay(day)
       const sections = plan?.days.find((item) => item.day === day)?.sections ?? []
       for (const { section, recipes } of sections) {
         const recipe = recipes.find((item) => item.id === recipeId)
         if (!recipe) continue
-        setOpened({ recipeId: recipe.id, title: recipe.title, day, section, detail: recipe })
+        setOpened({
+          recipeId: recipe.id,
+          title: recipe.title,
+          day,
+          section,
+          detail: recipe,
+          voice: { section: scrollTo, requestedAt: Date.now() },
+        })
         setSheetOpen(true)
         return
       }
     },
+    closeDish() {
+      setSheetOpen(false)
+    },
     showBodyMetrics() {
       nutritionBar.current?.showBodyMetrics()
+    },
+    hideBodyMetrics() {
+      nutritionBar.current?.hideBodyMetrics()
+    },
+    screen() {
+      const recipe =
+        sheetOpen && opened ? { id: opened.recipeId, section: opened.voice?.section ?? null } : null
+      return { day: selectedDay, recipe, bodyMetricsOpen: nutritionBar.current?.isBodyMetricsOpen() ?? false }
     },
   }))
   const [adding, setAdding] = useState<SlotRef | null>(null)

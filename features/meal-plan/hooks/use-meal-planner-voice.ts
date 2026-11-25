@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { experimental_useRealtime } from "@ai-sdk/react"
 import { gateway, type Experimental_RealtimeServerEvent } from "ai"
 import { useSWRConfig } from "swr"
@@ -24,7 +24,10 @@ import {
   voiceErrorText,
   voicePageContext,
   voiceSessionConfig,
+  classifyInterruption,
   type VoiceEffects,
+  type VoiceInterruption,
+  type VoiceScreen,
   type VoiceWebSearchRequest,
 } from "@/features/meal-plan/voice"
 import { ApiError } from "@/features/shared/lib/api-client"
@@ -32,8 +35,12 @@ import { ApiError } from "@/features/shared/lib/api-client"
 /** Created once: a new model object would replace the hook's session. */
 const model = gateway.experimental_realtime(VOICE_MODEL_ID)
 
-/** How long to wait for the last words of an utterance after GPT-Live delegates. */
-const TRANSCRIPT_GRACE_MS = 800
+/** The longest wait for the last words of an utterance after GPT-Live delegates. */
+const TRANSCRIPT_GRACE_MS = 3000
+/** The user has finished speaking once no new words arrived for this long. */
+const TRANSCRIPT_SETTLE_MS = 700
+/** A pause longer than this between words starts a new utterance. */
+const UTTERANCE_PAUSE_MS = 2000
 /** Saved changes are said aloud only once a turn has run this long; quick turns just answer. */
 const PROGRESS_AFTER_MS = 6000
 /**
@@ -41,11 +48,96 @@ const PROGRESS_AFTER_MS = 6000
  * the queue mid-sentence; without this the orb would flip to listening and back.
  */
 const SPEAKING_HOLD_MS = 250
+/** After the farewell has played, how long to wait before hanging up, so its last word is not cut. */
+const END_AFTER_SPEECH_MS = 600
+/** Safety net: hang up this long after the farewell was sent, whatever the signals say. */
+const END_LIMIT_MS = 20000
+/** How far playback may trail the farewell's transcript while the player still reports playing. */
+const PLAYBACK_LAG_MS = 1500
+/** How often the farewell's progress is checked while the call is ending. */
+const END_CHECK_MS = 200
+
+/**
+ * Follows the farewell the agent asked to hang up after, from GPT-Live's own events. Its
+ * transcript arrives as the audio streams, and each piece carries `start_ms`/`end_ms`, so
+ * the farewell's length is known: the call ends once that much audio has had time to play
+ * and no more words come, or as soon as the player reports it has stopped.
+ */
+class FarewellTracker {
+  phase: "idle" | "sent" | "speaking" = "idle"
+  private sentAt = 0
+  private firstArrival = 0
+  private lastArrival = 0
+  private audioStartMs = 0
+  private audioEndMs = 0
+  private heardPlayback = false
+
+  reset() {
+    this.phase = "idle"
+    this.heardPlayback = false
+  }
+
+  sent() {
+    this.reset()
+    this.phase = "sent"
+    this.sentAt = Date.now()
+  }
+
+  /** GPT-Live spoke; after the farewell was sent that is the farewell (its words can arrive before the acknowledgment). */
+  spoke(startMs: number, endMs: number) {
+    if (this.phase === "idle") return
+    const now = Date.now()
+    if (this.phase === "sent") {
+      this.phase = "speaking"
+      this.firstArrival = now
+      this.audioStartMs = startMs
+      this.audioEndMs = endMs
+    }
+    this.lastArrival = now
+    this.audioEndMs = Math.max(this.audioEndMs, endMs)
+  }
+
+  /** Whether the farewell has been heard to the end (or the safety net ran out). */
+  done(playing: boolean) {
+    const now = Date.now()
+    if (this.phase === "idle") return false
+    if (now - this.sentAt >= END_LIMIT_MS) return true
+    if (this.phase !== "speaking") return false
+    if (now - this.lastArrival < END_AFTER_SPEECH_MS) return false
+    if (playing) this.heardPlayback = true
+    if (!playing && this.heardPlayback) return true
+    // The player can lag the stream (its jitter buffer) or never report a stop, so the
+    // farewell's own length decides, with room for that lag while it still reports playing.
+    const lag = playing ? PLAYBACK_LAG_MS : 0
+    return now >= this.firstArrival + (this.audioEndMs - this.audioStartMs) + END_AFTER_SPEECH_MS + lag
+  }
+}
 /** Audio the player may hold before it pauses; generous, since RAM is cheap and Gateway p99 is not. */
 const MAX_PLAYBACK_BUFFER_SECONDS = 60
 
+declare global {
+  var __vedoraRealtimeInputLevel: number | undefined
+  var __vedoraReadRealtimeOutputLevel: (() => number) | undefined
+}
+
 type TranscriptFragment = { text: string; startMs: number; endMs: number }
-type InFlight = { delegationId: string; controller: AbortController; startedAt: number }
+
+/** The last fragment that started at or before `offsetMs`, or the first one when none did. */
+function lastIndexStartedBy(fragments: TranscriptFragment[], offsetMs: number) {
+  let index = fragments.length > 0 ? 0 : -1
+  for (const [i, fragment] of fragments.entries()) {
+    if (fragment.startMs <= offsetMs) index = i
+  }
+  return index
+}
+type InFlight = { delegationId: string; message: string; controller: AbortController; startedAt: number }
+
+/** Latest billed duration snapshot from AI Gateway alongside the local time it arrived. */
+export type VoiceUsageAnchor = { seconds: number; at: number }
+
+function usageSnapshot(seconds: number): VoiceUsageAnchor {
+  return { seconds, at: Date.now() }
+}
 
 /**
  * Bookkeeping of one voice call that never drives rendering: the microphone and its
@@ -56,17 +148,17 @@ type InFlight = { delegationId: string; controller: AbortController; startedAt: 
 class VoiceCallLedger {
   private fragments: TranscriptFragment[] = []
   private consumedUntil = -1
+  private lastArrival = 0
   private queue: Promise<void> = Promise.resolve()
   private inFlight: InFlight | null = null
   private webSearch: VoiceWebSearchRequest | null = null
   private stream: MediaStream | null = null
-  private audio: AudioContext | null = null
-  private analyser: AnalyserNode | null = null
-  private samples = new Float32Array(0)
+  private monitoring = false
   private micGeneration = 0
 
-  /** Stable getter passed to `VoiceOrb` so its 60 fps loop never forces React re-renders. */
+  /** Stable getters passed to `VoiceOrb` so its 60 fps loop never forces React re-renders. */
   readonly readInputLevel = () => this.inputLevel()
+  readonly readOutputLevel = () => globalThis.__vedoraReadRealtimeOutputLevel?.() ?? 0
 
   reset() {
     this.fragments = []
@@ -76,6 +168,7 @@ class VoiceCallLedger {
 
   addFragment(fragment: TranscriptFragment) {
     this.fragments.push(fragment)
+    this.lastArrival = Date.now()
   }
 
   /** Where the newest user transcript ends, in session milliseconds; -1 before any. */
@@ -83,12 +176,29 @@ class VoiceCallLedger {
     return this.fragments.at(-1)?.endMs ?? -1
   }
 
-  /** The user's words since the last delegation, as one message. */
-  takeUtterance() {
+  /**
+   * The words of the utterance a delegation fired on, as one message. GPT-Live often
+   * delegates before the user finishes, so the utterance is the run of words around
+   * `offsetMs` with no pause longer than `UTTERANCE_PAUSE_MS`, trailing words included.
+   * Earlier words it answered itself (small talk, "xong chưa") are dropped, and later
+   * words, after a pause, wait for their own delegation.
+   */
+  takeUtterance(offsetMs: number | undefined) {
     const fresh = this.fragments.filter((fragment) => fragment.endMs > this.consumedUntil)
-    const last = fresh.at(-1)
-    if (last) this.consumedUntil = last.endMs
-    return fresh.map((fragment) => fragment.text).join("").trim()
+    const anchor = offsetMs === undefined ? fresh.length - 1 : lastIndexStartedBy(fresh, offsetMs)
+    if (anchor < 0) return ""
+    let first = anchor
+    while (first > 0 && fresh[first].startMs - fresh[first - 1].endMs < UTTERANCE_PAUSE_MS) first -= 1
+    let last = anchor
+    while (last < fresh.length - 1 && fresh[last + 1].startMs - fresh[last].endMs < UTTERANCE_PAUSE_MS) last += 1
+    const taken = fresh.slice(first, last + 1)
+    this.consumedUntil = taken[taken.length - 1].endMs
+    return taken.map((fragment) => fragment.text).join("").trim()
+  }
+
+  /** When the newest transcript fragment arrived, in `Date.now()` milliseconds. */
+  lastFragmentAt() {
+    return this.lastArrival
   }
 
   enqueue(task: () => Promise<void>) {
@@ -96,10 +206,16 @@ class VoiceCallLedger {
   }
 
   /** Marks a delegation as running; its controller stops the API request. */
-  begin(delegationId: string) {
+  begin(delegationId: string, message: string) {
     const controller = new AbortController()
-    this.inFlight = { delegationId, controller, startedAt: Date.now() }
+    this.inFlight = { delegationId, message, controller, startedAt: Date.now() }
     return controller
+  }
+
+  /** The delegation the API is working on, if any. */
+  running(): { delegationId: string; message: string } | null {
+    if (!this.inFlight) return null
+    return { delegationId: this.inFlight.delegationId, message: this.inFlight.message }
   }
 
   /** How long the running delegation has taken so far, in milliseconds. */
@@ -144,34 +260,21 @@ class VoiceCallLedger {
 
   attachMicrophone(stream: MediaStream) {
     this.stream = stream
-    this.audio = new AudioContext()
-    this.analyser = this.audio.createAnalyser()
-    this.analyser.fftSize = 512
-    this.audio.createMediaStreamSource(stream).connect(this.analyser)
-    this.samples = new Float32Array(this.analyser.fftSize)
   }
 
   /** A 0–1 level of the microphone, read once per animation frame by the orb. */
   inputLevel() {
-    if (!this.analyser) return 0
-    this.analyser.getFloatTimeDomainData(this.samples)
-    let sum = 0
-    for (const sample of this.samples) sum += sample * sample
-    return Math.min(1, Math.sqrt(sum / this.samples.length) * 4)
+    return this.monitoring ? (globalThis.__vedoraRealtimeInputLevel ?? 0) : 0
   }
 
-  /** Pauses the meter's AudioContext when the orb is not listening, saving CPU and battery. */
+  /** Pauses reading the microphone level when the orb is not listening. */
   setMonitoring(active: boolean) {
-    if (!this.audio) return
-    if (active && this.audio.state === "suspended") void this.audio.resume()
-    else if (!active && this.audio.state === "running") void this.audio.suspend()
+    this.monitoring = active
   }
 
   releaseMicrophone() {
     this.micGeneration += 1
-    void this.audio?.close()
-    this.audio = null
-    this.analyser = null
+    this.monitoring = false
     for (const track of this.stream?.getTracks() ?? []) track.stop()
     this.stream = null
   }
@@ -182,14 +285,14 @@ function failureText(error: unknown) {
     return "Người dùng đã dùng hết lượt trợ lý AI hiện có, nên yêu cầu này chưa được thực hiện."
   }
   if (error instanceof ApiError && error.status === 429) {
-    return "Người dùng gửi yêu cầu quá nhanh nên yêu cầu này chưa được thực hiện; mời họ đợi một chút rồi nói lại."
+    return "Người dùng gửi yêu cầu quá nhanh nên yêu cầu này chưa được thực hiện; đợi vài giây là thử lại được."
   }
-  return "Yêu cầu này chưa xử lý xong vì hệ thống gặp lỗi; một phần có thể đã được lưu. Mời người dùng xem lại màn hình và thử lại sau ít phút."
+  return "Yêu cầu này chưa xử lý xong vì hệ thống gặp lỗi; một phần có thể đã được lưu và đang hiện trên màn hình."
 }
 
 /** Whether a tool changed saved data or asked to open something, as opposed to only reading. */
 function touchesScreen(effects: VoiceEffects) {
-  if (effects.focus) return true
+  if (effects.focus || effects.close) return true
   return effects.planChanged || effects.logChanged || effects.nutritionChanged || effects.dietaryChanged
 }
 
@@ -217,12 +320,10 @@ async function openVoiceCall({
   ledger,
   connect,
   onError,
-  onStarted,
 }: {
   ledger: VoiceCallLedger
   connect: (options: { stream: MediaStream }) => Promise<void>
   onError: (message: string) => void
-  onStarted: (startedAt: number) => void
 }) {
   ledger.reset()
   const generation = ledger.beginMicrophone()
@@ -243,7 +344,6 @@ async function openVoiceCall({
     return
   }
   ledger.attachMicrophone(stream)
-  onStarted(Date.now())
   await connect({ stream })
 }
 
@@ -259,6 +359,8 @@ type VoiceOptions = {
   onTurnEnd: (threadId: string) => void
   /** Called when the user ends the voice session. */
   onClose: () => void
+  /** What the page shows right now, sent with each turn so the agent can refer to it. */
+  getScreen: () => VoiceScreen | null
 }
 
 /**
@@ -267,16 +369,27 @@ type VoiceOptions = {
  * delegates; this hook streams the user's transcribed words to the API, mirrors
  * each tool as it finishes, and hands the result back to be spoken.
  */
-export function useMealPlannerVoice({ weekStart, today, threadId, onEffects, onTurnEnd, onClose }: VoiceOptions) {
+export function useMealPlannerVoice({
+  weekStart,
+  today,
+  threadId,
+  onEffects,
+  onTurnEnd,
+  onClose,
+  getScreen,
+}: VoiceOptions) {
   const { accessToken, user } = useAuth()
   const { mutate } = useSWRConfig()
   // Built once per mount: a new object would replace the session.
   const [sessionConfig] = useState(() => voiceSessionConfig(user?.fullName))
   const [pending, setPending] = useState(0)
+  /** The agent asked to hang up: the call ends once its farewell has been spoken. */
+  const [ending, setEnding] = useState(false)
+  const [farewell] = useState(() => new FarewellTracker())
   /** Whether the user has said anything this call; the suggestions show until then. */
   const [heard, setHeard] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [startedAt, setStartedAt] = useState<number | null>(null)
+  const [usageAnchor, setUsageAnchor] = useState<VoiceUsageAnchor | null>(null)
   /**
    * Whether this attempt has reached "connected". The SDK starts out "disconnected", so
    * without this the call would count as ended before it began.
@@ -308,37 +421,100 @@ export function useMealPlannerVoice({ weekStart, today, threadId, onEffects, onT
   }
 
   function handleEvent(event: Experimental_RealtimeServerEvent) {
-    if (event.type === "session-started" && weekStart && today) {
-      void append(null, "thinking", voicePageContext(weekStart, today))
+    if (event.type === "session-started") {
+      setUsageAnchor(usageSnapshot(0))
+      if (weekStart && today) {
+        void append(null, "thinking", voicePageContext(weekStart, today))
+      }
+      return
+    }
+    if (event.type === "session-usage" || event.type === "session-closed") {
+      if (event.usage) {
+        setUsageAnchor(usageSnapshot(event.usage.seconds))
+      }
       return
     }
     if (event.type === "transcript-fragment") {
       if (event.speaker === "user") {
         ledger.addFragment({ text: event.delta, startMs: event.startMs, endMs: event.endMs })
         setHeard(true)
+        // Speaking again while the call is ending means the user is not done.
+        if (farewell.phase !== "idle" && event.delta.trim().length > 1) keepTalking()
+      } else {
+        farewell.spoke(event.startMs, event.endMs)
       }
       return
     }
     if (event.type === "delegation-created") {
-      // New words supersede the work still running: stop it, keep what it saved.
-      const superseded = ledger.cancel()
-      if (superseded) {
-        void append(superseded, "thinking", "Việc này đã dừng vì người dùng nói tiếp; những gì đã lưu vẫn giữ.")
-      }
-      const delegationId = event.delegationId
-      const offsetMs = event.offsetMs
-      ledger.enqueue(() => runDelegation(delegationId, offsetMs))
+      void delegate(event.delegationId, event.offsetMs)
     }
   }
 
-  /** Waits briefly for transcript fragments that end at the delegation point. */
+  /**
+   * Takes the words of one delegation and decides when they run. With nothing running they
+   * run now. Words spoken while a turn runs are read first: a progress check is answered
+   * without stopping the work, a correction or "stop" cancels it (what it saved stays), and a
+   * separate request waits its turn.
+   */
+  async function delegate(delegationId: string, offsetMs: number | undefined) {
+    await waitForTranscript(offsetMs)
+    const message = ledger.takeUtterance(offsetMs)
+    const running = ledger.running()
+    if (!running || !message || !accessToken) {
+      ledger.enqueue(() => runDelegation(delegationId, message))
+      return
+    }
+    let action: VoiceInterruption = "supersede"
+    try {
+      action = await classifyInterruption(accessToken, { running: running.message, utterance: message })
+    } catch {
+      // Without a reading, stopping is safer than finishing a request the user may have changed.
+    }
+    if (action === "progress" && ledger.running()?.delegationId === running.delegationId) {
+      await append(
+        delegationId,
+        "commentary",
+        "Việc người dùng nhờ trước đó vẫn đang chạy, chưa có kết quả."
+      )
+      return
+    }
+    if (action === "supersede") {
+      const superseded = ledger.cancel()
+      if (superseded) {
+        void append(superseded, "thinking", "Việc này đã dừng vì người dùng sửa hoặc dừng yêu cầu; những gì đã lưu vẫn giữ.")
+      }
+    }
+    ledger.enqueue(() => runDelegation(delegationId, message))
+  }
+
+  /**
+   * Waits for the last words of the utterance: GPT-Live often delegates mid-sentence, so
+   * this waits until the transcript reaches the delegation point and no new word arrived
+   * for `TRANSCRIPT_SETTLE_MS`, at most `TRANSCRIPT_GRACE_MS`.
+   */
   async function waitForTranscript(offsetMs: number | undefined) {
-    if (offsetMs === undefined) return
     const deadline = Date.now() + TRANSCRIPT_GRACE_MS
     while (Date.now() < deadline) {
-      if (ledger.latestEndMs() >= offsetMs) return
+      const reached = offsetMs === undefined || ledger.latestEndMs() >= offsetMs
+      if (reached && Date.now() - ledger.lastFragmentAt() >= TRANSCRIPT_SETTLE_MS) return
       await new Promise((resolve) => setTimeout(resolve, 50))
     }
+  }
+
+  /**
+   * Reloads everything a voice turn can change. A turn cancelled mid-stream may have saved
+   * changes whose tool results never reached the browser, so its effects are unknown.
+   */
+  function refreshAll() {
+    refresh({
+      focus: null,
+      close: null,
+      planChanged: true,
+      logChanged: true,
+      nutritionChanged: true,
+      dietaryChanged: true,
+      endCall: false,
+    })
   }
 
   function refresh(effects: VoiceEffects) {
@@ -352,11 +528,9 @@ export function useMealPlannerVoice({ weekStart, today, threadId, onEffects, onT
     }
   }
 
-  async function runDelegation(delegationId: string, offsetMs: number | undefined) {
-    await waitForTranscript(offsetMs)
-    const message = ledger.takeUtterance()
+  async function runDelegation(delegationId: string, message: string) {
     if (!message) {
-      await append(delegationId, "commentary", "Chưa nghe rõ người dùng nói gì; mời họ nói lại yêu cầu.")
+      await append(delegationId, "commentary", "Không nhận được lời người dùng cho yêu cầu này.")
       return
     }
     if (!accessToken || !weekStart) {
@@ -364,10 +538,11 @@ export function useMealPlannerVoice({ weekStart, today, threadId, onEffects, onT
       return
     }
 
-    const controller = ledger.begin(delegationId)
+    const controller = ledger.begin(delegationId, message)
     const seen = new Set<string>()
     let reply = ""
     let webSearch: VoiceWebSearchRequest | null = null
+    let ended = false
     // The API saves the user message before it streams, so the thread exists once a reply starts.
     let saved = false
     setPending((count) => count + 1)
@@ -380,6 +555,7 @@ export function useMealPlannerVoice({ weekStart, today, threadId, onEffects, onT
           threadId,
           requestId: delegationId,
           webSearchRequest: ledger.takeWebSearchRequest(),
+          screen: getScreen() ?? undefined,
         },
         controller.signal
       )
@@ -389,6 +565,7 @@ export function useMealPlannerVoice({ weekStart, today, threadId, onEffects, onT
         for (const action of fresh) {
           seen.add(action.toolCallId)
           const effects = voiceEffects([action])
+          if (effects.endCall) ended = true
           refresh(effects)
           if (touchesScreen(effects)) onEffects(effects)
           const line = progressLine(action)
@@ -400,18 +577,24 @@ export function useMealPlannerVoice({ weekStart, today, threadId, onEffects, onT
         webSearch = pendingWebSearch(update)
       }
       ledger.awaitWebSearchAnswer(webSearch)
+      // Marked before the farewell is sent: GPT-Live can acknowledge it before `append` resolves.
+      if (ended) farewell.sent()
       if (webSearch) {
         await append(
           delegationId,
           "commentary",
-          `${reply ? `${reply} ` : ""}Cần tìm thêm trên web: ${webSearch.reason}. Hỏi người dùng có đồng ý để tìm không.`
+          `${reply ? `${reply} ` : ""}Cần tìm trên web: ${webSearch.reason}. Chưa tìm vì cần người dùng đồng ý.`
         )
       } else {
         await append(delegationId, "commentary", reply || "Đã xong.")
       }
+      if (ended) setEnding(true)
     } catch (cause) {
-      // A cancelled turn was superseded or the call ended; the next turn speaks.
-      if (!isAbort(cause)) await append(delegationId, "commentary", failureText(cause))
+      // A cancelled turn was superseded or the call ended; the next turn speaks. The API may
+      // still have saved changes the stream never showed, so reload what it could touch. The
+      // error a cancelled stream throws is not always an AbortError, so the signal decides.
+      if (controller.signal.aborted || isAbort(cause)) refreshAll()
+      else await append(delegationId, "commentary", failureText(cause))
     } finally {
       ledger.finish(delegationId)
       setPending((count) => count - 1)
@@ -424,13 +607,15 @@ export function useMealPlannerVoice({ weekStart, today, threadId, onEffects, onT
 
   async function start() {
     setError(null)
+    setEnding(false)
+    farewell.reset()
     setHeard(false)
     setWasConnected(false)
+    setUsageAnchor(null)
     await openVoiceCall({
       ledger,
       connect: connectRealtime,
       onError: setError,
-      onStarted: setStartedAt,
     })
   }
 
@@ -440,7 +625,7 @@ export function useMealPlannerVoice({ weekStart, today, threadId, onEffects, onT
       await closeRealtime()
     } finally {
       ledger.releaseMicrophone()
-      setStartedAt(null)
+      setUsageAnchor(null)
       onClose()
     }
   }
@@ -455,7 +640,6 @@ export function useMealPlannerVoice({ weekStart, today, threadId, onEffects, onT
       ledger,
       connect: connectRealtime,
       onError: setError,
-      onStarted: setStartedAt,
     })
     return () => {
       ledger.cancel()
@@ -463,15 +647,42 @@ export function useMealPlannerVoice({ weekStart, today, threadId, onEffects, onT
     }
   }, [ledger, connectRealtime])
 
+  // The farewell is the reply of the turn that asked to hang up: hang up once it has played.
+  const endRef = useRef(end)
+  const playingRef = useRef(false)
+  useEffect(() => {
+    endRef.current = end
+    playingRef.current = realtime.isPlaying
+  })
+  useEffect(() => {
+    if (!ending) return
+    const timer = setInterval(() => {
+      if (farewell.done(playingRef.current)) void endRef.current()
+    }, END_CHECK_MS)
+    return () => clearInterval(timer)
+  }, [ending, farewell])
+
+  /** The user wants to keep talking: the call stays open. */
+  function keepTalking() {
+    farewell.reset()
+    setEnding(false)
+  }
+
   // A forgotten call ends on its own.
   const connected = realtime.status === "connected"
   // Adjusting state while rendering: React re-renders right away, before painting.
   if (connected && !wasConnected) setWasConnected(true)
+  const usedSeconds = usageAnchor?.seconds ?? 0
   useEffect(() => {
     if (!connected) return
-    const timer = setTimeout(() => void closeRealtime(), VOICE_MAX_SECONDS * 1000)
+    const remainingMs = Math.max(0, (VOICE_MAX_SECONDS - usedSeconds) * 1000)
+    if (remainingMs === 0) {
+      void closeRealtime()
+      return
+    }
+    const timer = setTimeout(() => void closeRealtime(), remainingMs)
     return () => clearTimeout(timer)
-  }, [connected, closeRealtime])
+  }, [connected, usedSeconds, closeRealtime])
 
   // The microphone and any running turn belong to the call, so they stop when it ends on its own.
   const ended = (wasConnected && realtime.status === "disconnected") || realtime.status === "error"
@@ -503,8 +714,11 @@ export function useMealPlannerVoice({ weekStart, today, threadId, onEffects, onT
     muted,
     heard,
     error,
-    startedAt,
+    usage: usageAnchor,
     inputLevel: ledger.readInputLevel,
+    outputLevel: ledger.readOutputLevel,
+    ending,
+    keepTalking,
     start,
     end,
     toggleMute,

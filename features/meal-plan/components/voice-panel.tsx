@@ -1,18 +1,28 @@
 "use client"
 
 import { useEffect, useState, type ReactNode } from "react"
-import { MicIcon, MicOffIcon, PhoneOffIcon, RotateCcwIcon } from "lucide-react"
+import {
+  ActivityIcon,
+  BookOpenIcon,
+  CalendarRangeIcon,
+  MicIcon,
+  MicOffIcon,
+  NotebookPenIcon,
+  PhoneOffIcon,
+  RotateCcwIcon,
+  type LucideIcon,
+} from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { VoiceOrb, type VoiceOrbState } from "@/components/ui/voice-orb"
-import { useMealPlannerVoice } from "@/features/meal-plan/hooks/use-meal-planner-voice"
-import { VOICE_MAX_SECONDS, type VoiceEffects } from "@/features/meal-plan/voice"
+import { useMealPlannerVoice, type VoiceUsageAnchor } from "@/features/meal-plan/hooks/use-meal-planner-voice"
+import { VOICE_MAX_SECONDS, type VoiceEffects, type VoiceScreen } from "@/features/meal-plan/voice"
 import { LogoMark } from "@/features/shared/components/wordmark"
 
 const STATE_TEXT: Record<VoiceOrbState, { label: string; hint: string }> = {
   idle: { label: "Đã kết thúc", hint: "Cuộc trò chuyện đã được lưu vào khung chat." },
   connecting: { label: "Đang kết nối…", hint: "Cho phép dùng micro nếu trình duyệt hỏi." },
-  listening: { label: "Đang nghe", hint: "Cứ nói tự nhiên, bạn có thể ngắt lời trợ lý bất cứ lúc nào." },
+  listening: { label: "Đang nghe", hint: "Cứ nói tự nhiên. Nói “tạm biệt” khi muốn kết thúc." },
   thinking: { label: "Đang làm việc", hint: "Trợ lý đang xem và chỉnh thực đơn bên phải." },
   speaking: { label: "Đang trả lời", hint: "Nói chen vào để dừng trợ lý." },
   interrupted: { label: "Đang nghe", hint: "Trợ lý đã dừng để nghe bạn." },
@@ -20,30 +30,44 @@ const STATE_TEXT: Record<VoiceOrbState, { label: string; hint: string }> = {
   error: { label: "Mất kết nối", hint: "Không giữ được cuộc trò chuyện." },
 }
 
-const SUGGESTIONS = [
-  "Cho mình xem công thức món tối nay",
-  "Trưa nay mình ăn một tô phở chay",
-  "Mình vừa cân lại, 58 ký",
-  "Cân đối lại thực đơn tuần này",
+/** What the assistant can do, shown under the orb until the user speaks. */
+const FEATURES: { icon: LucideIcon; text: string }[] = [
+  { icon: CalendarRangeIcon, text: "Lên và đổi món trong thực đơn tuần" },
+  { icon: BookOpenIcon, text: "Mở công thức, đọc nguyên liệu và từng bước" },
+  { icon: NotebookPenIcon, text: "Ghi món đã ăn vào nhật ký" },
+  { icon: ActivityIcon, text: "Cập nhật cân nặng, xem BMI" },
 ]
 
-function clock(totalSeconds: number) {
-  const minutes = Math.floor(totalSeconds / 60)
-  const seconds = totalSeconds % 60
-  return `${minutes}:${String(seconds).padStart(2, "0")}`
-}
+const MINUTE_SECONDS = 60
 
-/** Seconds left in the call, ticking once a second in isolation so the panel stays calm. */
-function VoiceCountdown({ startedAt }: { startedAt: number | null }) {
-  const [now, setNow] = useState(() => Date.now())
+/**
+ * Remaining time in the call, synced from AI Gateway usage snapshots: rounded to
+ * minutes until under a minute remains, then ticking down by the second while live.
+ */
+function VoiceCountdown({ usage, live }: { usage: VoiceUsageAnchor | null; live: boolean }) {
+  const [now, setNow] = useState<number | null>(null)
+  const baseRemaining =
+    usage === null ? VOICE_MAX_SECONDS : Math.max(0, VOICE_MAX_SECONDS - usage.seconds)
+  const elapsedSinceSync =
+    live && usage !== null && now !== null && now > usage.at ? (now - usage.at) / 1000 : 0
+  const secondsLeft = Math.max(0, Math.ceil(baseRemaining - elapsedSinceSync))
+  const countingSeconds = live && usage !== null && secondsLeft < MINUTE_SECONDS
+
   useEffect(() => {
-    if (startedAt === null) return
-    const timer = setInterval(() => setNow(Date.now()), 1000)
-    return () => clearInterval(timer)
-  }, [startedAt])
-  const secondsLeft =
-    startedAt === null ? VOICE_MAX_SECONDS : Math.max(0, VOICE_MAX_SECONDS - Math.floor((now - startedAt) / 1000))
-  return <>Trò chuyện bằng giọng nói · còn {clock(secondsLeft)}</>
+    if (!live || usage === null) return
+    if (countingSeconds) {
+      const timer = setInterval(() => setNow(Date.now()), 1000)
+      return () => clearInterval(timer)
+    }
+    const waitMs = Math.max(0, (baseRemaining - (MINUTE_SECONDS - 1)) * 1000)
+    const timer = setTimeout(() => setNow(Date.now()), waitMs)
+    return () => clearTimeout(timer)
+  }, [live, usage, countingSeconds, baseRemaining])
+
+  if (secondsLeft < MINUTE_SECONDS) {
+    return <>Trò chuyện bằng giọng nói · còn {secondsLeft} giây</>
+  }
+  return <>Trò chuyện bằng giọng nói · còn {Math.round(secondsLeft / MINUTE_SECONDS)} phút</>
 }
 
 /**
@@ -58,6 +82,7 @@ export function VoicePanel({
   onEffects,
   onTurnEnd,
   onClose,
+  getScreen,
   leading,
   trailing,
 }: {
@@ -67,10 +92,19 @@ export function VoicePanel({
   onEffects: (effects: VoiceEffects) => void
   onTurnEnd: (threadId: string) => void
   onClose: () => void
+  getScreen: () => VoiceScreen | null
   leading?: ReactNode
   trailing?: ReactNode
 }) {
-  const voice = useMealPlannerVoice({ weekStart, today, threadId, onEffects, onTurnEnd, onClose })
+  const voice = useMealPlannerVoice({
+    weekStart,
+    today,
+    threadId,
+    onEffects,
+    onTurnEnd,
+    onClose,
+    getScreen,
+  })
   const text = STATE_TEXT[voice.orbState]
   const live = voice.status === "connected"
   const failed = voice.error !== null || voice.status === "error"
@@ -85,7 +119,7 @@ export function VoicePanel({
         <div className="min-w-0 flex-1">
           <h2 className="font-heading text-base font-bold leading-tight">Trợ lý Vedora</h2>
           <p className="mt-0.5 truncate text-xs text-muted-foreground">
-            <VoiceCountdown startedAt={voice.startedAt} />
+            <VoiceCountdown usage={voice.usage} live={live} />
           </p>
         </div>
         {trailing}
@@ -98,6 +132,7 @@ export function VoicePanel({
             size={176}
             state={voice.orbState}
             inputLevel={voice.inputLevel}
+            outputLevel={voice.outputLevel}
             simulate
             label={`Trợ lý giọng nói: ${text.label.toLowerCase()}`}
           />
@@ -107,6 +142,14 @@ export function VoicePanel({
           <p className="mt-1 max-w-xs text-balance text-xs text-muted-foreground">{text.hint}</p>
         </div>
 
+        {voice.ending && !failed && (
+          <div role="status" className="flex max-w-xs flex-col items-center gap-2 text-center text-sm text-muted-foreground">
+            <p>Đang kết thúc cuộc gọi…</p>
+            <Button variant="outline" size="sm" onClick={voice.keepTalking}>
+              Tiếp tục nói chuyện
+            </Button>
+          </div>
+        )}
         {failed && (
           <div role="alert" className="flex max-w-xs flex-col items-center gap-3 text-center text-sm text-destructive">
             <p>{voice.error ?? "Cuộc trò chuyện bị ngắt."}</p>
@@ -116,10 +159,11 @@ export function VoicePanel({
           </div>
         )}
         {!failed && !voice.heard && live && (
-          <ul className="grid w-full max-w-xs gap-1.5 text-center text-xs text-muted-foreground">
-            {SUGGESTIONS.map((suggestion) => (
-              <li key={suggestion} className="rounded-xl border border-border bg-card px-3 py-2">
-                “{suggestion}”
+          <ul aria-label="Trợ lý có thể giúp" className="grid w-full max-w-xs gap-2 text-xs text-muted-foreground">
+            {FEATURES.map(({ icon: Icon, text }) => (
+              <li key={text} className="flex items-center gap-2">
+                <Icon aria-hidden className="size-4 shrink-0 text-primary" />
+                {text}
               </li>
             ))}
           </ul>

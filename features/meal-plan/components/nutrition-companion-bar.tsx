@@ -218,7 +218,12 @@ function buildBalancePrompt(
   return "Nhờ trợ lý nhận xét thực đơn tuần này xem lượng calo ước tính và 5 nhóm chất chay (Đạm, Xơ, Sắt, Canxi, Béo tốt) đã hài hòa với BMI của mình chưa?"
 }
 
-export type NutritionCompanionBarHandle = { showBodyMetrics: () => void }
+export type NutritionCompanionBarHandle = {
+  showBodyMetrics: () => void
+  hideBodyMetrics: () => void
+  /** Whether the BMI tab is on screen, for the voice agent's view of the page. */
+  isBodyMetricsOpen: () => boolean
+}
 
 /**
  * Compact companion banner above the calendar grid plus a rich side sheet housing
@@ -237,7 +242,7 @@ export function NutritionCompanionBar({
   onNutritionSaved: (next: NutritionProfile) => Promise<void> | void
   onAskAssistant?: (prompt: string) => void
   trailing?: ReactNode
-  /** Lets the voice agent open the BMI panel. */
+  /** Lets the voice agent open and close the BMI panel. */
   handle?: Ref<NutritionCompanionBarHandle>
 }) {
   const [sheetOpen, setSheetOpen] = useState(false)
@@ -247,6 +252,12 @@ export function NutritionCompanionBar({
     showBodyMetrics() {
       setActiveTab("bmi")
       setSheetOpen(true)
+    },
+    hideBodyMetrics() {
+      setSheetOpen(false)
+    },
+    isBodyMetricsOpen() {
+      return sheetOpen && activeTab === "bmi"
     },
   }))
   const [editingProfile, setEditingProfile] = useState(false)
