@@ -41,8 +41,15 @@ import {
   ComboboxItem,
   ComboboxList,
 } from "@/components/ui/combobox"
-import { RecipeSheet, type OpenedDish } from "@/features/meal-plan/components/recipe-sheet"
-import type { RecipeSection, VoiceOpenRecipe } from "@/features/meal-plan/voice"
+import { RecipeSheet, type OpenedDish, type RecipeSheetHandle } from "@/features/meal-plan/components/recipe-sheet"
+import {
+  readScrollState,
+  scrollContainer,
+  type RecipeSection,
+  type ScreenScrollDirection,
+  type VoiceOpenRecipe,
+  type VoiceScrollState,
+} from "@/features/meal-plan/voice"
 import {
   NutritionCompanionBar,
   type NutritionCompanionBarHandle,
@@ -91,17 +98,27 @@ export type CalendarBoardHandle = {
   showDay: (day: Weekday) => void
   /**
    * Shows the day and opens the dish's recipe sheet the way the voice agent does (no photo,
-   * scrolled to `section`); just the day when the dish is not on it.
+   * scrolled to `scroll`, `step`, or `section`); just the day when the dish is not on it.
    */
-  openDish: (day: Weekday, recipeId: string, section: RecipeSection | null) => void
+  openDish: (
+    day: Weekday,
+    recipeId: string,
+    section: RecipeSection | null,
+    step?: number | null,
+    scroll?: ScreenScrollDirection | null
+  ) => void
   closeDish: () => void
   showBodyMetrics: () => void
   hideBodyMetrics: () => void
+  scrollBodyMetrics: (direction: ScreenScrollDirection) => void
+  scrollMobileBoard: (direction: ScreenScrollDirection) => void
   /** The selected day, the open recipe sheet and the BMI panel, for the voice agent's view of the page. */
   screen: () => {
     day: Weekday
-    recipe: { id: string; section: RecipeSection | null } | null
+    recipe: { id: string; section: RecipeSection | null; step: number | null; scrollState?: VoiceScrollState } | null
     bodyMetricsOpen: boolean
+    bodyMetricsScrollState?: VoiceScrollState
+    mobileScrollState?: VoiceScrollState
   }
 }
 
@@ -175,12 +192,14 @@ export function CalendarBoard({
   const [opened, setOpened] = useState<PlannedDish | null>(null)
   const [sheetOpen, setSheetOpen] = useState(false)
   const nutritionBar = useRef<NutritionCompanionBarHandle>(null)
+  const recipeSheet = useRef<RecipeSheetHandle>(null)
+  const mobileScrollRef = useRef<HTMLDivElement>(null)
 
   useImperativeHandle(handle, () => ({
     showDay(day) {
       setPickedDay(day)
     },
-    openDish(day, recipeId, scrollTo) {
+    openDish(day, recipeId, scrollTo, step = null, scroll = null) {
       setPickedDay(day)
       const sections = plan?.days.find((item) => item.day === day)?.sections ?? []
       for (const { section, recipes } of sections) {
@@ -192,7 +211,7 @@ export function CalendarBoard({
           day,
           section,
           detail: recipe,
-          voice: { section: scrollTo, requestedAt: Date.now() },
+          voice: { section: scrollTo, step, scroll, requestedAt: Date.now() },
         })
         setSheetOpen(true)
         return
@@ -207,10 +226,35 @@ export function CalendarBoard({
     hideBodyMetrics() {
       nutritionBar.current?.hideBodyMetrics()
     },
+    scrollBodyMetrics(direction) {
+      nutritionBar.current?.scrollBodyMetrics(direction)
+    },
+    scrollMobileBoard(direction) {
+      const container = mobileScrollRef.current
+      if (container && container.offsetParent !== null) {
+        scrollContainer(container, direction)
+      }
+    },
     screen() {
       const recipe =
-        sheetOpen && opened ? { id: opened.recipeId, section: opened.voice?.section ?? null } : null
-      return { day: selectedDay, recipe, bodyMetricsOpen: nutritionBar.current?.isBodyMetricsOpen() ?? false }
+        sheetOpen && opened
+          ? {
+              id: opened.recipeId,
+              section: opened.voice?.section ?? null,
+              step: opened.voice?.step ?? null,
+              scrollState: recipeSheet.current?.scrollState(),
+            }
+          : null
+      const mobileContainer = mobileScrollRef.current
+      const mobileScrollState =
+        mobileContainer && mobileContainer.offsetParent !== null ? readScrollState(mobileContainer) : undefined
+      return {
+        day: selectedDay,
+        recipe,
+        bodyMetricsOpen: nutritionBar.current?.isBodyMetricsOpen() ?? false,
+        bodyMetricsScrollState: nutritionBar.current?.bodyMetricsScrollState(),
+        mobileScrollState,
+      }
     },
   }))
   const [adding, setAdding] = useState<SlotRef | null>(null)
@@ -350,7 +394,7 @@ export function CalendarBoard({
           </p>
         </div>
       )}
-      <div className="flex-1 overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden pb-24 md:hidden">
+      <div ref={mobileScrollRef} className="flex-1 overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden pb-24 md:hidden">
         <div
           className="sticky top-0 z-10 grid grid-cols-7 border-b border-border bg-card/95 px-2 py-2.5 backdrop-blur-sm"
           role="group"
@@ -694,6 +738,7 @@ export function CalendarBoard({
       <RecipeSheet
         open={sheetOpen}
         dish={opened}
+        handle={recipeSheet}
         onClose={() => setSheetOpen(false)}
         onActiveRecipeChange={onActiveRecipeChange}
         onAsk={opened && onAsk ? () => {

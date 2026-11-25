@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useRef } from "react"
+import { useEffect, useImperativeHandle, useRef, type Ref } from "react"
 import { ArrowRightLeftIcon, FlameIcon, MessageCircleIcon, Trash2Icon } from "lucide-react"
 
 import { Badge } from "@/components/ui/badge"
@@ -26,7 +26,15 @@ import {
   type MealSection,
   type Weekday,
 } from "@/features/meal-plan/meal-plan"
-import type { RecipeSection, VoiceOpenRecipe } from "@/features/meal-plan/voice"
+import {
+  readScrollState,
+  scrollContainer,
+  type RecipeSection,
+  type ScreenScrollDirection,
+  type VoiceOpenRecipe,
+  type VoiceScrollState,
+} from "@/features/meal-plan/voice"
+import { cn } from "@/lib/utils"
 import { usePublicRecipe } from "@/features/recipes/hooks/use-recipe-catalog"
 
 export type OpenedDish = {
@@ -38,11 +46,21 @@ export type OpenedDish = {
   /** What the saved plan already knows about the dish; shown while the full recipe loads. */
   detail?: MealRecipe
   /**
-   * Set when the voice agent opened the dish: the user is listening, maybe cooking, so the
-   * sheet leads with the ingredients and steps instead of the photo, and scrolls to
-   * `section` (the top when null). A new `requestedAt` scrolls again.
+   * Set when the voice agent opened or scrolled the dish: the user is listening, maybe cooking,
+   * so the sheet leads with the ingredients and steps instead of the photo, and scrolls to
+   * `scroll` (relative), `step` (1-based), or `section` (the top when null). A new `requestedAt`
+   * scrolls again.
    */
-  voice?: { section: RecipeSection | null; requestedAt: number }
+  voice?: {
+    section: RecipeSection | null
+    step?: number | null
+    scroll?: ScreenScrollDirection | null
+    requestedAt: number
+  }
+}
+
+export type RecipeSheetHandle = {
+  scrollState: () => VoiceScrollState | undefined
 }
 
 type RecipeView = {
@@ -69,14 +87,23 @@ type Props = {
   onMove?: () => void
   onRemove?: () => void
   onActiveRecipeChange?: (recipe: VoiceOpenRecipe | null) => void
+  handle?: Ref<RecipeSheetHandle>
 }
 
 /** A large side sheet with the photo, ingredients and steps of one dish. */
-export function RecipeSheet({ open, dish, onClose, onAsk, onMove, onRemove, onActiveRecipeChange }: Props) {
+export function RecipeSheet({ open, dish, onClose, onAsk, onMove, onRemove, onActiveRecipeChange, handle }: Props) {
   const { recipe: full, error } = usePublicRecipe(open && dish ? dish.recipeId : null)
   const top = useRef<HTMLDivElement>(null)
   const ingredients = useRef<HTMLElement>(null)
   const steps = useRef<HTMLElement>(null)
+  const stepRefs = useRef<(HTMLLIElement | null)[]>([])
+
+  useImperativeHandle(handle, () => ({
+    scrollState() {
+      if (!open) return undefined
+      return readScrollState(top.current?.parentElement ?? null)
+    },
+  }))
 
   let view: RecipeView | null = null
   if (full) {
@@ -107,14 +134,26 @@ export function RecipeSheet({ open, dish, onClose, onAsk, onMove, onRemove, onAc
   const loaded = view !== null
   useEffect(() => {
     if (!open || !voice || !loaded) return
-    const targets = { ingredients, steps }
-    const target =
-      voice.section === null || voice.section === "top" ? top.current : targets[voice.section].current
     const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches
+    const behavior: ScrollBehavior = reduceMotion ? "auto" : "smooth"
     // The sheet animates in; scroll once it has laid out.
-    const frame = requestAnimationFrame(() =>
-      target?.scrollIntoView({ behavior: reduceMotion ? "auto" : "smooth", block: "start" })
-    )
+    const frame = requestAnimationFrame(() => {
+      if (voice.scroll) {
+        scrollContainer(top.current?.parentElement ?? null, voice.scroll)
+        return
+      }
+      if (typeof voice.step === "number" && voice.step >= 1) {
+        const stepElement = stepRefs.current[voice.step - 1]
+        if (stepElement) {
+          stepElement.scrollIntoView({ behavior, block: "center" })
+          return
+        }
+      }
+      const targets = { ingredients, steps }
+      const target =
+        voice.section === null || voice.section === "top" ? top.current : targets[voice.section].current
+      target?.scrollIntoView({ behavior, block: "start" })
+    })
     return () => cancelAnimationFrame(frame)
   }, [open, voice, loaded])
 
@@ -215,7 +254,23 @@ export function RecipeSheet({ open, dish, onClose, onAsk, onMove, onRemove, onAc
                 <section ref={steps} className="flex scroll-mt-4 flex-col gap-2">
                   <h3 className="font-semibold">Cách làm</h3>
                   <ol className="list-decimal space-y-2 pl-5">
-                    {view.steps.map((step, index) => <li key={index}>{step}</li>)}
+                    {view.steps.map((step, index) => {
+                      const focused = voice?.step === index + 1
+                      return (
+                        <li
+                          key={index}
+                          ref={(element) => {
+                            stepRefs.current[index] = element
+                          }}
+                          className={cn(
+                            "scroll-mt-6 rounded-lg px-2 py-1 transition-colors",
+                            focused && "bg-primary/10 font-medium text-foreground"
+                          )}
+                        >
+                          {step}
+                        </li>
+                      )
+                    })}
                   </ol>
                 </section>
               )}

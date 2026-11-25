@@ -1,6 +1,6 @@
 "use client"
 
-import { useImperativeHandle, useState, type FormEvent, type Ref } from "react"
+import { useImperativeHandle, useRef, useState, type FormEvent, type Ref } from "react"
 import { useRouter } from "next/navigation"
 import {
   CheckIcon,
@@ -63,6 +63,12 @@ import {
   type MealSection,
   type Weekday,
 } from "@/features/meal-plan/meal-plan"
+import {
+  readScrollState,
+  scrollContainer,
+  type ScreenScrollDirection,
+  type VoiceScrollState,
+} from "@/features/meal-plan/voice"
 import { ApiError } from "@/features/shared/lib/api-client"
 import { cn } from "@/lib/utils"
 
@@ -144,8 +150,9 @@ function plannedRecipes(plan: MealPlan, day: Weekday, section: MealSection): Mea
 export type MealLogHandle = {
   openDay: (date: string | null) => void
   close: () => void
+  scroll: (direction: ScreenScrollDirection) => void
   /** Whether the diary is open and on which day, for the voice agent's view of the page. */
-  screen: () => { open: boolean; date: string | null }
+  screen: () => { open: boolean; date: string | null; scrollState?: VoiceScrollState }
 }
 
 /**
@@ -165,6 +172,9 @@ export function MealLogButton({
 }) {
   const [open, setOpen] = useState(false)
   const [pickedDay, setPickedDay] = useState<Weekday | null>(null)
+  const scrollRef = useRef<HTMLDivElement>(null)
+  const todayDay = plan.days.find((item) => item.date === plan.today)?.day
+  const selectedDay: Weekday = pickedDay ?? todayDay ?? "SUN"
 
   useImperativeHandle(handle, () => ({
     openDay(date) {
@@ -174,9 +184,16 @@ export function MealLogButton({
     close() {
       setOpen(false)
     },
+    scroll(direction) {
+      requestAnimationFrame(() => scrollContainer(scrollRef.current, direction))
+    },
     screen() {
       const date = plan.days.find((item) => item.day === selectedDay)?.date ?? null
-      return { open, date }
+      return {
+        open,
+        date,
+        scrollState: open ? readScrollState(scrollRef.current) : undefined,
+      }
     },
   }))
   const router = useRouter()
@@ -185,8 +202,6 @@ export function MealLogButton({
       if (error instanceof ApiError && error.status === 401) router.refresh()
     },
   })
-  const todayDay = plan.days.find((item) => item.date === plan.today)?.day
-  const selectedDay: Weekday = pickedDay ?? todayDay ?? "SUN"
   const day = log.data?.days.find((item) => item.day === selectedDay)
 
   function reviewWeek(week: MealLogWeek) {
@@ -210,7 +225,7 @@ export function MealLogButton({
           </SheetDescription>
         </SheetHeader>
 
-        <div className="min-h-0 flex-1 space-y-5 overflow-y-auto px-4 pb-6">
+        <div ref={scrollRef} className="min-h-0 flex-1 space-y-5 overflow-y-auto px-4 pb-6">
           {log.isLoading && !log.data && (
             <div role="status" aria-label="Đang tải nhật ký" className="space-y-2">
               {Array.from({ length: 4 }, (_, index) => (

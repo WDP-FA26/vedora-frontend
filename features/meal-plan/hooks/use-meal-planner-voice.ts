@@ -77,7 +77,7 @@ function failureText(error: unknown) {
 
 /** Whether a tool changed saved data or asked to open something, as opposed to only reading. */
 function touchesScreen(effects: VoiceEffects) {
-  if (effects.focus || effects.close) return true
+  if (effects.focus || effects.close || effects.scroll) return true
   return effects.planChanged || effects.logChanged || effects.nutritionChanged || effects.dietaryChanged
 }
 

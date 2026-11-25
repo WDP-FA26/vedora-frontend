@@ -34,7 +34,7 @@ import {
 import { CalendarBoard, type CalendarBoardHandle } from "@/features/meal-plan/components/calendar-board"
 import { MealLogButton, type MealLogHandle } from "@/features/meal-plan/components/meal-log-button"
 import { PlannerChat, type PlannerChatHandle } from "@/features/meal-plan/components/planner-chat"
-import { RecipeSheet, type OpenedDish } from "@/features/meal-plan/components/recipe-sheet"
+import { RecipeSheet, type OpenedDish, type RecipeSheetHandle } from "@/features/meal-plan/components/recipe-sheet"
 import { VoicePanel } from "@/features/meal-plan/components/voice-panel"
 import { VoiceScreenGlow } from "@/features/meal-plan/components/voice-screen-glow"
 import { WeekNav } from "@/features/meal-plan/components/week-nav"
@@ -56,6 +56,8 @@ import {
   type Weekday,
 } from "@/features/meal-plan/meal-plan"
 import {
+  readScrollState,
+  scrollContainer,
   VOICE_GLOW_MS,
   type VoiceEffects,
   type VoiceOpenRecipe,
@@ -106,6 +108,8 @@ export function MealPlannerView() {
   const [assistantOpen, setAssistantOpen] = useState(true)
   const calendar = useRef<CalendarBoardHandle>(null)
   const mealLog = useRef<MealLogHandle>(null)
+  const voiceRecipeSheet = useRef<RecipeSheetHandle>(null)
+  const calendarScrollRef = useRef<HTMLDivElement>(null)
   /** A day the voice agent showed in another week; the calendar picks it when that week mounts. */
   const [voiceDay, setVoiceDay] = useState<{ weekStart: string; day: Weekday } | null>(null)
   const [voiceDish, setVoiceDish] = useState<OpenedDish | null>(null)
@@ -168,14 +172,41 @@ export function MealPlannerView() {
     const diary = mealLog.current?.screen()
     const screen: VoiceScreen = { weekStart, day: board?.day, panel: "none" }
     if (voiceDishOpen && voiceDish) {
-      return { ...screen, panel: "recipe", recipeId: voiceDish.recipeId, recipeSection: voiceDish.voice?.section ?? undefined }
+      return {
+        ...screen,
+        panel: "recipe",
+        recipeId: voiceDish.recipeId,
+        recipeSection: voiceDish.voice?.section ?? undefined,
+        recipeStep: voiceDish.voice?.step ?? undefined,
+        scrollState: voiceRecipeSheet.current?.scrollState(),
+      }
     }
     if (board?.recipe) {
-      return { ...screen, panel: "recipe", recipeId: board.recipe.id, recipeSection: board.recipe.section ?? undefined }
+      return {
+        ...screen,
+        panel: "recipe",
+        recipeId: board.recipe.id,
+        recipeSection: board.recipe.section ?? undefined,
+        recipeStep: board.recipe.step ?? undefined,
+        scrollState: board.recipe.scrollState,
+      }
     }
-    if (diary?.open) return { ...screen, panel: "eatingLog", eatingLogDate: diary.date ?? undefined }
-    if (board?.bodyMetricsOpen) return { ...screen, panel: "bodyMetrics" }
-    return screen
+    if (diary?.open) {
+      return {
+        ...screen,
+        panel: "eatingLog",
+        eatingLogDate: diary.date ?? undefined,
+        scrollState: diary.scrollState,
+      }
+    }
+    if (board?.bodyMetricsOpen) {
+      return { ...screen, panel: "bodyMetrics", scrollState: board.bodyMetricsScrollState }
+    }
+    const desktopScroll =
+      calendarScrollRef.current && calendarScrollRef.current.offsetParent !== null
+        ? readScrollState(calendarScrollRef.current)
+        : undefined
+    return { ...screen, scrollState: board?.mobileScrollState ?? desktopScroll }
   }
 
   /** Closes panels the voice agent opened (or the user did), all but `keep`. */
@@ -195,20 +226,28 @@ export function MealPlannerView() {
    * is not planned), the food diary, the BMI panel, or the day it showed or changed.
    * Opening one panel closes the others, so the agent never stacks sheets.
    */
-  function showVoiceEffects({ focus, close }: VoiceEffects) {
+  function showVoiceEffects({ focus, close, scroll }: VoiceEffects) {
     setLastVoiceFocusAt(Date.now())
     if (close) closeVoicePanels(close)
-    if (!focus) return
+    if (!focus) {
+      if (scroll) {
+        scrollContainer(calendarScrollRef.current, scroll)
+        calendar.current?.scrollMobileBoard(scroll)
+      }
+      return
+    }
     if (focus.kind === "eatingLog") {
       closeVoicePanels("all", "eatingLog")
       setTab("calendar")
       mealLog.current?.openDay(focus.date)
+      if (scroll) mealLog.current?.scroll(scroll)
       return
     }
     if (focus.kind === "bodyMetrics") {
       closeVoicePanels("all", "bodyMetrics")
       setTab("calendar")
       calendar.current?.showBodyMetrics()
+      if (scroll) calendar.current?.scrollBodyMetrics(scroll)
       return
     }
     if (focus.kind === "planDay") {
@@ -216,6 +255,12 @@ export function MealPlannerView() {
       if (focus.weekStart === weekStart) {
         setTab("calendar")
         if (focus.day) calendar.current?.showDay(focus.day)
+        if (scroll) {
+          requestAnimationFrame(() => {
+            scrollContainer(calendarScrollRef.current, scroll)
+            calendar.current?.scrollMobileBoard(scroll)
+          })
+        }
         return
       }
       // Another week remounts the calendar, so the day goes in as its initial pick.
@@ -227,11 +272,16 @@ export function MealPlannerView() {
       day.sections.some(({ recipes }) => recipes.some(({ id }) => id === focus.recipeId))
     )
     closeVoicePanels("all", "recipe")
-    const voice = { section: focus.section, requestedAt: Date.now() }
+    const voice = {
+      section: focus.section,
+      step: focus.step ?? null,
+      scroll: scroll ?? null,
+      requestedAt: Date.now(),
+    }
     if (planned) {
       setVoiceDishOpen(false)
       setTab("calendar")
-      calendar.current?.openDish(planned.day, focus.recipeId, focus.section)
+      calendar.current?.openDish(planned.day, focus.recipeId, focus.section, focus.step ?? null, scroll ?? null)
       return
     }
     calendar.current?.closeDish()
@@ -474,7 +524,7 @@ export function MealPlannerView() {
             )}
             </div>
           </div>
-          <div className={cn("min-w-0 lg:min-h-0 lg:overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden", tab === "chat" && "hidden lg:block")}>
+          <div ref={calendarScrollRef} className={cn("min-w-0 lg:min-h-0 lg:overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden", tab === "chat" && "hidden lg:block")}>
             <div className="lg:h-full">
               <CalendarBoard
                 key={weekStart ?? "loading"}
@@ -531,6 +581,7 @@ export function MealPlannerView() {
       <RecipeSheet
         open={voiceDishOpen}
         dish={voiceDish}
+        handle={voiceRecipeSheet}
         onClose={() => setVoiceDishOpen(false)}
         onActiveRecipeChange={setVoiceSheetRecipe}
       />

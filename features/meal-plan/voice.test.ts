@@ -8,6 +8,7 @@ import {
   finishedActions,
   isVoiceReplyReady,
   progressLine,
+  readScrollState,
   replyText,
   streamVoiceTurn,
   VOICE_QUOTA_STATUS,
@@ -139,6 +140,12 @@ describe("actionSummary", () => {
     expect(
       actionSummary([action("setScreen", screen("recipe", { recipeId: "r1", title: "Phở chay", section: "steps" }))])
     ).toBe('Đã mở công thức "Phở chay" trên màn hình, ở phần cách làm.')
+    expect(
+      actionSummary([
+        action("setScreen", screen("recipe", { recipeId: "r1", title: "Phở chay", section: "steps", step: 3 })),
+      ])
+    ).toBe('Đã mở công thức "Phở chay" trên màn hình, ở bước 3.')
+    expect(actionSummary([action("setScreen", screen("calendar", { scroll: "down" }))])).toBe("Đã cuộn xuống.")
     expect(actionSummary([action("setScreen", screen("eatingLog", { date: "2026-11-25" }))])).toBe(
       "Đã mở nhật ký ăn uống ngày 2026-11-25 trên màn hình."
     )
@@ -221,10 +228,21 @@ describe("voiceEffects", () => {
 
   it("prefers a panel the agent opened over the changed day", () => {
     const effects = voiceEffects([
-      action("setScreen", screen("recipe", { recipeId: "r1", title: "Phở chay", section: "steps" })),
+      action("setScreen", screen("recipe", { recipeId: "r1", title: "Phở chay", section: "steps", step: 2 })),
       action("editPlan", planChange(["FRI"])),
     ])
-    expect(effects.focus).toEqual({ kind: "recipe", recipeId: "r1", title: "Phở chay", section: "steps" })
+    expect(effects.focus).toEqual({ kind: "recipe", recipeId: "r1", title: "Phở chay", section: "steps", step: 2 })
+  })
+
+  it("captures relative scroll directions and reads live scroll state", () => {
+    const effects = voiceEffects([action("setScreen", screen("eatingLog", { scroll: "down" }))])
+    expect(effects.scroll).toBe("down")
+    expect(effects.focus).toEqual({ kind: "eatingLog", date: null })
+
+    const fakeEl = { scrollTop: 500, scrollHeight: 1500, clientHeight: 500 } as HTMLElement
+    expect(readScrollState(fakeEl)).toEqual({ percent: 50, atTop: false, atBottom: false })
+    const fitEl = { scrollTop: 0, scrollHeight: 400, clientHeight: 500 } as HTMLElement
+    expect(readScrollState(fitEl)).toEqual({ percent: 0, atTop: true, atBottom: true })
   })
 
   it("closes panels and shows the week for the calendar view", () => {

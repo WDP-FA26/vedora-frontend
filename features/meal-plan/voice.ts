@@ -272,6 +272,53 @@ export function progressLine(action: VoiceAction): string | null {
 export const RECIPE_SECTIONS = ["top", "ingredients", "steps"] as const
 export type RecipeSection = (typeof RECIPE_SECTIONS)[number]
 
+/** Relative scroll directions supported by `setScreen` on any active view. */
+export const SCREEN_SCROLL_DIRECTIONS = ["up", "down", "top", "bottom"] as const
+export type ScreenScrollDirection = (typeof SCREEN_SCROLL_DIRECTIONS)[number]
+
+/** Live scroll position of the active panel or calendar, sent so the agent knows where the user is. */
+export type VoiceScrollState = {
+  percent: number
+  atTop: boolean
+  atBottom: boolean
+}
+
+const SCROLL_EDGE_TOLERANCE_PX = 4
+const SCROLL_VIEWPORT_FRACTION = 0.7
+
+/** Reads the live scroll position of a scrollable container. */
+export function readScrollState(element: HTMLElement | null): VoiceScrollState | undefined {
+  if (!element) return undefined
+  const maxScroll = element.scrollHeight - element.clientHeight
+  if (maxScroll <= SCROLL_EDGE_TOLERANCE_PX) {
+    return { percent: 0, atTop: true, atBottom: true }
+  }
+  const top = Math.max(0, Math.min(element.scrollTop, maxScroll))
+  return {
+    percent: Math.round((top / maxScroll) * 100),
+    atTop: top <= SCROLL_EDGE_TOLERANCE_PX,
+    atBottom: top >= maxScroll - SCROLL_EDGE_TOLERANCE_PX,
+  }
+}
+
+/** Smoothly scrolls a container by one viewport step (~70%) or to its start/end. */
+export function scrollContainer(element: HTMLElement | null, direction: ScreenScrollDirection) {
+  if (!element) return
+  const reduceMotion =
+    typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches
+  const behavior: ScrollBehavior = reduceMotion ? "auto" : "smooth"
+  if (direction === "top") {
+    element.scrollTo({ top: 0, behavior })
+    return
+  }
+  if (direction === "bottom") {
+    element.scrollTo({ top: element.scrollHeight, behavior })
+    return
+  }
+  const delta = Math.round(element.clientHeight * SCROLL_VIEWPORT_FRACTION)
+  element.scrollBy({ top: direction === "down" ? delta : -delta, behavior })
+}
+
 /** Panels the voice agent can close; `all` is whatever is open. */
 export type VoiceScreenPanel = "recipe" | "eatingLog" | "bodyMetrics" | "all"
 
@@ -282,7 +329,9 @@ export type VoiceScreen = {
   panel: "none" | "recipe" | "eatingLog" | "bodyMetrics"
   recipeId?: string
   recipeSection?: RecipeSection
+  recipeStep?: number
   eatingLogDate?: string
+  scrollState?: VoiceScrollState
 }
 
 const setScreenOutputSchema = z.object({
@@ -291,6 +340,8 @@ const setScreenOutputSchema = z.object({
   recipeId: z.string().nullable(),
   title: z.string().nullable(),
   section: z.enum(RECIPE_SECTIONS).nullable(),
+  step: z.number().int().nullable().optional(),
+  scroll: z.enum(SCREEN_SCROLL_DIRECTIONS).nullable().optional(),
   weekStart: z.string().nullable(),
   day: z.enum(WEEKDAYS).nullable(),
   date: z.string().nullable(),
@@ -304,7 +355,7 @@ const undoOutputSchema = z.object({
 
 /** The part of the existing planner UI the voice agent points at and opens. */
 export type VoiceFocus =
-  | { kind: "recipe"; recipeId: string; title: string; section: RecipeSection | null }
+  | { kind: "recipe"; recipeId: string; title: string; section: RecipeSection | null; step?: number | null }
   | { kind: "eatingLog"; date: string | null }
   | { kind: "bodyMetrics" }
   /** `day: null` shows the week without picking a day. */
@@ -321,6 +372,8 @@ export type VoiceEffects = {
   focus: VoiceFocus | null
   /** A panel the agent closed. */
   close: VoiceScreenPanel | null
+  /** Optional relative scroll on the active view (open panel or calendar). */
+  scroll?: ScreenScrollDirection | null
   planChanged: boolean
   logChanged: boolean
   nutritionChanged: boolean
@@ -331,8 +384,15 @@ export type VoiceEffects = {
 
 /** Puts a `setScreen` result into the effects: the view to open, or the calendar with panels closed. */
 function applyScreen(effects: VoiceEffects, screen: z.infer<typeof setScreenOutputSchema>) {
+  if (screen.scroll) effects.scroll = screen.scroll
   if (screen.view === "recipe" && screen.recipeId !== null && screen.title !== null) {
-    effects.focus = { kind: "recipe", recipeId: screen.recipeId, title: screen.title, section: screen.section }
+    effects.focus = {
+      kind: "recipe",
+      recipeId: screen.recipeId,
+      title: screen.title,
+      section: screen.section,
+      ...(screen.step !== undefined ? { step: screen.step } : {}),
+    }
     return
   }
   if (screen.view === "eatingLog") {
@@ -399,6 +459,13 @@ const RECIPE_SECTION_SUMMARY: Record<RecipeSection, string> = {
   steps: ", ở phần cách làm",
 }
 
+const SCROLL_SUMMARY: Record<ScreenScrollDirection, string> = {
+  down: "Đã cuộn xuống",
+  up: "Đã cuộn lên",
+  top: "Đã cuộn lên đầu",
+  bottom: "Đã cuộn xuống cuối",
+}
+
 function formatBodyMetricsDetails(metrics: z.infer<typeof bodyMetricsSummarySchema>): string[] {
   const details: string[] = []
   if (typeof metrics?.heightCm === "number") details.push(`chiều cao ${metrics.heightCm} cm`)
@@ -453,9 +520,18 @@ export function actionSummary(actions: VoiceAction[]): string | null {
     if (action.tool !== "setScreen" || screenSummary !== null) continue
     const screen = setScreenSummarySchema.safeParse(action.output)
     if (!screen.success || !screen.data.applied) continue
-    const { view, title, section, date, day, metrics } = screen.data
+    const { view, title, section, step, scroll, date, day, metrics } = screen.data
+    if (scroll) {
+      screenSummary = `${SCROLL_SUMMARY[scroll]}.`
+      continue
+    }
     if (view === "recipe" && title !== null) {
-      const part = section === null ? "" : RECIPE_SECTION_SUMMARY[section]
+      const part =
+        typeof step === "number"
+          ? `, ở bước ${step}`
+          : section === null
+            ? ""
+            : RECIPE_SECTION_SUMMARY[section]
       screenSummary = `Đã mở công thức "${title}" trên màn hình${part}.`
       continue
     }

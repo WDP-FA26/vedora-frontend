@@ -1,6 +1,6 @@
 "use client"
 
-import { useImperativeHandle, useState, type ReactNode, type Ref } from "react"
+import { useImperativeHandle, useRef, useState, type ReactNode, type Ref } from "react"
 import Link from "next/link"
 import {
   ActivityIcon,
@@ -57,6 +57,12 @@ import {
   type DayNutritionSummary,
   type MealPlan,
 } from "@/features/meal-plan/meal-plan"
+import {
+  readScrollState,
+  scrollContainer,
+  type ScreenScrollDirection,
+  type VoiceScrollState,
+} from "@/features/meal-plan/voice"
 import { cn } from "@/lib/utils"
 
 const weeklyChartConfig = {
@@ -221,8 +227,10 @@ function buildBalancePrompt(
 export type NutritionCompanionBarHandle = {
   showBodyMetrics: () => void
   hideBodyMetrics: () => void
+  scrollBodyMetrics: (direction: ScreenScrollDirection) => void
   /** Whether the BMI tab is on screen, for the voice agent's view of the page. */
   isBodyMetricsOpen: () => boolean
+  bodyMetricsScrollState: () => VoiceScrollState | undefined
 }
 
 /**
@@ -247,6 +255,7 @@ export function NutritionCompanionBar({
 }) {
   const [sheetOpen, setSheetOpen] = useState(false)
   const [activeTab, setActiveTab] = useState<"weekly" | "bmi">("weekly")
+  const bodyRef = useRef<HTMLDivElement>(null)
 
   useImperativeHandle(handle, () => ({
     showBodyMetrics() {
@@ -256,8 +265,15 @@ export function NutritionCompanionBar({
     hideBodyMetrics() {
       setSheetOpen(false)
     },
+    scrollBodyMetrics(direction) {
+      requestAnimationFrame(() => scrollContainer(bodyRef.current?.parentElement ?? null, direction))
+    },
     isBodyMetricsOpen() {
       return sheetOpen && activeTab === "bmi"
+    },
+    bodyMetricsScrollState() {
+      if (!sheetOpen) return undefined
+      return readScrollState(bodyRef.current?.parentElement ?? null)
     },
   }))
   const [editingProfile, setEditingProfile] = useState(false)
@@ -403,7 +419,7 @@ export function NutritionCompanionBar({
             </SheetDescription>
           </SheetHeader>
 
-          <div className="px-6 pb-6">
+          <div ref={bodyRef} className="px-6 pb-6">
             <Tabs
               value={activeTab}
               onValueChange={(next) => setActiveTab(next as "weekly" | "bmi")}
