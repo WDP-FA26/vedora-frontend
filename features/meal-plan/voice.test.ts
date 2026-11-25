@@ -80,12 +80,12 @@ describe("voiceSessionConfig", () => {
     const config = voiceSessionConfig("  Nguyễn Văn An ")
     const openai = config.providerOptions?.openai
     expect(openai).toMatchObject({ delegation: { type: "client" } })
-    expect(JSON.stringify(openai)).toContain('họ tên: \\"Nguyễn Văn An\\"')
+    expect(JSON.stringify(openai)).toContain('full name: \\"Nguyễn Văn An\\"')
     expect(config.instructions).toContain("Delegation policy:")
   })
 
   it("greets without a name when there is none", () => {
-    expect(JSON.stringify(voiceSessionConfig(undefined).providerOptions)).not.toContain("họ tên")
+    expect(JSON.stringify(voiceSessionConfig(undefined).providerOptions)).not.toContain("full name")
   })
 })
 
