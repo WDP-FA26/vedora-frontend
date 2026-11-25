@@ -53,7 +53,13 @@ import {
   type SlotRef,
   type Weekday,
 } from "@/features/meal-plan/meal-plan"
-import { VOICE_GLOW_MS, type VoiceEffects, type VoiceScreen, type VoiceScreenPanel } from "@/features/meal-plan/voice"
+import {
+  VOICE_GLOW_MS,
+  type VoiceEffects,
+  type VoiceOpenRecipe,
+  type VoiceScreen,
+  type VoiceScreenPanel,
+} from "@/features/meal-plan/voice"
 import { ApiError } from "@/features/shared/lib/api-client"
 import { z } from "zod"
 import { cn } from "@/lib/utils"
@@ -102,6 +108,9 @@ export function MealPlannerView() {
   const [voiceDay, setVoiceDay] = useState<{ weekStart: string; day: Weekday } | null>(null)
   const [voiceDish, setVoiceDish] = useState<OpenedDish | null>(null)
   const [voiceDishOpen, setVoiceDishOpen] = useState(false)
+  const [calendarRecipe, setCalendarRecipe] = useState<VoiceOpenRecipe | null>(null)
+  const [voiceSheetRecipe, setVoiceSheetRecipe] = useState<VoiceOpenRecipe | null>(null)
+  const openRecipe = voiceDishOpen ? voiceSheetRecipe : calendarRecipe
   /** When the voice agent last changed or opened something; the screen glows a little after it. */
   const [lastVoiceFocusAt, setLastVoiceFocusAt] = useState<number | null>(null)
   const [voiceOpen, setVoiceOpen] = useState(false)
@@ -445,6 +454,7 @@ export function MealPlannerView() {
                 onTurnEnd={(threadId) => void chat.selectThread(threadId)}
                 onClose={() => setVoiceOpen(false)}
                 getScreen={voiceScreen}
+                openRecipe={openRecipe}
                 leading={<span className="hidden lg:block">{backButton("icon")}</span>}
                 trailing={hideAssistantButton}
               />
@@ -478,6 +488,7 @@ export function MealPlannerView() {
                 onSuggestSlot={suggestForSlot}
                 nutrition={nutrition.data}
                 handle={calendar}
+                onActiveRecipeChange={setCalendarRecipe}
                 initialDay={voiceDay !== null && voiceDay.weekStart === weekStart ? voiceDay.day : undefined}
                 onNutritionSaved={async (updated) => {
                   await nutrition.mutate(updated, { revalidate: false })
@@ -519,7 +530,12 @@ export function MealPlannerView() {
 
         </div>
       </Tabs>
-      <RecipeSheet open={voiceDishOpen} dish={voiceDish} onClose={() => setVoiceDishOpen(false)} />
+      <RecipeSheet
+        open={voiceDishOpen}
+        dish={voiceDish}
+        onClose={() => setVoiceDishOpen(false)}
+        onActiveRecipeChange={setVoiceSheetRecipe}
+      />
       {voiceOpen && <VoiceScreenGlow active={lastVoiceFocusAt !== null} />}
     </section>
   )

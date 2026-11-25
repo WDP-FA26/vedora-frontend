@@ -42,7 +42,7 @@ import {
   ComboboxList,
 } from "@/components/ui/combobox"
 import { RecipeSheet, type OpenedDish } from "@/features/meal-plan/components/recipe-sheet"
-import type { RecipeSection } from "@/features/meal-plan/voice"
+import type { RecipeSection, VoiceOpenRecipe } from "@/features/meal-plan/voice"
 import {
   NutritionCompanionBar,
   type NutritionCompanionBarHandle,
@@ -125,6 +125,7 @@ type CalendarBoardProps = {
   initialDay?: Weekday
   /** Lets the voice agent show a day, open or close a dish or the BMI panel. */
   handle?: Ref<CalendarBoardHandle>
+  onActiveRecipeChange?: (recipe: VoiceOpenRecipe | null) => void
 }
 
 const draggedSchema = z.object({
@@ -163,6 +164,7 @@ export function CalendarBoard({
   leading,
   initialDay,
   handle,
+  onActiveRecipeChange,
 }: CalendarBoardProps) {
   // Today, the dates and which days may change all come from the server's answer.
   const today = plan ? todayOf(plan) : undefined
@@ -693,6 +695,7 @@ export function CalendarBoard({
         open={sheetOpen}
         dish={opened}
         onClose={() => setSheetOpen(false)}
+        onActiveRecipeChange={onActiveRecipeChange}
         onAsk={opened && onAsk ? () => {
           onAsk({ id: opened.recipeId, title: opened.title, tag: opened.detail?.tag ?? null }, opened.day, opened.section)
           setSheetOpen(false)

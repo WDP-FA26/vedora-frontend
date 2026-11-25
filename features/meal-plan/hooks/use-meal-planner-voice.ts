@@ -19,14 +19,17 @@ import {
   streamVoiceTurn,
   VOICE_MAX_SECONDS,
   VOICE_MODEL_ID,
+  VOICE_RECIPE_CLOSED_CONTEXT,
   VOICE_SESSION_ROUTE,
   voiceEffects,
   voiceErrorText,
   voicePageContext,
+  voiceRecipeContext,
   voiceSessionConfig,
   classifyInterruption,
   type VoiceEffects,
   type VoiceInterruption,
+  type VoiceOpenRecipe,
   type VoiceScreen,
   type VoiceWebSearchRequest,
 } from "@/features/meal-plan/voice"
@@ -361,6 +364,7 @@ type VoiceOptions = {
   onClose: () => void
   /** What the page shows right now, sent with each turn so the agent can refer to it. */
   getScreen: () => VoiceScreen | null
+  openRecipe?: VoiceOpenRecipe | null
 }
 
 /**
@@ -377,6 +381,7 @@ export function useMealPlannerVoice({
   onTurnEnd,
   onClose,
   getScreen,
+  openRecipe,
 }: VoiceOptions) {
   const { accessToken, user } = useAuth()
   const { mutate } = useSWRConfig()
@@ -604,6 +609,7 @@ export function useMealPlannerVoice({
 
   const connectRealtime = realtime.connect
   const closeRealtime = realtime.close
+  const sendRealtimeEvent = realtime.sendEvent
 
   async function start() {
     setError(null)
@@ -672,6 +678,34 @@ export function useMealPlannerVoice({
   const connected = realtime.status === "connected"
   // Adjusting state while rendering: React re-renders right away, before painting.
   if (connected && !wasConnected) setWasConnected(true)
+  const lastSentRecipeKey = useRef<string | null>(null)
+  useEffect(() => {
+    if (!connected) {
+      lastSentRecipeKey.current = null
+      return
+    }
+    if (openRecipe) {
+      const key = `${openRecipe.id}:${openRecipe.ingredients.length}:${openRecipe.steps.length}`
+      if (lastSentRecipeKey.current === key) return
+      lastSentRecipeKey.current = key
+      void sendRealtimeEvent({
+        type: "context-append",
+        delegationId: null,
+        content: voiceRecipeContext(openRecipe),
+        providerOptions: { openai: { channel: "thinking" } },
+      })
+      return
+    }
+    if (lastSentRecipeKey.current !== null) {
+      lastSentRecipeKey.current = null
+      void sendRealtimeEvent({
+        type: "context-append",
+        delegationId: null,
+        content: VOICE_RECIPE_CLOSED_CONTEXT,
+        providerOptions: { openai: { channel: "thinking" } },
+      })
+    }
+  }, [connected, openRecipe, sendRealtimeEvent])
   const usedSeconds = usageAnchor?.seconds ?? 0
   useEffect(() => {
     if (!connected) return

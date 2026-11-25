@@ -62,6 +62,7 @@ const MAX_APPEND_CHARACTERS = 1200
  */
 const VOICE_INSTRUCTIONS = `Bạn là Vedora, trợ lý giọng nói điềm tĩnh, thân thiện của Vedora, ứng dụng nấu ăn thuần chay.
 Nói tiếng Việt tự nhiên, ấm áp, ngắn gọn. Xưng "mình", gọi người dùng là "bạn".
+Coi kết quả từ backend là thông tin sự thật: diễn đạt lại tự nhiên theo giọng mình thay vì đọc cứng từng chữ, giữ đúng số liệu và không thêm chi tiết chưa có.
 
 Backchannel policy: Dùng âm đệm vừa phải. Ghi nhận tự nhiên, không lấn át câu trả lời chính.
 
@@ -81,7 +82,7 @@ Delegate to the backend when:
 - Người dùng chào tạm biệt hoặc muốn kết thúc cuộc gọi.
 
 Do not delegate when:
-- Bạn trả lời được từ cuộc trò chuyện hoặc một kết quả vừa nhận còn đúng.
+- Bạn trả lời được từ cuộc trò chuyện, công thức đang mở trên màn hình, hoặc một kết quả vừa nhận còn đúng.
 - Bạn cần hỏi lại ngắn để hiểu yêu cầu.
 - Người dùng nói chuyện phiếm hoặc hỏi điều ngoài ứng dụng: trả lời ngắn, tự nhiên như một người bạn.
 
@@ -122,6 +123,32 @@ export function voiceSessionConfig(fullName: string | undefined): Partial<Experi
 export function voicePageContext(weekStart: string, today: string) {
   return `Người dùng đang ở trang Lên thực đơn của Vedora, xem tuần bắt đầu ${weekStart}. Hôm nay là ${today}.`
 }
+
+export type VoiceOpenRecipe = {
+  id: string
+  title: string
+  servings: number
+  ingredients: { name: string; quantity: number | null; unit: string | null; note: string | null }[]
+  steps: string[]
+}
+
+/** Compact recipe summary for GPT-Live's silent `thinking` channel while the user cooks. */
+export function voiceRecipeContext(recipe: VoiceOpenRecipe): string {
+  const ingredients = recipe.ingredients
+    .map((item) => {
+      const amount = [item.quantity, item.unit].filter((part) => part !== null && part !== "").join(" ")
+      const parts = [amount, item.name].filter(Boolean).join(" ")
+      return item.note ? `${parts} (${item.note})` : parts
+    })
+    .join(", ")
+  const steps = recipe.steps.map((step, index) => `${index + 1}. ${step}`).join(" ")
+  const lines = [`Màn hình đang mở công thức "${recipe.title}" (${recipe.servings} khẩu phần).`]
+  if (ingredients) lines.push(`Nguyên liệu: ${ingredients}.`)
+  if (steps) lines.push(`Các bước: ${steps}`)
+  return appendableText(lines.join("\n"))
+}
+
+export const VOICE_RECIPE_CLOSED_CONTEXT = "Người dùng vừa đóng bảng công thức, quay lại xem lịch thực đơn."
 
 /** Trims a result to what one GPT-Live append can carry. */
 export function appendableText(text: string) {

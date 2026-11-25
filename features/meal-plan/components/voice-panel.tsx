@@ -16,7 +16,7 @@ import {
 import { Button } from "@/components/ui/button"
 import { VoiceOrb, type VoiceOrbState } from "@/components/ui/voice-orb"
 import { useMealPlannerVoice, type VoiceUsageAnchor } from "@/features/meal-plan/hooks/use-meal-planner-voice"
-import { VOICE_MAX_SECONDS, type VoiceEffects, type VoiceScreen } from "@/features/meal-plan/voice"
+import { VOICE_MAX_SECONDS, type VoiceEffects, type VoiceOpenRecipe, type VoiceScreen } from "@/features/meal-plan/voice"
 import { LogoMark } from "@/features/shared/components/wordmark"
 
 const STATE_TEXT: Record<VoiceOrbState, { label: string; hint: string }> = {
@@ -83,6 +83,7 @@ export function VoicePanel({
   onTurnEnd,
   onClose,
   getScreen,
+  openRecipe,
   leading,
   trailing,
 }: {
@@ -93,6 +94,7 @@ export function VoicePanel({
   onTurnEnd: (threadId: string) => void
   onClose: () => void
   getScreen: () => VoiceScreen | null
+  openRecipe?: VoiceOpenRecipe | null
   leading?: ReactNode
   trailing?: ReactNode
 }) {
@@ -104,6 +106,7 @@ export function VoicePanel({
     onTurnEnd,
     onClose,
     getScreen,
+    openRecipe,
   })
   const text = STATE_TEXT[voice.orbState]
   const live = voice.status === "connected"

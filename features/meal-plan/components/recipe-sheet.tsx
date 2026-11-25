@@ -26,7 +26,7 @@ import {
   type MealSection,
   type Weekday,
 } from "@/features/meal-plan/meal-plan"
-import type { RecipeSection } from "@/features/meal-plan/voice"
+import type { RecipeSection, VoiceOpenRecipe } from "@/features/meal-plan/voice"
 import { usePublicRecipe } from "@/features/recipes/hooks/use-recipe-catalog"
 
 export type OpenedDish = {
@@ -68,10 +68,11 @@ type Props = {
   onAsk?: () => void
   onMove?: () => void
   onRemove?: () => void
+  onActiveRecipeChange?: (recipe: VoiceOpenRecipe | null) => void
 }
 
 /** A large side sheet with the photo, ingredients and steps of one dish. */
-export function RecipeSheet({ open, dish, onClose, onAsk, onMove, onRemove }: Props) {
+export function RecipeSheet({ open, dish, onClose, onAsk, onMove, onRemove, onActiveRecipeChange }: Props) {
   const { recipe: full, error } = usePublicRecipe(open && dish ? dish.recipeId : null)
   const top = useRef<HTMLDivElement>(null)
   const ingredients = useRef<HTMLElement>(null)
@@ -116,6 +117,23 @@ export function RecipeSheet({ open, dish, onClose, onAsk, onMove, onRemove }: Pr
     )
     return () => cancelAnimationFrame(frame)
   }, [open, voice, loaded])
+
+  useEffect(() => {
+    if (!onActiveRecipeChange) return
+    if (!open || !dish) {
+      onActiveRecipeChange(null)
+      return
+    }
+    const source = full ?? dish.detail
+    if (!source) return
+    onActiveRecipeChange({
+      id: dish.recipeId,
+      title: dish.title,
+      servings: source.servings,
+      ingredients: source.ingredients,
+      steps: source.steps,
+    })
+  }, [open, dish, full, onActiveRecipeChange])
 
   const meta: string[] = []
   if (view && view.servings > 0) meta.push(`Công thức gốc ${view.servings} khẩu phần`)
