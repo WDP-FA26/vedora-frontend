@@ -11,6 +11,11 @@ Client-side data fetching uses [SWR](https://swr.vercel.app). Full guide (read b
 - For data a Server Component already has and SWR should take over in the browser, provide it via a route-scoped `<SWRConfig value={{ fallback: { [key]: promise } }}>` (not the root layout) so the fallback stays with the feature that owns it. Define the SWR key (and cache tag, if using `use cache`) once in a shared `*-cache.ts` contract so the server fallback, the client `useSWR` call, and any mutation all agree on it.
 - Mutate through `useSWRConfig()`'s `mutate(key, fn, { optimisticData, rollbackOnError })`, not by refetching manually.
 
+# Tests
+
+- `pnpm test`: Vitest unit tests (`**/*.test.ts`, config in [vitest.config.mts](vitest.config.mts)) for logic that runs without a browser. Keep such logic out of React hooks and components so it can be tested, as [features/meal-plan/voice-call.ts](features/meal-plan/voice-call.ts) does for the voice agent.
+- `pnpm test:e2e`: Playwright against the mock API in `e2e/`.
+
 <!-- BEGIN:nextjs-agent-rules -->
 
 # This is NOT the Next.js you know
