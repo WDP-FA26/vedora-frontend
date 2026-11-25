@@ -1,16 +1,16 @@
 "use client"
 
-import { useEffect, useRef } from "react"
-import { Marker, type MapRef } from "react-map-gl/mapbox"
+import { useEffect, useRef, useState } from "react"
+import { GeolocateControl, Marker, type MapRef } from "react-map-gl/mapbox"
 
 import { BaseMap } from "./base-map"
 import { Pin } from "./pin"
+import { GEOLOCATION_OPTIONS } from "@/features/workspaces/lib/geolocation"
 import { DEFAULT_CENTER } from "@/features/workspaces/lib/mapbox"
 import type { LngLat } from "@/features/workspaces/schemas"
 
 const PINNED_ZOOM = 16
 const OVERVIEW_ZOOM = 12
-const NEARBY_ZOOM = 14
 
 function samePoint(a: LngLat | null, b: LngLat | null) {
   if (!a || !b) return a === b
@@ -29,35 +29,14 @@ export default function LocationPickerMap({
   value: LngLat | null
   onChange: (point: LngLat) => void
 }) {
-  const mapRef = useRef<MapRef>(null)
+  const [map, setMap] = useState<MapRef | null>(null)
   const placedHere = useRef<LngLat | null>(value)
 
   useEffect(() => {
-    if (!value || samePoint(value, placedHere.current)) return
+    if (!map || !value || samePoint(value, placedHere.current)) return
     placedHere.current = value
-    mapRef.current?.flyTo({ center: [value.longitude, value.latitude], zoom: PINNED_ZOOM })
-  }, [value])
-
-  // With no pin yet, start around the visitor rather than the default city.
-  useEffect(() => {
-    if (placedHere.current) return
-    if (typeof navigator === "undefined" || !("geolocation" in navigator)) return
-    let active = true
-    navigator.geolocation.getCurrentPosition(
-      (position) => {
-        if (!active || placedHere.current) return
-        mapRef.current?.flyTo({
-          center: [position.coords.longitude, position.coords.latitude],
-          zoom: NEARBY_ZOOM,
-        })
-      },
-      () => undefined,
-      { enableHighAccuracy: false, timeout: 8000, maximumAge: 60_000 }
-    )
-    return () => {
-      active = false
-    }
-  }, [])
+    map.flyTo({ center: [value.longitude, value.latitude], zoom: PINNED_ZOOM })
+  }, [map, value])
 
   function place(point: LngLat) {
     placedHere.current = point
@@ -67,12 +46,13 @@ export default function LocationPickerMap({
   const start = value ?? DEFAULT_CENTER
   return (
     <BaseMap
-      ref={mapRef}
+      ref={setMap}
       initialViewState={{ ...start, zoom: value ? PINNED_ZOOM : OVERVIEW_ZOOM }}
       cursor="crosshair"
       style={{ width: "100%", height: "100%" }}
       onClick={(event) => place({ longitude: event.lngLat.lng, latitude: event.lngLat.lat })}
     >
+      <GeolocateControl position="top-right" positionOptions={GEOLOCATION_OPTIONS} />
       {value && (
         <Marker
           longitude={value.longitude}

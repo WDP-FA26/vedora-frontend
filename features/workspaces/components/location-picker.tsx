@@ -10,6 +10,11 @@ import { Spinner } from "@/components/ui/spinner"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { LocationPickerMap } from "@/features/workspaces/components/map"
 import {
+  GEOLOCATION_OPTIONS,
+  geolocationErrorMessage,
+  isGeolocationSupported,
+} from "@/features/workspaces/lib/geolocation"
+import {
   addressAt,
   MAPBOX_TOKEN,
   searchAddresses,
@@ -26,19 +31,6 @@ type LocationMode = "pin" | "search" | "coordinates" | "current"
 
 function isLocationMode(value: unknown): value is LocationMode {
   return value === "pin" || value === "search" || value === "coordinates" || value === "current"
-}
-
-function geolocationErrorMessage(error: GeolocationPositionError): string {
-  if (error.code === error.PERMISSION_DENIED) {
-    return "Bạn chưa cấp quyền vị trí cho trình duyệt. Hãy bật quyền vị trí rồi thử lại."
-  }
-  if (error.code === error.POSITION_UNAVAILABLE) {
-    return "Không xác định được vị trí thiết bị lúc này. Thử lại hoặc ghim trực tiếp trên bản đồ."
-  }
-  if (error.code === error.TIMEOUT) {
-    return "Hết thời gian chờ lấy vị trí. Thử lại nhé."
-  }
-  return "Không lấy được vị trí hiện tại. Thử lại nhé."
 }
 
 function parseCoordinate(raw: string, min: number, max: number): number | null {
@@ -200,7 +192,7 @@ export function LocationPicker({
 
   function locateCurrentPosition() {
     if (disabled) return
-    if (typeof navigator === "undefined" || !("geolocation" in navigator)) {
+    if (!isGeolocationSupported()) {
       setGeoError("Trình duyệt này không hỗ trợ định vị. Hãy ghim bản đồ hoặc nhập tọa độ.")
       return
     }
@@ -230,11 +222,7 @@ export function LocationPicker({
         setLocating(false)
         setGeoError(geolocationErrorMessage(error))
       },
-      {
-        enableHighAccuracy: true,
-        timeout: 10_000,
-        maximumAge: 60_000,
-      }
+      GEOLOCATION_OPTIONS
     )
   }
 

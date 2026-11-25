@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useState } from "react"
 import Link from "next/link"
 import {
   LocateFixedIcon,
@@ -31,6 +31,11 @@ import {
 import { PageHeader } from "@/features/workspaces/components/page-header"
 import { useRestaurants } from "@/features/workspaces/hooks/use-workspaces"
 import { formatDistance, formatRatingScore } from "@/features/workspaces/lib/format"
+import {
+  GEOLOCATION_OPTIONS,
+  geolocationErrorMessage,
+  isGeolocationSupported,
+} from "@/features/workspaces/lib/geolocation"
 import { googleMapsDirectionsUrl, MAPBOX_TOKEN } from "@/features/workspaces/lib/mapbox"
 import type { LngLat, RestaurantPin } from "@/features/workspaces/schemas"
 import { cn } from "@/lib/utils"
@@ -61,29 +66,6 @@ export function RestaurantsExplorer() {
   const activeLocation = nearestEnabled ? userLocation : null
   const { restaurants, truncated, error, isLoading } = useRestaurants(activeLocation)
 
-  useEffect(() => {
-    if (typeof navigator === "undefined" || !("geolocation" in navigator)) return
-    let active = true
-    navigator.geolocation.getCurrentPosition(
-      (position) => {
-        if (!active) return
-        const coords: LngLat = {
-          longitude: position.coords.longitude,
-          latitude: position.coords.latitude,
-        }
-        setUserLocation(coords)
-        setSortByNearest(true)
-        // Start the map around the visitor instead of the default city.
-        setCameraTarget((prev) => ({ ...coords, seq: (prev?.seq ?? 0) + 1 }))
-      },
-      () => undefined,
-      { enableHighAccuracy: false, timeout: 8000, maximumAge: 60_000 }
-    )
-    return () => {
-      active = false
-    }
-  }, [])
-
   if (!MAPBOX_TOKEN) {
     return (
       <section>
@@ -112,7 +94,7 @@ export function RestaurantsExplorer() {
       setLocationNotice(null)
       return
     }
-    if (typeof navigator === "undefined" || !("geolocation" in navigator)) {
+    if (!isGeolocationSupported()) {
       setLocationNotice("Trình duyệt không hỗ trợ lấy vị trí hiện tại.")
       return
     }
@@ -129,11 +111,11 @@ export function RestaurantsExplorer() {
         setCameraTarget((prev) => ({ ...coords, seq: (prev?.seq ?? 0) + 1 }))
         setLocating(false)
       },
-      () => {
-        setLocationNotice("Chưa lấy được vị trí. Hãy cấp quyền vị trí trên trình duyệt rồi thử lại.")
+      (error) => {
+        setLocationNotice(geolocationErrorMessage(error))
         setLocating(false)
       },
-      { enableHighAccuracy: true, timeout: 10_000, maximumAge: 30_000 }
+      GEOLOCATION_OPTIONS
     )
   }
 
@@ -166,8 +148,10 @@ export function RestaurantsExplorer() {
             selectedId={selectedId}
             focusTarget={focusTarget}
             cameraTarget={cameraTarget}
+            userLocation={userLocation}
             onSelect={handleMapSelect}
             onUserLocation={handleUserLocation}
+            onLocationError={setLocationNotice}
           />
         </div>
       </div>

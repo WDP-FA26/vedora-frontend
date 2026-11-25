@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useRef } from "react"
+import { useEffect, useRef, useState } from "react"
 import Link from "next/link"
 import { MapPinIcon, NavigationIcon, StarIcon, UtensilsIcon } from "lucide-react"
 import { GeolocateControl, Marker, Popup, type MapRef } from "react-map-gl/mapbox"
@@ -8,6 +8,10 @@ import { GeolocateControl, Marker, Popup, type MapRef } from "react-map-gl/mapbo
 import { BaseMap } from "./base-map"
 import { Pin } from "./pin"
 import { formatDistance, formatRatingScore } from "@/features/workspaces/lib/format"
+import {
+  GEOLOCATION_OPTIONS,
+  geolocationErrorMessage,
+} from "@/features/workspaces/lib/geolocation"
 import { DEFAULT_CENTER, googleMapsDirectionsUrl } from "@/features/workspaces/lib/mapbox"
 import { profilePath } from "@/features/profiles/profiles-cache"
 import type { LngLat, RestaurantPin } from "@/features/workspaces/schemas"
@@ -29,35 +33,41 @@ export default function RestaurantsMap({
   selectedId,
   focusTarget,
   cameraTarget,
+  userLocation,
   onSelect,
   onUserLocation,
+  onLocationError,
 }: {
   restaurants: RestaurantPin[]
   selectedId: string | null
   focusTarget: RestaurantFocusTarget | null
   cameraTarget?: CameraCenterTarget | null
+  userLocation?: LngLat | null
   onSelect: (restaurant: RestaurantPin | null) => void
   onUserLocation?: (point: LngLat) => void
+  onLocationError?: (message: string) => void
 }) {
-  const mapRef = useRef<MapRef>(null)
+  const [map, setMap] = useState<MapRef | null>(null)
+  const appliedFocusSeqRef = useRef(0)
+  const appliedCameraSeqRef = useRef(0)
 
   useEffect(() => {
-    const map = mapRef.current
-    if (!focusTarget || !map) return
+    if (!map || !focusTarget || focusTarget.seq === appliedFocusSeqRef.current) return
+    appliedFocusSeqRef.current = focusTarget.seq
     map.flyTo({
       center: [focusTarget.restaurant.longitude, focusTarget.restaurant.latitude],
       zoom: Math.max(map.getZoom(), FOCUSED_ZOOM),
     })
-  }, [focusTarget])
+  }, [map, focusTarget])
 
   useEffect(() => {
-    const map = mapRef.current
-    if (!cameraTarget || !map) return
+    if (!map || !cameraTarget || cameraTarget.seq === appliedCameraSeqRef.current) return
+    appliedCameraSeqRef.current = cameraTarget.seq
     map.flyTo({
       center: [cameraTarget.longitude, cameraTarget.latitude],
       zoom: Math.max(map.getZoom(), 13.5),
     })
-  }, [cameraTarget])
+  }, [map, cameraTarget])
 
   const selected = selectedId
     ? (restaurants.find((item) => item.pageUserId === selectedId) ?? null)
@@ -65,19 +75,39 @@ export default function RestaurantsMap({
 
   return (
     <BaseMap
-      ref={mapRef}
+      ref={setMap}
       initialViewState={{ ...DEFAULT_CENTER, zoom: 12 }}
       style={{ width: "100%", height: "100%" }}
     >
       <GeolocateControl
         position="top-right"
+        positionOptions={GEOLOCATION_OPTIONS}
+        showUserLocation={false}
         onGeolocate={(event) =>
           onUserLocation?.({
             longitude: event.coords.longitude,
             latitude: event.coords.latitude,
           })
         }
+        onError={(error) => onLocationError?.(geolocationErrorMessage(error))}
       />
+      {userLocation && (
+        <Marker
+          longitude={userLocation.longitude}
+          latitude={userLocation.latitude}
+          anchor="center"
+          style={{ pointerEvents: "none" }}
+        >
+          <span
+            role="img"
+            aria-label="Vị trí hiện tại của bạn"
+            className="relative flex size-5 items-center justify-center"
+          >
+            <span className="absolute inset-0 animate-ping rounded-full bg-sky-500/40" />
+            <span className="relative size-3.5 rounded-full border-2 border-white bg-sky-500 shadow-md" />
+          </span>
+        </Marker>
+      )}
       {restaurants.map((restaurant) => {
         const isSelected = restaurant.pageUserId === selectedId
         return (
