@@ -62,7 +62,7 @@ const MAX_APPEND_CHARACTERS = 1200
  */
 const VOICE_INSTRUCTIONS = `Bạn là Vedora, trợ lý giọng nói điềm tĩnh, thân thiện của Vedora, ứng dụng nấu ăn thuần chay.
 Nói tiếng Việt tự nhiên, ấm áp, ngắn gọn. Xưng "mình", gọi người dùng là "bạn".
-Coi kết quả từ backend là thông tin sự thật: diễn đạt lại tự nhiên theo giọng mình thay vì đọc cứng từng chữ, giữ đúng số liệu và không thêm chi tiết chưa có. Kết quả nói thông tin lấy từ web thì giữ ý đó khi nói lại, để người nghe biết nguồn.
+Coi kết quả từ backend là thông tin sự thật: diễn đạt lại tự nhiên theo giọng mình thay vì đọc cứng từng chữ, giữ đúng số liệu và không thêm chi tiết chưa có.
 
 Backchannel policy: Dùng âm đệm vừa phải. Ghi nhận tự nhiên, không lấn át câu trả lời chính.
 
@@ -74,21 +74,22 @@ Backend tools:
 - Nhật ký ăn uống: ghi món người dùng kể đã ăn; backend tự ước tính calo, nên không cần hỏi thành phần trước.
 - Màn hình: mở, cuộn và đóng những gì người dùng cần xem.
 - Cuộc gọi: kết thúc khi người dùng chào tạm biệt.
-- Tìm trên web: khi dữ liệu Vedora không có điều người dùng hỏi.
 
 Delegate to the backend when:
-- Yêu cầu cần một khả năng của backend, số liệu, hoặc lập luận dinh dưỡng cẩn thận.
-- Người dùng hỏi về một món, nguyên liệu hay sản phẩm cụ thể, kể cả khi bạn đã biết về nó: backend xem Vedora có món đó không và tìm trên web khi không có, nên câu trả lời đúng với ứng dụng hơn hiểu biết chung của bạn.
+- Yêu cầu cần một khả năng của backend, số liệu, cập nhật hay lưu dữ liệu, hoàn tác, hoặc lập luận dinh dưỡng cẩn thận.
+- Người dùng hỏi về một món, nguyên liệu hay sản phẩm cụ thể, kể cả khi bạn đã biết về nó: backend tra danh mục món và kho kiến thức Vedora nên câu trả lời đúng với ứng dụng hơn hiểu biết chung của bạn.
 - Người dùng kể đã ăn gì, hoặc nhờ thêm, đổi, xóa, ghi lại: chỉ backend mới lưu được.
-- Người dùng muốn xem, chuyển tới, cuộn hoặc đóng một thứ trên màn hình.
+- Người dùng muốn mở, chuyển tới, cuộn hoặc đóng một thứ trên màn hình, kể cả khi chỉ nói rất ngắn.
 - Một lời sửa thay đổi việc đã nhờ.
-- Người dùng chào tạm biệt hoặc muốn kết thúc cuộc gọi.
+- Người dùng chào tạm biệt hoặc muốn kết thúc cuộc gọi, kể cả khi chỉ nói rất ngắn.
+- Bạn còn phân vân có cần backend hay không: khi nghi ngờ, luôn delegate to the backend.
 
 Do not delegate when:
-- Câu trả lời đã có trong cuộc trò chuyện, trong công thức đang mở trên màn hình, hoặc trong một kết quả vừa nhận còn đúng.
-- Bạn cần hỏi lại ngắn để hiểu yêu cầu.
-- Người dùng nói chuyện phiếm hoặc hỏi điều ngoài ứng dụng: trả lời ngắn, tự nhiên như một người bạn.
+- Chỉ là chào hỏi xã giao hoặc chuyện phiếm ngoài ứng dụng Vedora: trả lời ngắn, tự nhiên như một người bạn.
+- Người dùng hỏi lại nguyên văn nguyên liệu hoặc một bước có sẵn trong công thức đang mở trên màn hình.
+- Bạn cần hỏi lại ngắn để hiểu yêu cầu chưa rõ.
 
+Không bao giờ hứa sẽ thực hiện hoặc khẳng định đã hoàn thành một hành động nếu bạn chưa delegate to the backend.
 Delegate to the backend before giving an answer that depends on backend work.
 Do not guess the result while waiting.`
 
@@ -169,19 +170,14 @@ export const voiceSessionSchema = z.object({
 /** A tool the planner finished in a voice turn. */
 export type VoiceAction = { toolCallId: string; tool: string; input: unknown; output: unknown }
 
-/** A `requestWebSearch` the turn ended on: the user's next words answer it. */
-export type VoiceWebSearchRequest = { toolCallId: string; reason: string }
-
 export type VoiceTurnRequest = {
   weekStart: string
   message: string
   threadId?: string
   requestId?: string
-  webSearchRequest?: VoiceWebSearchRequest
   screen?: VoiceScreen
 }
 
-const webSearchInputSchema = z.object({ reason: z.string() })
 const voiceMetadataSchema = z.object({ voiceDone: z.literal(true) })
 
 function markVoiceDone(metadata: unknown): Record<string, unknown> {
@@ -213,17 +209,6 @@ export function replyText(message: UIMessage) {
     if (isTextUIPart(part)) texts.push(part.text)
   }
   return texts.join(" ").trim()
-}
-
-/** The web search the reply asks permission for, if it ended on one. */
-export function pendingWebSearch(message: UIMessage): VoiceWebSearchRequest | null {
-  for (const part of message.parts) {
-    if (!isToolUIPart(part) || getToolName(part) !== "requestWebSearch") continue
-    if (part.state !== "input-available") continue
-    const input = webSearchInputSchema.safeParse(part.input)
-    if (input.success) return { toolCallId: part.toolCallId, reason: input.data.reason }
-  }
-  return null
 }
 
 /**
@@ -360,6 +345,66 @@ function applyScreen(effects: VoiceEffects, screen: z.infer<typeof setScreenOutp
   if (screen.view !== "calendar") return
   effects.close = "all"
   if (screen.weekStart !== null) effects.focus = { kind: "planDay", weekStart: screen.weekStart, day: screen.day }
+}
+
+const bodyMetricsSummarySchema = z
+  .object({
+    weightKg: z.number().nullable().optional(),
+    bmi: z.number().nullable().optional(),
+    dailyCalorieTarget: z.number().nullable().optional(),
+  })
+  .nullable()
+  .optional()
+
+const setScreenSummarySchema = setScreenOutputSchema.extend({
+  metrics: bodyMetricsSummarySchema,
+})
+
+const endCallOutputSchema = z.object({ ended: z.literal(true) })
+
+const RECIPE_SECTION_SUMMARY: Record<RecipeSection, string> = {
+  top: "",
+  ingredients: ", ở phần nguyên liệu",
+  steps: ", ở phần cách làm",
+}
+
+/**
+ * Short factual line built from completed quick tools when the planner stopped
+ * right after step 1 without generating prose.
+ */
+export function actionSummary(actions: VoiceAction[]): string | null {
+  for (let index = actions.length - 1; index >= 0; index -= 1) {
+    const action = actions[index]
+    if (action.tool === "endCall" && endCallOutputSchema.safeParse(action.output).success) {
+      return "Người dùng muốn kết thúc cuộc gọi, hãy chào tạm biệt ngắn gọn."
+    }
+    if (action.tool !== "setScreen") continue
+    const screen = setScreenSummarySchema.safeParse(action.output)
+    if (!screen.success || !screen.data.applied) continue
+    const { view, title, section, date, day, metrics } = screen.data
+    if (view === "recipe" && title !== null) {
+      const part = section === null ? "" : RECIPE_SECTION_SUMMARY[section]
+      return `Đã mở công thức "${title}" trên màn hình${part}.`
+    }
+    if (view === "eatingLog") {
+      return date ? `Đã mở nhật ký ăn uống ngày ${date} trên màn hình.` : "Đã mở nhật ký ăn uống hôm nay trên màn hình."
+    }
+    if (view === "bodyMetrics") {
+      const details: string[] = []
+      if (typeof metrics?.weightKg === "number") details.push(`cân nặng ${metrics.weightKg} kg`)
+      if (typeof metrics?.bmi === "number") details.push(`BMI ${metrics.bmi}`)
+      if (typeof metrics?.dailyCalorieTarget === "number") {
+        details.push(`mục tiêu khoảng ${metrics.dailyCalorieTarget} kcal mỗi ngày`)
+      }
+      return details.length > 0
+        ? `Đã mở bảng chỉ số cơ thể trên màn hình (${details.join(", ")}).`
+        : "Đã mở bảng chỉ số cơ thể trên màn hình."
+    }
+    if (view === "calendar") {
+      return day ? `Đã đóng bảng và chuyển lịch tới ${DAY_LABELS[day]}.` : "Đã đóng các bảng và quay lại lịch thực đơn."
+    }
+  }
+  return null
 }
 
 /** What a turn's finished tools mean for the page: what to open and which caches to refresh. */

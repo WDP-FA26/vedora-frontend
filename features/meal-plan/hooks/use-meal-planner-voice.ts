@@ -11,10 +11,10 @@ import { MY_DIETARY_KEY, MY_NUTRITION_KEY } from "@/features/dietary/dietary"
 import { isMealLogKey } from "@/features/meal-plan/meal-log"
 import { isMealPlanKey } from "@/features/meal-plan/meal-plan"
 import {
+  actionSummary,
   appendableText,
   finishedActions,
   isVoiceReplyReady,
-  pendingWebSearch,
   progressLine,
   replyText,
   streamVoiceTurn,
@@ -28,11 +28,11 @@ import {
   voiceRecipeContext,
   voiceSessionConfig,
   classifyInterruption,
+  type VoiceAction,
   type VoiceEffects,
   type VoiceInterruption,
   type VoiceOpenRecipe,
   type VoiceScreen,
-  type VoiceWebSearchRequest,
 } from "@/features/meal-plan/voice"
 import { FarewellTracker, VoiceCallLedger } from "@/features/meal-plan/voice-call"
 import { ApiError } from "@/features/shared/lib/api-client"
@@ -337,7 +337,7 @@ export function useMealPlannerVoice({
     const controller = ledger.begin(delegationId, message)
     const seen = new Set<string>()
     let reply = ""
-    let webSearch: VoiceWebSearchRequest | null = null
+    let lastActions: VoiceAction[] = []
     let ended = false
     // The API saves the user message before it streams, so the thread exists once a reply starts.
     let saved = false
@@ -351,7 +351,6 @@ export function useMealPlannerVoice({
           message,
           threadId,
           requestId: delegationId,
-          webSearchRequest: ledger.takeWebSearchRequest(),
           screen: getScreen() ?? undefined,
         },
         controller.signal
@@ -362,19 +361,17 @@ export function useMealPlannerVoice({
         replied = true
         // The reply is next; a progress line after it would only repeat it.
         clearTimeout(spokenProgress)
-        ledger.awaitWebSearchAnswer(webSearch)
         // Marked before the farewell is sent: GPT-Live can acknowledge it before `append` resolves.
         if (ended) farewell.sent()
-        const spoken = webSearch
-          ? `${reply ? `${reply} ` : ""}Cần tìm trên web: ${webSearch.reason}. Chưa tìm vì cần người dùng đồng ý.`
-          : reply || "Đã xong."
+        const spoken = reply || actionSummary(lastActions) || "Đã xong."
         const sent = append(delegationId, "commentary", spoken)
         if (ended) setEnding(true)
         return sent
       }
       for await (const update of turn) {
         saved = true
-        const fresh = finishedActions(update).filter((action) => !seen.has(action.toolCallId))
+        lastActions = finishedActions(update)
+        const fresh = lastActions.filter((action) => !seen.has(action.toolCallId))
         for (const action of fresh) {
           seen.add(action.toolCallId)
           const effects = voiceEffects([action])
@@ -391,7 +388,6 @@ export function useMealPlannerVoice({
           }
         }
         reply = replyText(update)
-        webSearch = pendingWebSearch(update)
         if (isVoiceReplyReady(update)) {
           void deliverReply()
         }

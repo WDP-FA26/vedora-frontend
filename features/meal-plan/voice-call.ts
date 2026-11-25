@@ -3,8 +3,6 @@
  * (`hooks/use-meal-planner-voice.ts`) so it can be tested on its own.
  */
 
-import type { VoiceWebSearchRequest } from "@/features/meal-plan/voice"
-
 /** A pause longer than this between words starts a new utterance. */
 const UTTERANCE_PAUSE_MS = 2000
 /**
@@ -109,7 +107,6 @@ export class VoiceCallLedger {
   /** Counts calls; queued work from an earlier call is dropped instead of run. */
   private call = 0
   private inFlight: InFlight | null = null
-  private webSearch: VoiceWebSearchRequest | null = null
   private watchers = new Set<UtteranceWatcher>()
   private stream: MediaStream | null = null
   private monitoring = false
@@ -129,7 +126,6 @@ export class VoiceCallLedger {
     this.clearWatchers()
     this.fragments = []
     this.consumedUntil = -1
-    this.webSearch = null
   }
 
   addFragment(fragment: TranscriptFragment) {
@@ -282,17 +278,6 @@ export class VoiceCallLedger {
     running.controller.abort()
     this.inFlight = null
     return running.delegationId
-  }
-
-  awaitWebSearchAnswer(request: VoiceWebSearchRequest | null) {
-    this.webSearch = request
-  }
-
-  /** The web search the next words answer, once. */
-  takeWebSearchRequest() {
-    const request = this.webSearch
-    this.webSearch = null
-    return request ?? undefined
   }
 
   /** Marks a new microphone acquisition so stale getUserMedia resolutions can be discarded. */

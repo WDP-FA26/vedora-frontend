@@ -2,11 +2,11 @@ import type { UIMessage } from "ai"
 import { afterEach, describe, expect, it, vi } from "vitest"
 
 import {
+  actionSummary,
   appendableText,
   classifyInterruption,
   finishedActions,
   isVoiceReplyReady,
-  pendingWebSearch,
   progressLine,
   replyText,
   streamVoiceTurn,
@@ -124,15 +124,29 @@ describe("reading a voice reply", () => {
   it("joins the text parts into the spoken reply", () => {
     expect(replyText(reply)).toBe("Mình đã thêm món cho thứ Bảy.")
   })
+})
 
-  it("finds a web search waiting for the user's answer", () => {
-    const asking = message([toolPart("requestWebSearch", "input-available", { reason: "Tìm nơi bán tempeh" })])
-    expect(pendingWebSearch(asking)).toEqual({ toolCallId: "call_requestWebSearch", reason: "Tìm nơi bán tempeh" })
-    expect(pendingWebSearch(reply)).toBeNull()
+describe("actionSummary", () => {
+  it("builds a concise factual line for quick screen and endCall actions", () => {
+    expect(actionSummary([action("endCall", { ended: true })])).toContain("tạm biệt")
+    expect(
+      actionSummary([action("setScreen", screen("recipe", { recipeId: "r1", title: "Phở chay", section: "steps" }))])
+    ).toBe('Đã mở công thức "Phở chay" trên màn hình, ở phần cách làm.')
+    expect(actionSummary([action("setScreen", screen("eatingLog", { date: "2026-11-25" }))])).toBe(
+      "Đã mở nhật ký ăn uống ngày 2026-11-25 trên màn hình."
+    )
+    expect(
+      actionSummary([
+        action("setScreen", screen("bodyMetrics", { metrics: { weightKg: 58, bmi: 21.4, dailyCalorieTarget: 1800 } })),
+      ])
+    ).toBe("Đã mở bảng chỉ số cơ thể trên màn hình (cân nặng 58 kg, BMI 21.4, mục tiêu khoảng 1800 kcal mỗi ngày).")
+    expect(actionSummary([action("setScreen", screen("calendar", { day: "FRI" }))])).toBe(
+      "Đã đóng bảng và chuyển lịch tới Thứ Sáu."
+    )
   })
 
-  it("ignores a web search request without a reason", () => {
-    expect(pendingWebSearch(message([toolPart("requestWebSearch", "input-available", {})]))).toBeNull()
+  it("returns null when no screen action was applied", () => {
+    expect(actionSummary([action("setScreen", { ...screen("recipe"), applied: false })])).toBeNull()
   })
 })
 
