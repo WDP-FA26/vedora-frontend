@@ -85,19 +85,31 @@ function Actions({ row }: { row: QueueRow }) {
   )
 }
 
+/** The excerpt opens the post too, since "Xem" can sit past the edge of a wide table. */
+function ExcerptCell({ row }: { row: QueueRow }) {
+  const { open } = use(QueueActionsContext)
+  return (
+    <div className="max-w-80 min-w-48 whitespace-normal">
+      <button
+        type="button"
+        className="block w-full cursor-pointer text-left hover:underline focus-visible:underline focus-visible:outline-none"
+        onClick={() => open(row.postId)}
+      >
+        <span className="line-clamp-2 break-words">{row.excerpt}</span>
+      </button>
+      <p className="truncate text-xs text-muted-foreground">
+        {row.author.fullName} · @{row.author.username}
+      </p>
+    </div>
+  )
+}
+
 const helper = createColumnHelper<DataTableFeatures, QueueRow>()
 
 export const queueColumns = helper.columns([
   helper.accessor("excerpt", {
     header: ({ column }) => <DataTableColumnHeader column={column} title="Bài viết" />,
-    cell: ({ row }) => (
-      <div className="max-w-80 min-w-48 whitespace-normal">
-        <p className="line-clamp-2 break-words">{row.original.excerpt}</p>
-        <p className="truncate text-xs text-muted-foreground">
-          {row.original.author.fullName} · @{row.original.author.username}
-        </p>
-      </div>
-    ),
+    cell: ({ row }) => <ExcerptCell row={row.original} />,
     sortFn: "text",
     enableHiding: false,
     meta: { label: "Bài viết" },
