@@ -152,7 +152,8 @@ function DraftStatus({ manager }: { manager: PostDraftManager }) {
   const message =
     state.storageError ??
     state.notice ??
-    (state.saving
+    // Text saves finish in milliseconds; flagging them made the box flicker while typing.
+    (state.savingFiles
       ? "Đang lưu nháp và tệp trên thiết bị…"
       : uploading
         ? `Đang tải video ${Math.round(state.progress[uploading.key] ?? 0)}% — bài vẫn ở nháp.`
