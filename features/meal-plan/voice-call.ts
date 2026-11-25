@@ -93,6 +93,7 @@ function lastIndexStartedBy(fragments: TranscriptFragment[], offsetMs: number) {
   return index
 }
 type InFlight = { delegationId: string; message: string; controller: AbortController; startedAt: number }
+type UtteranceWatcher = { onFragment: () => void; cancel: () => void }
 
 /**
  * Bookkeeping of one voice call that never drives rendering: the microphone and its
@@ -109,6 +110,7 @@ export class VoiceCallLedger {
   private call = 0
   private inFlight: InFlight | null = null
   private webSearch: VoiceWebSearchRequest | null = null
+  private watchers = new Set<UtteranceWatcher>()
   private stream: MediaStream | null = null
   private monitoring = false
   private micGeneration = 0
@@ -117,9 +119,14 @@ export class VoiceCallLedger {
   readonly readInputLevel = () => this.inputLevel()
   readonly readOutputLevel = () => globalThis.__vedoraReadRealtimeOutputLevel?.() ?? 0
 
+  private clearWatchers() {
+    for (const watcher of [...this.watchers]) watcher.cancel()
+  }
+
   /** Starts a new call: what the last one left queued no longer runs. */
   reset() {
     this.call += 1
+    this.clearWatchers()
     this.fragments = []
     this.consumedUntil = -1
     this.webSearch = null
@@ -128,6 +135,7 @@ export class VoiceCallLedger {
   addFragment(fragment: TranscriptFragment) {
     this.fragments.push(fragment)
     this.lastArrival = Date.now()
+    for (const watcher of [...this.watchers]) watcher.onFragment()
   }
 
   /**
@@ -169,6 +177,54 @@ export class VoiceCallLedger {
   }
 
   /**
+   * Waits until `utteranceReady` holds for `offsetMs` (a sentence end resolves on the
+   * arriving fragment; an unfinished sentence waits `TRANSCRIPT_SETTLE_MS` after the last
+   * fragment), capped at `graceMs`. Resolves `false` if the call resets or ends first.
+   */
+  waitForUtterance(offsetMs: number | undefined, graceMs: number): Promise<boolean> {
+    if (this.utteranceReady(offsetMs, Date.now())) return Promise.resolve(true)
+
+    return new Promise<boolean>((resolve) => {
+      let settled = false
+      let settleTimer: ReturnType<typeof setTimeout> | undefined
+      const graceTimer = setTimeout(() => done(true), graceMs)
+
+      const done = (active: boolean) => {
+        if (settled) return
+        settled = true
+        clearTimeout(graceTimer)
+        clearTimeout(settleTimer)
+        this.watchers.delete(watcher)
+        resolve(active)
+      }
+
+      const schedule = () => {
+        clearTimeout(settleTimer)
+        settleTimer = undefined
+        const now = Date.now()
+        if (this.utteranceReady(offsetMs, now)) {
+          done(true)
+          return
+        }
+        const last = this.fragments.at(-1)
+        if (!last) return
+        if (offsetMs !== undefined && last.endMs < offsetMs) return
+        const waitMs = Math.max(0, TRANSCRIPT_SETTLE_MS - (now - this.lastArrival))
+        settleTimer = setTimeout(() => {
+          if (this.utteranceReady(offsetMs, Date.now())) done(true)
+        }, waitMs)
+      }
+
+      const watcher: UtteranceWatcher = {
+        onFragment: schedule,
+        cancel: () => done(false),
+      }
+      this.watchers.add(watcher)
+      schedule()
+    })
+  }
+
+  /**
    * Runs `task` after the tasks before it, unless the call ended first. A task that fails
    * does not stop the ones after it: every later delegation would go unanswered.
    */
@@ -191,6 +247,7 @@ export class VoiceCallLedger {
   /** The call ended: stops the running delegation, drops the queued ones and releases the microphone. */
   endCall() {
     this.call += 1
+    this.clearWatchers()
     this.cancel()
     this.releaseMicrophone()
   }

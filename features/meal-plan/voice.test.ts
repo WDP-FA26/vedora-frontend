@@ -5,6 +5,7 @@ import {
   appendableText,
   classifyInterruption,
   finishedActions,
+  isVoiceReplyReady,
   pendingWebSearch,
   progressLine,
   replyText,
@@ -270,6 +271,39 @@ describe("streamVoiceTurn", () => {
     if (!last) throw new Error("no update")
     expect(replyText(last)).toBe("Đã thêm phở.")
     expect(finishedActions(last).map(({ tool }) => tool)).toEqual(["fillSlots"])
+    expect(isVoiceReplyReady(last)).toBe(true)
+  })
+
+  it("yields a ready reply immediately on the finish chunk before the stream closes", async () => {
+    let controller!: ReadableStreamDefaultController<Uint8Array>
+    const encoder = new TextEncoder()
+    const body = new ReadableStream<Uint8Array>({
+      start(c) {
+        controller = c
+      },
+    })
+    vi.stubGlobal(
+      "fetch",
+      async () => new Response(body, { status: 200, headers: { "Content-Type": "text/event-stream" } })
+    )
+
+    const turn = streamVoiceTurn("token_1", request, new AbortController().signal)
+    const push = (chunk: unknown) => controller.enqueue(encoder.encode(`data: ${JSON.stringify(chunk)}\n\n`))
+    push({ type: "start", messageId: "msg_1" })
+    push({ type: "text-start", id: "t1" })
+    push({ type: "text-delta", id: "t1", delta: "Đã xong." })
+    push({ type: "text-end", id: "t1" })
+    push({ type: "finish" })
+
+    const ready: UIMessage[] = []
+    for await (const update of turn) {
+      if (isVoiceReplyReady(update)) {
+        ready.push(update)
+        controller.close()
+      }
+    }
+    expect(ready).toHaveLength(1)
+    expect(replyText(ready[0])).toBe("Đã xong.")
   })
 
   it("throws when the stream reports an error part", async () => {

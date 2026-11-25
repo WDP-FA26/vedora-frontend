@@ -71,19 +71,21 @@ Interruption policy: Dừng nói khi người dùng chen vào. Lắng nghe đi�
 Delegation policy:
 Backend tools:
 - Thực đơn tuần, công thức, nhật ký ăn uống, chỉ số cơ thể và dinh dưỡng chay: xem, thay đổi, hoàn tác.
+- Nhật ký ăn uống: ghi món người dùng kể đã ăn; backend tự ước tính calo, nên không cần hỏi thành phần trước.
 - Màn hình: mở, cuộn và đóng những gì người dùng cần xem.
 - Cuộc gọi: kết thúc khi người dùng chào tạm biệt.
 - Tìm trên web: khi dữ liệu Vedora không có điều người dùng hỏi.
 
 Delegate to the backend when:
 - Yêu cầu cần một khả năng của backend, số liệu, hoặc lập luận dinh dưỡng cẩn thận.
-- Người dùng hỏi về một món, nguyên liệu hay sản phẩm cụ thể: backend xem Vedora có không, không có thì tìm trên web.
+- Người dùng hỏi về một món, nguyên liệu hay sản phẩm cụ thể, kể cả khi bạn đã biết về nó: backend xem Vedora có món đó không và tìm trên web khi không có, nên câu trả lời đúng với ứng dụng hơn hiểu biết chung của bạn.
+- Người dùng kể đã ăn gì, hoặc nhờ thêm, đổi, xóa, ghi lại: chỉ backend mới lưu được.
 - Người dùng muốn xem, chuyển tới, cuộn hoặc đóng một thứ trên màn hình.
 - Một lời sửa thay đổi việc đã nhờ.
 - Người dùng chào tạm biệt hoặc muốn kết thúc cuộc gọi.
 
 Do not delegate when:
-- Bạn trả lời được từ cuộc trò chuyện, công thức đang mở trên màn hình, hoặc một kết quả vừa nhận còn đúng.
+- Câu trả lời đã có trong cuộc trò chuyện, trong công thức đang mở trên màn hình, hoặc trong một kết quả vừa nhận còn đúng.
 - Bạn cần hỏi lại ngắn để hiểu yêu cầu.
 - Người dùng nói chuyện phiếm hoặc hỏi điều ngoài ứng dụng: trả lời ngắn, tự nhiên như một người bạn.
 
@@ -180,6 +182,19 @@ export type VoiceTurnRequest = {
 }
 
 const webSearchInputSchema = z.object({ reason: z.string() })
+const voiceMetadataSchema = z.object({ voiceDone: z.literal(true) })
+
+function markVoiceDone(metadata: unknown): Record<string, unknown> {
+  if (typeof metadata === "object" && metadata !== null && !Array.isArray(metadata)) {
+    return { ...metadata, voiceDone: true }
+  }
+  return { voiceDone: true }
+}
+
+/** Whether the planner LLM has finished emitting its reply for this stream snapshot. */
+export function isVoiceReplyReady(message: UIMessage): boolean {
+  return voiceMetadataSchema.safeParse(message.metadata).success
+}
 
 /** The finished tools of a reply, in order. */
 export function finishedActions(message: UIMessage): VoiceAction[] {
@@ -229,7 +244,15 @@ export async function* streamVoiceTurn(
   const chunks = parseJsonEventStream({ stream: response.body, schema: uiMessageChunkSchema }).pipeThrough(
     new TransformStream<{ success: true; value: UIMessageChunk } | { success: false; error: unknown }, UIMessageChunk>({
       transform(result, controller) {
-        if (result.success) controller.enqueue(result.value)
+        if (!result.success) return
+        if (result.value.type === "finish") {
+          controller.enqueue({
+            ...result.value,
+            messageMetadata: markVoiceDone(result.value.messageMetadata),
+          })
+          return
+        }
+        controller.enqueue(result.value)
       },
     })
   )

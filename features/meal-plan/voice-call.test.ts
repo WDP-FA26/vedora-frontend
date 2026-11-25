@@ -75,6 +75,53 @@ describe("VoiceCallLedger.utteranceReady", () => {
   })
 })
 
+describe("VoiceCallLedger.waitForUtterance", () => {
+  beforeEach(() => {
+    vi.useFakeTimers()
+    vi.setSystemTime(10_000)
+  })
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it("resolves immediately when an arriving fragment finishes a sentence", async () => {
+    const ledger = new VoiceCallLedger()
+    let settled: boolean | undefined
+    void ledger.waitForUtterance(900, 3000).then((active) => {
+      settled = active
+    })
+
+    await Promise.resolve()
+    expect(settled).toBeUndefined()
+
+    ledger.addFragment({ text: "thêm phở.", startMs: 0, endMs: 1000 })
+    await Promise.resolve()
+    expect(settled).toBe(true)
+  })
+
+  it("waits once for TRANSCRIPT_SETTLE_MS when the sentence has no end punctuation", async () => {
+    const ledger = new VoiceCallLedger()
+    let settled: boolean | undefined
+    void ledger.waitForUtterance(500, 3000).then((active) => {
+      settled = active
+    })
+
+    ledger.addFragment({ text: "thêm phở", startMs: 0, endMs: 600 })
+    await vi.advanceTimersByTimeAsync(TRANSCRIPT_SETTLE_MS - 1)
+    expect(settled).toBeUndefined()
+
+    await vi.advanceTimersByTimeAsync(1)
+    expect(settled).toBe(true)
+  })
+
+  it("resolves false cleanly when endCall stops a pending wait", async () => {
+    const ledger = new VoiceCallLedger()
+    const waiting = ledger.waitForUtterance(500, 3000)
+    ledger.endCall()
+    await expect(waiting).resolves.toBe(false)
+  })
+})
+
 describe("VoiceCallLedger.enqueue", () => {
   beforeEach(() => {
     vi.spyOn(console, "error").mockImplementation(() => {})

@@ -13,6 +13,7 @@ import { isMealPlanKey } from "@/features/meal-plan/meal-plan"
 import {
   appendableText,
   finishedActions,
+  isVoiceReplyReady,
   pendingWebSearch,
   progressLine,
   replyText,
@@ -266,7 +267,7 @@ export function useMealPlannerVoice({
    * separate request waits its turn.
    */
   async function delegate(delegationId: string, offsetMs: number | undefined) {
-    await waitForTranscript(offsetMs)
+    if (!(await ledger.waitForUtterance(offsetMs, TRANSCRIPT_GRACE_MS))) return
     const message = ledger.takeUtterance(offsetMs)
     const running = ledger.running()
     if (!running || !message || !accessToken) {
@@ -294,19 +295,6 @@ export function useMealPlannerVoice({
       }
     }
     ledger.enqueue(() => runDelegation(delegationId, message))
-  }
-
-  /**
-   * Waits for the last words of the utterance: GPT-Live often delegates mid-sentence, so
-   * this waits until `ledger.utteranceReady` (the transcript reached the delegation point
-   * and the sentence ended or went quiet), at most `TRANSCRIPT_GRACE_MS`.
-   */
-  async function waitForTranscript(offsetMs: number | undefined) {
-    const deadline = Date.now() + TRANSCRIPT_GRACE_MS
-    while (Date.now() < deadline) {
-      if (ledger.utteranceReady(offsetMs, Date.now())) return
-      await new Promise((resolve) => setTimeout(resolve, 25))
-    }
   }
 
   /**
@@ -368,6 +356,22 @@ export function useMealPlannerVoice({
         },
         controller.signal
       )
+      let replied = false
+      const deliverReply = () => {
+        if (replied) return Promise.resolve()
+        replied = true
+        // The reply is next; a progress line after it would only repeat it.
+        clearTimeout(spokenProgress)
+        ledger.awaitWebSearchAnswer(webSearch)
+        // Marked before the farewell is sent: GPT-Live can acknowledge it before `append` resolves.
+        if (ended) farewell.sent()
+        const spoken = webSearch
+          ? `${reply ? `${reply} ` : ""}Cần tìm trên web: ${webSearch.reason}. Chưa tìm vì cần người dùng đồng ý.`
+          : reply || "Đã xong."
+        const sent = append(delegationId, "commentary", spoken)
+        if (ended) setEnding(true)
+        return sent
+      }
       for await (const update of turn) {
         saved = true
         const fresh = finishedActions(update).filter((action) => !seen.has(action.toolCallId))
@@ -388,22 +392,13 @@ export function useMealPlannerVoice({
         }
         reply = replyText(update)
         webSearch = pendingWebSearch(update)
+        if (isVoiceReplyReady(update)) {
+          void deliverReply()
+        }
       }
-      // The reply is next; a progress line after it would only repeat it.
-      clearTimeout(spokenProgress)
-      ledger.awaitWebSearchAnswer(webSearch)
-      // Marked before the farewell is sent: GPT-Live can acknowledge it before `append` resolves.
-      if (ended) farewell.sent()
-      if (webSearch) {
-        await append(
-          delegationId,
-          "commentary",
-          `${reply ? `${reply} ` : ""}Cần tìm trên web: ${webSearch.reason}. Chưa tìm vì cần người dùng đồng ý.`
-        )
-      } else {
-        await append(delegationId, "commentary", reply || "Đã xong.")
+      if (!replied) {
+        await deliverReply()
       }
-      if (ended) setEnding(true)
     } catch (cause) {
       // A cancelled turn was superseded or the call ended; the next turn speaks. The API may
       // still have saved changes the stream never showed, so reload what it could touch. The
