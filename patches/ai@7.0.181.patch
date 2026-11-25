@@ -1,8 +1,8 @@
 diff --git a/dist/index.js b/dist/index.js
-index 8f1889e0e95e35514a9b3779e1a1afb2c32646bb..fd002533bd01366162bc3ccd501ca8608a8d919a 100644
+index 8f1889e0e95e35514a9b3779e1a1afb2c32646bb..5464cd2c3985de0632f53312414349cb73e70ca7 100644
 --- a/dist/index.js
 +++ b/dist/index.js
-@@ -14184,6 +14184,29 @@ function resolveRealtimeToolDescription({ tool, toolName, toolsContext }) {
+@@ -14184,6 +14184,32 @@ function resolveRealtimeToolDescription({ tool, toolName, toolsContext }) {
  }
  //#endregion
  //#region src/realtime/browser-realtime-audio.ts
@@ -28,11 +28,14 @@ index 8f1889e0e95e35514a9b3779e1a1afb2c32646bb..fd002533bd01366162bc3ccd501ca860
 + */
 +const CAPTURE_WORKLET_URL = "/realtime-capture-worklet.js";
 +const CAPTURE_WORKLET_NAME = "vedora-realtime-capture";
-+const CAPTURE_CHUNK_SAMPLES = 1024;
++/** The worklet posts 20 ms of input at a time, so speech and barge-in reach the server sooner. */
++const CAPTURE_WORKLET_CHUNK_SECONDS = .02;
++/** ScriptProcessorNode only takes power-of-two buffer sizes. */
++const CAPTURE_FALLBACK_CHUNK_SAMPLES = 1024;
  var BrowserRealtimeAudio = class {
  	constructor(options) {
  		this.captureContext = null;
-@@ -14200,6 +14223,10 @@ var BrowserRealtimeAudio = class {
+@@ -14200,6 +14226,10 @@ var BrowserRealtimeAudio = class {
  		this.activeSources = /* @__PURE__ */ new Set();
  		this.isPlaying = false;
  		this.playbackPaused = false;
@@ -43,7 +46,7 @@ index 8f1889e0e95e35514a9b3779e1a1afb2c32646bb..fd002533bd01366162bc3ccd501ca860
  		this.captureSampleRate = options.captureSampleRate;
  		this.playbackSampleRate = options.playbackSampleRate;
  		this.onAudio = options.onAudio;
-@@ -14243,20 +14270,38 @@ var BrowserRealtimeAudio = class {
+@@ -14243,20 +14273,38 @@ var BrowserRealtimeAudio = class {
  		});
  		const source = ctx.createMediaStreamSource(stream);
  		this.captureSource = source;
@@ -65,7 +68,7 @@ index 8f1889e0e95e35514a9b3779e1a1afb2c32646bb..fd002533bd01366162bc3ccd501ca860
 -		processor.connect(ctx.destination);
 +		const useScriptProcessor = () => {
 +			if (this.captureContext !== ctx) return;
-+			const processor = ctx.createScriptProcessor(CAPTURE_CHUNK_SAMPLES, 1, 1);
++			const processor = ctx.createScriptProcessor(CAPTURE_FALLBACK_CHUNK_SAMPLES, 1, 1);
 +			this.captureProcessor = processor;
 +			processor.onaudioprocess = (event) => emit(new Float32Array(event.inputBuffer.getChannelData(0)));
 +			source.connect(processor);
@@ -78,7 +81,7 @@ index 8f1889e0e95e35514a9b3779e1a1afb2c32646bb..fd002533bd01366162bc3ccd501ca860
 +				numberOfInputs: 1,
 +				numberOfOutputs: 1,
 +				outputChannelCount: [1],
-+				processorOptions: { chunkSamples: CAPTURE_CHUNK_SAMPLES }
++				processorOptions: { chunkSamples: Math.round(ctx.sampleRate * CAPTURE_WORKLET_CHUNK_SECONDS) }
 +			});
 +			this.captureProcessor = node;
 +			node.port.onmessage = (event) => emit(event.data);
@@ -89,7 +92,7 @@ index 8f1889e0e95e35514a9b3779e1a1afb2c32646bb..fd002533bd01366162bc3ccd501ca860
  		const updateCapturing = () => this.onCapturingChange(stream.getAudioTracks().some((track) => track.enabled && !track.muted && track.readyState === "live"));
  		for (const track of stream.getAudioTracks()) for (const event of [
  			"ended",
-@@ -14271,6 +14316,10 @@ var BrowserRealtimeAudio = class {
+@@ -14271,6 +14319,10 @@ var BrowserRealtimeAudio = class {
  	stopCapture() {
  		this.captureGeneration++;
  		if (this.captureProcessor != null) this.captureProcessor.onaudioprocess = null;
@@ -100,7 +103,7 @@ index 8f1889e0e95e35514a9b3779e1a1afb2c32646bb..fd002533bd01366162bc3ccd501ca860
  		for (const cleanup of this.captureCleanup) cleanup();
  		this.captureCleanup = [];
  		this.captureProcessor?.disconnect();
-@@ -14305,12 +14354,16 @@ var BrowserRealtimeAudio = class {
+@@ -14305,12 +14357,16 @@ var BrowserRealtimeAudio = class {
  		} catch {}
  		this.activeSources.clear();
  		if (this.playbackContext != null) this.playbackTime = this.playbackContext.currentTime;
@@ -118,7 +121,7 @@ index 8f1889e0e95e35514a9b3779e1a1afb2c32646bb..fd002533bd01366162bc3ccd501ca860
  	}
  	dispose() {
  		this.stopCapture();
-@@ -14320,6 +14373,10 @@ var BrowserRealtimeAudio = class {
+@@ -14320,6 +14376,10 @@ var BrowserRealtimeAudio = class {
  		this.playbackContext = null;
  		this.playbackTime = 0;
  		this.playbackPaused = false;
@@ -129,7 +132,7 @@ index 8f1889e0e95e35514a9b3779e1a1afb2c32646bb..fd002533bd01366162bc3ccd501ca860
  	}
  	setPlaying(isPlaying) {
  		if (isPlaying && !this.isPlaying) this.playbackStartTime = this.playbackContext?.currentTime ?? 0;
-@@ -14338,16 +14395,43 @@ var BrowserRealtimeAudio = class {
+@@ -14338,16 +14398,43 @@ var BrowserRealtimeAudio = class {
  			const source = ctx.createBufferSource();
  			source.buffer = buffer;
  			source.connect(ctx.destination);

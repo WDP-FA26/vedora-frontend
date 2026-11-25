@@ -163,7 +163,7 @@ settings:
   excludeLinksFromLockfile: false
 
 patchedDependencies:
-  ai@7.0.181: 1cd054746fd45dbb1b883866505b153e6b5c01e6d52c9c23f6e720e2a57dd2d3
+  ai@7.0.181: 888f5e1230cf2b1113b12069532ebfe0912735c4f03764f9611c177de0632837
 
 importers:
 
@@ -231,7 +231,7 @@ importers:
         version: 2.0.2(next@16.3.5(@babel/core@7.29.7(supports-color@7.2.0))(@playwright/test@1.65.1)(@types/node@20.19.43)(babel-plugin-react-compiler@1.0.0)(react-dom@19.2.8(react@19.2.8))(react@19.2.8))(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(typescript@5.9.3)
       ai:
         specifier: ^7.0.181
-        version: 7.0.181(patch_hash=1cd054746fd45dbb1b883866505b153e6b5c01e6d52c9c23f6e720e2a57dd2d3)(zod@4.6.5)
+        version: 7.0.181(patch_hash=888f5e1230cf2b1113b12069532ebfe0912735c4f03764f9611c177de0632837)(zod@4.6.5)
       class-variance-authority:
         specifier: ^0.7.1
         version: 0.7.1
@@ -5095,7 +5095,7 @@ snapshots:
       '@ai-sdk/mcp': 2.0.104(zod@4.6.5)
       '@ai-sdk/provider': 4.0.39
       '@ai-sdk/provider-utils': 5.0.83(zod@4.6.5)
-      ai: 7.0.181(patch_hash=1cd054746fd45dbb1b883866505b153e6b5c01e6d52c9c23f6e720e2a57dd2d3)(zod@4.6.5)
+      ai: 7.0.181(patch_hash=888f5e1230cf2b1113b12069532ebfe0912735c4f03764f9611c177de0632837)(zod@4.6.5)
       react: 19.2.8
       swr: 2.5.1(react@19.2.8)
       throttleit: 2.1.0
@@ -6735,7 +6735,7 @@ snapshots:
 
   acorn@8.18.0: {}
 
-  ai@7.0.181(patch_hash=1cd054746fd45dbb1b883866505b153e6b5c01e6d52c9c23f6e720e2a57dd2d3)(zod@4.6.5):
+  ai@7.0.181(patch_hash=888f5e1230cf2b1113b12069532ebfe0912735c4f03764f9611c177de0632837)(zod@4.6.5):
     dependencies:
       '@ai-sdk/gateway': 4.0.154(zod@4.6.5)
       '@ai-sdk/provider': 4.0.39
