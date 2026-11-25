@@ -155,6 +155,24 @@ describe("actionSummary", () => {
   it("returns null when no screen action was applied", () => {
     expect(actionSummary([action("setScreen", { ...screen("recipe"), applied: false })])).toBeNull()
   })
+
+  it("summarizes quick write tools and prioritizes them over setScreen", () => {
+    expect(
+      actionSummary([
+        action("logMeal", { entry: { date: "2026-11-25", section: "LUNCH", name: "Phở chay", calories: 420 } }),
+        action("setScreen", screen("eatingLog", { date: "2026-11-25" })),
+      ])
+    ).toBe('Đã ghi món "Phở chay" vào nhật ký bữa trưa ngày 2026-11-25, khoảng 420 kcal.')
+    expect(
+      actionSummary([action("updateBodyMetrics", { weightKg: 60, bmi: 22, dailyCalorieTarget: 1800 })])
+    ).toBe("Đã lưu chỉ số cơ thể mới (cân nặng 60 kg, BMI 22, mục tiêu khoảng 1800 kcal mỗi ngày).")
+    expect(
+      actionSummary([
+        action("undoLastChange", { messageId: "m1", weeks: [{ weekStart: "2026-11-23", restored: ["MON", "TUE"] }] }),
+      ])
+    ).toBe("Đã hoàn tác thay đổi thực đơn gần nhất cho Thứ Hai, Thứ Ba.")
+    expect(actionSummary([action("undoLastChange", { messageId: null, weeks: [] })])).toContain("Không còn thay đổi")
+  })
 })
 
 describe("progressLine", () => {

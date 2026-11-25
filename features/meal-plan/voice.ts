@@ -350,7 +350,9 @@ function applyScreen(effects: VoiceEffects, screen: z.infer<typeof setScreenOutp
 
 const bodyMetricsSummarySchema = z
   .object({
+    heightCm: z.number().nullable().optional(),
     weightKg: z.number().nullable().optional(),
+    targetWeightKg: z.number().nullable().optional(),
     bmi: z.number().nullable().optional(),
     dailyCalorieTarget: z.number().nullable().optional(),
   })
@@ -361,7 +363,35 @@ const setScreenSummarySchema = setScreenOutputSchema.extend({
   metrics: bodyMetricsSummarySchema,
 })
 
+const logMealSummarySchema = z.object({
+  entry: z.object({
+    date: z.string(),
+    section: z.enum(["BREAKFAST", "LUNCH", "DINNER", "OTHER"]),
+    name: z.string(),
+    servings: z.number().optional(),
+    calories: z.number().nullable().optional(),
+  }),
+})
+
+const undoSummarySchema = z.object({
+  messageId: z.string().nullable(),
+  weeks: z.array(
+    z.object({
+      weekStart: z.string(),
+      restored: z.array(z.enum(WEEKDAYS)),
+      skipped: z.array(z.enum(WEEKDAYS)).optional(),
+    })
+  ),
+})
+
 const endCallOutputSchema = z.object({ ended: z.literal(true) })
+
+const SECTION_SUMMARY_LABELS = {
+  BREAKFAST: "sáng",
+  LUNCH: "trưa",
+  DINNER: "tối",
+  OTHER: "bữa phụ",
+} as const
 
 const RECIPE_SECTION_SUMMARY: Record<RecipeSection, string> = {
   top: "",
@@ -369,43 +399,87 @@ const RECIPE_SECTION_SUMMARY: Record<RecipeSection, string> = {
   steps: ", ở phần cách làm",
 }
 
+function formatBodyMetricsDetails(metrics: z.infer<typeof bodyMetricsSummarySchema>): string[] {
+  const details: string[] = []
+  if (typeof metrics?.heightCm === "number") details.push(`chiều cao ${metrics.heightCm} cm`)
+  if (typeof metrics?.weightKg === "number") details.push(`cân nặng ${metrics.weightKg} kg`)
+  if (typeof metrics?.targetWeightKg === "number") details.push(`mục tiêu ${metrics.targetWeightKg} kg`)
+  if (typeof metrics?.bmi === "number") details.push(`BMI ${metrics.bmi}`)
+  if (typeof metrics?.dailyCalorieTarget === "number") {
+    details.push(`mục tiêu khoảng ${metrics.dailyCalorieTarget} kcal mỗi ngày`)
+  }
+  return details
+}
+
 /**
  * Short factual line built from completed quick tools when the planner stopped
  * right after step 1 without generating prose.
  */
 export function actionSummary(actions: VoiceAction[]): string | null {
+  let screenSummary: string | null = null
   for (let index = actions.length - 1; index >= 0; index -= 1) {
     const action = actions[index]
     if (action.tool === "endCall" && endCallOutputSchema.safeParse(action.output).success) {
       return "Người dùng muốn kết thúc cuộc gọi, hãy chào tạm biệt ngắn gọn."
     }
-    if (action.tool !== "setScreen") continue
+    if (action.tool === "logMeal") {
+      const parsed = logMealSummarySchema.safeParse(action.output)
+      if (!parsed.success) continue
+      const { name, section, date, calories } = parsed.data.entry
+      const kcal = typeof calories === "number" ? `, khoảng ${calories} kcal` : ""
+      return `Đã ghi món "${name}" vào nhật ký bữa ${SECTION_SUMMARY_LABELS[section]} ngày ${date}${kcal}.`
+    }
+    if (action.tool === "updateBodyMetrics") {
+      const parsed = bodyMetricsSummarySchema.safeParse(action.output)
+      if (!parsed.success || !parsed.data) continue
+      const details = formatBodyMetricsDetails(parsed.data)
+      return details.length > 0
+        ? `Đã lưu chỉ số cơ thể mới (${details.join(", ")}).`
+        : "Đã lưu chỉ số cơ thể mới trên màn hình."
+    }
+    if (action.tool === "undoLastChange") {
+      const parsed = undoSummarySchema.safeParse(action.output)
+      if (!parsed.success) continue
+      if (parsed.data.messageId === null || parsed.data.weeks.length === 0) {
+        return "Không còn thay đổi thực đơn nào trong cuộc trò chuyện này để hoàn tác."
+      }
+      const restored = parsed.data.weeks
+        .flatMap((week) => week.restored.map((day) => DAY_LABELS[day]))
+        .join(", ")
+      return restored
+        ? `Đã hoàn tác thay đổi thực đơn gần nhất cho ${restored}.`
+        : "Đã hoàn tác thay đổi thực đơn gần nhất."
+    }
+    if (action.tool !== "setScreen" || screenSummary !== null) continue
     const screen = setScreenSummarySchema.safeParse(action.output)
     if (!screen.success || !screen.data.applied) continue
     const { view, title, section, date, day, metrics } = screen.data
     if (view === "recipe" && title !== null) {
       const part = section === null ? "" : RECIPE_SECTION_SUMMARY[section]
-      return `Đã mở công thức "${title}" trên màn hình${part}.`
+      screenSummary = `Đã mở công thức "${title}" trên màn hình${part}.`
+      continue
     }
     if (view === "eatingLog") {
-      return date ? `Đã mở nhật ký ăn uống ngày ${date} trên màn hình.` : "Đã mở nhật ký ăn uống hôm nay trên màn hình."
+      screenSummary = date
+        ? `Đã mở nhật ký ăn uống ngày ${date} trên màn hình.`
+        : "Đã mở nhật ký ăn uống hôm nay trên màn hình."
+      continue
     }
     if (view === "bodyMetrics") {
-      const details: string[] = []
-      if (typeof metrics?.weightKg === "number") details.push(`cân nặng ${metrics.weightKg} kg`)
-      if (typeof metrics?.bmi === "number") details.push(`BMI ${metrics.bmi}`)
-      if (typeof metrics?.dailyCalorieTarget === "number") {
-        details.push(`mục tiêu khoảng ${metrics.dailyCalorieTarget} kcal mỗi ngày`)
-      }
-      return details.length > 0
-        ? `Đã mở bảng chỉ số cơ thể trên màn hình (${details.join(", ")}).`
-        : "Đã mở bảng chỉ số cơ thể trên màn hình."
+      const details = formatBodyMetricsDetails(metrics)
+      screenSummary =
+        details.length > 0
+          ? `Đã mở bảng chỉ số cơ thể trên màn hình (${details.join(", ")}).`
+          : "Đã mở bảng chỉ số cơ thể trên màn hình."
+      continue
     }
     if (view === "calendar") {
-      return day ? `Đã đóng bảng và chuyển lịch tới ${DAY_LABELS[day]}.` : "Đã đóng các bảng và quay lại lịch thực đơn."
+      screenSummary = day
+        ? `Đã đóng bảng và chuyển lịch tới ${DAY_LABELS[day]}.`
+        : "Đã đóng các bảng và quay lại lịch thực đơn."
     }
   }
-  return null
+  return screenSummary
 }
 
 /** What a turn's finished tools mean for the page: what to open and which caches to refresh. */
