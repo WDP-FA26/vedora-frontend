@@ -140,24 +140,32 @@ function DraftStatus({ manager }: { manager: PostDraftManager }) {
         draft.version !== null ||
         (draft.kind === "VIDEO" && Boolean(draft.body)))
   )
+  const files = drafts.flatMap((draft) => draft.files)
+  const uploading = files.find((file) => file.state === "uploading")
+  const queued = files.some((file) => file.state === "queued")
+  const failed = drafts.some(
+    (draft) => draft.error || draft.files.some((file) => file.state === "failed")
+  )
+  // Drafts at rest stay quiet (they are listed under Bản nháp); speak up only
+  // while files are saved or uploaded, or when something needs attention.
+  // Text saves finish in milliseconds, so they never show "Đang lưu" either.
+  const busy = state.savingFiles > 0 || Boolean(uploading) || queued || failed
   if (
-    (!drafts.length || pathname.startsWith(POST_DRAFTS_PATH)) &&
+    (!busy || pathname.startsWith(POST_DRAFTS_PATH)) &&
     !state.storageError &&
     !state.notice
   )
     return null
-  const uploading = drafts
-    .flatMap((draft) => draft.files)
-    .find((file) => file.state === "uploading")
   const message =
     state.storageError ??
     state.notice ??
-    // Text saves finish in milliseconds; flagging them made the box flicker while typing.
     (state.savingFiles
       ? "Đang lưu nháp và tệp trên thiết bị…"
       : uploading
         ? `Đang tải video ${Math.round(state.progress[uploading.key] ?? 0)}% — bài vẫn ở nháp.`
-        : `${drafts.length} bản nháp được giữ để bạn xem lại và đăng.`)
+        : queued
+          ? "Video đang chờ tải vào nháp…"
+          : "Một bản nháp gặp lỗi. Mở Bản nháp để thử lại.")
   return (
     <aside
       aria-label="Trạng thái bản nháp"
