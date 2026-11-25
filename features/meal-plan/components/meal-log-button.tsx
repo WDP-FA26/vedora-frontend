@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState, type FormEvent } from "react"
+import { useImperativeHandle, useState, type FormEvent, type Ref } from "react"
 import { useRouter } from "next/navigation"
 import {
   CheckIcon,
@@ -53,13 +53,6 @@ import {
   type MealLogWeek,
   type NewMealLogEntry,
 } from "@/features/meal-plan/meal-log"
-import {
-  isFreshFocus,
-  VOICE_GLOW_MS,
-  VOICE_HIGHLIGHT,
-  VOICE_POINT_MS,
-  type VoiceFocusRequest,
-} from "@/features/meal-plan/voice"
 import {
   DAY_LABELS,
   formatDayMonth,
@@ -147,6 +140,9 @@ function plannedRecipes(plan: MealPlan, day: Weekday, section: MealSection): Mea
   return planDay?.sections.find((item) => item.section === section)?.recipes ?? []
 }
 
+/** `openDay(null)` opens the diary on today. */
+export type MealLogHandle = { openDay: (date: string | null) => void }
+
 /**
  * Header button of the week: what the user actually ate, beside the plan.
  * Ticking a planned dish, adding anything else (kcal typed or looked up by AI)
@@ -155,36 +151,22 @@ function plannedRecipes(plan: MealPlan, day: Weekday, section: MealSection): Mea
 export function MealLogButton({
   plan,
   onAskAssistant,
-  voiceFocus,
+  handle,
 }: {
   plan: MealPlan
   onAskAssistant?: (prompt: string) => void
-  /** The voice agent's request to open the diary, on `date` or today. */
-  voiceFocus?: VoiceFocusRequest<{ date: string | null }>
+  /** Lets the voice agent open the diary. */
+  handle?: Ref<MealLogHandle>
 }) {
   const [open, setOpen] = useState(false)
   const [pickedDay, setPickedDay] = useState<Weekday | null>(null)
-  const [glow, setGlow] = useState(false)
-  const [handledFocus, setHandledFocus] = useState(0)
 
-  // The voice agent "clicks" the diary button: it glows, then the diary opens on that day.
-  useEffect(() => {
-    if (!voiceFocus || voiceFocus.nonce === handledFocus || !isFreshFocus(voiceFocus)) return
-    const focus = voiceFocus
-    const day = plan.days.find((item) => item.date === focus.date)?.day ?? null
-    const timers = [
-      setTimeout(() => {
-        setHandledFocus(focus.nonce)
-        setGlow(true)
-      }, 0),
-      setTimeout(() => {
-        setPickedDay(day)
-        setOpen(true)
-      }, VOICE_POINT_MS),
-      setTimeout(() => setGlow(false), VOICE_GLOW_MS),
-    ]
-    return () => timers.forEach(clearTimeout)
-  }, [voiceFocus, handledFocus, plan.days])
+  useImperativeHandle(handle, () => ({
+    openDay(date) {
+      setPickedDay(plan.days.find((item) => item.date === date)?.day ?? null)
+      setOpen(true)
+    },
+  }))
   const router = useRouter()
   const log = useAuthedSWR(open ? mealLogKey(plan.weekStart) : null, fetchMealLog, {
     onError: (error) => {
@@ -204,12 +186,10 @@ export function MealLogButton({
 
   return (
     <Sheet open={open} onOpenChange={setOpen}>
-      <span className={cn("inline-flex rounded-2xl", glow && VOICE_HIGHLIGHT)}>
-        <SheetTrigger render={<Button variant="outline" size="sm" />}>
-          <NotebookPenIcon aria-hidden />
-          Nhật ký
-        </SheetTrigger>
-      </span>
+      <SheetTrigger render={<Button variant="outline" size="sm" />}>
+        <NotebookPenIcon aria-hidden />
+        Nhật ký
+      </SheetTrigger>
       <SheetContent className="data-[side=right]:w-full data-[side=right]:sm:max-w-md">
         <SheetHeader>
           <SheetTitle>Nhật ký ăn uống</SheetTitle>

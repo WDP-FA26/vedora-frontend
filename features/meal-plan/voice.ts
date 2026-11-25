@@ -24,6 +24,27 @@ import { send } from "@/features/shared/lib/api-client"
  */
 export const VOICE_SESSION_ROUTE = "/api/meal-planner/voice/session"
 
+/**
+ * Status the session route answers with when the API refuses a session because the
+ * user's AI allowance is used up (`429 AI_QUOTA_EXCEEDED`): `experimental_useRealtime`
+ * reports only the status, and a plain 429 also means "too fast".
+ */
+export const VOICE_QUOTA_STATUS = 402
+
+/** What to tell the user when `experimental_useRealtime` fails; setup failures carry only a status. */
+export function voiceErrorText(message: string) {
+  const setup = /^Failed to fetch realtime setup: (\d+)$/.exec(message)
+  if (!setup) return message
+  const status = Number(setup[1])
+  if (status === VOICE_QUOTA_STATUS) {
+    return "Bạn đã dùng hết lượt trợ lý AI hiện có nên chưa thể bắt đầu trò chuyện bằng giọng nói."
+  }
+  if (status === 429) return "Bạn thao tác hơi nhanh. Đợi một chút rồi thử lại nhé."
+  if (status === 401) return "Phiên đăng nhập đã hết hạn. Hãy tải lại trang rồi thử lại."
+  if (status === 503) return "Trợ lý giọng nói đang tạm ngưng. Hãy thử lại sau."
+  return "Chưa kết nối được trợ lý giọng nói. Hãy thử lại sau ít phút."
+}
+
 /** Must match the API's VOICE_REALTIME_MODEL: the token and its URL are bound to it. */
 export const VOICE_MODEL_ID = "openai/gpt-live-1.1"
 
@@ -237,23 +258,8 @@ export type VoiceFocus =
   | { kind: "bodyMetrics" }
   | { kind: "planDay"; weekStart: string; day: Weekday }
 
-/** One request to point at something, so the same focus can be asked for twice. */
-export type VoiceFocusRequest<T> = T & { nonce: number; at: number }
-
-/** A focus request older than this is from before a remount, not a fresh one. */
-export const VOICE_FOCUS_TTL_MS = 4000
-/** How long the target glows before the agent "clicks" it. */
-export const VOICE_POINT_MS = 700
-/** How long the target keeps glowing in total. */
+/** How long the screen keeps glowing after the agent last opened something. */
 export const VOICE_GLOW_MS = 1800
-
-/** The 7-color rainbow glow around whatever the voice agent is acting on or about to open. */
-export const VOICE_HIGHLIGHT = "voice-ai-glow z-30"
-
-export function isFreshFocus(request: { at: number } | undefined) {
-  if (!request) return false
-  return Date.now() - request.at < VOICE_FOCUS_TTL_MS
-}
 
 const PLAN_TOOLS = new Set(["fillSlots", "editPlan", "autoBalancePlan", "verifyMealPlanAllergies"])
 const DIETARY_NOTE_TOOLS = new Set(["updatePreferences", "updateAllergyNote"])

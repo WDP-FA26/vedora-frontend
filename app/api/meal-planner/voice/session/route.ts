@@ -1,6 +1,7 @@
 import { getAccessToken } from "@/features/auth/server/session"
-import { apiFetch } from "@/features/auth/lib/api"
-import { voiceSessionSchema } from "@/features/meal-plan/voice"
+import { API_URL } from "@/features/auth/lib/api"
+import { VOICE_QUOTA_STATUS, voiceSessionSchema } from "@/features/meal-plan/voice"
+import { ApiError, sendJson } from "@/features/shared/lib/api-client"
 
 /**
  * Setup endpoint for the meal planner voice agent. `experimental_useRealtime` POSTs here
@@ -14,21 +15,25 @@ export async function POST() {
     return Response.json({ message: "Authentication required" }, { status: 401 })
   }
 
-  const response = await apiFetch("/meal-plan/voice/session", {
-    method: "POST",
-    headers: { Authorization: `Bearer ${accessToken}` },
-  })
-  if (!response.ok) {
-    return new Response(await response.text(), {
-      status: response.status,
-      headers: { "Content-Type": response.headers.get("Content-Type") ?? "application/json" },
+  try {
+    const session = await sendJson(voiceSessionSchema, `${API_URL}/meal-plan/voice/session`, accessToken, {
+      method: "POST",
+      cache: "no-store",
     })
+    return Response.json({
+      token: session.token,
+      url: session.url,
+      ...(session.expiresAt === null ? {} : { expiresAt: session.expiresAt }),
+    })
+  } catch (error) {
+    // A route handler answers with a Response; anything but an API refusal stays a 500.
+    if (!(error instanceof ApiError)) throw error
+    return Response.json({ code: error.code, message: error.message }, { status: sessionErrorStatus(error) })
   }
+}
 
-  const session = voiceSessionSchema.parse(await response.json())
-  return Response.json({
-    token: session.token,
-    url: session.url,
-    ...(session.expiresAt === null ? {} : { expiresAt: session.expiresAt }),
-  })
+/** The hook only reports the status, so a used-up AI allowance gets its own one. */
+function sessionErrorStatus(error: ApiError) {
+  if (error.code === "AI_QUOTA_EXCEEDED") return VOICE_QUOTA_STATUS
+  return error.status
 }

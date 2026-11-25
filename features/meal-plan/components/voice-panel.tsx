@@ -5,10 +5,9 @@ import { MicIcon, MicOffIcon, PhoneOffIcon, RotateCcwIcon } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { VoiceOrb, type VoiceOrbState } from "@/components/ui/voice-orb"
-import type { MealPlannerVoice, VoiceCaption } from "@/features/meal-plan/hooks/use-meal-planner-voice"
-import { VOICE_MAX_SECONDS } from "@/features/meal-plan/voice"
+import { useMealPlannerVoice } from "@/features/meal-plan/hooks/use-meal-planner-voice"
+import { VOICE_MAX_SECONDS, type VoiceEffects } from "@/features/meal-plan/voice"
 import { LogoMark } from "@/features/shared/components/wordmark"
-import { cn } from "@/lib/utils"
 
 const STATE_TEXT: Record<VoiceOrbState, { label: string; hint: string }> = {
   idle: { label: "Đã kết thúc", hint: "Cuộc trò chuyện đã được lưu vào khung chat." },
@@ -34,52 +33,44 @@ function clock(totalSeconds: number) {
   return `${minutes}:${String(seconds).padStart(2, "0")}`
 }
 
-/** Seconds left in the call, ticking once a second while it runs. */
-function useSecondsLeft(startedAt: number | null) {
+/** Seconds left in the call, ticking once a second in isolation so the panel stays calm. */
+function VoiceCountdown({ startedAt }: { startedAt: number | null }) {
   const [now, setNow] = useState(() => Date.now())
   useEffect(() => {
     if (startedAt === null) return
     const timer = setInterval(() => setNow(Date.now()), 1000)
     return () => clearInterval(timer)
   }, [startedAt])
-  if (startedAt === null) return VOICE_MAX_SECONDS
-  const elapsed = Math.floor((now - startedAt) / 1000)
-  return Math.max(0, VOICE_MAX_SECONDS - elapsed)
-}
-
-function Captions({ captions }: { captions: VoiceCaption[] }) {
-  return (
-    <div aria-live="polite" className="flex min-h-16 w-full max-w-sm flex-col gap-1.5 text-center">
-      {captions.map((caption) => (
-        <p
-          key={caption.id}
-          className={cn(
-            "text-balance line-clamp-3",
-            caption.speaker === "user" ? "text-xs text-muted-foreground" : "text-sm text-foreground"
-          )}
-        >
-          <span className="font-semibold text-primary">{caption.speaker === "user" ? "Bạn: " : "Vedora: "}</span>
-          {caption.text}
-        </p>
-      ))}
-    </div>
-  )
+  const secondsLeft =
+    startedAt === null ? VOICE_MAX_SECONDS : Math.max(0, VOICE_MAX_SECONDS - Math.floor((now - startedAt) / 1000))
+  return <>Trò chuyện bằng giọng nói · còn {clock(secondsLeft)}</>
 }
 
 /**
- * The assistant column during a voice call: the orb in the middle, what is being
- * said under it, and the call controls. The agent works on the calendar beside it.
+ * The assistant column during a voice call: the orb in the middle, a few things to
+ * try until the user speaks, and the call controls. The agent works on the calendar beside it.
+ *Owns `useMealPlannerVoice` so realtime updates never re-render `MealPlannerView`.
  */
 export function VoicePanel({
-  voice,
+  weekStart,
+  today,
+  threadId,
+  onEffects,
+  onTurnEnd,
+  onClose,
   leading,
   trailing,
 }: {
-  voice: MealPlannerVoice
+  weekStart?: string
+  today?: string
+  threadId: string
+  onEffects: (effects: VoiceEffects) => void
+  onTurnEnd: (threadId: string) => void
+  onClose: () => void
   leading?: ReactNode
   trailing?: ReactNode
 }) {
-  const secondsLeft = useSecondsLeft(voice.startedAt)
+  const voice = useMealPlannerVoice({ weekStart, today, threadId, onEffects, onTurnEnd, onClose })
   const text = STATE_TEXT[voice.orbState]
   const live = voice.status === "connected"
   const failed = voice.error !== null || voice.status === "error"
@@ -94,7 +85,7 @@ export function VoicePanel({
         <div className="min-w-0 flex-1">
           <h2 className="font-heading text-base font-bold leading-tight">Trợ lý Vedora</h2>
           <p className="mt-0.5 truncate text-xs text-muted-foreground">
-            Trò chuyện bằng giọng nói · còn {clock(secondsLeft)}
+            <VoiceCountdown startedAt={voice.startedAt} />
           </p>
         </div>
         {trailing}
@@ -124,8 +115,7 @@ export function VoicePanel({
             </Button>
           </div>
         )}
-        {!failed && voice.captions.length > 0 && <Captions captions={voice.captions} />}
-        {!failed && voice.captions.length === 0 && live && (
+        {!failed && !voice.heard && live && (
           <ul className="grid w-full max-w-xs gap-1.5 text-center text-xs text-muted-foreground">
             {SUGGESTIONS.map((suggestion) => (
               <li key={suggestion} className="rounded-xl border border-border bg-card px-3 py-2">

@@ -29,14 +29,14 @@ import {
   type NutritionGoal,
   type NutritionProfile,
 } from "@/features/dietary/dietary"
-import { CalendarBoard, type CalendarVoiceFocus } from "@/features/meal-plan/components/calendar-board"
-import { MealLogButton } from "@/features/meal-plan/components/meal-log-button"
+import { CalendarBoard, type CalendarBoardHandle } from "@/features/meal-plan/components/calendar-board"
+import { MealLogButton, type MealLogHandle } from "@/features/meal-plan/components/meal-log-button"
 import { PlannerChat, type PlannerChatHandle } from "@/features/meal-plan/components/planner-chat"
 import { RecipeSheet, type OpenedDish } from "@/features/meal-plan/components/recipe-sheet"
 import { VoicePanel } from "@/features/meal-plan/components/voice-panel"
+import { VoiceScreenGlow } from "@/features/meal-plan/components/voice-screen-glow"
 import { WeekNav } from "@/features/meal-plan/components/week-nav"
 import { useMealPlannerChat } from "@/features/meal-plan/hooks/use-meal-planner-chat"
-import { useMealPlannerVoice } from "@/features/meal-plan/hooks/use-meal-planner-voice"
 import {
   DAY_LABELS,
   fetchMealPlan,
@@ -53,7 +53,7 @@ import {
   type SlotRef,
   type Weekday,
 } from "@/features/meal-plan/meal-plan"
-import type { VoiceEffects, VoiceFocusRequest } from "@/features/meal-plan/voice"
+import { VOICE_GLOW_MS, type VoiceEffects } from "@/features/meal-plan/voice"
 import { ApiError } from "@/features/shared/lib/api-client"
 import { z } from "zod"
 import { cn } from "@/lib/utils"
@@ -96,18 +96,15 @@ export function MealPlannerView() {
   const plannerChat = useRef<PlannerChatHandle>(null)
   const [tab, setTab] = useState<Tab>("chat")
   const [assistantOpen, setAssistantOpen] = useState(true)
-  const [calendarFocus, setCalendarFocus] = useState<CalendarVoiceFocus | undefined>(undefined)
-  const [diaryFocus, setDiaryFocus] = useState<VoiceFocusRequest<{ date: string | null }> | undefined>(undefined)
+  const calendar = useRef<CalendarBoardHandle>(null)
+  const mealLog = useRef<MealLogHandle>(null)
+  /** A day the voice agent showed in another week; the calendar picks it when that week mounts. */
+  const [voiceDay, setVoiceDay] = useState<{ weekStart: string; day: Weekday } | null>(null)
   const [voiceDish, setVoiceDish] = useState<OpenedDish | null>(null)
   const [voiceDishOpen, setVoiceDishOpen] = useState(false)
-  const voice = useMealPlannerVoice({
-    weekStart,
-    today: plan.data?.today,
-    threadId: chat.threadId,
-    onFocus: showVoiceFocus,
-    // Voice turns are saved in the chat's thread; reloading it shows them in the chat.
-    onTurnEnd: (threadId) => void chat.selectThread(threadId),
-  })
+  /** When the voice agent last changed or opened something; the screen glows a little after it. */
+  const [lastVoiceFocusAt, setLastVoiceFocusAt] = useState<number | null>(null)
+  const [voiceOpen, setVoiceOpen] = useState(false)
   const [askContext, setAskContext] = useState<AskContext | null>(null)
   const restrictions = useAuthedSWR(canLoadDietary ? MY_DIETARY_KEY : null, fetchMyDietary)
   const nutrition = useAuthedSWR(canLoadDietary ? MY_NUTRITION_KEY : null, fetchMyNutrition)
@@ -123,6 +120,12 @@ export function MealPlannerView() {
     }, TOKEN_CHECK_MS)
     return () => clearInterval(timer)
   }, [accessToken, router])
+
+  useEffect(() => {
+    if (lastVoiceFocusAt === null) return
+    const timer = setTimeout(() => setLastVoiceFocusAt(null), VOICE_GLOW_MS)
+    return () => clearTimeout(timer)
+  }, [lastVoiceFocusAt])
 
   // A `week` in the URL the API refuses (not a Monday, too far ahead) is dropped, back to this week.
   const weekRefused =
@@ -149,26 +152,32 @@ export function MealPlannerView() {
   }
 
   /**
-   * Opens what the voice agent talked about, in the planner's own UI: the dish on
-   * the calendar (or its recipe sheet when it is not planned), the food diary, the
-   * BMI panel, or the day it just changed.
+   * Lights the screen glow for anything the voice agent changed or opened, then opens
+   * it in the planner's own UI: the dish on the calendar (or its recipe sheet when it
+   * is not planned), the food diary, the BMI panel, or the day it just changed.
    */
-  function showVoiceFocus({ focus }: VoiceEffects) {
+  function showVoiceEffects({ focus }: VoiceEffects) {
+    setLastVoiceFocusAt(Date.now())
     if (!focus) return
-    const now = Date.now()
     if (focus.kind === "eatingLog") {
       setTab("calendar")
-      setDiaryFocus({ nonce: now, at: now, date: focus.date })
+      mealLog.current?.openDay(focus.date)
       return
     }
     if (focus.kind === "bodyMetrics") {
       setTab("calendar")
-      setCalendarFocus({ nonce: now, at: now, bodyMetrics: true })
+      calendar.current?.showBodyMetrics()
       return
     }
     if (focus.kind === "planDay") {
+      if (focus.weekStart === weekStart) {
+        setTab("calendar")
+        calendar.current?.showDay(focus.day)
+        return
+      }
+      // Another week remounts the calendar, so the day goes in as its initial pick.
+      setVoiceDay({ weekStart: focus.weekStart, day: focus.day })
       showWeek(focus.weekStart)
-      setCalendarFocus({ nonce: now, at: now, day: focus.day })
       return
     }
     const planned = plan.data?.days.find((day) =>
@@ -176,7 +185,7 @@ export function MealPlannerView() {
     )
     if (planned) {
       setTab("calendar")
-      setCalendarFocus({ nonce: now, at: now, day: planned.day, recipeId: focus.recipeId })
+      calendar.current?.openDish(planned.day, focus.recipeId)
       return
     }
     setVoiceDish({ recipeId: focus.recipeId, title: focus.title })
@@ -221,13 +230,11 @@ export function MealPlannerView() {
   function startVoice() {
     setAssistantOpen(true)
     setTab("chat")
-    if (!voice.open && weekStart) {
-      void voice.start()
-    }
+    if (weekStart) setVoiceOpen(true)
   }
 
   const voicePillButton = (className?: string) =>
-    voice.open ? (
+    voiceOpen ? (
       <Button
         type="button"
         variant="secondary"
@@ -388,9 +395,15 @@ export function MealPlannerView() {
                 !assistantOpen && "lg:invisible lg:opacity-0"
               )}
             >
-            {voice.open ? (
+            {voiceOpen ? (
               <VoicePanel
-                voice={voice}
+                weekStart={weekStart}
+                today={plan.data?.today}
+                threadId={chat.threadId}
+                onEffects={showVoiceEffects}
+                // Voice turns are saved in the chat's thread; reloading it shows them in the chat.
+                onTurnEnd={(threadId) => void chat.selectThread(threadId)}
+                onClose={() => setVoiceOpen(false)}
                 leading={<span className="hidden lg:block">{backButton("icon")}</span>}
                 trailing={hideAssistantButton}
               />
@@ -407,7 +420,7 @@ export function MealPlannerView() {
                 trailing={hideAssistantButton}
                 onOpenWeek={showWeek}
                 onStartVoice={startVoice}
-                voiceDisabled={!weekStart || voice.open}
+                voiceDisabled={!weekStart || voiceOpen}
               />
             )}
             </div>
@@ -423,7 +436,8 @@ export function MealPlannerView() {
                 onAsk={askAboutRecipe}
                 onSuggestSlot={suggestForSlot}
                 nutrition={nutrition.data}
-                voiceFocus={calendarFocus}
+                handle={calendar}
+                initialDay={voiceDay !== null && voiceDay.weekStart === weekStart ? voiceDay.day : undefined}
                 onNutritionSaved={async (updated) => {
                   await nutrition.mutate(updated, { revalidate: false })
                 }}
@@ -438,7 +452,7 @@ export function MealPlannerView() {
                       onToday={() => plan.data && showWeek(plan.data.currentWeekStart)}
                     />
                     {plan.data && (
-                      <MealLogButton plan={plan.data} onAskAssistant={askAssistant} voiceFocus={diaryFocus} />
+                      <MealLogButton plan={plan.data} onAskAssistant={askAssistant} handle={mealLog} />
                     )}
                     {!assistantOpen && voicePillButton("hidden lg:inline-flex")}
                   </div>
@@ -465,6 +479,7 @@ export function MealPlannerView() {
         </div>
       </Tabs>
       <RecipeSheet open={voiceDishOpen} dish={voiceDish} onClose={() => setVoiceDishOpen(false)} />
+      {voiceOpen && <VoiceScreenGlow active={lastVoiceFocusAt !== null} />}
     </section>
   )
 }

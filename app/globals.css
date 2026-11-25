@@ -356,24 +356,36 @@
     max-width: 112rem;
   }
 
-  /* Grok-on-Tesla style 7-color rainbow AI focus ring & aura */
-  .voice-ai-glow {
-    position: relative;
-    isolation: isolate;
-  }
-
-  .sticky.voice-ai-glow {
-    position: sticky;
-  }
-
-  .voice-ai-glow::before,
-  .voice-ai-glow::after {
-    content: "";
-    position: absolute;
-    border-radius: inherit;
+  /* 7-color rainbow aura around the whole screen while the voice agent works on the planner. */
+  .voice-ai-screen-glow {
+    position: fixed;
+    inset: 0;
+    z-index: 60;
     pointer-events: none;
+    overflow: hidden;
+    contain: strict;
+    opacity: 0;
+    transition: opacity 500ms ease;
+  }
+
+  .voice-ai-screen-glow[data-active="true"] {
+    opacity: 1;
+  }
+
+  .voice-ai-screen-glow-edge,
+  .voice-ai-screen-glow-aura {
+    position: absolute;
+    inset: 0;
+    overflow: hidden;
+  }
+
+  .voice-ai-screen-glow-wheel {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 150vmax;
+    height: 150vmax;
     background: conic-gradient(
-      from var(--voice-glow-angle),
       #ff3b30,
       #ff9500,
       #ffcc00,
@@ -383,13 +395,19 @@
       #af52de,
       #ff3b30
     );
-    animation: voice-glow-spin 2.2s linear infinite;
+    will-change: transform;
+    animation: voice-glow-spin 4s linear infinite;
+    animation-play-state: paused;
   }
 
-  .voice-ai-glow::before {
-    inset: -2px;
+  .voice-ai-screen-glow[data-active="true"] .voice-ai-screen-glow-wheel {
+    animation-play-state: running;
+  }
+
+  /* A thin crisp line on the very edge of the viewport. */
+  .voice-ai-screen-glow-edge {
     padding: 2px;
-    z-index: 1;
+    opacity: 0.85;
     -webkit-mask:
       linear-gradient(#000 0 0) content-box,
       linear-gradient(#000 0 0);
@@ -400,34 +418,33 @@
     mask-composite: exclude;
   }
 
-  .voice-ai-glow::after {
-    inset: -5px;
-    z-index: -1;
-    filter: blur(8px);
-    animation:
-      voice-glow-spin 2.2s linear infinite,
-      voice-glow-breathe 1.6s ease-in-out infinite;
+  /* The soft aura: the gradient fades inward from every edge. */
+  .voice-ai-screen-glow-aura {
+    -webkit-mask-image:
+      linear-gradient(to right, #000, transparent 3.5rem),
+      linear-gradient(to left, #000, transparent 3.5rem),
+      linear-gradient(to bottom, #000, transparent 3.5rem),
+      linear-gradient(to top, #000, transparent 3.5rem);
+    mask-image:
+      linear-gradient(to right, #000, transparent 3.5rem),
+      linear-gradient(to left, #000, transparent 3.5rem),
+      linear-gradient(to bottom, #000, transparent 3.5rem),
+      linear-gradient(to top, #000, transparent 3.5rem);
+    animation: voice-glow-breathe 2.4s ease-in-out infinite;
+    animation-play-state: paused;
   }
 
-  /* Sticky day headers sit at y=0 of an overflow-auto grid; keep the top edge inside the viewport. */
-  .sticky.voice-ai-glow::before {
-    inset: 1px;
+  .voice-ai-screen-glow[data-active="true"] .voice-ai-screen-glow-aura {
+    animation-play-state: running;
   }
-
-  .sticky.voice-ai-glow::after {
-    inset: 0;
-  }
-}
-
-@property --voice-glow-angle {
-  syntax: "<angle>";
-  initial-value: 0deg;
-  inherits: false;
 }
 
 @keyframes voice-glow-spin {
+  from {
+    transform: translate(-50%, -50%) rotate(0deg);
+  }
   to {
-    --voice-glow-angle: 360deg;
+    transform: translate(-50%, -50%) rotate(360deg);
   }
 }
 

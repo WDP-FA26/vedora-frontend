@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState, type ReactNode } from "react"
+import { useImperativeHandle, useState, type ReactNode, type Ref } from "react"
 import Link from "next/link"
 import {
   ActivityIcon,
@@ -57,13 +57,6 @@ import {
   type DayNutritionSummary,
   type MealPlan,
 } from "@/features/meal-plan/meal-plan"
-import {
-  isFreshFocus,
-  VOICE_GLOW_MS,
-  VOICE_HIGHLIGHT,
-  VOICE_POINT_MS,
-  type VoiceFocusRequest,
-} from "@/features/meal-plan/voice"
 import { cn } from "@/lib/utils"
 
 const weeklyChartConfig = {
@@ -225,6 +218,8 @@ function buildBalancePrompt(
   return "Nhờ trợ lý nhận xét thực đơn tuần này xem lượng calo ước tính và 5 nhóm chất chay (Đạm, Xơ, Sắt, Canxi, Béo tốt) đã hài hòa với BMI của mình chưa?"
 }
 
+export type NutritionCompanionBarHandle = { showBodyMetrics: () => void }
+
 /**
  * Compact companion banner above the calendar grid plus a rich side sheet housing
  * all 3 charts (Weekly Calories, Asian BMI Spectrum, Weight/BMI Trend) and check-in tools.
@@ -235,38 +230,25 @@ export function NutritionCompanionBar({
   onNutritionSaved,
   onAskAssistant,
   trailing,
-  voiceFocus,
+  handle,
 }: {
   plan: MealPlan
   nutrition: NutritionProfile | undefined
   onNutritionSaved: (next: NutritionProfile) => Promise<void> | void
   onAskAssistant?: (prompt: string) => void
   trailing?: ReactNode
-  /** The voice agent's request to show the BMI panel. */
-  voiceFocus?: VoiceFocusRequest<object>
+  /** Lets the voice agent open the BMI panel. */
+  handle?: Ref<NutritionCompanionBarHandle>
 }) {
   const [sheetOpen, setSheetOpen] = useState(false)
   const [activeTab, setActiveTab] = useState<"weekly" | "bmi">("weekly")
-  const [glowBmi, setGlowBmi] = useState(false)
-  const [handledFocus, setHandledFocus] = useState(0)
 
-  // The voice agent "clicks" the BMI chip: it glows, then the BMI tab opens.
-  useEffect(() => {
-    if (!voiceFocus || voiceFocus.nonce === handledFocus || !isFreshFocus(voiceFocus)) return
-    const nonce = voiceFocus.nonce
-    const timers = [
-      setTimeout(() => {
-        setHandledFocus(nonce)
-        setGlowBmi(true)
-      }, 0),
-      setTimeout(() => {
-        setActiveTab("bmi")
-        setSheetOpen(true)
-      }, VOICE_POINT_MS),
-      setTimeout(() => setGlowBmi(false), VOICE_GLOW_MS),
-    ]
-    return () => timers.forEach(clearTimeout)
-  }, [voiceFocus, handledFocus])
+  useImperativeHandle(handle, () => ({
+    showBodyMetrics() {
+      setActiveTab("bmi")
+      setSheetOpen(true)
+    },
+  }))
   const [editingProfile, setEditingProfile] = useState(false)
 
   const weekSummary = computeWeekNutrition(plan, nutrition)
@@ -364,8 +346,7 @@ export function NutritionCompanionBar({
             type="button"
             onClick={() => openSheet("bmi")}
             className={cn(
-              "inline-flex max-w-full items-center gap-1.5 rounded-full border border-border bg-card px-2.5 py-1 font-medium transition-colors hover:border-primary/40",
-              glowBmi && VOICE_HIGHLIGHT
+              "inline-flex max-w-full items-center gap-1.5 rounded-full border border-border bg-card px-2.5 py-1 font-medium transition-colors hover:border-primary/40"
             )}
           >
             <ScaleIcon aria-hidden className="size-3.5 shrink-0 text-primary" />
