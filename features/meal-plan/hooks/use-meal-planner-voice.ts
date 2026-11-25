@@ -27,10 +27,8 @@ import {
   voicePageContext,
   voiceRecipeContext,
   voiceSessionConfig,
-  classifyInterruption,
   type VoiceAction,
   type VoiceEffects,
-  type VoiceInterruption,
   type VoiceOpenRecipe,
   type VoiceScreen,
 } from "@/features/meal-plan/voice"
@@ -261,37 +259,21 @@ export function useMealPlannerVoice({
   }
 
   /**
-   * Takes the words of one delegation and decides when they run. With nothing running they
-   * run now. Words spoken while a turn runs are read first: a progress check is answered
-   * without stopping the work, a correction or "stop" cancels it (what it saved stays), and a
-   * separate request waits its turn.
+   * Takes the words of one delegation and runs them. If an earlier turn is still
+   * running, it is superseded immediately (skipping the extra interruption decision
+   * round-trip); anything already saved stays saved.
    */
   async function delegate(delegationId: string, offsetMs: number | undefined) {
     if (!(await ledger.waitForUtterance(offsetMs, TRANSCRIPT_GRACE_MS))) return
     const message = ledger.takeUtterance(offsetMs)
-    const running = ledger.running()
-    if (!running || !message || !accessToken) {
-      ledger.enqueue(() => runDelegation(delegationId, message))
-      return
-    }
-    let action: VoiceInterruption = "supersede"
-    try {
-      action = await classifyInterruption(accessToken, { running: running.message, utterance: message })
-    } catch {
-      // Without a reading, stopping is safer than finishing a request the user may have changed.
-    }
-    if (action === "progress" && ledger.running()?.delegationId === running.delegationId) {
-      await append(
-        delegationId,
-        "commentary",
-        "Việc người dùng nhờ trước đó vẫn đang chạy, chưa có kết quả."
-      )
-      return
-    }
-    if (action === "supersede") {
+    if (ledger.running() && message) {
       const superseded = ledger.cancel()
       if (superseded) {
-        void append(superseded, "thinking", "Việc này đã dừng vì người dùng sửa hoặc dừng yêu cầu; những gì đã lưu vẫn giữ.")
+        void append(
+          superseded,
+          "thinking",
+          "This task was stopped because the user spoke again; anything already saved remains saved."
+        )
       }
     }
     ledger.enqueue(() => runDelegation(delegationId, message))
