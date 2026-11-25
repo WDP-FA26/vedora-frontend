@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
-import { FarewellTracker, VoiceCallLedger } from "@/features/meal-plan/voice-call"
+import { FarewellTracker, TRANSCRIPT_SETTLE_MS, VoiceCallLedger } from "@/features/meal-plan/voice-call"
 
 function words(ledger: VoiceCallLedger, fragments: [text: string, startMs: number, endMs: number][]) {
   for (const [text, startMs, endMs] of fragments) ledger.addFragment({ text, startMs, endMs })
@@ -33,6 +33,45 @@ describe("VoiceCallLedger.takeUtterance", () => {
     words(ledger, [["ừ", 0, 300]])
     expect(ledger.takeUtterance(undefined)).toBe("ừ")
     expect(ledger.takeUtterance(undefined)).toBe("")
+  })
+})
+
+describe("VoiceCallLedger.utteranceReady", () => {
+  beforeEach(() => {
+    vi.useFakeTimers()
+    vi.setSystemTime(10_000)
+  })
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it("waits while the transcript has not reached the delegation point", () => {
+    const ledger = new VoiceCallLedger()
+    expect(ledger.utteranceReady(500, Date.now() + 5000)).toBe(false)
+    words(ledger, [["thêm đậu hũ.", 0, 400]])
+    expect(ledger.utteranceReady(500, Date.now() + 5000)).toBe(false)
+  })
+
+  it("takes a finished sentence at once", () => {
+    const ledger = new VoiceCallLedger()
+    words(ledger, [["thêm đậu hũ vào tối thứ bảy.", 0, 1200]])
+    expect(ledger.utteranceReady(1000, Date.now())).toBe(true)
+    words(ledger, [[" Được không?", 1300, 1800]])
+    expect(ledger.utteranceReady(1000, Date.now())).toBe(true)
+  })
+
+  it("waits for a short pause when the sentence is not finished", () => {
+    const ledger = new VoiceCallLedger()
+    words(ledger, [["thêm đậu hũ vào tối thứ", 0, 1200]])
+    expect(ledger.utteranceReady(1000, Date.now() + TRANSCRIPT_SETTLE_MS - 1)).toBe(false)
+    expect(ledger.utteranceReady(1000, Date.now() + TRANSCRIPT_SETTLE_MS)).toBe(true)
+  })
+
+  it("needs some words even without a delegation point", () => {
+    const ledger = new VoiceCallLedger()
+    expect(ledger.utteranceReady(undefined, Date.now() + 5000)).toBe(false)
+    words(ledger, [["ừ", 0, 200]])
+    expect(ledger.utteranceReady(undefined, Date.now() + TRANSCRIPT_SETTLE_MS)).toBe(true)
   })
 })
 

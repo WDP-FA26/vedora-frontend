@@ -41,8 +41,6 @@ const model = gateway.experimental_realtime(VOICE_MODEL_ID)
 
 /** The longest wait for the last words of an utterance after GPT-Live delegates. */
 const TRANSCRIPT_GRACE_MS = 3000
-/** The user has finished speaking once no new words arrived for this long. */
-const TRANSCRIPT_SETTLE_MS = 700
 /** Saved changes are said aloud only once a turn has run this long; quick turns just answer. */
 const PROGRESS_AFTER_MS = 6000
 /**
@@ -300,15 +298,14 @@ export function useMealPlannerVoice({
 
   /**
    * Waits for the last words of the utterance: GPT-Live often delegates mid-sentence, so
-   * this waits until the transcript reaches the delegation point and no new word arrived
-   * for `TRANSCRIPT_SETTLE_MS`, at most `TRANSCRIPT_GRACE_MS`.
+   * this waits until `ledger.utteranceReady` (the transcript reached the delegation point
+   * and the sentence ended or went quiet), at most `TRANSCRIPT_GRACE_MS`.
    */
   async function waitForTranscript(offsetMs: number | undefined) {
     const deadline = Date.now() + TRANSCRIPT_GRACE_MS
     while (Date.now() < deadline) {
-      const reached = offsetMs === undefined || ledger.latestEndMs() >= offsetMs
-      if (reached && Date.now() - ledger.lastFragmentAt() >= TRANSCRIPT_SETTLE_MS) return
-      await new Promise((resolve) => setTimeout(resolve, 50))
+      if (ledger.utteranceReady(offsetMs, Date.now())) return
+      await new Promise((resolve) => setTimeout(resolve, 25))
     }
   }
 

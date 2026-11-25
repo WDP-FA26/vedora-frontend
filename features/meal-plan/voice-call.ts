@@ -7,6 +7,13 @@ import type { VoiceWebSearchRequest } from "@/features/meal-plan/voice"
 
 /** A pause longer than this between words starts a new utterance. */
 const UTTERANCE_PAUSE_MS = 2000
+/**
+ * Without a sentence end, the user has finished speaking once no new words arrived for this
+ * long. Every delegation waits up to this long before the API sees it, so it stays short.
+ */
+export const TRANSCRIPT_SETTLE_MS = 350
+/** The transcript ends a sentence: GPT-Live punctuates what it heard as finished. */
+const SENTENCE_END = /[.?!…]["')\]]*\s*$/
 /** After the farewell has played, how long to wait before hanging up, so its last word is not cut. */
 const END_AFTER_SPEECH_MS = 600
 /** Safety net: hang up this long after the farewell was sent, whatever the signals say. */
@@ -123,11 +130,6 @@ export class VoiceCallLedger {
     this.lastArrival = Date.now()
   }
 
-  /** Where the newest user transcript ends, in session milliseconds; -1 before any. */
-  latestEndMs() {
-    return this.fragments.at(-1)?.endMs ?? -1
-  }
-
   /**
    * The words of the utterance a delegation fired on, as one message. GPT-Live often
    * delegates before the user finishes, so the utterance is the run of words around
@@ -151,6 +153,19 @@ export class VoiceCallLedger {
   /** When the newest transcript fragment arrived, in `Date.now()` milliseconds. */
   lastFragmentAt() {
     return this.lastArrival
+  }
+
+  /**
+   * Whether the words a delegation fired on can be taken now. The transcript must reach the
+   * delegation point (`offsetMs`); then a finished sentence goes at once, and otherwise the
+   * words go once none arrived for `TRANSCRIPT_SETTLE_MS`.
+   */
+  utteranceReady(offsetMs: number | undefined, now: number) {
+    const last = this.fragments.at(-1)
+    if (!last) return false
+    if (offsetMs !== undefined && last.endMs < offsetMs) return false
+    if (SENTENCE_END.test(last.text)) return true
+    return now - this.lastArrival >= TRANSCRIPT_SETTLE_MS
   }
 
   /**
