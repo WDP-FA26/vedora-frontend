@@ -109,7 +109,6 @@ export type RecipeCategoryInput = {
   description?: string
   baseTag: RecipeTag
   icon: RecipeCategoryIcon
-  sortOrder: number
   hidden: boolean
 }
 export const saveRecipeCategory = (
@@ -117,6 +116,14 @@ export const saveRecipeCategory = (
   id: string | undefined,
   body: RecipeCategoryInput
 ) => save(recipeCategorySchema, RECIPE_CATEGORIES_KEY, token, id, body)
+
+/** `ids` is every category, first to last; the API renumbers them. */
+export async function reorderRecipeCategories(token: string, ids: string[]) {
+  await send(`${RECIPE_CATEGORIES_KEY}/order`, token, {
+    method: "PUT",
+    body: JSON.stringify({ ids }),
+  })
+}
 
 type RuleSideInput = Pick<RuleSide, "kind" | "id">
 export type RuleInput = {

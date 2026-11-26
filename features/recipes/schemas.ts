@@ -284,18 +284,11 @@ export const ingredientGroupFormSchema = z.object({
 })
 export type IngredientGroupFormValues = z.infer<typeof ingredientGroupFormSchema>
 
-export const MAX_CATEGORY_SORT_ORDER = 9999
-
 export const recipeCategoryFormSchema = z.object({
   name,
   description: z.string().trim().max(MAX_TEXT, `Mô tả dài tối đa ${MAX_TEXT} ký tự.`),
   baseTag: recipeTagSchema,
   icon: recipeCategoryIconSchema,
-  sortOrder: z
-    .number({ error: "Nhập một số." })
-    .int("Nhập số nguyên.")
-    .min(0, "Không được âm.")
-    .max(MAX_CATEGORY_SORT_ORDER, `Tối đa ${MAX_CATEGORY_SORT_ORDER}.`),
   hidden: z.boolean(),
 })
 export type RecipeCategoryFormValues = z.infer<typeof recipeCategoryFormSchema>
