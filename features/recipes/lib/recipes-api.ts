@@ -7,6 +7,7 @@ import {
   favoriteKey,
   INGREDIENTS_KEY,
   myRatingKey,
+  RECIPE_CATEGORIES_KEY,
   RECIPES_KEY,
 } from "@/features/recipes/recipes-cache"
 import {
@@ -16,6 +17,9 @@ import {
   incompatibilityRuleSchema,
   ingredientGroupPageSchema,
   ingredientGroupSchema,
+  recipeCategoryPageSchema,
+  recipeCategorySchema,
+  type RecipeCategoryIcon,
   ingredientPageSchema,
   ingredientSchema,
   myRatingSchema,
@@ -54,6 +58,8 @@ async function fetchAll<T>(schema: PageSchema<T>, [url, token]: Key) {
 export const fetchAllIngredients = (key: Key) => fetchAll(ingredientPageSchema, key)
 export const fetchAllIngredientGroups = (key: Key) =>
   fetchAll(ingredientGroupPageSchema, key)
+export const fetchAllRecipeCategories = (key: Key) =>
+  fetchAll(recipeCategoryPageSchema, key)
 export const fetchAllRules = (key: Key) => fetchAll(incompatibilityRulePageSchema, key)
 export const fetchAllRecipes = (key: Key) => fetchAll(recipePageSchema, key)
 
@@ -97,6 +103,20 @@ export const saveIngredientGroup = (
   id: string | undefined,
   body: IngredientGroupInput
 ) => save(ingredientGroupSchema, INGREDIENT_GROUPS_KEY, token, id, body)
+
+export type RecipeCategoryInput = {
+  name: string
+  description?: string
+  baseTag: RecipeTag
+  icon: RecipeCategoryIcon
+  sortOrder: number
+  hidden: boolean
+}
+export const saveRecipeCategory = (
+  token: string,
+  id: string | undefined,
+  body: RecipeCategoryInput
+) => save(recipeCategorySchema, RECIPE_CATEGORIES_KEY, token, id, body)
 
 type RuleSideInput = Pick<RuleSide, "kind" | "id">
 export type RuleInput = {

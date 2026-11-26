@@ -8,6 +8,7 @@ import { useAuth } from "@/features/auth/hooks/use-auth"
 import {
   fetchAllIngredientGroups,
   fetchAllIngredients,
+  fetchAllRecipeCategories,
   fetchAllRecipes,
   fetchAllRules,
   fetchConflicts,
@@ -23,6 +24,7 @@ import {
   PUBLIC_RECIPES_KEY,
   publicRecipeKey,
   RECIPE_CATALOG_KEYS,
+  RECIPE_CATEGORIES_KEY,
   RECIPE_CONFLICTS_KEY,
   RECIPES_KEY,
   recipeKey,
@@ -33,12 +35,14 @@ import type {
   IngredientGroup,
   PublicRecipe,
   Recipe,
+  RecipeCategory,
   RecipeConflict,
 } from "@/features/recipes/schemas"
 
 // TanStack Table rebuilds its row models whenever `data` changes identity.
 const NO_INGREDIENTS: Ingredient[] = []
 const NO_GROUPS: IngredientGroup[] = []
+const NO_CATEGORIES: RecipeCategory[] = []
 const NO_RULES: IncompatibilityRule[] = []
 const NO_RECIPES: Recipe[] = []
 const NO_CONFLICTS: RecipeConflict[] = []
@@ -61,6 +65,14 @@ export function useIngredientGroups() {
     fetchAllIngredientGroups
   )
   return { groups: data ?? NO_GROUPS, error, isLoading }
+}
+
+export function useRecipeCategories() {
+  const { data, error, isLoading } = useSWR(
+    useKey(RECIPE_CATEGORIES_KEY),
+    fetchAllRecipeCategories
+  )
+  return { categories: data ?? NO_CATEGORIES, error, isLoading }
 }
 
 export function useIncompatibilityRules() {

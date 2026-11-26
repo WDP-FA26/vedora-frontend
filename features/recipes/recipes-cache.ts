@@ -6,6 +6,7 @@ export const INGREDIENTS_KEY = `${API_URL}/admin/ingredients`
 export const INGREDIENT_GROUPS_KEY = `${API_URL}/admin/ingredient-groups`
 export const INCOMPATIBILITY_RULES_KEY = `${API_URL}/admin/incompatibility-rules`
 export const RECIPES_KEY = `${API_URL}/admin/recipes`
+export const RECIPE_CATEGORIES_KEY = `${API_URL}/admin/recipe-categories`
 
 export function recipeKey(id: string) {
   return `${RECIPES_KEY}/${id}`
@@ -20,6 +21,7 @@ export const RECIPE_CATALOG_KEYS = [
   INGREDIENT_GROUPS_KEY,
   INCOMPATIBILITY_RULES_KEY,
   RECIPES_KEY,
+  RECIPE_CATEGORIES_KEY,
 ]
 
 export const RECIPES_PATH = "/admin/recipes"
@@ -30,7 +32,7 @@ export function recipeEditPath(id: string) {
 }
 
 /** Tabs of the `/admin/recipes` page, kept in `?tab=`. */
-export const RECIPE_CATALOG_TABS = ["recipes", "ingredients", "rules"] as const
+export const RECIPE_CATALOG_TABS = ["recipes", "categories", "ingredients", "rules"] as const
 export type RecipeCatalogTab = (typeof RECIPE_CATALOG_TABS)[number]
 
 export function isRecipeCatalogTab(value: unknown): value is RecipeCatalogTab {
