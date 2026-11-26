@@ -16,8 +16,10 @@ import {
   type AdminWorkspace,
   type RestaurantDetailsFormValues,
   type RestaurantReviewFormValues,
+  type ReviewChecklist,
   type WorkspaceFormValues,
 } from "@/features/workspaces/schemas"
+import type { ProofKind, RejectReason } from "@/features/workspaces/onboarding"
 import {
   adminWorkspaceKey,
   myRestaurantReviewKey,
@@ -43,15 +45,29 @@ export function fetchWorkspace([url, token]: readonly [string, string]) {
   return sendJson(workspaceDetailSchema, url, token)
 }
 
-export function requestWorkspaceProofUpload(token: string, file: File) {
+export function requestWorkspaceProofUpload(token: string, file: File, kind: ProofKind) {
   return sendJson(workspaceProofUploadSchema, WORKSPACE_PROOF_UPLOADS_KEY, token, {
     method: "POST",
-    body: JSON.stringify({ contentType: file.type, sizeBytes: file.size }),
+    body: JSON.stringify({
+      kind,
+      contentType: file.type,
+      sizeBytes: file.size,
+    }),
   })
 }
 
-function applicationBody({ location, ...rest }: WorkspaceApplication) {
-  return JSON.stringify({ ...rest, longitude: location.longitude, latitude: location.latitude })
+function applicationBody({ location, otherPlatformUrls, legal, ...rest }: WorkspaceApplication) {
+  return JSON.stringify({
+    ...rest,
+    longitude: location.longitude,
+    latitude: location.latitude,
+    otherPlatformUrls: otherPlatformUrls.map(({ url }) => url),
+    // An individual has no company or household name.
+    legal: {
+      ...legal,
+      legalName: legal.entityType === "INDIVIDUAL" ? null : legal.legalName,
+    },
+  })
 }
 
 export function createWorkspace(token: string, application: WorkspaceApplication) {
@@ -61,11 +77,7 @@ export function createWorkspace(token: string, application: WorkspaceApplication
   })
 }
 
-export function resubmitWorkspace(
-  token: string,
-  id: string,
-  application: WorkspaceApplication
-) {
+export function resubmitWorkspace(token: string, id: string, application: WorkspaceApplication) {
   return sendJson(workspaceDetailSchema, `${workspaceKey(id)}/resubmit`, token, {
     method: "POST",
     body: applicationBody(application),
@@ -79,7 +91,11 @@ export function updateWorkspaceDetails(
 ) {
   return sendJson(workspaceDetailSchema, `${workspaceKey(id)}/details`, token, {
     method: "PATCH",
-    body: JSON.stringify({ ...rest, longitude: location.longitude, latitude: location.latitude }),
+    body: JSON.stringify({
+      ...rest,
+      longitude: location.longitude,
+      latitude: location.latitude,
+    }),
   })
 }
 
@@ -91,7 +107,9 @@ export function addWorkspaceMember(token: string, id: string, username: string) 
 }
 
 export async function removeWorkspaceMember(token: string, id: string, userId: string) {
-  await send(`${workspaceKey(id)}/members/${userId}`, token, { method: "DELETE" })
+  await send(`${workspaceKey(id)}/members/${userId}`, token, {
+    method: "DELETE",
+  })
 }
 
 /**
@@ -115,11 +133,11 @@ export function fetchAdminWorkspace([url, token]: readonly [string, string]) {
   return sendJson(adminWorkspaceDetailSchema, url, token)
 }
 
-export function reviewWorkspace(
-  token: string,
-  id: string,
-  input: { decision: "APPROVED" | "REJECTED"; note?: string }
-) {
+export type WorkspaceReviewInput =
+  | { decision: "APPROVED"; checklist?: ReviewChecklist }
+  | { decision: "REJECTED"; rejectReason: RejectReason; note?: string }
+
+export function reviewWorkspace(token: string, id: string, input: WorkspaceReviewInput) {
   return sendJson(adminWorkspaceSchema, `${adminWorkspaceKey(id)}/review`, token, {
     method: "POST",
     body: JSON.stringify(input),
@@ -147,11 +165,7 @@ export function requestMenuImageUpload(token: string, workspaceId: string, file:
   })
 }
 
-export function createMenuItem(
-  token: string,
-  workspaceId: string,
-  input: RestaurantMenuItemInput
-) {
+export function createMenuItem(token: string, workspaceId: string, input: RestaurantMenuItemInput) {
   return sendJson(restaurantMenuItemSchema, workspaceMenuKey(workspaceId), token, {
     method: "POST",
     body: JSON.stringify(input),
@@ -171,7 +185,9 @@ export function updateMenuItem(
 }
 
 export async function deleteMenuItem(token: string, workspaceId: string, itemId: string) {
-  await send(`${workspaceMenuKey(workspaceId)}/${itemId}`, token, { method: "DELETE" })
+  await send(`${workspaceMenuKey(workspaceId)}/${itemId}`, token, {
+    method: "DELETE",
+  })
 }
 
 export function fetchPublicRestaurantMenu(url: string) {
@@ -191,10 +207,15 @@ export function upsertMyRestaurantReview(
   pageUserId: string,
   input: RestaurantReviewFormValues
 ) {
-  return sendJson(restaurantReviewMutationResponseSchema, myRestaurantReviewKey(pageUserId), token, {
-    method: "PUT",
-    body: JSON.stringify(input),
-  })
+  return sendJson(
+    restaurantReviewMutationResponseSchema,
+    myRestaurantReviewKey(pageUserId),
+    token,
+    {
+      method: "PUT",
+      body: JSON.stringify(input),
+    }
+  )
 }
 
 export function deleteMyRestaurantReview(token: string, pageUserId: string) {

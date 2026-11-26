@@ -70,10 +70,10 @@ export function useSubmitWorkspace(resubmitId: string | null) {
   return async ({ proofs, ...application }: WorkspaceFormValues) => {
     if (!accessToken) throw new Error("Not signed in")
     const proofIds = await Promise.all(
-      proofs.map(async ({ file }) => {
+      proofs.map(async ({ file, kind }) => {
         const known = uploaded.current.get(file)
         if (known) return known
-        const target = await requestWorkspaceProofUpload(accessToken, file)
+        const target = await requestWorkspaceProofUpload(accessToken, file, kind)
         await uploadToStorage(target.upload, file, {
           signal: AbortSignal.timeout(UPLOAD_TIMEOUT_MS),
         })

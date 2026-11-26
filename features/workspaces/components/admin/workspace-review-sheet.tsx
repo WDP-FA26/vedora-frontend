@@ -2,12 +2,23 @@
 
 import { useState } from "react"
 import Link from "next/link"
-import { Controller, useForm } from "react-hook-form"
+import { Controller, useForm, useWatch } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
-import { CheckIcon, XIcon } from "lucide-react"
+import { z } from "zod"
+import { CheckIcon, ExternalLinkIcon, TriangleAlertIcon, XIcon } from "lucide-react"
 
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
-import { Field, FieldError, FieldLabel } from "@/components/ui/field"
+import { Checkbox } from "@/components/ui/checkbox"
+import {
+  Field,
+  FieldContent,
+  FieldError,
+  FieldLabel,
+  FieldLegend,
+  FieldSet,
+} from "@/components/ui/field"
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import {
   Sheet,
   SheetContent,
@@ -25,10 +36,6 @@ import { AuthorAvatar } from "@/features/shared/components/author-avatar"
 import { ApiError } from "@/features/shared/lib/api-client"
 import { formatPostDateLong } from "@/features/shared/lib/format"
 import { VerificationStatusBadge } from "@/features/verification/components/admin/request-columns"
-import {
-  rejectFormSchema,
-  type RejectFormValues,
-} from "@/features/verification/schemas"
 import { RestaurantLocationMap } from "@/features/workspaces/components/map"
 import {
   useAdminWorkspace,
@@ -36,21 +43,63 @@ import {
 } from "@/features/workspaces/hooks/use-admin-workspaces"
 import { MAPBOX_TOKEN } from "@/features/workspaces/lib/mapbox"
 import {
+  BUSINESS_FORM_LABELS,
+  LEGAL_ENTITY_VIEWS,
+  PROOF_KIND_VIEWS,
+  PROOF_KINDS,
+  REJECT_REASON_LABELS,
+  REJECT_REASONS,
+  REVIEW_CHECKLIST_ITEMS,
+  REVIEW_CHECKLIST_LABELS,
+  taxCodeLookupUrl,
+  VEGETARIAN_LEVEL_LABELS,
+  VN_PROVINCES,
+  WARNING_LABELS,
+  type ReviewChecklistItem,
+} from "@/features/workspaces/onboarding"
+import {
   MAX_REVIEW_NOTE_LENGTH,
   type AdminWorkspaceDetail,
+  type ReviewChecklist,
 } from "@/features/workspaces/schemas"
 
 const REJECT_FORM_ID = "reject-workspace-form"
 
+const rejectFormSchema = z
+  .object({
+    rejectReason: z.enum(REJECT_REASONS, { error: "Chọn lý do từ chối" }),
+    note: z.string().trim().max(MAX_REVIEW_NOTE_LENGTH, `Tối đa ${MAX_REVIEW_NOTE_LENGTH} ký tự`),
+  })
+  .refine((values) => values.rejectReason !== "OTHER" || values.note !== "", {
+    path: ["note"],
+    message: "Ghi rõ lý do khác",
+  })
+
+type RejectFormInput = z.input<typeof rejectFormSchema>
+type RejectFormValues = z.output<typeof rejectFormSchema>
+
+const EMPTY_CHECKLIST: ReviewChecklist = {
+  identityMatches: false,
+  taxCodeVerified: false,
+  storefrontMatches: false,
+  phoneConfirmed: false,
+}
+
+/** A company or household tax code can be looked up; a citizen ID is personal data and is not sent out. */
+const LOOKUP_TAX_CODE = /^\d{10}(-\d{3})?$/
+
 function reviewErrorMessage(error: unknown) {
   if (error instanceof ApiError && error.code === "USERNAME_TAKEN") {
-    return "Tên đăng nhập của trang đã bị tài khoản khác dùng. Hãy từ chối kèm ghi chú để chủ trang chọn tên khác."
+    return "Tên đăng nhập của trang đã bị tài khoản khác dùng. Hãy từ chối (Trùng với trang đã có) để chủ trang chọn tên khác."
+  }
+  if (error instanceof ApiError && error.code === "CHECKLIST_INCOMPLETE") {
+    return "Tick đủ các mục kiểm tra trước khi duyệt."
   }
   if (error instanceof ApiError && error.status === 409) return "Đơn này đã được xét duyệt rồi."
   return "Không lưu được quyết định. Thử lại nhé."
 }
 
-/** An application's details, map pin and proof images, with approve and reject for pending ones. */
+/** An application's details, legal info, documents and warnings, with approve and reject for pending ones. */
 export function WorkspaceReviewSheet({
   workspaceId,
   onClose,
@@ -62,9 +111,9 @@ export function WorkspaceReviewSheet({
 
   return (
     <Sheet open={workspaceId !== null} onOpenChange={(open) => !open && onClose()}>
-      <SheetContent className="data-[side=right]:w-full data-[side=right]:sm:max-w-lg">
+      <SheetContent className="data-[side=right]:w-full data-[side=right]:sm:max-w-xl">
         {workspace ? (
-          // Keyed so the reject form starts empty for each application.
+          // Keyed so the checklist and reject form start empty for each application.
           <ReviewBody key={workspace.id} workspace={workspace} onReviewed={onClose} />
         ) : (
           <>
@@ -97,6 +146,37 @@ function Detail({ label, children }: { label: string; children: React.ReactNode 
   )
 }
 
+function Section({
+  id,
+  title,
+  children,
+}: {
+  id: string
+  title: string
+  children: React.ReactNode
+}) {
+  return (
+    <section aria-labelledby={id} className="flex flex-col gap-3">
+      <h3 id={id} className="font-heading text-sm font-bold">
+        {title}
+      </h3>
+      {children}
+    </section>
+  )
+}
+
+/** Documents in the order of the application form, whatever order they were uploaded in. */
+function proofsInFormOrder(proofs: AdminWorkspaceDetail["proofs"]) {
+  return [...proofs].sort((a, b) => PROOF_KINDS.indexOf(a.kind) - PROOF_KINDS.indexOf(b.kind))
+}
+
+function fullAddress(workspace: AdminWorkspaceDetail) {
+  const parts = [workspace.address]
+  if (workspace.ward) parts.push(workspace.ward)
+  if (workspace.provinceCode) parts.push(VN_PROVINCES[workspace.provinceCode])
+  return parts.join(", ")
+}
+
 function ReviewBody({
   workspace,
   onReviewed,
@@ -108,19 +188,26 @@ function ReviewBody({
   const [rejecting, setRejecting] = useState(false)
   const [approving, setApproving] = useState(false)
   const [approveError, setApproveError] = useState<string | null>(null)
-  const form = useForm<RejectFormValues>({
+  const [checklist, setChecklist] = useState<ReviewChecklist>(EMPTY_CHECKLIST)
+  const form = useForm<RejectFormInput, unknown, RejectFormValues>({
     resolver: zodResolver(rejectFormSchema),
     defaultValues: { note: "" },
   })
   const { isSubmitting, errors } = form.formState
   const busy = approving || isSubmitting
-  const { owner } = workspace
+  const { owner, legal } = workspace
+  // Applications from before the 3-step form have nothing to check off.
+  const needsChecklist = legal !== null
+  const checklistDone = REVIEW_CHECKLIST_ITEMS.every((item) => checklist[item])
 
   async function approve() {
     setApproveError(null)
     setApproving(true)
     try {
-      await review(workspace.id, { decision: "APPROVED" })
+      await review(workspace.id, {
+        decision: "APPROVED",
+        ...(needsChecklist ? { checklist } : {}),
+      })
       onReviewed()
     } catch (error) {
       setApproveError(reviewErrorMessage(error))
@@ -128,9 +215,13 @@ function ReviewBody({
     }
   }
 
-  async function reject({ note }: RejectFormValues) {
+  async function reject({ rejectReason, note }: RejectFormValues) {
     try {
-      await review(workspace.id, { decision: "REJECTED", note })
+      await review(workspace.id, {
+        decision: "REJECTED",
+        rejectReason,
+        ...(note ? { note } : {}),
+      })
       onReviewed()
     } catch (error) {
       form.setError("root", { message: reviewErrorMessage(error) })
@@ -169,29 +260,139 @@ function ReviewBody({
           <VerificationStatusBadge status={workspace.status} />
         </div>
 
-        <dl className="flex flex-col gap-3">
-          <Detail label="Người gửi nói">{workspace.statement}</Detail>
-          {workspace.bio && <Detail label="Giới thiệu">{workspace.bio}</Detail>}
-          <Detail label="Địa chỉ">{workspace.address}</Detail>
-          {workspace.phone && <Detail label="Số điện thoại">{workspace.phone}</Detail>}
-          {workspace.website && <Detail label="Website">{workspace.website}</Detail>}
-        </dl>
-
-        {MAPBOX_TOKEN && (
-          <div className="h-48 shrink-0 overflow-hidden rounded-xl border border-border">
-            <RestaurantLocationMap
-              point={{ longitude: workspace.longitude, latitude: workspace.latitude }}
-            />
-          </div>
+        {workspace.warnings.length > 0 && (
+          <Alert variant="destructive">
+            <TriangleAlertIcon aria-hidden />
+            <AlertTitle>Cần xem kỹ</AlertTitle>
+            <AlertDescription>
+              <ul className="list-disc space-y-1 pl-4">
+                {workspace.warnings.map((warning) => (
+                  <li key={warning.code}>
+                    {WARNING_LABELS[warning.code]}:{" "}
+                    {warning.workspaces.map(({ name }) => name).join(", ")}
+                  </li>
+                ))}
+              </ul>
+            </AlertDescription>
+          </Alert>
         )}
 
-        <section aria-labelledby="workspace-proofs">
-          <h3 id="workspace-proofs" className="mb-1.5 text-[0.8125rem] text-muted-foreground">
-            Ảnh minh chứng ({workspace.proofs.length})
-          </h3>
-          <ul className="grid grid-cols-2 gap-2">
-            {workspace.proofs.map((proof, index) => (
-              <li key={proof.id}>
+        {!legal && (
+          <p className="rounded-xl bg-muted px-3 py-2 text-sm text-muted-foreground">
+            Đơn theo mẫu cũ: không có thông tin pháp lý và giấy tờ theo loại.
+          </p>
+        )}
+
+        <Section id="workspace-profile" title="1. Hồ sơ quán">
+          <dl className="flex flex-col gap-3">
+            <Detail label="Địa chỉ">{fullAddress(workspace)}</Detail>
+            {workspace.businessForm && (
+              <Detail label="Hình thức kinh doanh">
+                {BUSINESS_FORM_LABELS[workspace.businessForm]}
+              </Detail>
+            )}
+            {workspace.vegetarianLevel && (
+              <Detail label="Loại ẩm thực">
+                {VEGETARIAN_LEVEL_LABELS[workspace.vegetarianLevel]}
+              </Detail>
+            )}
+            {workspace.phone && (
+              <Detail label="Số điện thoại">
+                <a
+                  href={`tel:${workspace.phone.replace(/[^\d+]/g, "")}`}
+                  className="underline-offset-4 hover:underline"
+                >
+                  {workspace.phone}
+                </a>
+              </Detail>
+            )}
+            {workspace.website && <Detail label="Website">{workspace.website}</Detail>}
+            {workspace.otherPlatformUrls.length > 0 && (
+              <Detail label="Trên nền tảng khác">
+                <ul>
+                  {workspace.otherPlatformUrls.map((url) => (
+                    <li key={url}>
+                      <a
+                        href={url}
+                        target="_blank"
+                        rel="noreferrer noopener"
+                        className="break-all underline-offset-4 hover:underline"
+                      >
+                        {url}
+                      </a>
+                    </li>
+                  ))}
+                </ul>
+              </Detail>
+            )}
+            {workspace.bio && <Detail label="Giới thiệu">{workspace.bio}</Detail>}
+            {workspace.statement && <Detail label="Người gửi nói">{workspace.statement}</Detail>}
+          </dl>
+          {MAPBOX_TOKEN && (
+            <div className="h-48 shrink-0 overflow-hidden rounded-xl border border-border">
+              <RestaurantLocationMap
+                point={{
+                  longitude: workspace.longitude,
+                  latitude: workspace.latitude,
+                }}
+              />
+            </div>
+          )}
+        </Section>
+
+        {legal && (
+          <Section id="workspace-legal" title="2. Pháp lý">
+            <dl className="flex flex-col gap-3">
+              <Detail label="Loại hình">{LEGAL_ENTITY_VIEWS[legal.entityType].label}</Detail>
+              <Detail label={legal.entityType === "INDIVIDUAL" ? "Số CCCD (MST)" : "Mã số thuế"}>
+                <span className="flex flex-wrap items-center gap-2">
+                  <span className="font-mono">{legal.taxCode}</span>
+                  {LOOKUP_TAX_CODE.test(legal.taxCode) && (
+                    <Button
+                      variant="outline"
+                      size="xs"
+                      shape="pill"
+                      nativeButton={false}
+                      render={
+                        <a
+                          href={taxCodeLookupUrl(legal.taxCode)}
+                          target="_blank"
+                          rel="noreferrer noopener"
+                        />
+                      }
+                    >
+                      Tra cứu MST
+                      <ExternalLinkIcon aria-hidden data-icon="inline-end" />
+                    </Button>
+                  )}
+                </span>
+              </Detail>
+              {legal.legalName && (
+                <Detail
+                  label={LEGAL_ENTITY_VIEWS[legal.entityType].legalNameLabel ?? "Tên pháp lý"}
+                >
+                  {legal.legalName}
+                </Detail>
+              )}
+              <Detail label={LEGAL_ENTITY_VIEWS[legal.entityType].legalAddressLabel}>
+                {legal.legalAddress}
+              </Detail>
+              <Detail label="Người đứng tên">{legal.representativeName}</Detail>
+              <Detail label="Email liên hệ">{legal.contactEmail}</Detail>
+              {workspace.committedAt && (
+                <Detail label="Đã cam kết">{formatPostDateLong(workspace.committedAt)}</Detail>
+              )}
+            </dl>
+          </Section>
+        )}
+
+        <Section id="workspace-proofs" title={`3. Giấy tờ (${workspace.proofs.length})`}>
+          <ul className="grid grid-cols-2 gap-3">
+            {proofsInFormOrder(workspace.proofs).map((proof) => (
+              <li key={proof.id} className="flex flex-col gap-1">
+                <span className="text-xs text-muted-foreground">
+                  {PROOF_KIND_VIEWS[proof.kind].label}
+                </span>
                 <a
                   href={proof.url}
                   target="_blank"
@@ -201,7 +402,7 @@ function ReviewBody({
                   {/* eslint-disable-next-line @next/next/no-img-element -- short-lived signed URL */}
                   <img
                     src={proof.url}
-                    alt={`Ảnh minh chứng ${index + 1}, mở cỡ đầy đủ ở thẻ mới`}
+                    alt={`${PROOF_KIND_VIEWS[proof.kind].label}, mở cỡ đầy đủ ở thẻ mới`}
                     referrerPolicy="no-referrer"
                     className="aspect-[4/3] w-full object-cover"
                   />
@@ -209,39 +410,26 @@ function ReviewBody({
               </li>
             ))}
           </ul>
-        </section>
+        </Section>
 
-        {workspace.status !== "PENDING" && (
-          <Detail label="Kết quả">
-            {workspace.status === "APPROVED" ? "Đã duyệt" : "Đã từ chối"}
-            {workspace.reviewedAt && ` ${formatPostDateLong(workspace.reviewedAt)}`}
-            {workspace.reviewNote && `: ${workspace.reviewNote}`}
-          </Detail>
+        {workspace.status !== "PENDING" && <ReviewResult workspace={workspace} />}
+
+        {workspace.status === "PENDING" && needsChecklist && !rejecting && (
+          <FieldSet>
+            <FieldLegend variant="label">Kiểm tra trước khi duyệt</FieldLegend>
+            {REVIEW_CHECKLIST_ITEMS.map((item) => (
+              <ChecklistRow
+                key={item}
+                item={item}
+                checked={checklist[item]}
+                disabled={busy}
+                onChange={(checked) => setChecklist((current) => ({ ...current, [item]: checked }))}
+              />
+            ))}
+          </FieldSet>
         )}
 
-        {rejecting && (
-          <form id={REJECT_FORM_ID} noValidate onSubmit={form.handleSubmit(reject)}>
-            <Controller
-              name="note"
-              control={form.control}
-              render={({ field, fieldState }) => (
-                <Field data-invalid={fieldState.invalid}>
-                  <FieldLabel htmlFor={field.name}>Lý do từ chối</FieldLabel>
-                  <Textarea
-                    {...field}
-                    id={field.name}
-                    rows={3}
-                    autoFocus
-                    maxLength={MAX_REVIEW_NOTE_LENGTH}
-                    aria-invalid={fieldState.invalid}
-                    placeholder="Chủ trang sẽ đọc được lý do này và có thể gửi lại."
-                  />
-                  {fieldState.invalid && <FieldError errors={[fieldState.error]} />}
-                </Field>
-              )}
-            />
-          </form>
-        )}
+        {rejecting && <RejectForm form={form} onSubmit={(values) => void reject(values)} />}
       </div>
 
       {workspace.status === "PENDING" && (
@@ -252,7 +440,8 @@ function ReviewBody({
             </p>
           )}
           {rejecting ? (
-            <div className="flex justify-end gap-2">
+            // Keyed apart so React never turns the "Từ chối" button into the submit one.
+            <div key="reject" className="flex justify-end gap-2">
               <Button variant="outline" disabled={busy} onClick={() => setRejecting(false)}>
                 Quay lại
               </Button>
@@ -262,12 +451,20 @@ function ReviewBody({
               </Button>
             </div>
           ) : (
-            <div className="flex justify-end gap-2">
+            <div key="decide" className="flex items-center justify-end gap-2">
+              {needsChecklist && !checklistDone && (
+                <span className="mr-auto text-xs text-muted-foreground">
+                  Tick đủ 4 mục kiểm tra để duyệt.
+                </span>
+              )}
               <Button variant="outline" disabled={busy} onClick={() => setRejecting(true)}>
                 <XIcon aria-hidden />
                 Từ chối
               </Button>
-              <Button disabled={busy} onClick={() => void approve()}>
+              <Button
+                disabled={busy || (needsChecklist && !checklistDone)}
+                onClick={() => void approve()}
+              >
                 {approving ? <Spinner aria-hidden /> : <CheckIcon aria-hidden />}
                 Duyệt và tạo trang
               </Button>
@@ -276,5 +473,125 @@ function ReviewBody({
         </SheetFooter>
       )}
     </>
+  )
+}
+
+function ChecklistRow({
+  item,
+  checked,
+  disabled,
+  onChange,
+}: {
+  item: ReviewChecklistItem
+  checked: boolean
+  disabled: boolean
+  onChange: (checked: boolean) => void
+}) {
+  const id = `review-check-${item}`
+  return (
+    <Field orientation="horizontal">
+      <Checkbox
+        id={id}
+        checked={checked}
+        disabled={disabled}
+        onCheckedChange={(value) => onChange(value === true)}
+      />
+      <FieldContent>
+        <FieldLabel htmlFor={id}>{REVIEW_CHECKLIST_LABELS[item]}</FieldLabel>
+      </FieldContent>
+    </Field>
+  )
+}
+
+function ReviewResult({ workspace }: { workspace: AdminWorkspaceDetail }) {
+  const approved = workspace.status === "APPROVED"
+  return (
+    <dl className="flex flex-col gap-3">
+      <Detail label="Kết quả">
+        {approved ? "Đã duyệt" : "Đã từ chối"}
+        {workspace.reviewedAt && ` ${formatPostDateLong(workspace.reviewedAt)}`}
+      </Detail>
+      {workspace.rejectReason && (
+        <Detail label="Lý do">{REJECT_REASON_LABELS[workspace.rejectReason]}</Detail>
+      )}
+      {workspace.reviewNote && <Detail label="Ghi chú">{workspace.reviewNote}</Detail>}
+      {workspace.reviewChecklist && (
+        <Detail label="Đã kiểm tra">
+          <ul>
+            {REVIEW_CHECKLIST_ITEMS.filter((item) => workspace.reviewChecklist?.[item]).map(
+              (item) => (
+                <li key={item}>✓ {REVIEW_CHECKLIST_LABELS[item]}</li>
+              )
+            )}
+          </ul>
+        </Detail>
+      )}
+    </dl>
+  )
+}
+
+function RejectForm({
+  form,
+  onSubmit,
+}: {
+  form: ReturnType<typeof useForm<RejectFormInput, unknown, RejectFormValues>>
+  onSubmit: (values: RejectFormValues) => void
+}) {
+  const reason = useWatch({ control: form.control, name: "rejectReason" })
+  return (
+    <form
+      id={REJECT_FORM_ID}
+      noValidate
+      onSubmit={(event) => void form.handleSubmit(onSubmit)(event)}
+      className="flex flex-col gap-4"
+    >
+      <Controller
+        name="rejectReason"
+        control={form.control}
+        render={({ field, fieldState }) => (
+          <FieldSet data-invalid={fieldState.invalid}>
+            <FieldLegend variant="label">Lý do từ chối</FieldLegend>
+            <RadioGroup
+              name={field.name}
+              value={field.value ?? null}
+              onValueChange={field.onChange}
+              aria-invalid={fieldState.invalid}
+            >
+              {REJECT_REASONS.map((value) => (
+                <Field key={value} orientation="horizontal">
+                  <RadioGroupItem id={`reject-${value}`} value={value} />
+                  <FieldContent>
+                    <FieldLabel htmlFor={`reject-${value}`}>
+                      {REJECT_REASON_LABELS[value]}
+                    </FieldLabel>
+                  </FieldContent>
+                </Field>
+              ))}
+            </RadioGroup>
+            {fieldState.invalid && <FieldError errors={[fieldState.error]} />}
+          </FieldSet>
+        )}
+      />
+      <Controller
+        name="note"
+        control={form.control}
+        render={({ field, fieldState }) => (
+          <Field data-invalid={fieldState.invalid}>
+            <FieldLabel htmlFor={field.name}>
+              {reason === "OTHER" ? "Ghi chú" : "Ghi chú (không bắt buộc)"}
+            </FieldLabel>
+            <Textarea
+              {...field}
+              id={field.name}
+              rows={3}
+              maxLength={MAX_REVIEW_NOTE_LENGTH}
+              aria-invalid={fieldState.invalid}
+              placeholder="Chủ trang sẽ đọc được và có thể sửa rồi gửi lại."
+            />
+            {fieldState.invalid && <FieldError errors={[fieldState.error]} />}
+          </Field>
+        )}
+      />
+    </form>
   )
 }

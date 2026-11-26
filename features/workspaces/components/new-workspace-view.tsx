@@ -9,6 +9,7 @@ import { useAuth } from "@/features/auth/hooks/use-auth"
 import { PageHeader } from "@/features/workspaces/components/page-header"
 import { WorkspaceForm } from "@/features/workspaces/components/workspace-form"
 import { useWorkspace } from "@/features/workspaces/hooks/use-workspaces"
+import { REJECT_REASON_LABELS } from "@/features/workspaces/onboarding"
 import { WORKSPACES_PATH, workspacePath } from "@/features/workspaces/workspaces-cache"
 
 /** Apply to open a restaurant page, or (with `resubmitId`) fix and resend a rejected one. */
@@ -38,9 +39,9 @@ export function NewWorkspaceView({ resubmitId }: { resubmitId: string | null }) 
         ) : (
           <>
             <p className="text-[0.9375rem] leading-6 text-muted-foreground">
-              Trang nhà hàng là một tài khoản riêng: có hồ sơ, người theo dõi, bài Đăng và tin
-              nhắn riêng, và hiện trên bản đồ nhà hàng chay. Bạn và những người bạn thêm vào có
-              thể chuyển sang dùng trang. Quản trị viên duyệt trang dựa trên giấy tờ bạn gửi.
+              Trang nhà hàng là một tài khoản riêng: có hồ sơ, người theo dõi, bài Đăng và tin nhắn
+              riêng, và hiện trên bản đồ nhà hàng chay. Đơn gồm 3 bước: hồ sơ quán, thông tin pháp
+              lý và giấy tờ. Quản trị viên kiểm tra giấy tờ và gọi điện xác minh trước khi duyệt.
             </p>
             <SubmitForm />
           </>
@@ -91,8 +92,9 @@ function ResubmitForm({ id }: { id: string }) {
         <CircleAlertIcon aria-hidden />
         <AlertTitle>Đơn trước chưa được duyệt</AlertTitle>
         <AlertDescription>
-          {workspace.reviewNote ?? "Quản trị viên không để lại lý do."} Sửa lại thông tin, thêm
-          ảnh minh chứng mới rồi gửi lại nhé.
+          {workspace.rejectReason && `${REJECT_REASON_LABELS[workspace.rejectReason]}. `}
+          {workspace.reviewNote && `${workspace.reviewNote} `}
+          Sửa lại thông tin, chụp lại giấy tờ rồi gửi lại nhé.
         </AlertDescription>
       </Alert>
       <WorkspaceForm
