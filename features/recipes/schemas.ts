@@ -33,6 +33,34 @@ export const ingredientGroupSchema = z.object({
 })
 export const ingredientGroupPageSchema = page(ingredientGroupSchema)
 
+export const RECIPE_CATEGORY_ICONS = [
+  "SOUP",
+  "SALAD",
+  "POT",
+  "WHEAT",
+  "FLAME",
+  "SANDWICH",
+  "CAKE",
+  "COFFEE",
+  "COOKIE",
+  "UTENSILS",
+] as const
+export const recipeCategoryIconSchema = z.enum(RECIPE_CATEGORY_ICONS)
+export type RecipeCategoryIcon = z.infer<typeof recipeCategoryIconSchema>
+
+/** An admin-managed dish category; `baseTag` is the fixed kind the meal planner uses. */
+export const recipeCategorySchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  description: z.string().nullable(),
+  baseTag: recipeTagSchema,
+  icon: recipeCategoryIconSchema,
+  sortOrder: z.number(),
+  hidden: z.boolean(),
+  createdAt: z.string(),
+})
+export const recipeCategoryPageSchema = page(recipeCategorySchema)
+
 export const RULE_SIDE_KINDS = ["INGREDIENT", "GROUP"] as const
 
 const ruleSideSchema = namedRefSchema.extend({ kind: z.enum(RULE_SIDE_KINDS) })
@@ -200,6 +228,7 @@ export const myRatingSchema = ratingSummarySchema.extend({
 export type NamedRef = z.infer<typeof namedRefSchema>
 export type Ingredient = z.infer<typeof ingredientSchema>
 export type IngredientGroup = z.infer<typeof ingredientGroupSchema>
+export type RecipeCategory = z.infer<typeof recipeCategorySchema>
 export type IncompatibilityRule = z.infer<typeof incompatibilityRuleSchema>
 export type RuleSide = z.infer<typeof ruleSideSchema>
 export type RecipeConflict = z.infer<typeof recipeConflictSchema>
@@ -254,6 +283,15 @@ export const ingredientGroupFormSchema = z.object({
   ingredientIds: z.array(z.string()),
 })
 export type IngredientGroupFormValues = z.infer<typeof ingredientGroupFormSchema>
+
+export const recipeCategoryFormSchema = z.object({
+  name,
+  description: z.string().trim().max(MAX_TEXT, `Mô tả dài tối đa ${MAX_TEXT} ký tự.`),
+  baseTag: recipeTagSchema,
+  icon: recipeCategoryIconSchema,
+  hidden: z.boolean(),
+})
+export type RecipeCategoryFormValues = z.infer<typeof recipeCategoryFormSchema>
 
 /** A rule side in a form: `INGREDIENT:<id>` or `GROUP:<id>`. */
 export function ruleSideKey(side: Pick<RuleSide, "kind" | "id">) {
