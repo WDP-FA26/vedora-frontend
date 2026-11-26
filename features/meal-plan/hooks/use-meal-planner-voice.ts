@@ -26,7 +26,12 @@ import {
   type VoiceScreenCommand,
 } from "@/features/meal-plan/voice"
 import { FarewellTracker, VoiceCallLedger } from "@/features/meal-plan/voice-call"
-import { VoiceAudioCapture } from "@/features/meal-plan/voice-capture"
+import {
+  loadVoiceMicSettings,
+  saveVoiceMicSettings,
+  VoiceAudioCapture,
+  type VoiceMicSettings,
+} from "@/features/meal-plan/voice-capture"
 import { runVoiceTurn } from "@/features/meal-plan/voice-turn-runner"
 
 /** Created once: a new model object would replace the hook's session. */
@@ -196,6 +201,23 @@ export function useMealPlannerVoice({
   const [wasConnected, setWasConnected] = useState(false)
   const [ledger] = useState(() => new VoiceCallLedger())
   const [capture] = useState(() => new VoiceAudioCapture())
+  const [micSettings, setMicSettings] = useState<VoiceMicSettings>(loadVoiceMicSettings)
+
+  useEffect(() => {
+    capture.configureGate(micSettings)
+  }, [capture, micSettings])
+
+  function updateMicSettings(patch: Partial<VoiceMicSettings>) {
+    setMicSettings((prev) => {
+      const next = { ...prev, ...patch }
+      saveVoiceMicSettings(next)
+      return next
+    })
+  }
+
+  function readMicMeter() {
+    return capture.readMeter()
+  }
 
   const realtime = experimental_useRealtime({
     model,
@@ -254,14 +276,15 @@ export function useMealPlannerVoice({
       if (event.speaker === "user") {
         ledger.utterances.addFragment({ text: event.delta, startMs: event.startMs, endMs: event.endMs })
         setHeard(true)
-        // Speaking again while the call is ending means the user is not done.
-        if (farewell.phase !== "idle" && event.delta.trim().length > 1) keepTalking()
+        // Speaking something substantive while the call is ending means the user is not done.
+        if (farewell.shouldCancel(event.delta)) keepTalking()
       } else {
         farewell.spoke(event.startMs, event.endMs)
       }
       return
     }
     if (event.type === "delegation-created") {
+      if (farewell.phase !== "idle") keepTalking()
       void delegate(event.delegationId, event.offsetMs)
     }
   }
@@ -439,6 +462,9 @@ export function useMealPlannerVoice({
     usage: usageAnchor,
     inputLevel: ledger.readInputLevel,
     outputLevel: ledger.readOutputLevel,
+    micSettings,
+    updateMicSettings,
+    readMicMeter,
     ending,
     keepTalking,
     start,
