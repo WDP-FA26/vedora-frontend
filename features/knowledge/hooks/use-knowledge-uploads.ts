@@ -7,7 +7,7 @@ import {
   useDeleteKnowledgeDocument,
   useUpsertKnowledgeDocument,
 } from "@/features/knowledge/hooks/use-knowledge-documents"
-import { requestKnowledgeUpload } from "@/features/knowledge/lib/knowledge-api"
+import { confirmKnowledgeUpload, requestKnowledgeUpload } from "@/features/knowledge/lib/knowledge-api"
 import { MAX_KNOWLEDGE_FILE_MB } from "@/features/knowledge/schemas"
 import { ApiError } from "@/features/shared/lib/api-client"
 import { uploadToStorage } from "@/features/shared/lib/storage-upload"
@@ -81,6 +81,8 @@ export function useKnowledgeUploads() {
           sync()
         },
       })
+      const confirmed = await confirmKnowledgeUpload(token, target.document.id)
+      void upsert(confirmed)
       drop(entry, { discard: false })
     } catch (err) {
       if (entry.abort.signal.aborted) return
