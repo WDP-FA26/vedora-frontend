@@ -30,6 +30,7 @@ import {
   loadVoiceMicSettings,
   saveVoiceMicSettings,
   VoiceAudioCapture,
+  type VoiceAiDenoiseStatus,
   type VoiceMicSettings,
 } from "@/features/meal-plan/voice-capture"
 import { runVoiceTurn } from "@/features/meal-plan/voice-turn-runner"
@@ -103,6 +104,8 @@ async function openVoiceCall({
   connect,
   sendEvent,
   isMuted,
+  aiDenoise,
+  onAiDenoiseStatus,
   onError,
 }: {
   ledger: VoiceCallLedger
@@ -110,6 +113,8 @@ async function openVoiceCall({
   connect: (options: { stream?: MediaStream; capture?: boolean }) => Promise<void>
   sendEvent: SendRealtimeEvent
   isMuted: () => boolean
+  aiDenoise: boolean
+  onAiDenoiseStatus: (status: VoiceAiDenoiseStatus) => void
   onError: (message: string) => void
 }) {
   capture.stop()
@@ -119,7 +124,12 @@ async function openVoiceCall({
   let stream: MediaStream
   try {
     stream = await navigator.mediaDevices.getUserMedia({
-      audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+      audio: {
+        echoCancellation: true,
+        // Avoid double-suppressing when DeepFilterNet3 runs on the audio thread.
+        noiseSuppression: !aiDenoise,
+        autoGainControl: true,
+      },
     })
   } catch {
     if (ledger.mic.isCurrent(generation)) {
@@ -144,6 +154,8 @@ async function openVoiceCall({
     },
     onLevel: (level) => ledger.mic.setInputLevel(level),
     isMuted,
+    aiDenoise,
+    onAiDenoiseStatus,
   })
 }
 
@@ -202,17 +214,47 @@ export function useMealPlannerVoice({
   const [ledger] = useState(() => new VoiceCallLedger())
   const [capture] = useState(() => new VoiceAudioCapture())
   const [micSettings, setMicSettings] = useState<VoiceMicSettings>(loadVoiceMicSettings)
+  const [aiDenoiseStatus, setAiDenoiseStatus] = useState<VoiceAiDenoiseStatus>("off")
+  const aiDenoiseRef = useRef(micSettings.aiDenoise)
 
   useEffect(() => {
+    aiDenoiseRef.current = micSettings.aiDenoise
     capture.configureGate(micSettings)
   }, [capture, micSettings])
 
-  function updateMicSettings(patch: Partial<VoiceMicSettings>) {
-    setMicSettings((prev) => {
-      const next = { ...prev, ...patch }
-      saveVoiceMicSettings(next)
-      return next
+  function restartCapture(aiDenoise: boolean) {
+    const stream = ledger.mic.currentStream()
+    if (!stream) return
+    const track = stream.getAudioTracks()[0]
+    if (track && typeof track.applyConstraints === "function") {
+      void track.applyConstraints({ noiseSuppression: !aiDenoise }).catch(() => {
+        // Ignore browsers that reject dynamic constraint updates on an active track.
+      })
+    }
+    capture.start(stream, {
+      onAudio: async (audio) => {
+        try {
+          await sendRealtimeEvent({ type: "input-audio-append", audio })
+        } catch {
+          // Session closed or closing; transport errors are reported via `onError`.
+        }
+      },
+      onLevel: (level) => ledger.mic.setInputLevel(level),
+      isMuted: () => mutedRef.current,
+      aiDenoise,
+      onAiDenoiseStatus: setAiDenoiseStatus,
     })
+  }
+
+  function updateMicSettings(patch: Partial<VoiceMicSettings>) {
+    const next: VoiceMicSettings = { ...micSettings, ...patch }
+    const aiDenoiseChanged = next.aiDenoise !== aiDenoiseRef.current
+    aiDenoiseRef.current = next.aiDenoise
+    saveVoiceMicSettings(next)
+    setMicSettings(next)
+    if (aiDenoiseChanged) {
+      restartCapture(next.aiDenoise)
+    }
   }
 
   function readMicMeter() {
@@ -339,6 +381,8 @@ export function useMealPlannerVoice({
       connect: connectRealtime,
       sendEvent: sendRealtimeEvent,
       isMuted: () => mutedRef.current,
+      aiDenoise: aiDenoiseRef.current,
+      onAiDenoiseStatus: setAiDenoiseStatus,
       onError: setError,
     })
   }
@@ -366,6 +410,8 @@ export function useMealPlannerVoice({
       connect: connectRealtime,
       sendEvent: sendRealtimeEvent,
       isMuted: () => mutedRef.current,
+      aiDenoise: aiDenoiseRef.current,
+      onAiDenoiseStatus: setAiDenoiseStatus,
       onError: setError,
     })
     return () => {
@@ -463,6 +509,7 @@ export function useMealPlannerVoice({
     inputLevel: ledger.readInputLevel,
     outputLevel: ledger.readOutputLevel,
     micSettings,
+    aiDenoiseStatus,
     updateMicSettings,
     readMicMeter,
     ending,

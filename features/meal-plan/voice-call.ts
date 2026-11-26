@@ -344,6 +344,10 @@ export class MicrophoneSession {
     this.stream = stream
   }
 
+  currentStream(): MediaStream | null {
+    return this.stream
+  }
+
   setMonitoring(active: boolean) {
     this.monitoring = active
   }

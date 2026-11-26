@@ -64,6 +64,7 @@ import {
   type VoiceScreen,
   type VoiceScreenPanel,
 } from "@/features/meal-plan/voice"
+import { preloadDeepFilterAssets } from "@/features/meal-plan/voice-deepfilter"
 import { ApiError } from "@/features/shared/lib/api-client"
 import { z } from "zod"
 import { cn } from "@/lib/utils"
@@ -124,6 +125,10 @@ export function MealPlannerView() {
   const restrictions = useAuthedSWR(canLoadDietary ? MY_DIETARY_KEY : null, fetchMyDietary)
   const nutrition = useAuthedSWR(canLoadDietary ? MY_NUTRITION_KEY : null, fetchMyNutrition)
   const savedAvoided = restrictions.data?.allergies ?? []
+
+  useEffect(() => {
+    preloadDeepFilterAssets()
+  }, [])
 
   useEffect(() => {
     const timer = setInterval(() => {

@@ -3,7 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
+    "predev": "node scripts/sync-deepfilternet-assets.mjs",
     "dev": "next dev",
+    "prebuild": "node scripts/sync-deepfilternet-assets.mjs",
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
@@ -32,6 +34,7 @@
     "@tanstack/react-table": "^9.2.6",
     "@uppy/aws-s3": "^6.2.2",
     "@uppy/core": "^6.2.0",
+    "@workadventure/noise-suppression": "^0.2.0",
     "@wrksz/themes": "^2.0.2",
     "ai": "^7.0.181",
     "class-variance-authority": "^0.7.1",

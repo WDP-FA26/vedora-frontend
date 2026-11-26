@@ -46,3 +46,6 @@ next-env.d.ts
 /playwright-report/
 /blob-report/
 /playwright/.cache/
+
+# synced DeepFilterNet3 WASM/ONNX assets (copied on predev/prebuild)
+/public/deepfilternet/

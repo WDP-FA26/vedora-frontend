@@ -31,6 +31,7 @@ import { VOICE_MAX_SECONDS, type VoiceOpenRecipe, type VoiceScreen, type VoiceSc
 import {
   MIC_THRESHOLD_MAX_DB,
   MIC_THRESHOLD_MIN_DB,
+  type VoiceAiDenoiseStatus,
   type VoiceMicMeterSnapshot,
   type VoiceMicSettings,
 } from "@/features/meal-plan/voice-capture"
@@ -62,17 +63,27 @@ function dbToPercent(db: number): number {
   return ((clamped - MIC_THRESHOLD_MIN_DB) / (MIC_THRESHOLD_MAX_DB - MIC_THRESHOLD_MIN_DB)) * 100
 }
 
+const AI_DENOISE_STATUS_TEXT: Record<VoiceAiDenoiseStatus, string | null> = {
+  off: null,
+  loading: "Đang nạp mô hình…",
+  active: "Đang khử nhiễu 48 kHz",
+  overloaded: "Thiết bị quá tải, tạm dùng lọc cơ bản",
+  error: "Không tải được mô hình, dùng lọc cơ bản",
+}
+
 /**
- * Discord-style input sensitivity & noise gate popover: toggle automatic ambient noise
- * tracking or drag a manual dB threshold while watching a live input level bar.
+ * Discord-style input sensitivity & noise gate popover: toggle DeepFilterNet3 AI denoising,
+ * automatic ambient noise tracking, or drag a manual dB threshold while watching a live level bar.
  */
 function MicSensitivityPopover({
   settings,
+  aiDenoiseStatus,
   onChange,
   readMeter,
   disabled,
 }: {
   settings: VoiceMicSettings
+  aiDenoiseStatus: VoiceAiDenoiseStatus
   onChange: (patch: Partial<VoiceMicSettings>) => void
   readMeter: () => VoiceMicMeterSnapshot
   disabled: boolean
@@ -127,14 +138,32 @@ function MicSensitivityPopover({
           </PopoverDescription>
         </PopoverHeader>
 
-        <label className="flex cursor-pointer items-center justify-between gap-3 text-xs font-medium">
-          <span>Tự động lọc nhiễu</span>
-          <Switch
-            size="sm"
-            checked={settings.autoSensitivity}
-            onCheckedChange={(checked) => onChange({ autoSensitivity: checked })}
-          />
-        </label>
+        <div className="space-y-2.5">
+          <label className="flex cursor-pointer items-center justify-between gap-3 text-xs font-medium">
+            <span className="flex flex-col gap-0.5">
+              <span>Lọc nhiễu AI (DeepFilterNet3)</span>
+              {AI_DENOISE_STATUS_TEXT[aiDenoiseStatus] && (
+                <span className="text-[11px] font-normal text-muted-foreground">
+                  {AI_DENOISE_STATUS_TEXT[aiDenoiseStatus]}
+                </span>
+              )}
+            </span>
+            <Switch
+              size="sm"
+              checked={settings.aiDenoise}
+              onCheckedChange={(checked) => onChange({ aiDenoise: checked })}
+            />
+          </label>
+
+          <label className="flex cursor-pointer items-center justify-between gap-3 text-xs font-medium">
+            <span>Tự động điều chỉnh ngưỡng</span>
+            <Switch
+              size="sm"
+              checked={settings.autoSensitivity}
+              onCheckedChange={(checked) => onChange({ autoSensitivity: checked })}
+            />
+          </label>
+        </div>
 
         <div className="space-y-1.5">
           <div className="flex items-center justify-between text-[11px] text-muted-foreground">
@@ -331,6 +360,7 @@ export function VoicePanel({
         </Button>
         <MicSensitivityPopover
           settings={voice.micSettings}
+          aiDenoiseStatus={voice.aiDenoiseStatus}
           onChange={voice.updateMicSettings}
           readMeter={voice.readMicMeter}
           disabled={!live}

@@ -1,3 +1,7 @@
+import type { DeepFilterNetAudioWorkletHandle } from "@workadventure/noise-suppression/deepfilternet"
+
+import { attachDeepFilterNode, DEEPFILTER_SAMPLE_RATE } from "@/features/meal-plan/voice-deepfilter"
+
 const CAPTURE_SAMPLE_RATE = 24_000
 const CAPTURE_WORKLET_URL = "/realtime-capture-worklet.js?v=2"
 const CAPTURE_WORKLET_NAME = "vedora-realtime-capture"
@@ -25,7 +29,10 @@ const MIC_SETTINGS_STORAGE_KEY = "vedora:voice-mic-settings"
 export type VoiceMicSettings = {
   autoSensitivity: boolean
   thresholdDb: number
+  aiDenoise: boolean
 }
+
+export type VoiceAiDenoiseStatus = "off" | "loading" | "active" | "overloaded" | "error"
 
 export type VoiceMicMeterSnapshot = {
   levelDb: number
@@ -41,6 +48,7 @@ export function defaultVoiceMicSettings(): VoiceMicSettings {
   return {
     autoSensitivity: true,
     thresholdDb: DEFAULT_MIC_THRESHOLD_DB,
+    aiDenoise: false,
   }
 }
 
@@ -59,7 +67,8 @@ export function loadVoiceMicSettings(): VoiceMicSettings {
       typeof record.thresholdDb === "number" && Number.isFinite(record.thresholdDb)
         ? clamp(Math.round(record.thresholdDb), MIC_THRESHOLD_MIN_DB, MIC_THRESHOLD_MAX_DB)
         : defaults.thresholdDb
-    return { autoSensitivity, thresholdDb }
+    const aiDenoise = typeof record.aiDenoise === "boolean" ? record.aiDenoise : defaults.aiDenoise
+    return { autoSensitivity, thresholdDb, aiDenoise }
   } catch {
     return defaults
   }
@@ -99,12 +108,12 @@ export class VoiceNoiseGate {
   private holdUntil = 0
   private lastLevelDb = MIN_DB
 
-  constructor(settings: VoiceMicSettings = defaultVoiceMicSettings()) {
+  constructor(settings: Pick<VoiceMicSettings, "autoSensitivity" | "thresholdDb"> = defaultVoiceMicSettings()) {
     this.auto = settings.autoSensitivity
     this.manualThresholdDb = clamp(settings.thresholdDb, MIC_THRESHOLD_MIN_DB, MIC_THRESHOLD_MAX_DB)
   }
 
-  configure(settings: VoiceMicSettings): void {
+  configure(settings: Pick<VoiceMicSettings, "autoSensitivity" | "thresholdDb">): void {
     this.auto = settings.autoSensitivity
     this.manualThresholdDb = clamp(settings.thresholdDb, MIC_THRESHOLD_MIN_DB, MIC_THRESHOLD_MAX_DB)
   }
@@ -212,18 +221,22 @@ export type VoiceCaptureCallbacks = {
   onAudio: (base64Pcm16: string) => Promise<void> | void
   onLevel: (level: number) => void
   isMuted: () => boolean
+  aiDenoise?: boolean
+  onAiDenoiseStatus?: (status: VoiceAiDenoiseStatus) => void
   onError?: (error: Error) => void
 }
 
 /**
  * App-owned microphone capture for `experimental_useRealtime` (`capture: false`).
  * Runs `public/realtime-capture-worklet.js` on the audio thread (with `ScriptProcessorNode`
- * fallback), reports input RMS level directly without globals, and drops overflow frames
+ * fallback), optionally inserts a 48 kHz DeepFilterNet3 denoiser ahead of capture,
+ * reports input RMS level directly without globals, and drops overflow frames
  * under backpressure.
  */
 export class VoiceAudioCapture {
   private context: AudioContext | null = null
   private source: MediaStreamAudioSourceNode | null = null
+  private deepFilter: DeepFilterNetAudioWorkletHandle | null = null
   private processor: AudioWorkletNode | ScriptProcessorNode | null = null
   private sink: GainNode | null = null
   private generation = 0
@@ -251,7 +264,10 @@ export class VoiceAudioCapture {
     this.stop()
     this.gate.reset()
     const generation = this.generation
-    const ctx = new AudioContext({ sampleRate: CAPTURE_SAMPLE_RATE })
+    const useAiDenoise = Boolean(callbacks.aiDenoise) && typeof AudioWorkletNode !== "undefined"
+    const ctx = new AudioContext({
+      sampleRate: useAiDenoise ? DEEPFILTER_SAMPLE_RATE : CAPTURE_SAMPLE_RATE,
+    })
     this.context = ctx
     ctx.resume().catch((error: unknown) => {
       if (this.generation === generation) {
@@ -275,6 +291,7 @@ export class VoiceAudioCapture {
 
     const attachScriptProcessor = () => {
       if (this.generation !== generation || this.context !== ctx) return
+      callbacks.onAiDenoiseStatus?.(useAiDenoise ? "error" : "off")
       const processor = ctx.createScriptProcessor(CAPTURE_FALLBACK_CHUNK_SAMPLES, 1, 1)
       this.processor = processor
       processor.onaudioprocess = (event) => {
@@ -321,6 +338,8 @@ export class VoiceAudioCapture {
             node.port.onmessage = null
             node.port.close()
             node.disconnect()
+            this.deepFilter?.dispose()
+            this.deepFilter = null
             this.sink?.disconnect()
             this.sink = null
             attachScriptProcessor()
@@ -342,6 +361,65 @@ export class VoiceAudioCapture {
           source.connect(node)
           node.connect(sink)
           sink.connect(ctx.destination)
+
+          if (!useAiDenoise) {
+            callbacks.onAiDenoiseStatus?.("off")
+            return
+          }
+          if (ctx.sampleRate !== DEEPFILTER_SAMPLE_RATE) {
+            callbacks.onAiDenoiseStatus?.("error")
+            return
+          }
+
+          callbacks.onAiDenoiseStatus?.("loading")
+          const bypassDeepFilter = (status: VoiceAiDenoiseStatus) => {
+            if (this.generation !== generation || this.context !== ctx) return
+            if (this.deepFilter) {
+              try {
+                source.disconnect(this.deepFilter.node)
+              } catch {
+                // Already disconnected.
+              }
+              this.deepFilter.dispose()
+              this.deepFilter = null
+            }
+            try {
+              source.connect(node)
+            } catch {
+              // Already connected.
+            }
+            callbacks.onAiDenoiseStatus?.(status)
+          }
+
+          void attachDeepFilterNode(ctx, {
+            onOverload: () => bypassDeepFilter("overloaded"),
+          })
+            .then((handle) => {
+              if (this.generation !== generation || this.context !== ctx) {
+                handle.dispose()
+                return
+              }
+              this.deepFilter = handle
+              try {
+                source.disconnect(node)
+              } catch {
+                // Ignore if already disconnected.
+              }
+              source.connect(handle.node)
+              handle.node.connect(node)
+              void handle.ready
+                .then(() => {
+                  if (this.generation === generation && this.deepFilter === handle) {
+                    callbacks.onAiDenoiseStatus?.("active")
+                  }
+                })
+                .catch(() => {
+                  bypassDeepFilter("error")
+                })
+            })
+            .catch(() => {
+              bypassDeepFilter("error")
+            })
         } catch {
           attachScriptProcessor()
         }
@@ -355,6 +433,10 @@ export class VoiceAudioCapture {
     this.generation += 1
     this.pendingChunks = 0
     this.gate.reset()
+    if (this.deepFilter) {
+      this.deepFilter.dispose()
+      this.deepFilter = null
+    }
     if (this.processor) {
       if ("onaudioprocess" in this.processor) {
         this.processor.onaudioprocess = null

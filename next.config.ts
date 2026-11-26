@@ -40,7 +40,7 @@ const turnstile = "https://challenges.cloudflare.com";
  */
 const csp = [
   "default-src 'self'",
-  `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ""} ${cloudinaryPlayer} ${turnstile}${toolbar("https://vercel.live")}`,
+  `script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'${isDev ? " 'unsafe-eval'" : ""} ${cloudinaryPlayer} ${turnstile}${toolbar("https://vercel.live")}`,
   `style-src 'self' 'unsafe-inline' ${cloudinaryPlayerStyles}${toolbar("https://vercel.live")}`,
   `img-src 'self' blob: data: ${cloudinaryCdn} ${storageOrigin} https://vietqr.app ${dishImages}${toolbar("https://vercel.live", "https://vercel.com")}`,
   // The Cloudinary player's icon font is inlined as a data: URI.
@@ -75,7 +75,13 @@ const nextConfig: NextConfig = {
   reactCompiler: true,
   poweredByHeader: false,
   async headers() {
-    return [{ source: "/(.*)", headers: securityHeaders }];
+    return [
+      { source: "/(.*)", headers: securityHeaders },
+      {
+        source: "/deepfilternet/:path*",
+        headers: [{ key: "Cache-Control", value: "public, max-age=31536000, immutable" }],
+      },
+    ];
   },
 };
 
