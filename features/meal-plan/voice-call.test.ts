@@ -1,42 +1,48 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
-import { FarewellTracker, TRANSCRIPT_SETTLE_MS, VoiceCallLedger } from "@/features/meal-plan/voice-call"
+import {
+  FarewellTracker,
+  TRANSCRIPT_SETTLE_MS,
+  TurnQueue,
+  UtteranceAssembler,
+  VoiceCallLedger,
+} from "@/features/meal-plan/voice-call"
 
-function words(ledger: VoiceCallLedger, fragments: [text: string, startMs: number, endMs: number][]) {
-  for (const [text, startMs, endMs] of fragments) ledger.addFragment({ text, startMs, endMs })
+function words(assembler: UtteranceAssembler, fragments: [text: string, startMs: number, endMs: number][]) {
+  for (const [text, startMs, endMs] of fragments) assembler.addFragment({ text, startMs, endMs })
 }
 
-describe("VoiceCallLedger.takeUtterance", () => {
+describe("UtteranceAssembler.takeUtterance", () => {
   it("joins the words around the delegation point, trailing words included", () => {
-    const ledger = new VoiceCallLedger()
-    words(ledger, [
+    const assembler = new UtteranceAssembler()
+    words(assembler, [
       ["trưa nay", 0, 600],
       [" mình ăn", 700, 1200],
       [" phở chay", 1300, 2000],
     ])
-    expect(ledger.takeUtterance(800)).toBe("trưa nay mình ăn phở chay")
+    expect(assembler.takeUtterance(800)).toBe("trưa nay mình ăn phở chay")
   })
 
   it("leaves words after a long pause for the next delegation", () => {
-    const ledger = new VoiceCallLedger()
-    words(ledger, [
+    const assembler = new UtteranceAssembler()
+    words(assembler, [
       ["xin chào", 0, 800],
       ["đổi bữa tối", 5000, 6000],
     ])
-    expect(ledger.takeUtterance(100)).toBe("xin chào")
-    expect(ledger.takeUtterance(5200)).toBe("đổi bữa tối")
+    expect(assembler.takeUtterance(100)).toBe("xin chào")
+    expect(assembler.takeUtterance(5200)).toBe("đổi bữa tối")
   })
 
   it("does not hand out words twice, and gives nothing without words", () => {
-    const ledger = new VoiceCallLedger()
-    expect(ledger.takeUtterance(undefined)).toBe("")
-    words(ledger, [["ừ", 0, 300]])
-    expect(ledger.takeUtterance(undefined)).toBe("ừ")
-    expect(ledger.takeUtterance(undefined)).toBe("")
+    const assembler = new UtteranceAssembler()
+    expect(assembler.takeUtterance(undefined)).toBe("")
+    words(assembler, [["ừ", 0, 300]])
+    expect(assembler.takeUtterance(undefined)).toBe("ừ")
+    expect(assembler.takeUtterance(undefined)).toBe("")
   })
 })
 
-describe("VoiceCallLedger.utteranceReady", () => {
+describe("UtteranceAssembler.utteranceReady", () => {
   beforeEach(() => {
     vi.useFakeTimers()
     vi.setSystemTime(10_000)
@@ -46,36 +52,36 @@ describe("VoiceCallLedger.utteranceReady", () => {
   })
 
   it("waits while the transcript has not reached the delegation point", () => {
-    const ledger = new VoiceCallLedger()
-    expect(ledger.utteranceReady(500, Date.now() + 5000)).toBe(false)
-    words(ledger, [["thêm đậu hũ.", 0, 400]])
-    expect(ledger.utteranceReady(500, Date.now() + 5000)).toBe(false)
+    const assembler = new UtteranceAssembler()
+    expect(assembler.utteranceReady(500, Date.now() + 5000)).toBe(false)
+    words(assembler, [["thêm đậu hũ.", 0, 400]])
+    expect(assembler.utteranceReady(500, Date.now() + 5000)).toBe(false)
   })
 
   it("takes a finished sentence at once", () => {
-    const ledger = new VoiceCallLedger()
-    words(ledger, [["thêm đậu hũ vào tối thứ bảy.", 0, 1200]])
-    expect(ledger.utteranceReady(1000, Date.now())).toBe(true)
-    words(ledger, [[" Được không?", 1300, 1800]])
-    expect(ledger.utteranceReady(1000, Date.now())).toBe(true)
+    const assembler = new UtteranceAssembler()
+    words(assembler, [["thêm đậu hũ vào tối thứ bảy.", 0, 1200]])
+    expect(assembler.utteranceReady(1000, Date.now())).toBe(true)
+    words(assembler, [[" Được không?", 1300, 1800]])
+    expect(assembler.utteranceReady(1000, Date.now())).toBe(true)
   })
 
   it("waits for a short pause when the sentence is not finished", () => {
-    const ledger = new VoiceCallLedger()
-    words(ledger, [["thêm đậu hũ vào tối thứ", 0, 1200]])
-    expect(ledger.utteranceReady(1000, Date.now() + TRANSCRIPT_SETTLE_MS - 1)).toBe(false)
-    expect(ledger.utteranceReady(1000, Date.now() + TRANSCRIPT_SETTLE_MS)).toBe(true)
+    const assembler = new UtteranceAssembler()
+    words(assembler, [["thêm đậu hũ vào tối thứ", 0, 1200]])
+    expect(assembler.utteranceReady(1000, Date.now() + TRANSCRIPT_SETTLE_MS - 1)).toBe(false)
+    expect(assembler.utteranceReady(1000, Date.now() + TRANSCRIPT_SETTLE_MS)).toBe(true)
   })
 
   it("needs some words even without a delegation point", () => {
-    const ledger = new VoiceCallLedger()
-    expect(ledger.utteranceReady(undefined, Date.now() + 5000)).toBe(false)
-    words(ledger, [["ừ", 0, 200]])
-    expect(ledger.utteranceReady(undefined, Date.now() + TRANSCRIPT_SETTLE_MS)).toBe(true)
+    const assembler = new UtteranceAssembler()
+    expect(assembler.utteranceReady(undefined, Date.now() + 5000)).toBe(false)
+    words(assembler, [["ừ", 0, 200]])
+    expect(assembler.utteranceReady(undefined, Date.now() + TRANSCRIPT_SETTLE_MS)).toBe(true)
   })
 })
 
-describe("VoiceCallLedger.waitForUtterance", () => {
+describe("UtteranceAssembler.waitForUtterance", () => {
   beforeEach(() => {
     vi.useFakeTimers()
     vi.setSystemTime(10_000)
@@ -85,28 +91,28 @@ describe("VoiceCallLedger.waitForUtterance", () => {
   })
 
   it("resolves immediately when an arriving fragment finishes a sentence", async () => {
-    const ledger = new VoiceCallLedger()
+    const assembler = new UtteranceAssembler()
     let settled: boolean | undefined
-    void ledger.waitForUtterance(900, 3000).then((active) => {
+    void assembler.waitForUtterance(900, 3000).then((active) => {
       settled = active
     })
 
     await Promise.resolve()
     expect(settled).toBeUndefined()
 
-    ledger.addFragment({ text: "thêm phở.", startMs: 0, endMs: 1000 })
+    assembler.addFragment({ text: "thêm phở.", startMs: 0, endMs: 1000 })
     await Promise.resolve()
     expect(settled).toBe(true)
   })
 
   it("waits once for TRANSCRIPT_SETTLE_MS when the sentence has no end punctuation", async () => {
-    const ledger = new VoiceCallLedger()
+    const assembler = new UtteranceAssembler()
     let settled: boolean | undefined
-    void ledger.waitForUtterance(500, 3000).then((active) => {
+    void assembler.waitForUtterance(500, 3000).then((active) => {
       settled = active
     })
 
-    ledger.addFragment({ text: "thêm phở", startMs: 0, endMs: 600 })
+    assembler.addFragment({ text: "thêm phở", startMs: 0, endMs: 600 })
     await vi.advanceTimersByTimeAsync(TRANSCRIPT_SETTLE_MS - 1)
     expect(settled).toBeUndefined()
 
@@ -116,13 +122,13 @@ describe("VoiceCallLedger.waitForUtterance", () => {
 
   it("resolves false cleanly when endCall stops a pending wait", async () => {
     const ledger = new VoiceCallLedger()
-    const waiting = ledger.waitForUtterance(500, 3000)
+    const waiting = ledger.utterances.waitForUtterance(500, 3000)
     ledger.endCall()
     await expect(waiting).resolves.toBe(false)
   })
 })
 
-describe("VoiceCallLedger.enqueue", () => {
+describe("TurnQueue", () => {
   beforeEach(() => {
     vi.spyOn(console, "error").mockImplementation(() => {})
   })
@@ -131,16 +137,16 @@ describe("VoiceCallLedger.enqueue", () => {
   })
 
   it("runs tasks in order, and a failed task does not stop the ones after it", async () => {
-    const ledger = new VoiceCallLedger()
+    const turns = new TurnQueue()
     const ran: string[] = []
-    ledger.enqueue(async () => {
+    turns.enqueue(async () => {
       ran.push("first")
       throw new Error("Realtime session is not accepting submissions")
     })
-    ledger.enqueue(async () => {
+    turns.enqueue(async () => {
       ran.push("second")
     })
-    await ledger.idle()
+    await turns.idle()
     expect(ran).toEqual(["first", "second"])
   })
 
@@ -148,28 +154,28 @@ describe("VoiceCallLedger.enqueue", () => {
     const ledger = new VoiceCallLedger()
     const ran: string[] = []
     let release = () => {}
-    ledger.enqueue(() => new Promise<void>((resolve) => (release = resolve)))
-    ledger.enqueue(async () => {
+    ledger.turns.enqueue(() => new Promise<void>((resolve) => (release = resolve)))
+    ledger.turns.enqueue(async () => {
       ran.push("queued before the call ended")
     })
     ledger.endCall()
     release()
-    await ledger.idle()
+    await ledger.turns.idle()
 
     ledger.reset()
-    ledger.enqueue(async () => {
+    ledger.turns.enqueue(async () => {
       ran.push("next call")
     })
-    await ledger.idle()
+    await ledger.turns.idle()
     expect(ran).toEqual(["next call"])
   })
 
   it("stops the running delegation when the call ends", () => {
     const ledger = new VoiceCallLedger()
-    const controller = ledger.begin("item_1", "thêm đậu hũ vào thứ bảy")
+    const controller = ledger.turns.begin("item_1", "thêm đậu hũ vào thứ bảy")
     ledger.endCall()
     expect(controller.signal.aborted).toBe(true)
-    expect(ledger.running()).toBeNull()
+    expect(ledger.turns.running()).toBeNull()
   })
 })
 

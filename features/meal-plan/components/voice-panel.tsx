@@ -16,7 +16,7 @@ import {
 import { Button } from "@/components/ui/button"
 import { VoiceOrb, type VoiceOrbState } from "@/components/ui/voice-orb"
 import { useMealPlannerVoice, type VoiceUsageAnchor } from "@/features/meal-plan/hooks/use-meal-planner-voice"
-import { VOICE_MAX_SECONDS, type VoiceEffects, type VoiceOpenRecipe, type VoiceScreen } from "@/features/meal-plan/voice"
+import { VOICE_MAX_SECONDS, type VoiceOpenRecipe, type VoiceScreen, type VoiceScreenCommand } from "@/features/meal-plan/voice"
 import { LogoMark } from "@/features/shared/components/wordmark"
 
 const STATE_TEXT: Record<VoiceOrbState, { label: string; hint: string }> = {
@@ -79,7 +79,7 @@ export function VoicePanel({
   weekStart,
   today,
   threadId,
-  onEffects,
+  onScreen,
   onTurnEnd,
   onClose,
   getScreen,
@@ -90,7 +90,7 @@ export function VoicePanel({
   weekStart?: string
   today?: string
   threadId: string
-  onEffects: (effects: VoiceEffects) => void
+  onScreen: (screen: VoiceScreenCommand) => void
   onTurnEnd: (threadId: string) => void
   onClose: () => void
   getScreen: () => VoiceScreen | null
@@ -102,7 +102,7 @@ export function VoicePanel({
     weekStart,
     today,
     threadId,
-    onEffects,
+    onScreen,
     onTurnEnd,
     onClose,
     getScreen,

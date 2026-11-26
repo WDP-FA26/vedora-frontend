@@ -1,61 +1,26 @@
-import type { UIMessage } from "ai"
-import { afterEach, describe, expect, it, vi } from "vitest"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import {
-  actionSummary,
   appendableText,
-  classifyInterruption,
-  finishedActions,
-  isVoiceReplyReady,
-  progressLine,
   readScrollState,
-  replyText,
   streamVoiceTurn,
   VOICE_QUOTA_STATUS,
   VOICE_SESSION_ROUTE,
-  voiceEffects,
   voiceErrorText,
   voiceRecipeContext,
   voiceSessionConfig,
   voiceSessionRoute,
-  type VoiceAction,
+  type VoiceRefreshCommand,
+  type VoiceScreenCommand,
+  type VoiceTurnEvent,
 } from "@/features/meal-plan/voice"
+import { FarewellTracker, TurnQueue } from "@/features/meal-plan/voice-call"
+import {
+  PROGRESS_AFTER_MS,
+  PROGRESS_SPEAK_DELAY_MS,
+  runVoiceTurn,
+} from "@/features/meal-plan/voice-turn-runner"
 import { ApiError } from "@/features/shared/lib/api-client"
-
-type Part = UIMessage["parts"][number]
-
-function message(parts: Part[]): UIMessage {
-  return { id: "msg_1", role: "assistant", parts }
-}
-
-function toolPart(tool: string, state: "input-available" | "output-available", input: unknown, output?: unknown): Part {
-  if (state === "output-available") {
-    return { type: `tool-${tool}`, toolCallId: `call_${tool}`, state, input, output }
-  }
-  return { type: `tool-${tool}`, toolCallId: `call_${tool}`, state, input }
-}
-
-function action(tool: string, output: unknown): VoiceAction {
-  return { toolCallId: `call_${tool}`, tool, input: {}, output }
-}
-
-const planChange = (days: string[], applied = true) => ({
-  weekStart: "2026-11-23",
-  applied,
-  days: days.map((day) => ({ day, sections: [] })),
-})
-
-const screen = (view: string, extra: Record<string, unknown> = {}) => ({
-  applied: true,
-  view,
-  recipeId: null,
-  title: null,
-  section: null,
-  weekStart: null,
-  day: null,
-  date: null,
-  ...extra,
-})
 
 describe("voiceErrorText", () => {
   it("explains setup failures by their status", () => {
@@ -115,172 +80,12 @@ describe("voiceRecipeContext", () => {
   })
 })
 
-describe("reading a voice reply", () => {
-  const reply = message([
-    { type: "text", text: "Mình đã thêm" },
-    toolPart("fillSlots", "output-available", { day: "SAT" }, planChange(["SAT"])),
-    toolPart("logMeal", "input-available", { name: "phở" }),
-    { type: "text", text: "món cho thứ Bảy." },
-  ])
-
-  it("lists only finished tools, in order", () => {
-    expect(finishedActions(reply)).toEqual([
-      { toolCallId: "call_fillSlots", tool: "fillSlots", input: { day: "SAT" }, output: planChange(["SAT"]) },
-    ])
-  })
-
-  it("joins the text parts into the spoken reply", () => {
-    expect(replyText(reply)).toBe("Mình đã thêm món cho thứ Bảy.")
-  })
-})
-
-describe("actionSummary", () => {
-  it("builds a concise factual line for quick screen and endCall actions", () => {
-    expect(actionSummary([action("endCall", { ended: true })])).toContain("tạm biệt")
-    expect(
-      actionSummary([action("setScreen", screen("recipe", { recipeId: "r1", title: "Phở chay", section: "steps" }))])
-    ).toBe('Đã mở công thức "Phở chay" trên màn hình, ở phần cách làm.')
-    expect(
-      actionSummary([
-        action("setScreen", screen("recipe", { recipeId: "r1", title: "Phở chay", section: "steps", step: 3 })),
-      ])
-    ).toBe('Đã mở công thức "Phở chay" trên màn hình, ở bước 3.')
-    expect(actionSummary([action("setScreen", screen("calendar", { scroll: "down" }))])).toBe("Đã cuộn xuống.")
-    expect(actionSummary([action("setScreen", screen("eatingLog", { date: "2026-11-25" }))])).toBe(
-      "Đã mở nhật ký ăn uống ngày 2026-11-25 trên màn hình."
-    )
-    expect(
-      actionSummary([
-        action("setScreen", screen("bodyMetrics", { metrics: { weightKg: 58, bmi: 21.4, dailyCalorieTarget: 1800 } })),
-      ])
-    ).toBe("Đã mở bảng chỉ số cơ thể trên màn hình (cân nặng 58 kg, BMI 21.4, mục tiêu khoảng 1800 kcal mỗi ngày).")
-    expect(actionSummary([action("setScreen", screen("calendar", { day: "FRI" }))])).toBe(
-      "Đã đóng bảng và chuyển lịch tới Thứ Sáu."
-    )
-  })
-
-  it("returns null when no screen action was applied", () => {
-    expect(actionSummary([action("setScreen", { ...screen("recipe"), applied: false })])).toBeNull()
-  })
-
-  it("summarizes quick write tools and prioritizes them over setScreen", () => {
-    expect(
-      actionSummary([
-        action("logMeal", { entry: { date: "2026-11-25", section: "LUNCH", name: "Phở chay", calories: 420 } }),
-        action("setScreen", screen("eatingLog", { date: "2026-11-25" })),
-      ])
-    ).toBe('Đã ghi món "Phở chay" vào nhật ký bữa trưa ngày 2026-11-25, khoảng 420 kcal.')
-    expect(
-      actionSummary([action("updateBodyMetrics", { weightKg: 60, bmi: 22, dailyCalorieTarget: 1800 })])
-    ).toBe("Đã lưu chỉ số cơ thể mới (cân nặng 60 kg, BMI 22, mục tiêu khoảng 1800 kcal mỗi ngày).")
-    expect(
-      actionSummary([
-        action("undoLastChange", { messageId: "m1", weeks: [{ weekStart: "2026-11-23", restored: ["MON", "TUE"] }] }),
-      ])
-    ).toBe("Đã hoàn tác thay đổi thực đơn gần nhất cho Thứ Hai, Thứ Ba.")
-    expect(actionSummary([action("undoLastChange", { messageId: null, weeks: [] })])).toContain("Không còn thay đổi")
-  })
-})
-
-describe("progressLine", () => {
-  it("names the days of a saved plan change", () => {
-    expect(progressLine(action("editPlan", planChange(["MON", "SUN"])))).toBe(
-      "Đã lưu thay đổi thực đơn cho Thứ Hai, Chủ nhật, đang làm tiếp."
-    )
-  })
-
-  it("says nothing for a change that was not applied, or a read-only tool", () => {
-    expect(progressLine(action("editPlan", planChange(["MON"], false)))).toBeNull()
-    expect(progressLine(action("setScreen", screen("bodyMetrics")))).toBeNull()
-  })
-
-  it("has a line for each write tool", () => {
-    expect(progressLine(action("logMeal", {}))).toContain("nhật ký")
-    expect(progressLine(action("updateBodyMetrics", {}))).toContain("chỉ số")
-    expect(progressLine(action("undoLastChange", {}))).toContain("hoàn tác")
-  })
-})
-
-describe("voiceEffects", () => {
-  it("does nothing for no tools", () => {
-    expect(voiceEffects([])).toEqual({
-      focus: null,
-      close: null,
-      planChanged: false,
-      logChanged: false,
-      nutritionChanged: false,
-      dietaryChanged: false,
-      endCall: false,
-    })
-  })
-
-  it("refreshes the plan and opens the last changed day", () => {
-    const effects = voiceEffects([action("fillSlots", planChange(["TUE"])), action("editPlan", planChange(["FRI"]))])
-    expect(effects.planChanged).toBe(true)
-    expect(effects.focus).toEqual({ kind: "planDay", weekStart: "2026-11-23", day: "FRI" })
-  })
-
-  it("refreshes but does not move for a plan change that was not applied", () => {
-    const effects = voiceEffects([action("editPlan", planChange(["FRI"], false))])
-    expect(effects.planChanged).toBe(true)
-    expect(effects.focus).toBeNull()
-  })
-
-  it("prefers a panel the agent opened over the changed day", () => {
-    const effects = voiceEffects([
-      action("setScreen", screen("recipe", { recipeId: "r1", title: "Phở chay", section: "steps", step: 2 })),
-      action("editPlan", planChange(["FRI"])),
-    ])
-    expect(effects.focus).toEqual({ kind: "recipe", recipeId: "r1", title: "Phở chay", section: "steps", step: 2 })
-  })
-
-  it("captures relative scroll directions and reads live scroll state", () => {
-    const effects = voiceEffects([action("setScreen", screen("eatingLog", { scroll: "down" }))])
-    expect(effects.scroll).toBe("down")
-    expect(effects.focus).toEqual({ kind: "eatingLog", date: null })
-
+describe("readScrollState", () => {
+  it("reads live scroll position of a scrollable container", () => {
     const fakeEl = { scrollTop: 500, scrollHeight: 1500, clientHeight: 500 } as HTMLElement
     expect(readScrollState(fakeEl)).toEqual({ percent: 50, atTop: false, atBottom: false })
     const fitEl = { scrollTop: 0, scrollHeight: 400, clientHeight: 500 } as HTMLElement
     expect(readScrollState(fitEl)).toEqual({ percent: 0, atTop: true, atBottom: true })
-  })
-
-  it("closes panels and shows the week for the calendar view", () => {
-    const effects = voiceEffects([action("setScreen", screen("calendar", { weekStart: "2026-11-30", day: "WED" }))])
-    expect(effects.close).toBe("all")
-    expect(effects.focus).toEqual({ kind: "planDay", weekStart: "2026-11-30", day: "WED" })
-  })
-
-  it("ignores a screen change the API refused or that does not parse", () => {
-    expect(voiceEffects([action("setScreen", { ...screen("bodyMetrics"), applied: false })]).focus).toBeNull()
-    expect(voiceEffects([action("setScreen", screen("recipe"))]).focus).toBeNull()
-    expect(voiceEffects([action("setScreen", { view: "somewhere" })]).focus).toBeNull()
-  })
-
-  it("opens the eating log on the logged day and refreshes it", () => {
-    const effects = voiceEffects([action("logMeal", { entry: { date: "2026-11-25" } })])
-    expect(effects.logChanged).toBe(true)
-    expect(effects.focus).toEqual({ kind: "eatingLog", date: "2026-11-25" })
-  })
-
-  it("shows body metrics after updating them", () => {
-    const effects = voiceEffects([action("updateBodyMetrics", { bmi: 21 })])
-    expect(effects.nutritionChanged).toBe(true)
-    expect(effects.focus).toEqual({ kind: "bodyMetrics" })
-  })
-
-  it("goes to the first restored day after an undo", () => {
-    const effects = voiceEffects([
-      action("undoLastChange", { weeks: [{ weekStart: "2026-11-23", restored: ["THU", "FRI"] }] }),
-    ])
-    expect(effects.planChanged).toBe(true)
-    expect(effects.focus).toEqual({ kind: "planDay", weekStart: "2026-11-23", day: "THU" })
-  })
-
-  it("marks memory updates and the end of the call", () => {
-    const effects = voiceEffects([action("updateMemory", {}), action("endCall", { ended: true })])
-    expect(effects.dietaryChanged).toBe(true)
-    expect(effects.endCall).toBe(true)
   })
 })
 
@@ -297,41 +102,49 @@ describe("streamVoiceTurn", () => {
 
   const request = { weekStart: "2026-11-23", message: "thêm phở vào thứ bảy", requestId: "item_1" }
 
-  async function collect(turn: AsyncGenerator<UIMessage>) {
-    const updates: UIMessage[] = []
-    for await (const update of turn) updates.push(update)
-    return updates
+  async function collect(turn: AsyncGenerator<VoiceTurnEvent>) {
+    const events: VoiceTurnEvent[] = []
+    for await (const event of turn) events.push(event)
+    return events
   }
 
-  it("posts the turn with the token and yields the reply as it grows", async () => {
+  it("posts the turn with the token and yields data parts, text deltas, and ready", async () => {
     const fetchMock = vi.fn(async () =>
       sse([
         { type: "start", messageId: "msg_1" },
-        { type: "tool-input-available", toolCallId: "call_1", toolName: "fillSlots", input: { day: "SAT" } },
-        { type: "tool-output-available", toolCallId: "call_1", output: planChange(["SAT"]) },
+        { type: "data-refresh", data: { plan: true }, transient: true },
+        {
+          type: "data-screen",
+          data: { focus: { kind: "planDay", weekStart: "2026-11-23", day: "SAT" }, close: null },
+          transient: true,
+        },
+        { type: "data-progress", data: { text: "Đã lưu thay đổi thực đơn cho Thứ Bảy, đang làm tiếp." }, transient: true },
         { type: "text-start", id: "t1" },
         { type: "text-delta", id: "t1", delta: "Đã thêm phở." },
         { type: "text-end", id: "t1" },
-        { type: "finish" },
+        { type: "finish", messageMetadata: { voiceDone: true } },
       ])
     )
     vi.stubGlobal("fetch", fetchMock)
 
-    const updates = await collect(streamVoiceTurn("token_1", request, new AbortController().signal))
+    const events = await collect(streamVoiceTurn("token_1", request, new AbortController().signal))
 
     const [url, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit]
     expect(url).toBe("http://api.test/api/v1/meal-plan/voice/turns")
     expect(new Headers(init.headers).get("Authorization")).toBe("Bearer token_1")
     expect(JSON.parse(String(init.body))).toEqual(request)
 
-    const last = updates.at(-1)
-    if (!last) throw new Error("no update")
-    expect(replyText(last)).toBe("Đã thêm phở.")
-    expect(finishedActions(last).map(({ tool }) => tool)).toEqual(["fillSlots"])
-    expect(isVoiceReplyReady(last)).toBe(true)
+    expect(events).toEqual([
+      { type: "started" },
+      { type: "refresh", refresh: { plan: true } },
+      { type: "screen", screen: { focus: { kind: "planDay", weekStart: "2026-11-23", day: "SAT" }, close: null } },
+      { type: "progress", text: "Đã lưu thay đổi thực đơn cho Thứ Bảy, đang làm tiếp." },
+      { type: "text", delta: "Đã thêm phở." },
+      { type: "ready" },
+    ])
   })
 
-  it("yields a ready reply immediately on the finish chunk before the stream closes", async () => {
+  it("yields ready immediately on finish before the stream closes", async () => {
     let controller!: ReadableStreamDefaultController<Uint8Array>
     const encoder = new TextEncoder()
     const body = new ReadableStream<Uint8Array>({
@@ -352,15 +165,13 @@ describe("streamVoiceTurn", () => {
     push({ type: "text-end", id: "t1" })
     push({ type: "finish" })
 
-    const ready: UIMessage[] = []
-    for await (const update of turn) {
-      if (isVoiceReplyReady(update)) {
-        ready.push(update)
-        controller.close()
-      }
+    const seen: VoiceTurnEvent[] = []
+    for await (const event of turn) {
+      seen.push(event)
+      if (event.type === "ready") controller.close()
     }
-    expect(ready).toHaveLength(1)
-    expect(replyText(ready[0])).toBe("Đã xong.")
+    expect(seen).toContainEqual({ type: "text", delta: "Đã xong." })
+    expect(seen).toContainEqual({ type: "ready" })
   })
 
   it("throws when the stream reports an error part", async () => {
@@ -382,20 +193,113 @@ describe("streamVoiceTurn", () => {
   })
 })
 
-describe("classifyInterruption", () => {
+describe("runVoiceTurn", () => {
+  beforeEach(() => {
+    vi.useFakeTimers()
+    vi.setSystemTime(10_000)
+  })
   afterEach(() => {
-    vi.unstubAllGlobals()
+    vi.useRealTimers()
   })
 
-  it("returns the API's reading", async () => {
-    vi.stubGlobal("fetch", async () => Response.json({ action: "progress" }))
-    await expect(classifyInterruption("token_1", { running: "thêm phở", utterance: "xong chưa" })).resolves.toBe(
-      "progress"
-    )
+  it("dispatches screen/refresh/end-call events and falls back to summary when text is empty", async () => {
+    const turns = new TurnQueue()
+    const farewell = new FarewellTracker()
+    const appended: [string, "thinking" | "commentary", string][] = []
+    const screens: VoiceScreenCommand[] = []
+    const refreshes: VoiceRefreshCommand[] = []
+    const pendingDeltas: number[] = []
+    let endingCalled = false
+    let endedThread: string | null = null
+
+    await runVoiceTurn({
+      delegationId: "del_1",
+      message: "tạm biệt nhé",
+      accessToken: "tok",
+      weekStart: "2026-11-23",
+      threadId: "thread_1",
+      screen: undefined,
+      turns,
+      farewell,
+      append: async (id, ch, text) => {
+        appended.push([id, ch, text])
+      },
+      onScreen: (s) => screens.push(s),
+      onRefresh: (r) => refreshes.push(r),
+      onRefreshAll: vi.fn(),
+      onPendingChange: (d) => pendingDeltas.push(d),
+      onEnding: () => {
+        endingCalled = true
+      },
+      onTurnEnd: (t) => {
+        endedThread = t
+      },
+      streamTurn: async function* () {
+        yield { type: "started" }
+        yield { type: "refresh", refresh: { plan: true } }
+        yield { type: "screen", screen: { focus: { kind: "bodyMetrics" }, close: null } }
+        yield { type: "end-call" }
+        yield { type: "summary", text: "Người dùng muốn kết thúc cuộc gọi, hãy chào tạm biệt ngắn gọn." }
+        yield { type: "ready" }
+      },
+    })
+
+    expect(refreshes).toEqual([{ plan: true }])
+    expect(screens).toEqual([{ focus: { kind: "bodyMetrics" }, close: null }])
+    expect(endingCalled).toBe(true)
+    expect(farewell.phase).toBe("sent")
+    expect(appended).toEqual([
+      ["del_1", "commentary", "Người dùng muốn kết thúc cuộc gọi, hãy chào tạm biệt ngắn gọn."],
+    ])
+    expect(pendingDeltas).toEqual([1, -1])
+    expect(endedThread).toBe("thread_1")
   })
 
-  it("rejects an answer outside the three actions", async () => {
-    vi.stubGlobal("fetch", async () => Response.json({ action: "ignore" }))
-    await expect(classifyInterruption("token_1", { running: "thêm phở", utterance: "ừ" })).rejects.toThrow()
+  it("speaks progress commentary on long turns and refreshes all on abort", async () => {
+    const turns = new TurnQueue()
+    const farewell = new FarewellTracker()
+    const appended: [string, "thinking" | "commentary", string][] = []
+    const onRefreshAll = vi.fn()
+
+    let release: (() => void) | undefined
+    const running = runVoiceTurn({
+      delegationId: "del_2",
+      message: "lên thực đơn cả tuần",
+      accessToken: "tok",
+      weekStart: "2026-11-23",
+      threadId: "thread_1",
+      screen: undefined,
+      turns,
+      farewell,
+      append: async (id, ch, text) => {
+        appended.push([id, ch, text])
+      },
+      onScreen: vi.fn(),
+      onRefresh: vi.fn(),
+      onRefreshAll,
+      onPendingChange: vi.fn(),
+      onEnding: vi.fn(),
+      onTurnEnd: vi.fn(),
+      streamTurn: async function* (_token, _req, signal) {
+        yield { type: "started" }
+        await new Promise((resolve) => setTimeout(resolve, PROGRESS_AFTER_MS))
+        yield { type: "progress", text: "Đã lưu thay đổi thực đơn cho Thứ Hai, đang làm tiếp." }
+        await new Promise<void>((resolve, reject) => {
+          release = resolve
+          signal.addEventListener("abort", () => reject(new DOMException("aborted", "AbortError")))
+        })
+      },
+    })
+
+    await vi.advanceTimersByTimeAsync(PROGRESS_AFTER_MS + PROGRESS_SPEAK_DELAY_MS + 10)
+    expect(appended).toEqual([
+      ["del_2", "thinking", "Đã lưu thay đổi thực đơn cho Thứ Hai, đang làm tiếp."],
+      ["del_2", "commentary", "Đã lưu thay đổi thực đơn cho Thứ Hai, đang làm tiếp."],
+    ])
+
+    turns.cancel()
+    release?.()
+    await running
+    expect(onRefreshAll).toHaveBeenCalledTimes(1)
   })
 })

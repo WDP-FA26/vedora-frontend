@@ -11,43 +11,29 @@ import { MY_DIETARY_KEY, MY_NUTRITION_KEY } from "@/features/dietary/dietary"
 import { isMealLogKey } from "@/features/meal-plan/meal-log"
 import { isMealPlanKey } from "@/features/meal-plan/meal-plan"
 import {
-  actionSummary,
   appendableText,
-  finishedActions,
-  isVoiceReplyReady,
-  progressLine,
-  replyText,
-  streamVoiceTurn,
   VOICE_MAX_SECONDS,
   VOICE_MODEL_ID,
   VOICE_RECIPE_CLOSED_CONTEXT,
-  voiceEffects,
   voiceErrorText,
   voicePageContext,
   voiceRecipeContext,
   voiceSessionConfig,
   voiceSessionRoute,
-  type VoiceAction,
-  type VoiceEffects,
   type VoiceOpenRecipe,
+  type VoiceRefreshCommand,
   type VoiceScreen,
+  type VoiceScreenCommand,
 } from "@/features/meal-plan/voice"
 import { FarewellTracker, VoiceCallLedger } from "@/features/meal-plan/voice-call"
-import { ApiError } from "@/features/shared/lib/api-client"
+import { VoiceAudioCapture } from "@/features/meal-plan/voice-capture"
+import { runVoiceTurn } from "@/features/meal-plan/voice-turn-runner"
 
 /** Created once: a new model object would replace the hook's session. */
 const model = gateway.experimental_realtime(VOICE_MODEL_ID)
 
 /** The longest wait for the last words of an utterance after GPT-Live delegates. */
 const TRANSCRIPT_GRACE_MS = 3000
-/** Saved changes are said aloud only once a turn has run this long; quick turns just answer. */
-const PROGRESS_AFTER_MS = 6000
-/**
- * A saved change is said aloud only when the reply has not followed it within this long, so
- * GPT-Live does not say the change and then the reply that repeats it. GPT-Live knows of the
- * change from the start (`thinking`) and can answer "xong chưa" with it.
- */
-const PROGRESS_SPEAK_DELAY_MS = 2000
 /**
  * How long the orb stays "speaking" after playback stops. A late audio chunk briefly empties
  * the queue mid-sentence; without this the orb would flip to listening and back.
@@ -63,22 +49,6 @@ export type VoiceUsageAnchor = { seconds: number; at: number }
 
 function usageSnapshot(seconds: number): VoiceUsageAnchor {
   return { seconds, at: Date.now() }
-}
-
-function failureText(error: unknown) {
-  if (error instanceof ApiError && error.code === "AI_QUOTA_EXCEEDED") {
-    return "Người dùng đã dùng hết lượt trợ lý AI hiện có, nên yêu cầu này chưa được thực hiện."
-  }
-  if (error instanceof ApiError && error.status === 429) {
-    return "Người dùng gửi yêu cầu quá nhanh nên yêu cầu này chưa được thực hiện; đợi vài giây là thử lại được."
-  }
-  return "Yêu cầu này chưa xử lý xong vì hệ thống gặp lỗi; một phần có thể đã được lưu và đang hiện trên màn hình."
-}
-
-/** Whether a tool changed saved data or asked to open something, as opposed to only reading. */
-function touchesScreen(effects: VoiceEffects) {
-  if (effects.focus || effects.close || effects.scroll) return true
-  return effects.planChanged || effects.logChanged || effects.nutritionChanged || effects.dietaryChanged
 }
 
 /**
@@ -122,21 +92,24 @@ async function sendContext(
   }
 }
 
-function isAbort(error: unknown) {
-  return error instanceof DOMException && error.name === "AbortError"
-}
-
 async function openVoiceCall({
   ledger,
+  capture,
   connect,
+  sendEvent,
+  isMuted,
   onError,
 }: {
   ledger: VoiceCallLedger
-  connect: (options: { stream: MediaStream }) => Promise<void>
+  capture: VoiceAudioCapture
+  connect: (options: { stream?: MediaStream; capture?: boolean }) => Promise<void>
+  sendEvent: SendRealtimeEvent
+  isMuted: () => boolean
   onError: (message: string) => void
 }) {
+  capture.stop()
   ledger.reset()
-  const generation = ledger.beginMicrophone()
+  const generation = ledger.mic.begin()
 
   let stream: MediaStream
   try {
@@ -144,17 +117,29 @@ async function openVoiceCall({
       audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
     })
   } catch {
-    if (ledger.isCurrentMicrophone(generation)) {
+    if (ledger.mic.isCurrent(generation)) {
       onError("Trình duyệt chưa cho phép dùng micro. Hãy bật quyền micro cho trang này rồi thử lại.")
     }
     return
   }
-  if (!ledger.isCurrentMicrophone(generation)) {
+  if (!ledger.mic.isCurrent(generation)) {
     for (const track of stream.getTracks()) track.stop()
     return
   }
-  ledger.attachMicrophone(stream)
-  await connect({ stream })
+  ledger.mic.attach(stream)
+  await connect({ capture: false })
+  if (!ledger.mic.isCurrent(generation)) return
+  capture.start(stream, {
+    onAudio: async (audio) => {
+      try {
+        await sendEvent({ type: "input-audio-append", audio })
+      } catch {
+        // Session closed or closing; transport errors are reported via `onError`.
+      }
+    },
+    onLevel: (level) => ledger.mic.setInputLevel(level),
+    isMuted,
+  })
 }
 
 type VoiceOptions = {
@@ -163,8 +148,8 @@ type VoiceOptions = {
   today?: string
   /** The chat thread on screen: voice turns are saved into it, so the chat shows them. */
   threadId: string
-  /** Called as each tool that changes or opens something finishes, to show it in the planner UI. */
-  onEffects: (effects: VoiceEffects) => void
+  /** Called as each `data-screen` command arrives, to open, close, or scroll the planner UI. */
+  onScreen: (screen: VoiceScreenCommand) => void
   /** Called when a turn the API took up ends (answered, failed or cancelled), to reload the chat thread. */
   onTurnEnd: (threadId: string) => void
   /** Called when the user ends the voice session. */
@@ -178,13 +163,14 @@ type VoiceOptions = {
  * The meal planner's voice agent: GPT-Live through Vercel AI Gateway for the
  * conversation, and the planner agent on vedora-api for the work. GPT-Live
  * delegates; this hook streams the user's transcribed words to the API, mirrors
- * each tool as it finishes, and hands the result back to be spoken.
+ * each `data-screen` / `data-refresh` event as it arrives, and hands the result
+ * back to be spoken.
  */
 export function useMealPlannerVoice({
   weekStart,
   today,
   threadId,
-  onEffects,
+  onScreen,
   onTurnEnd,
   onClose,
   getScreen,
@@ -209,6 +195,7 @@ export function useMealPlannerVoice({
    */
   const [wasConnected, setWasConnected] = useState(false)
   const [ledger] = useState(() => new VoiceCallLedger())
+  const [capture] = useState(() => new VoiceAudioCapture())
 
   const realtime = experimental_useRealtime({
     model,
@@ -225,8 +212,28 @@ export function useMealPlannerVoice({
   })
 
   const sendRealtimeEvent = realtime.sendEvent
+  const mutedRef = useRef(false)
+  useEffect(() => {
+    mutedRef.current = realtime.session?.isInputMuted ?? false
+  })
+
   function append(delegationId: string | null, channel: "thinking" | "commentary", content: string) {
     return sendContext(sendRealtimeEvent, delegationId, channel, content)
+  }
+
+  function refresh(command: VoiceRefreshCommand) {
+    if (command.plan) void mutate(isMealPlanKey)
+    if (command.log) void mutate(isMealLogKey)
+    if (command.nutrition) {
+      void mutate((key) => Array.isArray(key) && key[0] === MY_NUTRITION_KEY)
+    }
+    if (command.dietary) {
+      void mutate((key) => Array.isArray(key) && key[0] === MY_DIETARY_KEY)
+    }
+  }
+
+  function refreshAll() {
+    refresh({ plan: true, log: true, nutrition: true, dietary: true })
   }
 
   function handleEvent(event: Experimental_RealtimeServerEvent) {
@@ -245,7 +252,7 @@ export function useMealPlannerVoice({
     }
     if (event.type === "transcript-fragment") {
       if (event.speaker === "user") {
-        ledger.addFragment({ text: event.delta, startMs: event.startMs, endMs: event.endMs })
+        ledger.utterances.addFragment({ text: event.delta, startMs: event.startMs, endMs: event.endMs })
         setHeard(true)
         // Speaking again while the call is ending means the user is not done.
         if (farewell.phase !== "idle" && event.delta.trim().length > 1) keepTalking()
@@ -259,16 +266,11 @@ export function useMealPlannerVoice({
     }
   }
 
-  /**
-   * Takes the words of one delegation and runs them. If an earlier turn is still
-   * running, it is superseded immediately (skipping the extra interruption decision
-   * round-trip); anything already saved stays saved.
-   */
   async function delegate(delegationId: string, offsetMs: number | undefined) {
-    if (!(await ledger.waitForUtterance(offsetMs, TRANSCRIPT_GRACE_MS))) return
-    const message = ledger.takeUtterance(offsetMs)
-    if (ledger.running() && message) {
-      const superseded = ledger.cancel()
+    if (!(await ledger.utterances.waitForUtterance(offsetMs, TRANSCRIPT_GRACE_MS))) return
+    const message = ledger.utterances.takeUtterance(offsetMs)
+    if (ledger.turns.running() && message) {
+      const superseded = ledger.turns.cancel()
       if (superseded) {
         void append(
           superseded,
@@ -277,119 +279,25 @@ export function useMealPlannerVoice({
         )
       }
     }
-    ledger.enqueue(() => runDelegation(delegationId, message))
-  }
-
-  /**
-   * Reloads everything a voice turn can change. A turn cancelled mid-stream may have saved
-   * changes whose tool results never reached the browser, so its effects are unknown.
-   */
-  function refreshAll() {
-    refresh({
-      focus: null,
-      close: null,
-      planChanged: true,
-      logChanged: true,
-      nutritionChanged: true,
-      dietaryChanged: true,
-      endCall: false,
-    })
-  }
-
-  function refresh(effects: VoiceEffects) {
-    if (effects.planChanged) void mutate(isMealPlanKey)
-    if (effects.logChanged) void mutate(isMealLogKey)
-    if (effects.nutritionChanged) {
-      void mutate((key) => Array.isArray(key) && key[0] === MY_NUTRITION_KEY)
-    }
-    if (effects.dietaryChanged) {
-      void mutate((key) => Array.isArray(key) && key[0] === MY_DIETARY_KEY)
-    }
-  }
-
-  async function runDelegation(delegationId: string, message: string) {
-    if (!message) {
-      await append(delegationId, "commentary", "Không nhận được lời người dùng cho yêu cầu này.")
-      return
-    }
-    if (!accessToken || !weekStart) {
-      await append(delegationId, "commentary", failureText(null))
-      return
-    }
-
-    const controller = ledger.begin(delegationId, message)
-    const seen = new Set<string>()
-    let reply = ""
-    let lastActions: VoiceAction[] = []
-    let ended = false
-    // The API saves the user message before it streams, so the thread exists once a reply starts.
-    let saved = false
-    let spokenProgress: ReturnType<typeof setTimeout> | undefined
-    setPending((count) => count + 1)
-    try {
-      const turn = streamVoiceTurn(
+    ledger.turns.enqueue(() =>
+      runVoiceTurn({
+        delegationId,
+        message,
         accessToken,
-        {
-          weekStart,
-          message,
-          threadId,
-          requestId: delegationId,
-          screen: getScreen() ?? undefined,
-        },
-        controller.signal
-      )
-      let replied = false
-      const deliverReply = () => {
-        if (replied) return Promise.resolve()
-        replied = true
-        // The reply is next; a progress line after it would only repeat it.
-        clearTimeout(spokenProgress)
-        // Marked before the farewell is sent: GPT-Live can acknowledge it before `append` resolves.
-        if (ended) farewell.sent()
-        const spoken = reply || actionSummary(lastActions) || "Đã xong."
-        const sent = append(delegationId, "commentary", spoken)
-        if (ended) setEnding(true)
-        return sent
-      }
-      for await (const update of turn) {
-        saved = true
-        lastActions = finishedActions(update)
-        const fresh = lastActions.filter((action) => !seen.has(action.toolCallId))
-        for (const action of fresh) {
-          seen.add(action.toolCallId)
-          const effects = voiceEffects([action])
-          if (effects.endCall) ended = true
-          refresh(effects)
-          if (touchesScreen(effects)) onEffects(effects)
-          const line = progressLine(action)
-          if (line) {
-            void append(delegationId, "thinking", line)
-            clearTimeout(spokenProgress)
-            spokenProgress = setTimeout(() => {
-              if (ledger.runningFor(delegationId) > PROGRESS_AFTER_MS) void append(delegationId, "commentary", line)
-            }, PROGRESS_SPEAK_DELAY_MS)
-          }
-        }
-        reply = replyText(update)
-        if (isVoiceReplyReady(update)) {
-          void deliverReply()
-        }
-      }
-      if (!replied) {
-        await deliverReply()
-      }
-    } catch (cause) {
-      // A cancelled turn was superseded or the call ended; the next turn speaks. The API may
-      // still have saved changes the stream never showed, so reload what it could touch. The
-      // error a cancelled stream throws is not always an AbortError, so the signal decides.
-      if (controller.signal.aborted || isAbort(cause)) refreshAll()
-      else await append(delegationId, "commentary", failureText(cause))
-    } finally {
-      clearTimeout(spokenProgress)
-      ledger.finish(delegationId)
-      setPending((count) => count - 1)
-      if (saved) onTurnEnd(threadId)
-    }
+        weekStart,
+        threadId,
+        screen: getScreen() ?? undefined,
+        turns: ledger.turns,
+        farewell,
+        append,
+        onScreen,
+        onRefresh: refresh,
+        onRefreshAll: refreshAll,
+        onPendingChange: (delta) => setPending((count) => count + delta),
+        onEnding: () => setEnding(true),
+        onTurnEnd,
+      })
+    )
   }
 
   const connectRealtime = realtime.connect
@@ -404,12 +312,16 @@ export function useMealPlannerVoice({
     setUsageAnchor(null)
     await openVoiceCall({
       ledger,
+      capture,
       connect: connectRealtime,
+      sendEvent: sendRealtimeEvent,
+      isMuted: () => mutedRef.current,
       onError: setError,
     })
   }
 
   async function end() {
+    capture.stop()
     ledger.endCall()
     try {
       await closeRealtime()
@@ -427,11 +339,17 @@ export function useMealPlannerVoice({
   useEffect(() => {
     void openVoiceCall({
       ledger,
+      capture,
       connect: connectRealtime,
+      sendEvent: sendRealtimeEvent,
+      isMuted: () => mutedRef.current,
       onError: setError,
     })
-    return () => ledger.endCall()
-  }, [ledger, connectRealtime])
+    return () => {
+      capture.stop()
+      ledger.endCall()
+    }
+  }, [ledger, capture, connectRealtime, sendRealtimeEvent])
 
   // The farewell is the reply of the turn that asked to hang up: hang up once it has played.
   const endRef = useRef(end)
@@ -492,8 +410,9 @@ export function useMealPlannerVoice({
   const ended = (wasConnected && realtime.status === "disconnected") || realtime.status === "error"
   useEffect(() => {
     if (!ended) return
+    capture.stop()
     ledger.endCall()
-  }, [ended, ledger])
+  }, [ended, capture, ledger])
 
   const muted = realtime.session?.isInputMuted ?? false
   const speaking = useHeldTrue(connected && !muted && realtime.isPlaying, SPEAKING_HOLD_MS)
@@ -508,7 +427,7 @@ export function useMealPlannerVoice({
 
   const monitoring = orbState === "listening"
   useEffect(() => {
-    ledger.setMonitoring(monitoring)
+    ledger.mic.setMonitoring(monitoring)
   }, [ledger, monitoring])
 
   return {

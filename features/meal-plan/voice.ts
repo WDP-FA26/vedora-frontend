@@ -1,18 +1,12 @@
 import {
-  getToolName,
-  isTextUIPart,
-  isToolUIPart,
   parseJsonEventStream,
-  readUIMessageStream,
   uiMessageChunkSchema,
   type Experimental_RealtimeSessionConfig,
-  type UIMessage,
-  type UIMessageChunk,
 } from "ai"
 import { z } from "zod"
 
 import { API_URL } from "@/features/auth/lib/api"
-import { DAY_LABELS, planChangeSchema, WEEKDAYS, type Weekday } from "@/features/meal-plan/meal-plan"
+import { WEEKDAYS, type Weekday } from "@/features/meal-plan/meal-plan"
 import { send } from "@/features/shared/lib/api-client"
 
 // Mirrors vedora-api's `/meal-plan/voice/*` routes: the meal planner voice agent.
@@ -101,7 +95,9 @@ Delegate to the backend before answering anything that depends on backend work, 
  */
 function voiceGreeting(fullName: string | undefined) {
   const name = fullName?.trim()
-  const address = name ? `, addressing them by given name the way Vietnamese speakers naturally do (full name: "${name}")` : ""
+  const address = name
+    ? `, addressing them by given name the way Vietnamese speakers naturally do (full name: "${name}")`
+    : ""
   return `Greet the user right away in natural Vietnamese${address}. Briefly introduce yourself as Vedora's assistant, then pause and listen.`
 }
 
@@ -168,104 +164,12 @@ export const voiceSessionSchema = z.object({
   model: z.string(),
 })
 
-/** A tool the planner finished in a voice turn. */
-export type VoiceAction = { toolCallId: string; tool: string; input: unknown; output: unknown }
-
 export type VoiceTurnRequest = {
   weekStart: string
   message: string
   threadId?: string
   requestId?: string
   screen?: VoiceScreen
-}
-
-const voiceMetadataSchema = z.object({ voiceDone: z.literal(true) })
-
-function markVoiceDone(metadata: unknown): Record<string, unknown> {
-  if (typeof metadata === "object" && metadata !== null && !Array.isArray(metadata)) {
-    return { ...metadata, voiceDone: true }
-  }
-  return { voiceDone: true }
-}
-
-/** Whether the planner LLM has finished emitting its reply for this stream snapshot. */
-export function isVoiceReplyReady(message: UIMessage): boolean {
-  return voiceMetadataSchema.safeParse(message.metadata).success
-}
-
-/** The finished tools of a reply, in order. */
-export function finishedActions(message: UIMessage): VoiceAction[] {
-  const actions: VoiceAction[] = []
-  for (const part of message.parts) {
-    if (!isToolUIPart(part) || part.state !== "output-available") continue
-    actions.push({ toolCallId: part.toolCallId, tool: getToolName(part), input: part.input, output: part.output })
-  }
-  return actions
-}
-
-/** The spoken reply: the text parts of the message. */
-export function replyText(message: UIMessage) {
-  const texts: string[] = []
-  for (const part of message.parts) {
-    if (isTextUIPart(part)) texts.push(part.text)
-  }
-  return texts.join(" ").trim()
-}
-
-/**
- * Runs one spoken turn and yields the reply as it grows: the API streams the same
- * UI message stream as the text chat, so tools can be mirrored as they finish.
- */
-export async function* streamVoiceTurn(
-  token: string,
-  request: VoiceTurnRequest,
-  signal: AbortSignal
-): AsyncGenerator<UIMessage> {
-  const response = await send(`${API_URL}/meal-plan/voice/turns`, token, {
-    method: "POST",
-    body: JSON.stringify(request),
-    signal,
-  })
-  if (!response.body) return
-  const chunks = parseJsonEventStream({ stream: response.body, schema: uiMessageChunkSchema }).pipeThrough(
-    new TransformStream<{ success: true; value: UIMessageChunk } | { success: false; error: unknown }, UIMessageChunk>({
-      transform(result, controller) {
-        if (!result.success) return
-        if (result.value.type === "finish") {
-          controller.enqueue({
-            ...result.value,
-            messageMetadata: markVoiceDone(result.value.messageMetadata),
-          })
-          return
-        }
-        controller.enqueue(result.value)
-      },
-    })
-  )
-  let failure: string | null = null
-  for await (const message of readUIMessageStream({
-    stream: chunks,
-    onError: (error) => {
-      failure = error instanceof Error ? error.message : String(error)
-    },
-  })) {
-    yield message
-  }
-  if (failure !== null) throw new Error(failure)
-}
-
-/** A short line to say while a long turn is still running, for a change already saved. */
-export function progressLine(action: VoiceAction): string | null {
-  if (PLAN_TOOLS.has(action.tool)) {
-    const change = planChangeSchema.safeParse(action.output)
-    if (!change.success || !change.data.applied) return null
-    const days = change.data.days.map(({ day }) => DAY_LABELS[day]).join(", ")
-    return days ? `Đã lưu thay đổi thực đơn cho ${days}, đang làm tiếp.` : null
-  }
-  if (action.tool === "logMeal") return "Đã ghi món vào nhật ký, đang làm tiếp."
-  if (action.tool === "updateBodyMetrics") return "Đã lưu chỉ số cơ thể mới, đang làm tiếp."
-  if (action.tool === "undoLastChange") return "Đã hoàn tác thay đổi trước đó, đang làm tiếp."
-  return null
 }
 
 /** Parts of a recipe sheet the voice agent can scroll to; `top` is the start. */
@@ -334,25 +238,6 @@ export type VoiceScreen = {
   scrollState?: VoiceScrollState
 }
 
-const setScreenOutputSchema = z.object({
-  applied: z.boolean(),
-  view: z.enum(["calendar", "recipe", "eatingLog", "bodyMetrics"]),
-  recipeId: z.string().nullable(),
-  title: z.string().nullable(),
-  section: z.enum(RECIPE_SECTIONS).nullable(),
-  step: z.number().int().nullable().optional(),
-  scroll: z.enum(SCREEN_SCROLL_DIRECTIONS).nullable().optional(),
-  weekStart: z.string().nullable(),
-  day: z.enum(WEEKDAYS).nullable(),
-  date: z.string().nullable(),
-})
-
-const logMealOutputSchema = z.object({ entry: z.object({ date: z.string() }) })
-
-const undoOutputSchema = z.object({
-  weeks: z.array(z.object({ weekStart: z.string(), restored: z.array(z.enum(WEEKDAYS)) })),
-})
-
 /** The part of the existing planner UI the voice agent points at and opens. */
 export type VoiceFocus =
   | { kind: "recipe"; recipeId: string; title: string; section: RecipeSection | null; step?: number | null }
@@ -364,272 +249,124 @@ export type VoiceFocus =
 /** How long the screen keeps glowing after the agent last opened something. */
 export const VOICE_GLOW_MS = 1800
 
-const PLAN_TOOLS = new Set(["fillSlots", "editPlan", "autoBalancePlan", "verifyMealPlanAllergies"])
-const DIETARY_NOTE_TOOLS = new Set(["updateMemory"])
-
-export type VoiceEffects = {
-  /** What to open on screen: the last panel a tool asked for, else the last changed day. */
+/** What to open, close, or scroll on the planner page in response to a `data-screen` event. */
+export type VoiceScreenCommand = {
   focus: VoiceFocus | null
-  /** A panel the agent closed. */
   close: VoiceScreenPanel | null
-  /** Optional relative scroll on the active view (open panel or calendar). */
   scroll?: ScreenScrollDirection | null
-  planChanged: boolean
-  logChanged: boolean
-  nutritionChanged: boolean
-  dietaryChanged: boolean
-  /** The agent decided to hang up once its reply is spoken. */
-  endCall: boolean
 }
 
-/** Puts a `setScreen` result into the effects: the view to open, or the calendar with panels closed. */
-function applyScreen(effects: VoiceEffects, screen: z.infer<typeof setScreenOutputSchema>) {
-  if (screen.scroll) effects.scroll = screen.scroll
-  if (screen.view === "recipe" && screen.recipeId !== null && screen.title !== null) {
-    effects.focus = {
-      kind: "recipe",
-      recipeId: screen.recipeId,
-      title: screen.title,
-      section: screen.section,
-      ...(screen.step !== undefined ? { step: screen.step } : {}),
-    }
-    return
-  }
-  if (screen.view === "eatingLog") {
-    effects.focus = { kind: "eatingLog", date: screen.date }
-    return
-  }
-  if (screen.view === "bodyMetrics") {
-    effects.focus = { kind: "bodyMetrics" }
-    return
-  }
-  if (screen.view !== "calendar") return
-  effects.close = "all"
-  if (screen.weekStart !== null) effects.focus = { kind: "planDay", weekStart: screen.weekStart, day: screen.day }
+export type VoiceRefreshCommand = {
+  plan?: boolean
+  log?: boolean
+  nutrition?: boolean
+  dietary?: boolean
 }
 
-const bodyMetricsSummarySchema = z
-  .object({
-    heightCm: z.number().nullable().optional(),
-    weightKg: z.number().nullable().optional(),
-    targetWeightKg: z.number().nullable().optional(),
-    bmi: z.number().nullable().optional(),
-    dailyCalorieTarget: z.number().nullable().optional(),
-  })
-  .nullable()
-  .optional()
+export type VoiceTurnEvent =
+  | { type: "started" }
+  | { type: "screen"; screen: VoiceScreenCommand }
+  | { type: "refresh"; refresh: VoiceRefreshCommand }
+  | { type: "progress"; text: string }
+  | { type: "summary"; text: string }
+  | { type: "end-call" }
+  | { type: "text"; delta: string }
+  | { type: "ready" }
 
-const setScreenSummarySchema = setScreenOutputSchema.extend({
-  metrics: bodyMetricsSummarySchema,
-})
-
-const logMealSummarySchema = z.object({
-  entry: z.object({
-    date: z.string(),
-    section: z.enum(["BREAKFAST", "LUNCH", "DINNER", "OTHER"]),
-    name: z.string(),
-    servings: z.number().optional(),
-    calories: z.number().nullable().optional(),
+const voiceFocusSchema = z.discriminatedUnion("kind", [
+  z.object({
+    kind: z.literal("recipe"),
+    recipeId: z.string(),
+    title: z.string(),
+    section: z.enum(RECIPE_SECTIONS).nullable(),
+    step: z.number().int().nullable().optional(),
   }),
+  z.object({ kind: z.literal("eatingLog"), date: z.string().nullable() }),
+  z.object({ kind: z.literal("bodyMetrics") }),
+  z.object({ kind: z.literal("planDay"), weekStart: z.string(), day: z.enum(WEEKDAYS).nullable() }),
+])
+
+const voiceScreenDataSchema = z.object({
+  focus: voiceFocusSchema.nullable(),
+  close: z.enum(["recipe", "eatingLog", "bodyMetrics", "all"]).nullable(),
+  scroll: z.enum(SCREEN_SCROLL_DIRECTIONS).nullable().optional(),
 })
 
-const undoSummarySchema = z.object({
-  messageId: z.string().nullable(),
-  weeks: z.array(
-    z.object({
-      weekStart: z.string(),
-      restored: z.array(z.enum(WEEKDAYS)),
-      skipped: z.array(z.enum(WEEKDAYS)).optional(),
-    })
-  ),
+const voiceRefreshDataSchema = z.object({
+  plan: z.boolean().optional(),
+  log: z.boolean().optional(),
+  nutrition: z.boolean().optional(),
+  dietary: z.boolean().optional(),
 })
 
-const endCallOutputSchema = z.object({ ended: z.literal(true) })
-
-const SECTION_SUMMARY_LABELS = {
-  BREAKFAST: "sáng",
-  LUNCH: "trưa",
-  DINNER: "tối",
-  OTHER: "bữa phụ",
-} as const
-
-const RECIPE_SECTION_SUMMARY: Record<RecipeSection, string> = {
-  top: "",
-  ingredients: ", ở phần nguyên liệu",
-  steps: ", ở phần cách làm",
-}
-
-const SCROLL_SUMMARY: Record<ScreenScrollDirection, string> = {
-  down: "Đã cuộn xuống",
-  up: "Đã cuộn lên",
-  top: "Đã cuộn lên đầu",
-  bottom: "Đã cuộn xuống cuối",
-}
-
-function formatBodyMetricsDetails(metrics: z.infer<typeof bodyMetricsSummarySchema>): string[] {
-  const details: string[] = []
-  if (typeof metrics?.heightCm === "number") details.push(`chiều cao ${metrics.heightCm} cm`)
-  if (typeof metrics?.weightKg === "number") details.push(`cân nặng ${metrics.weightKg} kg`)
-  if (typeof metrics?.targetWeightKg === "number") details.push(`mục tiêu ${metrics.targetWeightKg} kg`)
-  if (typeof metrics?.bmi === "number") details.push(`BMI ${metrics.bmi}`)
-  if (typeof metrics?.dailyCalorieTarget === "number") {
-    details.push(`mục tiêu khoảng ${metrics.dailyCalorieTarget} kcal mỗi ngày`)
-  }
-  return details
-}
+const voiceTextDataSchema = z.object({ text: z.string().min(1) })
 
 /**
- * Short factual line built from completed quick tools when the planner stopped
- * right after step 1 without generating prose.
+ * Runs one spoken turn and yields typed events from the API's UI message stream:
+ * transient `data-*` commands (`data-screen`, `data-refresh`, `data-progress`,
+ * `data-summary`, `data-end-call`), text deltas, and `ready` on `finish`.
  */
-export function actionSummary(actions: VoiceAction[]): string | null {
-  let screenSummary: string | null = null
-  for (let index = actions.length - 1; index >= 0; index -= 1) {
-    const action = actions[index]
-    if (action.tool === "endCall" && endCallOutputSchema.safeParse(action.output).success) {
-      return "Người dùng muốn kết thúc cuộc gọi, hãy chào tạm biệt ngắn gọn."
-    }
-    if (action.tool === "logMeal") {
-      const parsed = logMealSummarySchema.safeParse(action.output)
-      if (!parsed.success) continue
-      const { name, section, date, calories } = parsed.data.entry
-      const kcal = typeof calories === "number" ? `, khoảng ${calories} kcal` : ""
-      return `Đã ghi món "${name}" vào nhật ký bữa ${SECTION_SUMMARY_LABELS[section]} ngày ${date}${kcal}.`
-    }
-    if (action.tool === "updateBodyMetrics") {
-      const parsed = bodyMetricsSummarySchema.safeParse(action.output)
-      if (!parsed.success || !parsed.data) continue
-      const details = formatBodyMetricsDetails(parsed.data)
-      return details.length > 0
-        ? `Đã lưu chỉ số cơ thể mới (${details.join(", ")}).`
-        : "Đã lưu chỉ số cơ thể mới trên màn hình."
-    }
-    if (action.tool === "undoLastChange") {
-      const parsed = undoSummarySchema.safeParse(action.output)
-      if (!parsed.success) continue
-      if (parsed.data.messageId === null || parsed.data.weeks.length === 0) {
-        return "Không còn thay đổi thực đơn nào trong cuộc trò chuyện này để hoàn tác."
-      }
-      const restored = parsed.data.weeks
-        .flatMap((week) => week.restored.map((day) => DAY_LABELS[day]))
-        .join(", ")
-      return restored
-        ? `Đã hoàn tác thay đổi thực đơn gần nhất cho ${restored}.`
-        : "Đã hoàn tác thay đổi thực đơn gần nhất."
-    }
-    if (action.tool !== "setScreen" || screenSummary !== null) continue
-    const screen = setScreenSummarySchema.safeParse(action.output)
-    if (!screen.success || !screen.data.applied) continue
-    const { view, title, section, step, scroll, date, day, metrics } = screen.data
-    if (scroll) {
-      screenSummary = `${SCROLL_SUMMARY[scroll]}.`
-      continue
-    }
-    if (view === "recipe" && title !== null) {
-      const part =
-        typeof step === "number"
-          ? `, ở bước ${step}`
-          : section === null
-            ? ""
-            : RECIPE_SECTION_SUMMARY[section]
-      screenSummary = `Đã mở công thức "${title}" trên màn hình${part}.`
-      continue
-    }
-    if (view === "eatingLog") {
-      screenSummary = date
-        ? `Đã mở nhật ký ăn uống ngày ${date} trên màn hình.`
-        : "Đã mở nhật ký ăn uống hôm nay trên màn hình."
-      continue
-    }
-    if (view === "bodyMetrics") {
-      const details = formatBodyMetricsDetails(metrics)
-      screenSummary =
-        details.length > 0
-          ? `Đã mở bảng chỉ số cơ thể trên màn hình (${details.join(", ")}).`
-          : "Đã mở bảng chỉ số cơ thể trên màn hình."
-      continue
-    }
-    if (view === "calendar") {
-      screenSummary = day
-        ? `Đã đóng bảng và chuyển lịch tới ${DAY_LABELS[day]}.`
-        : "Đã đóng các bảng và quay lại lịch thực đơn."
-    }
-  }
-  return screenSummary
-}
-
-/** What a turn's finished tools mean for the page: what to open and which caches to refresh. */
-export function voiceEffects(actions: VoiceAction[]): VoiceEffects {
-  const effects: VoiceEffects = {
-    focus: null,
-    close: null,
-    planChanged: false,
-    logChanged: false,
-    nutritionChanged: false,
-    dietaryChanged: false,
-    endCall: false,
-  }
-  let changedDay: VoiceFocus | null = null
-  for (const action of actions) {
-    if (PLAN_TOOLS.has(action.tool)) {
-      effects.planChanged = true
-      const change = planChangeSchema.safeParse(action.output)
-      const day = change.success ? change.data.days[0]?.day : undefined
-      if (change.success && change.data.applied && day) {
-        changedDay = { kind: "planDay", weekStart: change.data.weekStart, day }
-      }
-      continue
-    }
-    if (DIETARY_NOTE_TOOLS.has(action.tool)) {
-      effects.dietaryChanged = true
-      continue
-    }
-    if (action.tool === "endCall") {
-      effects.endCall = true
-      continue
-    }
-    if (action.tool === "setScreen") {
-      const output = setScreenOutputSchema.safeParse(action.output)
-      if (output.success && output.data.applied) applyScreen(effects, output.data)
-      continue
-    }
-    if (action.tool === "logMeal") {
-      effects.logChanged = true
-      const output = logMealOutputSchema.safeParse(action.output)
-      if (output.success) effects.focus = { kind: "eatingLog", date: output.data.entry.date }
-      continue
-    }
-    if (action.tool === "undoLastChange") {
-      effects.planChanged = true
-      const output = undoOutputSchema.safeParse(action.output)
-      const week = output.success ? output.data.weeks[0] : undefined
-      const day = week?.restored[0]
-      if (week && day) changedDay = { kind: "planDay", weekStart: week.weekStart, day }
-      continue
-    }
-    if (action.tool === "updateBodyMetrics") {
-      effects.nutritionChanged = true
-      effects.focus = { kind: "bodyMetrics" }
-    }
-  }
-  if (effects.focus === null) effects.focus = changedDay
-  return effects
-}
-
-/** What words spoken during a running turn mean for it; see `POST /meal-plan/voice/interruptions`. */
-export type VoiceInterruption = "progress" | "supersede" | "queue"
-
-const interruptionSchema = z.object({ action: z.enum(["progress", "supersede", "queue"]) })
-
-export async function classifyInterruption(
+export async function* streamVoiceTurn(
   token: string,
-  request: { running: string; utterance: string },
-  signal?: AbortSignal
-): Promise<VoiceInterruption> {
-  const response = await send(`${API_URL}/meal-plan/voice/interruptions`, token, {
+  request: VoiceTurnRequest,
+  signal: AbortSignal
+): AsyncGenerator<VoiceTurnEvent> {
+  const response = await send(`${API_URL}/meal-plan/voice/turns`, token, {
     method: "POST",
     body: JSON.stringify(request),
     signal,
   })
-  return interruptionSchema.parse(await response.json()).action
+  if (!response.body) return
+
+  const parsed = parseJsonEventStream({ stream: response.body, schema: uiMessageChunkSchema })
+  const reader = parsed.getReader()
+  try {
+    while (true) {
+      const { value: result, done } = await reader.read()
+      if (done) break
+      if (!result.success) continue
+      const chunk = result.value
+
+      if (chunk.type === "start") {
+        yield { type: "started" }
+        continue
+      }
+      if (chunk.type === "error") {
+        throw new Error(chunk.errorText)
+      }
+      if (chunk.type === "text-delta") {
+        yield { type: "text", delta: chunk.delta }
+        continue
+      }
+      if (chunk.type === "finish") {
+        yield { type: "ready" }
+        continue
+      }
+      if (chunk.type === "data-screen") {
+        const data = voiceScreenDataSchema.safeParse(chunk.data)
+        if (data.success) yield { type: "screen", screen: data.data }
+        continue
+      }
+      if (chunk.type === "data-refresh") {
+        const data = voiceRefreshDataSchema.safeParse(chunk.data)
+        if (data.success) yield { type: "refresh", refresh: data.data }
+        continue
+      }
+      if (chunk.type === "data-progress") {
+        const data = voiceTextDataSchema.safeParse(chunk.data)
+        if (data.success) yield { type: "progress", text: data.data.text }
+        continue
+      }
+      if (chunk.type === "data-summary") {
+        const data = voiceTextDataSchema.safeParse(chunk.data)
+        if (data.success) yield { type: "summary", text: data.data.text }
+        continue
+      }
+      if (chunk.type === "data-end-call") {
+        yield { type: "end-call" }
+      }
+    }
+  } finally {
+    reader.releaseLock()
+  }
 }

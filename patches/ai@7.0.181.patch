@@ -1,16 +1,14 @@
 diff --git a/dist/index.js b/dist/index.js
-index 8f1889e0e95e35514a9b3779e1a1afb2c32646bb..c0e48dd19adeef3ab0dfd660677657fdaba77bc7 100644
+index 8f1889e..3be18ff 100644
 --- a/dist/index.js
 +++ b/dist/index.js
-@@ -14184,22 +14184,80 @@ function resolveRealtimeToolDescription({ tool, toolName, toolsContext }) {
+@@ -14184,6 +14184,25 @@ function resolveRealtimeToolDescription({ tool, toolName, toolsContext }) {
  }
  //#endregion
  //#region src/realtime/browser-realtime-audio.ts
 +/**
-+ * vedora patch: adaptive jitter buffer with decay and gentle catch-up. Playback that starts
-+ * from an empty queue starts PLAYBACK_PREBUFFER_MIN_SECONDS ahead; mid-utterance gaps within
-+ * PLAYBACK_GAP_SECONDS grow the lead up to PLAYBACK_PREBUFFER_MAX_SECONDS, smooth playback
-+ * decays it back down, and large bursts speed up slightly to catch up to real time.
++ * vedora patch: adaptive jitter buffer with decay, gentle catch-up, click-free fadeout,
++ * and playback RMS metering. Microphone capture lives in app code (capture: false).
 + */
 +const PLAYBACK_PREBUFFER_MIN_SECONDS = 0.15;
 +const PLAYBACK_PREBUFFER_MAX_SECONDS = 1;
@@ -22,48 +20,15 @@ index 8f1889e0e95e35514a9b3779e1a1afb2c32646bb..c0e48dd19adeef3ab0dfd660677657fd
 +const PLAYBACK_CATCHUP_STOP_SECONDS = 0.6;
 +const PLAYBACK_CATCHUP_RATE = 1.06;
 +const PLAYBACK_FADEOUT_SECONDS = 0.008;
-+/**
-+ * vedora patch: microphone capture runs in an AudioWorklet (off the main thread) instead of
-+ * the deprecated ScriptProcessorNode, so a busy page no longer drops input audio. The module
-+ * is served by the app; if it cannot load, capture falls back to ScriptProcessorNode.
-+ */
-+const CAPTURE_WORKLET_URL = "/realtime-capture-worklet.js?v=2";
-+const CAPTURE_WORKLET_NAME = "vedora-realtime-capture";
-+/** The worklet posts 20 ms of input at a time, so speech and barge-in reach the server sooner. */
-+const CAPTURE_WORKLET_CHUNK_SECONDS = .02;
-+/** Cap pending audio at ~800 ms; drop overflow chunks rather than killing the call on main-thread spikes. */
-+const CAPTURE_MAX_PENDING_CHUNKS = Math.max(8, Math.ceil(.8 / CAPTURE_WORKLET_CHUNK_SECONDS));
-+/** ScriptProcessorNode only takes power-of-two buffer sizes. */
-+const CAPTURE_FALLBACK_CHUNK_SAMPLES = 1024;
-+function encodePcm16(pcm16) {
-+	const bytes = new Uint8Array(pcm16.buffer, pcm16.byteOffset, pcm16.byteLength);
-+	if (typeof bytes.toBase64 === "function") return bytes.toBase64();
-+	const chunkSize = 32768;
-+	let binary = "";
-+	for (let i = 0; i < bytes.length; i += chunkSize) {
-+		const slice = bytes.subarray(i, i + chunkSize);
-+		binary += String.fromCharCode(...slice);
-+	}
-+	return btoa(binary);
-+}
 +function computeRmsLevel(samples) {
 +	let sum = 0;
 +	for (let i = 0; i < samples.length; i++) sum += samples[i] * samples[i];
 +	return samples.length > 0 ? Math.min(1, Math.sqrt(sum / samples.length) * 4) : 0;
 +}
-+function setRealtimeInputLevel(level) {
-+	globalThis.__vedoraRealtimeInputLevel = level;
-+}
  var BrowserRealtimeAudio = class {
  	constructor(options) {
  		this.captureContext = null;
-+		this.preloadedCaptureContext = null;
-+		this.preloadedWorkletPromise = null;
- 		this.captureProcessor = null;
-+		this.captureSink = null;
- 		this.captureSource = null;
- 		this.captureStream = null;
- 		this.ownsCaptureStream = true;
+@@ -14194,12 +14213,19 @@ var BrowserRealtimeAudio = class {
  		this.captureCleanup = [];
  		this.captureGeneration = 0;
  		this.playbackContext = null;
@@ -83,21 +48,7 @@ index 8f1889e0e95e35514a9b3779e1a1afb2c32646bb..c0e48dd19adeef3ab0dfd660677657fd
  		this.captureSampleRate = options.captureSampleRate;
  		this.playbackSampleRate = options.playbackSampleRate;
  		this.onAudio = options.onAudio;
-@@ -14208,15 +14266,39 @@ var BrowserRealtimeAudio = class {
- 		this.onError = options.onError;
- 		this.onCapturingChange = options.onCapturingChange;
- 	}
-+	preloadCaptureWorklet() {
-+		if (typeof AudioWorkletNode === "undefined" || this.preloadedCaptureContext != null) return;
-+		const ctx = new AudioContext({ sampleRate: this.captureSampleRate });
-+		if (ctx.audioWorklet == null) {
-+			ctx.close().catch(() => {});
-+			return;
-+		}
-+		this.preloadedCaptureContext = ctx;
-+		this.preloadedWorkletPromise = ctx.audioWorklet.addModule(CAPTURE_WORKLET_URL).then(() => true, () => false);
-+	}
- 	ensurePlaybackContext() {
+@@ -14212,11 +14238,25 @@ var BrowserRealtimeAudio = class {
  		if (this.playbackContext == null) {
  			this.playbackContext = new AudioContext({ sampleRate: this.playbackSampleRate });
  			const context = this.playbackContext;
@@ -123,157 +74,7 @@ index 8f1889e0e95e35514a9b3779e1a1afb2c32646bb..c0e48dd19adeef3ab0dfd660677657fd
  	async resumePlayback() {
  		this.ensurePlaybackContext();
  		const context = this.playbackContext;
-@@ -14236,48 +14318,126 @@ var BrowserRealtimeAudio = class {
- 		}
- 		this.captureStream = stream;
- 		this.ownsCaptureStream = options?.ownsStream ?? true;
--		const ctx = new AudioContext({ sampleRate: this.captureSampleRate });
-+		const ctx = this.preloadedCaptureContext ?? new AudioContext({ sampleRate: this.captureSampleRate });
-+		const workletPromise = this.preloadedWorkletPromise ?? (ctx.audioWorklet != null && typeof AudioWorkletNode !== "undefined" ? ctx.audioWorklet.addModule(CAPTURE_WORKLET_URL).then(() => true, () => false) : null);
-+		this.preloadedCaptureContext = null;
-+		this.preloadedWorkletPromise = null;
- 		this.captureContext = ctx;
- 		ctx.resume().catch((error) => {
- 			if (this.captureContext === ctx) this.onError?.(error);
- 		});
- 		const source = ctx.createMediaStreamSource(stream);
- 		this.captureSource = source;
--		const processor = ctx.createScriptProcessor(1024, 1, 1);
--		this.captureProcessor = processor;
--		processor.onaudioprocess = (event) => {
-+		let listenersAttached = false;
-+		const attachTrackListeners = () => {
-+			if (listenersAttached || this.captureContext !== ctx) return;
-+			listenersAttached = true;
-+			const updateCapturing = () => this.onCapturingChange(stream.getAudioTracks().some((track) => track.enabled && !track.muted && track.readyState === "live"));
-+			for (const track of stream.getAudioTracks()) for (const event of [
-+				"ended",
-+				"mute",
-+				"unmute"
-+			]) {
-+				track.addEventListener(event, updateCapturing);
-+				this.captureCleanup.push(() => track.removeEventListener(event, updateCapturing));
-+			}
-+			updateCapturing();
-+		};
-+		const useScriptProcessor = () => {
-+			if (this.captureContext !== ctx) return;
-+			const processor = ctx.createScriptProcessor(CAPTURE_FALLBACK_CHUNK_SAMPLES, 1, 1);
-+			this.captureProcessor = processor;
-+			processor.onaudioprocess = (event) => {
-+				if (this.captureContext !== ctx) return;
-+				const inputData = new Float32Array(event.inputBuffer.getChannelData(0));
-+				setRealtimeInputLevel(computeRmsLevel(inputData));
-+				const samples = resampleAudio(inputData, ctx.sampleRate, this.captureSampleRate);
-+				try {
-+					this.onAudio(encodeRealtimeAudio(samples));
-+				} catch (error) {
-+					this.onError?.(error instanceof Error ? error : new Error(String(error)));
-+				}
-+			};
-+			source.connect(processor);
-+			processor.connect(ctx.destination);
-+			attachTrackListeners();
-+		};
-+		if (workletPromise != null) workletPromise.then((loaded) => {
- 			if (this.captureContext !== ctx) return;
--			const inputData = event.inputBuffer.getChannelData(0);
--			const samples = resampleAudio(new Float32Array(inputData), ctx.sampleRate, this.captureSampleRate);
-+			if (!loaded) {
-+				useScriptProcessor();
-+				return;
-+			}
- 			try {
--				this.onAudio(encodeRealtimeAudio(samples));
--			} catch (error) {
--				this.onError?.(error instanceof Error ? error : new Error(String(error)));
-+				const node = new AudioWorkletNode(ctx, CAPTURE_WORKLET_NAME, {
-+					numberOfInputs: 1,
-+					numberOfOutputs: 1,
-+					outputChannelCount: [1],
-+					channelCount: 1,
-+					channelCountMode: "explicit",
-+					processorOptions: {
-+						targetSampleRate: this.captureSampleRate,
-+						chunkSeconds: CAPTURE_WORKLET_CHUNK_SECONDS
-+					}
-+				});
-+				const sink = ctx.createGain();
-+				sink.gain.value = 0;
-+				this.captureProcessor = node;
-+				this.captureSink = sink;
-+				node.onprocessorerror = () => {
-+					if (this.captureContext !== ctx || this.captureProcessor !== node) return;
-+					node.onprocessorerror = null;
-+					node.port.onmessage = null;
-+					node.port.close();
-+					node.disconnect();
-+					this.captureSink?.disconnect();
-+					this.captureSink = null;
-+					useScriptProcessor();
-+				};
-+				node.port.onmessage = (event) => {
-+					if (this.captureContext !== ctx) return;
-+					const packet = event.data;
-+					if (!(packet instanceof Int16Array) || packet.length < 2) return;
-+					const sampleCount = packet.length - 1;
-+					setRealtimeInputLevel(packet[sampleCount] / 32767);
-+					try {
-+						const encoded = encodePcm16(packet.subarray(0, sampleCount));
-+						node.port.postMessage(packet, [packet.buffer]);
-+						this.onAudio(encoded);
-+					} catch (error) {
-+						this.onError?.(error instanceof Error ? error : new Error(String(error)));
-+					}
-+				};
-+				source.connect(node);
-+				node.connect(sink);
-+				sink.connect(ctx.destination);
-+				attachTrackListeners();
-+			} catch {
-+				useScriptProcessor();
- 			}
--		};
--		source.connect(processor);
--		processor.connect(ctx.destination);
--		const updateCapturing = () => this.onCapturingChange(stream.getAudioTracks().some((track) => track.enabled && !track.muted && track.readyState === "live"));
--		for (const track of stream.getAudioTracks()) for (const event of [
--			"ended",
--			"mute",
--			"unmute"
--		]) {
--			track.addEventListener(event, updateCapturing);
--			this.captureCleanup.push(() => track.removeEventListener(event, updateCapturing));
--		}
--		updateCapturing();
-+		});
-+		else useScriptProcessor();
- 	}
- 	stopCapture() {
- 		this.captureGeneration++;
--		if (this.captureProcessor != null) this.captureProcessor.onaudioprocess = null;
-+		setRealtimeInputLevel(0);
-+		if (this.captureProcessor != null) {
-+			this.captureProcessor.onaudioprocess = null;
-+			if ("onprocessorerror" in this.captureProcessor) this.captureProcessor.onprocessorerror = null;
-+		}
-+		if (this.captureProcessor?.port != null) {
-+			this.captureProcessor.port.onmessage = null;
-+			this.captureProcessor.port.close();
-+		}
- 		for (const cleanup of this.captureCleanup) cleanup();
- 		this.captureCleanup = [];
- 		this.captureProcessor?.disconnect();
-+		this.captureSink?.disconnect();
- 		this.captureSource?.disconnect();
- 		this.captureContext?.close().catch(() => {});
- 		if (this.ownsCaptureStream) this.captureStream?.getTracks().forEach((track) => track.stop());
- 		this.captureProcessor = null;
-+		this.captureSink = null;
- 		this.captureSource = null;
- 		this.captureContext = null;
- 		this.captureStream = null;
-@@ -14298,28 +14458,82 @@ var BrowserRealtimeAudio = class {
+@@ -14298,28 +14338,77 @@ var BrowserRealtimeAudio = class {
  	}
  	stopPlayback() {
  		this.playbackQueue = [];
@@ -338,11 +139,6 @@ index 8f1889e0e95e35514a9b3779e1a1afb2c32646bb..c0e48dd19adeef3ab0dfd660677657fd
  	}
  	dispose() {
  		this.stopCapture();
-+		if (this.preloadedCaptureContext != null) {
-+			this.preloadedCaptureContext.close().catch(() => {});
-+			this.preloadedCaptureContext = null;
-+			this.preloadedWorkletPromise = null;
-+		}
  		this.stopPlayback();
 +		globalThis.__vedoraReadRealtimeOutputLevel = void 0;
 +		this.playbackGain?.disconnect();
@@ -362,7 +158,7 @@ index 8f1889e0e95e35514a9b3779e1a1afb2c32646bb..c0e48dd19adeef3ab0dfd660677657fd
  	}
  	setPlaying(isPlaying) {
  		if (isPlaying && !this.isPlaying) this.playbackStartTime = this.playbackContext?.currentTime ?? 0;
-@@ -14337,17 +14551,44 @@ var BrowserRealtimeAudio = class {
+@@ -14337,17 +14426,44 @@ var BrowserRealtimeAudio = class {
  			buffer.getChannelData(0).set(samples);
  			const source = ctx.createBufferSource();
  			source.buffer = buffer;
@@ -411,23 +207,3 @@ index 8f1889e0e95e35514a9b3779e1a1afb2c32646bb..c0e48dd19adeef3ab0dfd660677657fd
  			};
  		}
  	}
-@@ -14774,6 +15015,7 @@ var BrowserRealtimeLiveWebSocket = class {
- 		this.audio.resumePlayback().catch((error) => {
- 			if (generation === this.generation) this.options.onError(error);
- 		});
-+		if (this.captureEnabled) this.audio.preloadCaptureWorklet();
- 		return generation;
- 	}
- 	/** Opens the socket through an application relay or with a client secret. */
-@@ -14815,10 +15057,7 @@ var BrowserRealtimeLiveWebSocket = class {
- 	}
- 	sendAudio(audio) {
- 		if (!this.ready || !this.transport.isOpen) return;
--		if (this.pendingAudio >= 8) {
--			this.transport.fail(/* @__PURE__ */ new Error("Realtime audio send queue is full"));
--			return;
--		}
-+		if (this.pendingAudio >= CAPTURE_MAX_PENDING_CHUNKS) return;
- 		const generation = this.generation;
- 		let sent;
- 		try {
