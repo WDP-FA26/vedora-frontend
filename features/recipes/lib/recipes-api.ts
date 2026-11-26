@@ -19,6 +19,7 @@ import {
   ingredientGroupSchema,
   recipeCategoryPageSchema,
   recipeCategorySchema,
+  type RecipeCategory,
   type RecipeCategoryIcon,
   ingredientPageSchema,
   ingredientSchema,
@@ -172,13 +173,33 @@ export async function deleteRow(collection: string, token: string, id: string) {
 
 const FEED_PAGE_LIMIT = 12
 
-/** The public list is readable signed out; the token is sent only when there is one. */
-export function fetchPublicRecipePage([url, page, token]: readonly [
+/**
+ * The public list is readable signed out; the token is sent only when there is one.
+ * `tag` keeps only recipes of that dish type (a category's `baseTag`).
+ */
+export function fetchPublicRecipePage([url, page, tag, token]: readonly [
   string,
   number,
+  RecipeTag | null,
   string | undefined,
 ]) {
-  return sendJson(publicRecipePageSchema, `${url}?page=${page}&limit=${FEED_PAGE_LIMIT}`, token)
+  const params = new URLSearchParams({ page: String(page), limit: String(FEED_PAGE_LIMIT) })
+  if (tag) params.set("tag", tag)
+  return sendJson(publicRecipePageSchema, `${url}?${params}`, token)
+}
+
+/** Every category that is not hidden, in the admin's order; readable signed out. */
+export async function fetchPublicRecipeCategories([url]: readonly [string]) {
+  const rows: RecipeCategory[] = []
+  for (let page = 1; ; page++) {
+    const { items, meta } = await sendJson(
+      recipeCategoryPageSchema,
+      `${url}?page=${page}&limit=${PAGE_LIMIT}`,
+      undefined
+    )
+    rows.push(...items)
+    if (!meta.hasNextPage) return rows
+  }
 }
 
 /** One page of catalog recipes whose title, description or ingredients contain `q`. */

@@ -13,6 +13,7 @@ import {
   fetchAllRules,
   fetchConflicts,
   fetchPublicRecipe,
+  fetchPublicRecipeCategories,
   fetchPublicRecipePage,
   fetchRecipe,
   fetchRecipeSearchPage,
@@ -21,6 +22,7 @@ import {
   INCOMPATIBILITY_RULES_KEY,
   INGREDIENT_GROUPS_KEY,
   INGREDIENTS_KEY,
+  PUBLIC_RECIPE_CATEGORIES_KEY,
   PUBLIC_RECIPES_KEY,
   publicRecipeKey,
   RECIPE_CATALOG_KEYS,
@@ -38,6 +40,7 @@ import type {
   RecipeCategory,
   RecipeConflict,
 } from "@/features/recipes/schemas"
+import type { RecipeTag } from "@/features/recipes/tags"
 
 // TanStack Table rebuilds its row models whenever `data` changes identity.
 const NO_INGREDIENTS: Ingredient[] = []
@@ -121,11 +124,11 @@ export function useRefreshRecipeCatalog() {
     )
 }
 
-/** The public recipe feed, one page at a time. */
-export function usePublicRecipes() {
+/** The public recipe feed, one page at a time; `tag` keeps one dish type. */
+export function usePublicRecipes(tag: RecipeTag | null = null) {
   const { accessToken } = useAuth()
   const { data, error, isLoading, isValidating, size, setSize, mutate } = useSWRInfinite(
-    (index) => [PUBLIC_RECIPES_KEY, index + 1, accessToken] as const,
+    (index) => [PUBLIC_RECIPES_KEY, index + 1, tag, accessToken] as const,
     fetchPublicRecipePage
   )
   const last = data?.at(-1)
@@ -159,6 +162,15 @@ export function useRecipeSearch(q: string, limit = 12) {
     hasMore: last?.meta.hasNextPage ?? false,
     loadMore: () => setSize(size + 1),
   }
+}
+
+/** The categories members filter the recipe feed by, in the admin's order. */
+export function usePublicRecipeCategories() {
+  const { data, error, isLoading } = useSWR(
+    [PUBLIC_RECIPE_CATEGORIES_KEY] as const,
+    fetchPublicRecipeCategories
+  )
+  return { categories: data ?? NO_CATEGORIES, error, isLoading }
 }
 
 export function usePublicRecipe(id: string | null) {
