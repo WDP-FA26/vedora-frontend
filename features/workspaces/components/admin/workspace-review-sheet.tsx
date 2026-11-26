@@ -46,6 +46,7 @@ import {
   BUSINESS_FORM_LABELS,
   LEGAL_ENTITY_VIEWS,
   PROOF_KIND_VIEWS,
+  PROOF_KINDS,
   REJECT_REASON_LABELS,
   REJECT_REASONS,
   REVIEW_CHECKLIST_ITEMS,
@@ -162,6 +163,11 @@ function Section({
       {children}
     </section>
   )
+}
+
+/** Documents in the order of the application form, whatever order they were uploaded in. */
+function proofsInFormOrder(proofs: AdminWorkspaceDetail["proofs"]) {
+  return [...proofs].sort((a, b) => PROOF_KINDS.indexOf(a.kind) - PROOF_KINDS.indexOf(b.kind))
 }
 
 function fullAddress(workspace: AdminWorkspaceDetail) {
@@ -382,7 +388,7 @@ function ReviewBody({
 
         <Section id="workspace-proofs" title={`3. Giấy tờ (${workspace.proofs.length})`}>
           <ul className="grid grid-cols-2 gap-3">
-            {workspace.proofs.map((proof) => (
+            {proofsInFormOrder(workspace.proofs).map((proof) => (
               <li key={proof.id} className="flex flex-col gap-1">
                 <span className="text-xs text-muted-foreground">
                   {PROOF_KIND_VIEWS[proof.kind].label}
@@ -434,7 +440,8 @@ function ReviewBody({
             </p>
           )}
           {rejecting ? (
-            <div className="flex justify-end gap-2">
+            // Keyed apart so React never turns the "Từ chối" button into the submit one.
+            <div key="reject" className="flex justify-end gap-2">
               <Button variant="outline" disabled={busy} onClick={() => setRejecting(false)}>
                 Quay lại
               </Button>
@@ -444,7 +451,7 @@ function ReviewBody({
               </Button>
             </div>
           ) : (
-            <div className="flex items-center justify-end gap-2">
+            <div key="decide" className="flex items-center justify-end gap-2">
               {needsChecklist && !checklistDone && (
                 <span className="mr-auto text-xs text-muted-foreground">
                   Tick đủ 4 mục kiểm tra để duyệt.
