@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState, type ReactNode } from "react"
+import { useEffect, useRef, useState, type ReactNode } from "react"
 import {
   ActivityIcon,
   BookOpenIcon,
@@ -10,13 +10,30 @@ import {
   NotebookPenIcon,
   PhoneOffIcon,
   RotateCcwIcon,
+  SlidersHorizontalIcon,
   type LucideIcon,
 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
+import {
+  Popover,
+  PopoverContent,
+  PopoverDescription,
+  PopoverHeader,
+  PopoverTitle,
+  PopoverTrigger,
+} from "@/components/ui/popover"
+import { Slider } from "@/components/ui/slider"
+import { Switch } from "@/components/ui/switch"
 import { VoiceOrb, type VoiceOrbState } from "@/components/ui/voice-orb"
 import { useMealPlannerVoice, type VoiceUsageAnchor } from "@/features/meal-plan/hooks/use-meal-planner-voice"
 import { VOICE_MAX_SECONDS, type VoiceOpenRecipe, type VoiceScreen, type VoiceScreenCommand } from "@/features/meal-plan/voice"
+import {
+  MIC_THRESHOLD_MAX_DB,
+  MIC_THRESHOLD_MIN_DB,
+  type VoiceMicMeterSnapshot,
+  type VoiceMicSettings,
+} from "@/features/meal-plan/voice-capture"
 import { LogoMark } from "@/features/shared/components/wordmark"
 
 const STATE_TEXT: Record<VoiceOrbState, { label: string; hint: string }> = {
@@ -39,6 +56,133 @@ const FEATURES: { icon: LucideIcon; text: string }[] = [
 ]
 
 const MINUTE_SECONDS = 60
+
+function dbToPercent(db: number): number {
+  const clamped = Math.max(MIC_THRESHOLD_MIN_DB, Math.min(MIC_THRESHOLD_MAX_DB, db))
+  return ((clamped - MIC_THRESHOLD_MIN_DB) / (MIC_THRESHOLD_MAX_DB - MIC_THRESHOLD_MIN_DB)) * 100
+}
+
+/**
+ * Discord-style input sensitivity & noise gate popover: toggle automatic ambient noise
+ * tracking or drag a manual dB threshold while watching a live input level bar.
+ */
+function MicSensitivityPopover({
+  settings,
+  onChange,
+  readMeter,
+  disabled,
+}: {
+  settings: VoiceMicSettings
+  onChange: (patch: Partial<VoiceMicSettings>) => void
+  readMeter: () => VoiceMicMeterSnapshot
+  disabled: boolean
+}) {
+  const [open, setOpen] = useState(false)
+  const barRef = useRef<HTMLDivElement>(null)
+  const markerRef = useRef<HTMLDivElement>(null)
+  const statusRef = useRef<HTMLSpanElement>(null)
+
+  useEffect(() => {
+    if (!open) return
+    let rafId = 0
+    const tick = () => {
+      const meter = readMeter()
+      if (barRef.current) {
+        barRef.current.style.width = `${dbToPercent(meter.levelDb).toFixed(1)}%`
+        barRef.current.dataset.open = meter.open ? "true" : "false"
+      }
+      if (markerRef.current) {
+        markerRef.current.style.left = `${dbToPercent(meter.thresholdDb).toFixed(1)}%`
+      }
+      if (statusRef.current) {
+        statusRef.current.textContent = meter.open ? "Đang thu giọng nói" : "Đang lọc nhiễu"
+      }
+      rafId = window.requestAnimationFrame(tick)
+    }
+    rafId = window.requestAnimationFrame(tick)
+    return () => window.cancelAnimationFrame(rafId)
+  }, [open, readMeter])
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger
+        render={
+          <Button
+            type="button"
+            variant="outline"
+            size="icon-lg"
+            shape="pill"
+            disabled={disabled}
+            aria-label="Độ nhạy micro và lọc nhiễu"
+          />
+        }
+      >
+        <SlidersHorizontalIcon aria-hidden />
+      </PopoverTrigger>
+      <PopoverContent side="top" align="center" sideOffset={10} className="w-72">
+        <PopoverHeader>
+          <PopoverTitle>Độ nhạy micro</PopoverTitle>
+          <PopoverDescription>
+            Lọc tạp âm nhỏ hơn ngưỡng để trợ lý không bị ngắt quãng.
+          </PopoverDescription>
+        </PopoverHeader>
+
+        <label className="flex cursor-pointer items-center justify-between gap-3 text-xs font-medium">
+          <span>Tự động lọc nhiễu</span>
+          <Switch
+            size="sm"
+            checked={settings.autoSensitivity}
+            onCheckedChange={(checked) => onChange({ autoSensitivity: checked })}
+          />
+        </label>
+
+        <div className="space-y-1.5">
+          <div className="flex items-center justify-between text-[11px] text-muted-foreground">
+            <span ref={statusRef}>Đang lọc nhiễu</span>
+            <span>
+              {settings.autoSensitivity
+                ? "Tự động"
+                : `${Math.round(dbToPercent(settings.thresholdDb))}% (${settings.thresholdDb} dB)`}
+            </span>
+          </div>
+          <div className="relative h-2.5 w-full overflow-hidden rounded-full bg-muted">
+            <div
+              ref={barRef}
+              data-open="false"
+              className="h-full rounded-full bg-amber-500/70 transition-[background-color] duration-75 data-[open=true]:bg-emerald-500"
+              style={{ width: "0%" }}
+            />
+            <div
+              ref={markerRef}
+              aria-hidden
+              className="pointer-events-none absolute top-0 bottom-0 w-0.5 bg-foreground/80"
+              style={{ left: `${dbToPercent(settings.thresholdDb).toFixed(1)}%` }}
+            />
+          </div>
+        </div>
+
+        <div className="space-y-1.5">
+          <Slider
+            aria-label="Ngưỡng độ nhạy micro (dB)"
+            disabled={settings.autoSensitivity}
+            min={MIC_THRESHOLD_MIN_DB}
+            max={MIC_THRESHOLD_MAX_DB}
+            step={1}
+            value={[settings.thresholdDb]}
+            onValueChange={(value) => {
+              const next = Array.isArray(value) ? value[0] : value
+              if (typeof next === "number") onChange({ thresholdDb: next })
+            }}
+          />
+          <div className="flex justify-between text-[10px] text-muted-foreground">
+            <span>Nhạy hơn ({MIC_THRESHOLD_MIN_DB} dB)</span>
+            <span>Lọc mạnh ({MIC_THRESHOLD_MAX_DB} dB)</span>
+          </div>
+        </div>
+      </PopoverContent>
+    </Popover>
+  )
+}
 
 /**
  * Remaining time in the call, synced from AI Gateway usage snapshots: rounded to
@@ -185,6 +329,12 @@ export function VoicePanel({
         >
           {voice.muted ? <MicOffIcon aria-hidden /> : <MicIcon aria-hidden />}
         </Button>
+        <MicSensitivityPopover
+          settings={voice.micSettings}
+          onChange={voice.updateMicSettings}
+          readMeter={voice.readMicMeter}
+          disabled={!live}
+        />
         <Button variant="destructive" size="pill" shape="pill" onClick={() => void voice.end()}>
           <PhoneOffIcon aria-hidden /> Kết thúc
         </Button>

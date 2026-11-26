@@ -1,12 +1,16 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import {
+  END_LIMIT_MS,
+  END_NO_SPEECH_LIMIT_MS,
+  FAREWELL_CANCEL_GRACE_MS,
   FarewellTracker,
   TRANSCRIPT_SETTLE_MS,
   TurnQueue,
   UtteranceAssembler,
   VoiceCallLedger,
 } from "@/features/meal-plan/voice-call"
+import { GATE_HOLD_MS, VoiceNoiseGate } from "@/features/meal-plan/voice-capture"
 
 function words(assembler: UtteranceAssembler, fragments: [text: string, startMs: number, endMs: number][]) {
   for (const [text, startMs, endMs] of fragments) assembler.addFragment({ text, startMs, endMs })
@@ -222,13 +226,38 @@ describe("FarewellTracker", () => {
     expect(tracker.done(false)).toBe(true)
   })
 
-  it("hangs up after the safety limit even if GPT-Live never says goodbye", () => {
+  it("hangs up after the shorter no-speech limit if GPT-Live never says goodbye", () => {
     const tracker = new FarewellTracker()
     tracker.sent()
-    advance(19_999)
+    advance(END_NO_SPEECH_LIMIT_MS - 1)
     expect(tracker.done(false)).toBe(false)
     advance(1)
     expect(tracker.done(false)).toBe(true)
+  })
+
+  it("hangs up after the speaking safety limit even if playback never ends", () => {
+    const tracker = new FarewellTracker()
+    tracker.sent()
+    tracker.spoke(0, 30_000)
+    advance(END_LIMIT_MS - 1)
+    expect(tracker.done(true)).toBe(false)
+    advance(1)
+    expect(tracker.done(true)).toBe(true)
+  })
+
+  it("ignores late trailing fragments and brief goodbye replies when deciding whether to cancel", () => {
+    const tracker = new FarewellTracker()
+    tracker.sent()
+    // Within grace period: trailing fragment of user's own end-call command
+    advance(FAREWELL_CANCEL_GRACE_MS - 100)
+    expect(tracker.shouldCancel("đi nhé")).toBe(false)
+    // Past grace period: brief goodbye acknowledgements still do not cancel
+    advance(200)
+    expect(tracker.shouldCancel("Ok")).toBe(false)
+    expect(tracker.shouldCancel("tạm biệt!")).toBe(false)
+    expect(tracker.shouldCancel("cảm ơn nhé.")).toBe(false)
+    // Substantive new speech cancels the hang-up
+    expect(tracker.shouldCancel("à khoan đổi bữa tối thứ sáu")).toBe(true)
   })
 
   it("stays open once reset, when the user keeps talking", () => {
@@ -237,5 +266,36 @@ describe("FarewellTracker", () => {
     tracker.reset()
     advance(30_000)
     expect(tracker.done(false)).toBe(false)
+  })
+})
+
+describe("VoiceNoiseGate", () => {
+  it("blocks quiet background noise and opens for speech with hangover hold in manual mode", () => {
+    const gate = new VoiceNoiseGate({ autoSensitivity: false, thresholdDb: -40 })
+    expect(gate.processDb(-55, 0)).toBe(false)
+    expect(gate.processDb(-41, 20)).toBe(false)
+    // Crosses open threshold
+    expect(gate.processDb(-35, 40)).toBe(true)
+    // Stays open within hysteresis band (-46..-40 dB)
+    expect(gate.processDb(-44, 60)).toBe(true)
+    // Drops below close threshold (-46 dB): stays open during hold window
+    expect(gate.processDb(-60, 60 + GATE_HOLD_MS - 10)).toBe(true)
+    // Closes once hold expires
+    expect(gate.processDb(-60, 60 + GATE_HOLD_MS)).toBe(false)
+  })
+
+  it("adapts threshold automatically above steady ambient room noise", () => {
+    const gate = new VoiceNoiseGate({ autoSensitivity: true, thresholdDb: -45 })
+    // Feed steady -45 dB fan noise
+    let t = 0
+    for (let i = 0; i < 250; i += 1) {
+      t += 20
+      gate.processDb(-45, t)
+    }
+    // Effective threshold should have adapted above the -45 dB room noise
+    expect(gate.effectiveThresholdDb()).toBeGreaterThan(-45)
+    expect(gate.processDb(-45, t + 1000)).toBe(false)
+    // Actual speech well above the adapted threshold opens the gate
+    expect(gate.processDb(-20, t + 1020)).toBe(true)
   })
 })

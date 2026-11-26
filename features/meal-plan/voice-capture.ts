@@ -7,6 +7,169 @@ const CAPTURE_WORKLET_CHUNK_SECONDS = 0.02
 const CAPTURE_MAX_PENDING_CHUNKS = Math.max(8, Math.ceil(0.8 / CAPTURE_WORKLET_CHUNK_SECONDS))
 const CAPTURE_FALLBACK_CHUNK_SAMPLES = 1024
 
+export const MIC_THRESHOLD_MIN_DB = -70
+export const MIC_THRESHOLD_MAX_DB = -10
+/** Default manual threshold at 40% of the [-70, -10] dB sensitivity range. */
+export const DEFAULT_MIC_THRESHOLD_DB = -46
+const NOISE_FLOOR_INITIAL_DB = -58
+const NOISE_FLOOR_MIN_DB = -75
+const NOISE_FLOOR_MAX_DB = -25
+const AUTO_MIN_THRESHOLD_DB = -52
+const AUTO_MAX_THRESHOLD_DB = -24
+const AUTO_HEADROOM_DB = 10
+const GATE_HYSTERESIS_DB = 6
+export const GATE_HOLD_MS = 260
+const MIN_DB = -100
+const MIC_SETTINGS_STORAGE_KEY = "vedora:voice-mic-settings"
+
+export type VoiceMicSettings = {
+  autoSensitivity: boolean
+  thresholdDb: number
+}
+
+export type VoiceMicMeterSnapshot = {
+  levelDb: number
+  thresholdDb: number
+  open: boolean
+}
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.max(min, Math.min(max, value))
+}
+
+export function defaultVoiceMicSettings(): VoiceMicSettings {
+  return {
+    autoSensitivity: true,
+    thresholdDb: DEFAULT_MIC_THRESHOLD_DB,
+  }
+}
+
+export function loadVoiceMicSettings(): VoiceMicSettings {
+  const defaults = defaultVoiceMicSettings()
+  if (typeof window === "undefined") return defaults
+  try {
+    const raw = window.localStorage.getItem(MIC_SETTINGS_STORAGE_KEY)
+    if (!raw) return defaults
+    const parsed: unknown = JSON.parse(raw)
+    if (typeof parsed !== "object" || parsed === null) return defaults
+    const record = parsed as Record<string, unknown>
+    const autoSensitivity =
+      typeof record.autoSensitivity === "boolean" ? record.autoSensitivity : defaults.autoSensitivity
+    const thresholdDb =
+      typeof record.thresholdDb === "number" && Number.isFinite(record.thresholdDb)
+        ? clamp(Math.round(record.thresholdDb), MIC_THRESHOLD_MIN_DB, MIC_THRESHOLD_MAX_DB)
+        : defaults.thresholdDb
+    return { autoSensitivity, thresholdDb }
+  } catch {
+    return defaults
+  }
+}
+
+export function saveVoiceMicSettings(settings: VoiceMicSettings): void {
+  if (typeof window === "undefined") return
+  try {
+    window.localStorage.setItem(MIC_SETTINGS_STORAGE_KEY, JSON.stringify(settings))
+  } catch {
+    // Ignore storage quota / privacy-mode errors.
+  }
+}
+
+export function pcm16RmsDb(samples: Int16Array): number {
+  if (samples.length === 0) return MIN_DB
+  let sum = 0
+  for (let i = 0; i < samples.length; i += 1) {
+    const normalized = samples[i] / 32768
+    sum += normalized * normalized
+  }
+  const rms = Math.sqrt(sum / samples.length)
+  if (rms <= 1e-5) return MIN_DB
+  return Math.max(MIN_DB, 20 * Math.log10(rms))
+}
+
+/**
+ * Discord-style input sensitivity noise gate with automatic ambient noise floor tracking,
+ * hysteresis, and hangover hold so soft word endings are preserved while steady room/fan
+ * noise is replaced with clean digital silence before reaching GPT-Live.
+ */
+export class VoiceNoiseGate {
+  private auto: boolean
+  private manualThresholdDb: number
+  private noiseFloorDb = NOISE_FLOOR_INITIAL_DB
+  private open = false
+  private holdUntil = 0
+  private lastLevelDb = MIN_DB
+
+  constructor(settings: VoiceMicSettings = defaultVoiceMicSettings()) {
+    this.auto = settings.autoSensitivity
+    this.manualThresholdDb = clamp(settings.thresholdDb, MIC_THRESHOLD_MIN_DB, MIC_THRESHOLD_MAX_DB)
+  }
+
+  configure(settings: VoiceMicSettings): void {
+    this.auto = settings.autoSensitivity
+    this.manualThresholdDb = clamp(settings.thresholdDb, MIC_THRESHOLD_MIN_DB, MIC_THRESHOLD_MAX_DB)
+  }
+
+  reset(): void {
+    this.noiseFloorDb = NOISE_FLOOR_INITIAL_DB
+    this.open = false
+    this.holdUntil = 0
+    this.lastLevelDb = MIN_DB
+  }
+
+  effectiveThresholdDb(): number {
+    if (!this.auto) return this.manualThresholdDb
+    return clamp(this.noiseFloorDb + AUTO_HEADROOM_DB, AUTO_MIN_THRESHOLD_DB, AUTO_MAX_THRESHOLD_DB)
+  }
+
+  processDb(levelDb: number, now = Date.now()): boolean {
+    const clampedDb = clamp(levelDb, MIN_DB, 0)
+    this.lastLevelDb = clampedDb
+
+    // Track ambient noise floor asymmetrically: fall quickly in silence, rise slowly on steady room noise
+    // (capped below typical speech levels so loud speech bursts never drag the floor up).
+    if (clampedDb < this.noiseFloorDb) {
+      this.noiseFloorDb += (clampedDb - this.noiseFloorDb) * 0.08
+    } else if (clampedDb <= NOISE_FLOOR_MAX_DB) {
+      this.noiseFloorDb += (clampedDb - this.noiseFloorDb) * 0.015
+    }
+    this.noiseFloorDb = clamp(this.noiseFloorDb, NOISE_FLOOR_MIN_DB, NOISE_FLOOR_MAX_DB)
+
+    const openDb = this.effectiveThresholdDb()
+    const closeDb = openDb - GATE_HYSTERESIS_DB
+
+    if (clampedDb >= openDb) {
+      this.open = true
+      this.holdUntil = now + GATE_HOLD_MS
+      return true
+    }
+
+    if (this.open) {
+      if (clampedDb >= closeDb) {
+        this.holdUntil = now + GATE_HOLD_MS
+        return true
+      }
+      if (now < this.holdUntil) {
+        return true
+      }
+      this.open = false
+    }
+
+    return false
+  }
+
+  processSamples(samples: Int16Array, now = Date.now()): boolean {
+    return this.processDb(pcm16RmsDb(samples), now)
+  }
+
+  snapshot(): VoiceMicMeterSnapshot {
+    return {
+      levelDb: this.lastLevelDb,
+      thresholdDb: this.effectiveThresholdDb(),
+      open: this.open,
+    }
+  }
+}
+
 function resampleToPcm16(samples: Float32Array, fromRate: number, toRate: number): Int16Array {
   const outLength = fromRate === toRate ? samples.length : Math.max(1, Math.round((samples.length * toRate) / fromRate))
   const pcm16 = new Int16Array(outLength)
@@ -65,9 +228,28 @@ export class VoiceAudioCapture {
   private sink: GainNode | null = null
   private generation = 0
   private pendingChunks = 0
+  private readonly gate = new VoiceNoiseGate()
+  private readonly silenceCache = new Map<number, string>()
+
+  configureGate(settings: VoiceMicSettings): void {
+    this.gate.configure(settings)
+  }
+
+  readMeter(): VoiceMicMeterSnapshot {
+    return this.gate.snapshot()
+  }
+
+  private silenceChunk(sampleCount: number): string {
+    const cached = this.silenceCache.get(sampleCount)
+    if (cached !== undefined) return cached
+    const encoded = encodePcm16(new Int16Array(sampleCount))
+    this.silenceCache.set(sampleCount, encoded)
+    return encoded
+  }
 
   start(stream: MediaStream, callbacks: VoiceCaptureCallbacks) {
     this.stop()
+    this.gate.reset()
     const generation = this.generation
     const ctx = new AudioContext({ sampleRate: CAPTURE_SAMPLE_RATE })
     this.context = ctx
@@ -98,9 +280,10 @@ export class VoiceAudioCapture {
       processor.onaudioprocess = (event) => {
         if (this.generation !== generation || this.context !== ctx) return
         const inputData = new Float32Array(event.inputBuffer.getChannelData(0))
-        callbacks.onLevel(computeRmsLevel(inputData))
         const pcm16 = resampleToPcm16(inputData, ctx.sampleRate, CAPTURE_SAMPLE_RATE)
-        sendEncoded(encodePcm16(pcm16))
+        const gateOpen = this.gate.processSamples(pcm16)
+        callbacks.onLevel(gateOpen ? computeRmsLevel(inputData) : 0)
+        sendEncoded(gateOpen ? encodePcm16(pcm16) : this.silenceChunk(pcm16.length))
       }
       source.connect(processor)
       processor.connect(ctx.destination)
@@ -148,8 +331,10 @@ export class VoiceAudioCapture {
             const packet = event.data
             if (!(packet instanceof Int16Array) || packet.length < 2) return
             const sampleCount = packet.length - 1
-            callbacks.onLevel(packet[sampleCount] / 32767)
-            const encoded = encodePcm16(packet.subarray(0, sampleCount))
+            const samples = packet.subarray(0, sampleCount)
+            const gateOpen = this.gate.processSamples(samples)
+            callbacks.onLevel(gateOpen ? packet[sampleCount] / 32767 : 0)
+            const encoded = gateOpen ? encodePcm16(samples) : this.silenceChunk(sampleCount)
             node.port.postMessage(packet, [packet.buffer])
             sendEncoded(encoded)
           }
@@ -169,6 +354,7 @@ export class VoiceAudioCapture {
   stop() {
     this.generation += 1
     this.pendingChunks = 0
+    this.gate.reset()
     if (this.processor) {
       if ("onaudioprocess" in this.processor) {
         this.processor.onaudioprocess = null

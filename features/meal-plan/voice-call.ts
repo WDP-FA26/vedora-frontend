@@ -15,10 +15,50 @@ export const TRANSCRIPT_SETTLE_MS = 350
 const SENTENCE_END = /[.?!…]["')\]]*\s*$/
 /** After the farewell has played, how long to wait before hanging up, so its last word is not cut. */
 const END_AFTER_SPEECH_MS = 600
+/** Safety net when GPT-Live never emits a farewell transcript after `endCall`. */
+export const END_NO_SPEECH_LIMIT_MS = 6000
 /** Safety net: hang up this long after the farewell was sent, whatever the signals say. */
-const END_LIMIT_MS = 20000
+export const END_LIMIT_MS = 15000
 /** How far playback may trail the farewell's transcript while the player still reports playing. */
 const PLAYBACK_LAG_MS = 1500
+/** Ignore late-arriving user fragments from the end-call utterance itself right after `sent()`. */
+export const FAREWELL_CANCEL_GRACE_MS = 800
+
+const FAREWELL_ACK_PHRASES = new Set([
+  "ok",
+  "oke",
+  "okay",
+  "uk",
+  "u",
+  "ừ",
+  "ừm",
+  "uh",
+  "um",
+  "vâng",
+  "dạ",
+  "rồi",
+  "bye",
+  "bye bye",
+  "byebye",
+  "tạm biệt",
+  "cảm ơn",
+  "cảm ơn nhé",
+  "cảm ơn nha",
+  "nhé",
+  "nha",
+  "đi",
+  "thôi",
+  "thôi nhé",
+  "được rồi",
+])
+
+function normalizeUtteranceFragment(text: string): string {
+  return text
+    .toLowerCase()
+    .replace(/[.,!?…:;"'()[\]{}]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+}
 
 /**
  * Follows the farewell the agent asked to hang up after, from GPT-Live's own events. Its
@@ -60,12 +100,28 @@ export class FarewellTracker {
     this.audioEndMs = Math.max(this.audioEndMs, endMs)
   }
 
+  /**
+   * Whether an incoming user transcript fragment means the user genuinely wants to keep
+   * talking, rather than a late trailing fragment of their end-call command or a brief
+   * goodbye acknowledgement ("ok", "bye", "cảm ơn").
+   */
+  shouldCancel(text: string, now = Date.now()): boolean {
+    if (this.phase === "idle") return false
+    if (now - this.sentAt < FAREWELL_CANCEL_GRACE_MS) return false
+    const normalized = normalizeUtteranceFragment(text)
+    if (normalized.length <= 1) return false
+    if (FAREWELL_ACK_PHRASES.has(normalized)) return false
+    return true
+  }
+
   /** Whether the farewell has been heard to the end (or the safety net ran out). */
   done(playing: boolean) {
     const now = Date.now()
     if (this.phase === "idle") return false
+    if (this.phase === "sent") {
+      return now - this.sentAt >= END_NO_SPEECH_LIMIT_MS
+    }
     if (now - this.sentAt >= END_LIMIT_MS) return true
-    if (this.phase !== "speaking") return false
     if (now - this.lastArrival < END_AFTER_SPEECH_MS) return false
     if (playing) this.heardPlayback = true
     if (!playing && this.heardPlayback) return true
