@@ -8,6 +8,7 @@ import {
   fetchAdminWorkspace,
   fetchAllAdminWorkspaces,
   reviewWorkspace,
+  type WorkspaceReviewInput,
 } from "@/features/workspaces/lib/workspaces-api"
 import type { AdminWorkspace } from "@/features/workspaces/schemas"
 import { ADMIN_WORKSPACES_KEY, adminWorkspaceKey } from "@/features/workspaces/workspaces-cache"
@@ -35,7 +36,7 @@ export function useReviewWorkspace() {
   const { accessToken } = useAuth()
   const { mutate } = useSWRConfig()
 
-  return async (id: string, input: { decision: "APPROVED" | "REJECTED"; note?: string }) => {
+  return async (id: string, input: WorkspaceReviewInput) => {
     if (!accessToken) throw new Error("Not signed in")
     const reviewed = await reviewWorkspace(accessToken, id, input)
     await Promise.all([

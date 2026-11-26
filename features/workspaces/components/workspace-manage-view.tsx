@@ -16,7 +16,14 @@ import {
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
-import { Field, FieldError, FieldGroup, FieldLabel, FieldTitle } from "@/components/ui/field"
+import {
+  Field,
+  FieldDescription,
+  FieldError,
+  FieldGroup,
+  FieldLabel,
+  FieldTitle,
+} from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { Spinner } from "@/components/ui/spinner"
 import { toast } from "@/components/ui/toast"
@@ -25,6 +32,7 @@ import { toAuthor } from "@/features/auth/lib/to-author"
 import { profilePath } from "@/features/profiles/profiles-cache"
 import { AuthorAvatar } from "@/features/shared/components/author-avatar"
 import { ApiError } from "@/features/shared/lib/api-client"
+import { REJECT_REASON_LABELS } from "@/features/workspaces/onboarding"
 import { formatPostDateLong } from "@/features/shared/lib/format"
 import { LocationPicker } from "@/features/workspaces/components/location-picker"
 import { PageHeader } from "@/features/workspaces/components/page-header"
@@ -134,7 +142,13 @@ function StatusPanel({ workspace }: { workspace: WorkspaceDetail }) {
         <CircleAlertIcon aria-hidden />
         <AlertTitle>Đơn chưa được duyệt</AlertTitle>
         <AlertDescription>
-          <p>{workspace.reviewNote ?? "Quản trị viên không để lại lý do."}</p>
+          <p>
+            {workspace.rejectReason && `${REJECT_REASON_LABELS[workspace.rejectReason]}. `}
+            {workspace.reviewNote}
+            {!workspace.rejectReason &&
+              !workspace.reviewNote &&
+              "Quản trị viên không để lại lý do."}
+          </p>
           {workspace.role === "OWNER" && (
             <Link
               href={`${NEW_WORKSPACE_PATH}?resubmit=${workspace.id}`}
@@ -197,21 +211,30 @@ function DetailsForm({ workspace }: { workspace: WorkspaceDetail }) {
     resolver: zodResolver(restaurantDetailsFormSchema),
     defaultValues: {
       address: workspace.address,
-      location: { longitude: workspace.longitude, latitude: workspace.latitude },
+      location: {
+        longitude: workspace.longitude,
+        latitude: workspace.latitude,
+      },
       phone: workspace.phone ?? "",
       website: workspace.website ?? "",
     },
   })
   const { isSubmitting, isDirty, errors } = form.formState
   const address = useWatch({ control: form.control, name: "address" }) ?? ""
+  // The API refuses to move an approved page; only the phone and website change.
+  const locked = workspace.status === "APPROVED"
 
   async function onSubmit(values: RestaurantDetailsFormValues) {
     try {
       await update(values)
       form.reset(form.getValues())
       toast.add({ title: "Đã lưu thông tin nhà hàng" })
-    } catch {
-      form.setError("root", { message: "Không lưu được. Thử lại nhé." })
+    } catch (error) {
+      const message =
+        error instanceof ApiError && error.code === "LOCKED_AFTER_APPROVAL"
+          ? "Trang đã duyệt không đổi được địa chỉ. Liên hệ hỗ trợ nếu quán chuyển chỗ."
+          : "Không lưu được. Thử lại nhé."
+      form.setError("root", { message })
     }
   }
 
@@ -227,31 +250,47 @@ function DetailsForm({ workspace }: { workspace: WorkspaceDetail }) {
           render={({ field, fieldState }) => (
             <Field data-invalid={fieldState.invalid}>
               <FieldLabel htmlFor={field.name}>Địa chỉ</FieldLabel>
-              <Input {...field} id={field.name} aria-invalid={fieldState.invalid} />
-              {fieldState.invalid && <FieldError errors={[fieldState.error]} />}
-            </Field>
-          )}
-        />
-        <Controller
-          name="location"
-          control={form.control}
-          render={({ field, fieldState }) => (
-            <Field data-invalid={fieldState.invalid}>
-              <FieldTitle>Vị trí trên bản đồ</FieldTitle>
-              <LocationPicker
-                address={address}
-                location={field.value ?? null}
-                invalid={fieldState.invalid}
-                disabled={isSubmitting}
-                onAddressChange={(address) =>
-                  form.setValue("address", address, { shouldDirty: true, shouldValidate: true })
-                }
-                onLocationChange={field.onChange}
+              <Input
+                {...field}
+                id={field.name}
+                readOnly={locked}
+                aria-invalid={fieldState.invalid}
               />
+              {locked && (
+                <FieldDescription>
+                  Địa chỉ và vị trí đã khóa sau khi trang được duyệt. Liên hệ hỗ trợ nếu quán chuyển
+                  chỗ.
+                </FieldDescription>
+              )}
               {fieldState.invalid && <FieldError errors={[fieldState.error]} />}
             </Field>
           )}
         />
+        {!locked && (
+          <Controller
+            name="location"
+            control={form.control}
+            render={({ field, fieldState }) => (
+              <Field data-invalid={fieldState.invalid}>
+                <FieldTitle>Vị trí trên bản đồ</FieldTitle>
+                <LocationPicker
+                  address={address}
+                  location={field.value ?? null}
+                  invalid={fieldState.invalid}
+                  disabled={isSubmitting}
+                  onAddressChange={(address) =>
+                    form.setValue("address", address, {
+                      shouldDirty: true,
+                      shouldValidate: true,
+                    })
+                  }
+                  onLocationChange={field.onChange}
+                />
+                {fieldState.invalid && <FieldError errors={[fieldState.error]} />}
+              </Field>
+            )}
+          />
+        )}
         <div className="grid gap-4 sm:grid-cols-2">
           <Controller
             name="phone"
@@ -309,7 +348,10 @@ function Members({ workspace }: { workspace: WorkspaceDetail }) {
       await members.remove(member.userId)
       if (leaving) router.push(WORKSPACES_PATH)
     } catch (error) {
-      toast.add({ title: "Chưa xóa được", description: memberErrorMessage(error) })
+      toast.add({
+        title: "Chưa xóa được",
+        description: memberErrorMessage(error),
+      })
     } finally {
       setRemoving(null)
     }
@@ -331,8 +373,7 @@ function Members({ workspace }: { workspace: WorkspaceDetail }) {
           const isSelf = member.userId === personId
           // Leaving while acting as this page would end the only session left.
           const leavingOwnPageSession = isSelf && user?.id === workspace.pageUserId
-          const canRemove =
-            member.role !== "OWNER" && (isOwner || isSelf) && !leavingOwnPageSession
+          const canRemove = member.role !== "OWNER" && (isOwner || isSelf) && !leavingOwnPageSession
           return (
             <li key={member.userId} className="flex items-center gap-3 px-3 py-2">
               <AuthorAvatar
@@ -374,9 +415,7 @@ function Members({ workspace }: { workspace: WorkspaceDetail }) {
           Muốn rời trang, hãy về tài khoản cá nhân trước.
         </p>
       )}
-      {isOwner && workspace.status === "APPROVED" && (
-        <AddMemberForm onAdd={members.add} />
-      )}
+      {isOwner && workspace.status === "APPROVED" && <AddMemberForm onAdd={members.add} />}
     </div>
   )
 }
