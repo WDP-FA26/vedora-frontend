@@ -5,6 +5,7 @@ import {
   Controller,
   useFieldArray,
   useForm,
+  useFormState,
   useWatch,
   type Control,
   type DefaultValues,
@@ -218,6 +219,8 @@ export function WorkspaceForm({
   const top = useRef<HTMLDivElement>(null)
   const { isSubmitting, errors } = form.formState
   const isLast = step === STEPS.length - 1
+  let submitLabel = rejected ? "Gửi lại để duyệt" : "Gửi đơn mở trang"
+  if (isSubmitting) submitLabel = "Đang gửi…"
 
   function goTo(next: number) {
     setStep(next)
@@ -273,12 +276,20 @@ export function WorkspaceForm({
           </Button>
         )}
         {isLast ? (
-          <Button type="submit" size="pill" shape="pill" disabled={isSubmitting} className="flex-1">
+          <Button
+            key="submit"
+            type="submit"
+            size="pill"
+            shape="pill"
+            disabled={isSubmitting}
+            className="flex-1"
+          >
             {isSubmitting && <Spinner aria-hidden />}
-            {isSubmitting ? "Đang gửi…" : rejected ? "Gửi lại để duyệt" : "Gửi đơn mở trang"}
+            {submitLabel}
           </Button>
         ) : (
           <Button
+            key="next"
             type="button"
             size="pill"
             shape="pill"
@@ -706,6 +717,7 @@ function LegalStep({ control }: { control: FormControl }) {
 
 function DocumentsStep({ control, disabled }: { control: FormControl; disabled: boolean }) {
   const entityType = useWatch({ control, name: "legal.entityType" }) ?? "HOUSEHOLD"
+  const submitted = useFormState({ control }).isSubmitted
 
   return (
     <FieldGroup>
@@ -713,7 +725,7 @@ function DocumentsStep({ control, disabled }: { control: FormControl; disabled: 
         name="proofs"
         control={control}
         render={({ field, fieldState }) => (
-          <Field data-invalid={fieldState.invalid}>
+          <Field data-invalid={fieldState.invalid && submitted}>
             <FieldTitle>Giấy tờ</FieldTitle>
             <FieldDescription>
               Ảnh JPEG, PNG hoặc WebP, mỗi ảnh không quá {MAX_PROOF_MB} MB. Chụp thẳng, đủ sáng, đọc
@@ -725,7 +737,7 @@ function DocumentsStep({ control, disabled }: { control: FormControl; disabled: 
               disabled={disabled}
               onChange={field.onChange}
             />
-            {fieldState.invalid && <FieldError errors={[fieldState.error]} />}
+            {fieldState.invalid && submitted && <FieldError errors={[fieldState.error]} />}
           </Field>
         )}
       />
@@ -776,24 +788,32 @@ function CommitmentField({
   name: "confirmsAccuracy" | "consentsToReview"
   label: string
 }) {
+  // A new step should not open on a wall of errors; they show once tried or on submit.
+  const submitted = useFormState({ control, name }).isSubmitted
   return (
     <Controller
       name={name}
       control={control}
-      render={({ field, fieldState }) => (
-        <Field orientation="horizontal" data-invalid={fieldState.invalid}>
-          <Checkbox
-            id={field.name}
-            checked={field.value === true}
-            onCheckedChange={(checked) => field.onChange(checked === true)}
-            aria-invalid={fieldState.invalid}
-          />
-          <FieldContent>
-            <FieldLabel htmlFor={field.name}>{label}</FieldLabel>
-            {fieldState.invalid && <FieldError errors={[fieldState.error]} />}
-          </FieldContent>
-        </Field>
-      )}
+      render={({ field, fieldState }) => {
+        const showError = fieldState.invalid && (fieldState.isTouched || submitted)
+        return (
+          <Field orientation="horizontal" data-invalid={showError}>
+            <Checkbox
+              id={field.name}
+              checked={field.value === true}
+              onCheckedChange={(checked) => {
+                field.onChange(checked === true)
+                field.onBlur()
+              }}
+              aria-invalid={showError}
+            />
+            <FieldContent>
+              <FieldLabel htmlFor={field.name}>{label}</FieldLabel>
+              {showError && <FieldError errors={[fieldState.error]} />}
+            </FieldContent>
+          </Field>
+        )
+      }}
     />
   )
 }

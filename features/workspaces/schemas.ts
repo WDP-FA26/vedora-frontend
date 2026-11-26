@@ -453,17 +453,25 @@ export const workspaceFormSchema = z
       error: "Đồng ý để Vedora dùng giấy tờ cho việc xét duyệt",
     }),
   })
-  .superRefine((values, context) => {
-    const sent = new Set(values.proofs.map(({ kind }) => kind))
-    const missing = requiredProofKinds(values.legal.entityType).filter((kind) => !sent.has(kind))
-    if (missing.length > 0) {
-      context.addIssue({
-        code: "custom",
-        path: ["proofs"],
-        message: `Còn thiếu: ${missing.map((kind) => PROOF_KIND_VIEWS[kind].label).join(", ")}`,
-      })
+  .superRefine(
+    (values, context) => {
+      const sent = new Set(values.proofs.map(({ kind }) => kind))
+      const missing = requiredProofKinds(values.legal.entityType).filter((kind) => !sent.has(kind))
+      if (missing.length > 0) {
+        context.addIssue({
+          code: "custom",
+          path: ["proofs"],
+          message: `Còn thiếu: ${missing.map((kind) => PROOF_KIND_VIEWS[kind].label).join(", ")}`,
+        })
+      }
+    },
+    // Report missing documents alongside other errors (an unticked commitment,
+    // say), as long as the two fields this check reads are themselves valid.
+    {
+      when: ({ issues }) =>
+        !issues.some(({ path }) => path?.[0] === "proofs" || path?.[0] === "legal"),
     }
-  })
+  )
 
 export const addMemberFormSchema = z.object({
   username: z.string().trim().toLowerCase().min(1, "Nhập tên đăng nhập"),
