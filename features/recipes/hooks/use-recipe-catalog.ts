@@ -14,6 +14,7 @@ import {
   fetchPublicRecipe,
   fetchPublicRecipePage,
   fetchRecipe,
+  fetchRecipeSearchPage,
 } from "@/features/recipes/lib/recipes-api"
 import {
   INCOMPATIBILITY_RULES_KEY,
@@ -124,6 +125,27 @@ export function usePublicRecipes() {
     hasMore: last?.meta.hasNextPage ?? false,
     loadMore: () => setSize(size + 1),
     retry: () => mutate(),
+  }
+}
+
+/** Catalog recipes matching `q` (title, description, ingredients); nothing is fetched while `q` is empty. */
+export function useRecipeSearch(q: string, limit = 12) {
+  const { accessToken } = useAuth()
+  const { data, error, isLoading, isValidating, size, setSize } = useSWRInfinite(
+    (index: number) => {
+      if (!q) return null
+      return [PUBLIC_RECIPES_KEY, q, index + 1, limit, accessToken] as const
+    },
+    fetchRecipeSearchPage
+  )
+  const last = data?.at(-1)
+  return {
+    recipes: data?.flatMap((page) => page.items) ?? NO_PUBLIC_RECIPES,
+    error,
+    isLoading,
+    isLoadingMore: isValidating && size > (data?.length ?? 0),
+    hasMore: last?.meta.hasNextPage ?? false,
+    loadMore: () => setSize(size + 1),
   }
 }
 

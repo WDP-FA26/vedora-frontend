@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { SearchIcon, UsersIcon, UtensilsIcon } from "lucide-react"
+import { SearchIcon, UsersIcon, UtensilsCrossedIcon, UtensilsIcon } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -24,17 +24,21 @@ import {
 } from "@/features/posts/posts-cache"
 import { ProfileSearchRow } from "@/features/profiles/components/profile-search-row"
 import { useProfileSearch } from "@/features/profiles/hooks/use-profile-search"
+import { RecipeCard, RecipeDialog } from "@/features/recipes/components/recipe-card"
+import { useRecipeSearch } from "@/features/recipes/hooks/use-recipe-catalog"
 import { MenuDishSearchRow } from "@/features/workspaces/components/menu-dish-search-row"
 import { useMenuSearch } from "@/features/workspaces/hooks/use-menu-search"
 
 const TAB_LABELS: Record<SearchTab, string> = {
   all: "Tất cả",
   people: "Mọi người",
+  recipes: "Công thức",
   dishes: "Món nhà hàng",
   posts: "Bài viết",
 }
 
 const TOP_PEOPLE_LIMIT = 3
+const TOP_RECIPES_LIMIT = 2
 const TOP_DISHES_LIMIT = 4
 
 function buildSearchRedirect(q: string, tab: SearchTab) {
@@ -43,12 +47,15 @@ function buildSearchRedirect(q: string, tab: SearchTab) {
   return `/home/search?${params}`
 }
 
-/** Searches people (Qdrant BM25) and posts, with Facebook/X-style tabs and inline Follow. */
+/** Searches people (Qdrant BM25), catalog recipes, restaurant dishes and posts, with Facebook/X-style tabs and inline Follow. */
 export function SearchView({ q, initialTab }: { q: string; initialTab: SearchTab }) {
   const [tab, setTab] = useState(initialTab)
   const postsSearch = usePostSearch(q)
   const topPeople = useProfileSearch(q, TOP_PEOPLE_LIMIT)
   const allPeople = useProfileSearch(tab === "people" ? q : "", 20)
+  const topRecipes = useRecipeSearch(q, TOP_RECIPES_LIMIT)
+  const allRecipes = useRecipeSearch(tab === "recipes" ? q : "", 12)
+  const [openRecipeId, setOpenRecipeId] = useState<string | null>(null)
   const topDishes = useMenuSearch(q, TOP_DISHES_LIMIT)
   const allDishes = useMenuSearch(tab === "dishes" ? q : "", 15)
 
@@ -98,16 +105,23 @@ export function SearchView({ q, initialTab }: { q: string; initialTab: SearchTab
             <TabsContent value="all">
               <AllResultsTab
                 topPeople={topPeople}
+                topRecipes={topRecipes}
                 topDishes={topDishes}
                 postsSearch={postsSearch}
                 redirectTo={redirectTo}
                 onShowAllPeople={() => selectTab("people")}
+                onShowAllRecipes={() => selectTab("recipes")}
+                onOpenRecipe={setOpenRecipeId}
                 onShowAllDishes={() => selectTab("dishes")}
               />
             </TabsContent>
 
             <TabsContent value="people">
               <PeopleResultsTab people={allPeople} redirectTo={redirectTo} />
+            </TabsContent>
+
+            <TabsContent value="recipes">
+              <RecipesResultsTab recipes={allRecipes} onOpenRecipe={setOpenRecipeId} />
             </TabsContent>
 
             <TabsContent value="dishes">
@@ -120,27 +134,34 @@ export function SearchView({ q, initialTab }: { q: string; initialTab: SearchTab
           </>
         )}
       </Tabs>
+      <RecipeDialog id={openRecipeId} onClose={() => setOpenRecipeId(null)} />
     </section>
   )
 }
 
 function AllResultsTab({
   topPeople,
+  topRecipes,
   topDishes,
   postsSearch,
   redirectTo,
   onShowAllPeople,
+  onShowAllRecipes,
+  onOpenRecipe,
   onShowAllDishes,
 }: {
   topPeople: ReturnType<typeof useProfileSearch>
+  topRecipes: ReturnType<typeof useRecipeSearch>
   topDishes: ReturnType<typeof useMenuSearch>
   postsSearch: ReturnType<typeof usePostSearch>
   redirectTo: string
   onShowAllPeople: () => void
+  onShowAllRecipes: () => void
+  onOpenRecipe: (id: string) => void
   onShowAllDishes: () => void
 }) {
   const isInitialLoading =
-    topPeople.isLoading && topDishes.isLoading && postsSearch.isLoading
+    topPeople.isLoading && topRecipes.isLoading && topDishes.isLoading && postsSearch.isLoading
   if (isInitialLoading) {
     return (
       <div className="flex justify-center p-6">
@@ -150,9 +171,10 @@ function AllResultsTab({
   }
 
   const noPeople = !topPeople.isLoading && !topPeople.error && topPeople.profiles.length === 0
+  const noRecipes = !topRecipes.isLoading && !topRecipes.error && topRecipes.recipes.length === 0
   const noDishes = !topDishes.isLoading && !topDishes.error && topDishes.items.length === 0
   const noPosts = !postsSearch.isLoading && !postsSearch.error && postsSearch.posts.length === 0
-  if (noPeople && noDishes && noPosts) {
+  if (noPeople && noRecipes && noDishes && noPosts) {
     return (
       <Empty>
         <EmptyHeader>
@@ -168,7 +190,8 @@ function AllResultsTab({
     )
   }
 
-  const hasSectionAbovePosts = topPeople.profiles.length > 0 || topDishes.items.length > 0
+  const hasSectionAbovePosts =
+    topPeople.profiles.length > 0 || topRecipes.recipes.length > 0 || topDishes.items.length > 0
 
   return (
     <div>
@@ -191,6 +214,24 @@ function AllResultsTab({
               <ProfileSearchRow key={profile.id} profile={profile} redirectTo={redirectTo} />
             ))}
           </ul>
+        </section>
+      ) : null}
+
+      {topRecipes.error ? (
+        <p role="alert" className="border-b border-border p-4 text-sm text-destructive sm:px-5">
+          Không tìm được công thức lúc này.
+        </p>
+      ) : topRecipes.recipes.length > 0 ? (
+        <section aria-labelledby="search-recipes-heading" className="border-b border-border">
+          <div className="flex items-center justify-between border-b border-border px-4 py-2.5 sm:px-5">
+            <h2 id="search-recipes-heading" className="text-base font-bold">
+              Công thức
+            </h2>
+            <Button type="button" variant="link" size="sm" onClick={onShowAllRecipes}>
+              Xem tất cả
+            </Button>
+          </div>
+          <RecipeGrid recipes={topRecipes.recipes} onOpenRecipe={onOpenRecipe} />
         </section>
       ) : null}
 
@@ -294,6 +335,76 @@ function PeopleResultsTab({
         </div>
       )}
     </>
+  )
+}
+
+function RecipesResultsTab({
+  recipes,
+  onOpenRecipe,
+}: {
+  recipes: ReturnType<typeof useRecipeSearch>
+  onOpenRecipe: (id: string) => void
+}) {
+  if (recipes.isLoading) {
+    return (
+      <div className="flex justify-center p-6">
+        <Spinner aria-label="Đang tìm công thức" />
+      </div>
+    )
+  }
+  if (recipes.error) {
+    return (
+      <p role="alert" className="p-4 text-sm text-destructive sm:px-5">
+        Không tìm được công thức lúc này. Thử lại sau ít phút nhé.
+      </p>
+    )
+  }
+  if (recipes.recipes.length === 0) {
+    return (
+      <Empty>
+        <EmptyHeader>
+          <EmptyMedia variant="icon">
+            <UtensilsCrossedIcon aria-hidden />
+          </EmptyMedia>
+          <EmptyTitle>Không có công thức phù hợp</EmptyTitle>
+          <EmptyDescription>
+            Thử tên món hoặc tên một nguyên liệu, gõ có dấu (ví dụ “phở”, “đậu hũ”).
+          </EmptyDescription>
+        </EmptyHeader>
+      </Empty>
+    )
+  }
+
+  return (
+    <>
+      <RecipeGrid recipes={recipes.recipes} onOpenRecipe={onOpenRecipe} />
+      {recipes.hasMore && (
+        <div className="flex justify-center p-4">
+          <Button type="button" variant="outline" disabled={recipes.isLoadingMore} onClick={recipes.loadMore}>
+            {recipes.isLoadingMore && <Spinner aria-hidden />}
+            Xem thêm kết quả
+          </Button>
+        </div>
+      )}
+    </>
+  )
+}
+
+function RecipeGrid({
+  recipes,
+  onOpenRecipe,
+}: {
+  recipes: ReturnType<typeof useRecipeSearch>["recipes"]
+  onOpenRecipe: (id: string) => void
+}) {
+  return (
+    <ul className="grid gap-3 p-4 sm:grid-cols-2 sm:p-5">
+      {recipes.map((recipe) => (
+        <li key={recipe.id}>
+          <RecipeCard recipe={recipe} onOpen={() => onOpenRecipe(recipe.id)} />
+        </li>
+      ))}
+    </ul>
   )
 }
 

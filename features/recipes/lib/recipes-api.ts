@@ -154,6 +154,18 @@ export function fetchPublicRecipePage([url, page, token]: readonly [
   return sendJson(publicRecipePageSchema, `${url}?page=${page}&limit=${FEED_PAGE_LIMIT}`, token)
 }
 
+/** One page of catalog recipes whose title, description or ingredients contain `q`. */
+export function fetchRecipeSearchPage([url, q, page, limit, token]: readonly [
+  string,
+  string,
+  number,
+  number,
+  string | undefined,
+]) {
+  const params = new URLSearchParams({ q, page: String(page), limit: String(limit) })
+  return sendJson(publicRecipePageSchema, `${url}?${params}`, token)
+}
+
 export function fetchPublicRecipe([url, token]: readonly [string, string | undefined]) {
   return sendJson(publicRecipeDetailSchema, url, token)
 }
