@@ -46,7 +46,7 @@ function clamp(value: number, min: number, max: number): number {
 
 export function defaultVoiceMicSettings(): VoiceMicSettings {
   return {
-    autoSensitivity: true,
+    autoSensitivity: false,
     thresholdDb: DEFAULT_MIC_THRESHOLD_DB,
     aiDenoise: false,
   }
