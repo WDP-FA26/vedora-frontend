@@ -1,9 +1,21 @@
 "use client"
 
 import { useEffect, useRef, useState } from "react"
-import { RotateCcwIcon, UtensilsCrossedIcon } from "lucide-react"
+import {
+  ChevronDownIcon,
+  LayoutGridIcon,
+  RotateCcwIcon,
+  UtensilsCrossedIcon,
+} from "lucide-react"
 
 import { Button } from "@/components/ui/button"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import {
   Empty,
   EmptyDescription,
@@ -14,11 +26,116 @@ import {
 import { Skeleton } from "@/components/ui/skeleton"
 import { Spinner } from "@/components/ui/spinner"
 import { RecipeCard, RecipeDialog } from "@/features/recipes/components/recipe-card"
-import { usePublicRecipes } from "@/features/recipes/hooks/use-recipe-catalog"
+import { RECIPE_CATEGORY_ICON_VIEWS } from "@/features/recipes/category-icons"
+import {
+  usePublicRecipeCategories,
+  usePublicRecipes,
+} from "@/features/recipes/hooks/use-recipe-catalog"
+import type { RecipeCategory } from "@/features/recipes/schemas"
+import type { RecipeTag } from "@/features/recipes/tags"
 
-/** The "Công thức" tab: the public recipe catalog, with the full recipe in a dialog. */
+/**
+ * The "Công thức" tab: the public recipe catalog, filtered by a category dropdown,
+ * with the full recipe in a dialog. A category shows the recipes whose `tag`
+ * is its `baseTag`.
+ */
 export function RecipeFeed() {
-  const { recipes, error, isLoading, isLoadingMore, hasMore, loadMore, retry } = usePublicRecipes()
+  const { categories } = usePublicRecipeCategories()
+  const [selected, setSelected] = useState<RecipeCategory | null>(null)
+
+  return (
+    <>
+      {categories.length > 0 && (
+        <CategoryPicker categories={categories} selected={selected} onSelect={setSelected} />
+      )}
+      <RecipeList
+        tag={selected?.baseTag ?? null}
+        emptyText={
+          selected
+            ? `Danh mục “${selected.name}” chưa có món nào.`
+            : "Kho công thức hiện chưa có món nào."
+        }
+        labels={categoryLabels(categories)}
+      />
+    </>
+  )
+}
+
+/** Each dish type's name as the admin calls it: the first category using it as `baseTag`. */
+function categoryLabels(categories: RecipeCategory[]) {
+  const labels = new Map<RecipeTag, string>()
+  for (const category of categories) {
+    if (!labels.has(category.baseTag)) labels.set(category.baseTag, category.name)
+  }
+  return labels
+}
+
+const ALL_CATEGORIES = "all"
+
+/** A dropdown naming the category in view; picking one filters the feed. */
+function CategoryPicker({
+  categories,
+  selected,
+  onSelect,
+}: {
+  categories: RecipeCategory[]
+  selected: RecipeCategory | null
+  onSelect: (category: RecipeCategory | null) => void
+}) {
+  const SelectedIcon = selected ? RECIPE_CATEGORY_ICON_VIEWS[selected.icon].icon : LayoutGridIcon
+
+  function choose(value: unknown) {
+    if (value === ALL_CATEGORIES) {
+      onSelect(null)
+      return
+    }
+    onSelect(categories.find(({ id }) => id === value) ?? null)
+  }
+
+  return (
+    <div className="flex items-center gap-2 px-4 pt-4 sm:px-5 sm:pt-5">
+      <span className="text-sm text-muted-foreground">Danh mục</span>
+      <DropdownMenu>
+        <DropdownMenuTrigger
+          render={<Button type="button" variant="outline" shape="pill" />}
+          aria-label={`Danh mục: ${selected?.name ?? "Tất cả"}`}
+        >
+          <SelectedIcon aria-hidden />
+          {selected?.name ?? "Tất cả"}
+          <ChevronDownIcon aria-hidden data-icon="inline-end" />
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="start" className="w-60">
+          <DropdownMenuRadioGroup value={selected?.id ?? ALL_CATEGORIES} onValueChange={choose}>
+            <DropdownMenuRadioItem value={ALL_CATEGORIES} closeOnClick>
+              <LayoutGridIcon aria-hidden />
+              Tất cả
+            </DropdownMenuRadioItem>
+            {categories.map((category) => {
+              const Icon = RECIPE_CATEGORY_ICON_VIEWS[category.icon].icon
+              return (
+                <DropdownMenuRadioItem key={category.id} value={category.id} closeOnClick>
+                  <Icon aria-hidden />
+                  {category.name}
+                </DropdownMenuRadioItem>
+              )
+            })}
+          </DropdownMenuRadioGroup>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </div>
+  )
+}
+
+function RecipeList({
+  tag,
+  emptyText,
+  labels,
+}: {
+  tag: RecipeTag | null
+  emptyText: string
+  labels: Map<RecipeTag, string>
+}) {
+  const { recipes, error, isLoading, isLoadingMore, hasMore, loadMore, retry } = usePublicRecipes(tag)
   const [openId, setOpenId] = useState<string | null>(null)
 
   if (isLoading) {
@@ -55,7 +172,7 @@ export function RecipeFeed() {
                 <UtensilsCrossedIcon aria-hidden />
               </EmptyMedia>
               <EmptyTitle>Chưa có công thức</EmptyTitle>
-              <EmptyDescription>Kho công thức hiện chưa có món nào.</EmptyDescription>
+              <EmptyDescription>{emptyText}</EmptyDescription>
             </EmptyHeader>
           </Empty>
         </div>
@@ -68,7 +185,11 @@ export function RecipeFeed() {
       <ul className="grid gap-3 sm:grid-cols-2">
         {recipes.map((recipe) => (
           <li key={recipe.id}>
-            <RecipeCard recipe={recipe} onOpen={() => setOpenId(recipe.id)} />
+            <RecipeCard
+              recipe={recipe}
+              label={recipe.tag ? labels.get(recipe.tag) : undefined}
+              onOpen={() => setOpenId(recipe.id)}
+            />
           </li>
         ))}
       </ul>

@@ -42,6 +42,9 @@ export function isRecipeCatalogTab(value: unknown): value is RecipeCatalogTab {
 /** Public, read-only catalog (`GET /recipes`), as opposed to the admin `RECIPES_KEY`. */
 export const PUBLIC_RECIPES_KEY = `${API_URL}/recipes`
 
+/** Categories members browse by; hidden ones are left out by the API. */
+export const PUBLIC_RECIPE_CATEGORIES_KEY = `${API_URL}/recipe-categories`
+
 export function publicRecipeKey(id: string) {
   return `${PUBLIC_RECIPES_KEY}/${id}`
 }

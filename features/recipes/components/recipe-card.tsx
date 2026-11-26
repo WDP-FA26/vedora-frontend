@@ -59,7 +59,16 @@ function FavoriteButton({
   )
 }
 
-export function RecipeCard({ recipe, onOpen }: { recipe: PublicRecipe; onOpen: () => void }) {
+/** `label` names the recipe's category, when the caller knows it. */
+export function RecipeCard({
+  recipe,
+  label,
+  onOpen,
+}: {
+  recipe: PublicRecipe
+  label?: string
+  onOpen: () => void
+}) {
   const minutes = totalMinutes(recipe)
   return (
     <div className="relative h-full">
@@ -70,7 +79,14 @@ export function RecipeCard({ recipe, onOpen }: { recipe: PublicRecipe; onOpen: (
       >
         <RecipeImage imageUrl={recipe.imageUrl} className="aspect-[16/9] w-full" />
         <span className="flex flex-1 flex-col gap-2 p-4">
-          <span className="font-heading text-base font-bold">{recipe.title}</span>
+          <span className="flex items-start justify-between gap-2">
+            <span className="font-heading text-base font-bold">{recipe.title}</span>
+            {label && (
+              <Badge variant="secondary" className="shrink-0">
+                {label}
+              </Badge>
+            )}
+          </span>
           <span className="mt-auto flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
             {minutes !== null && (
               <span className="inline-flex items-center gap-1">
