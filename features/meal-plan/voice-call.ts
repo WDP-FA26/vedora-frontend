@@ -1,6 +1,7 @@
 /**
- * Bookkeeping of one meal planner voice call, kept apart from the React hook
- * (`hooks/use-meal-planner-voice.ts`) so it can be tested on its own.
+ * Bookkeeping of one meal planner voice call, split into focused, testable units
+ * (`UtteranceAssembler`, `TurnQueue`, `MicrophoneSession`, `FarewellTracker`) and
+ * composed by `VoiceCallLedger`.
  */
 
 /** A pause longer than this between words starts a new utterance. */
@@ -76,7 +77,6 @@ export class FarewellTracker {
 }
 
 declare global {
-  var __vedoraRealtimeInputLevel: number | undefined
   var __vedoraReadRealtimeOutputLevel: (() => number) | undefined
 }
 
@@ -90,39 +90,25 @@ function lastIndexStartedBy(fragments: TranscriptFragment[], offsetMs: number) {
   }
   return index
 }
-type InFlight = { delegationId: string; message: string; controller: AbortController; startedAt: number }
+
 type UtteranceWatcher = { onFragment: () => void; cancel: () => void }
 
 /**
- * Bookkeeping of one voice call that never drives rendering: the microphone and its
- * level meter, the user's transcript since the last delegation, the delegation in
- * flight (cancelled when the user speaks again), a web search waiting for a yes or
- * no, and the queue that runs delegations one at a time so the thread stays in order.
+ * Reassembles user transcript fragments from GPT-Live into per-delegation utterances.
+ * Required by AI Gateway's GPT-Live client delegation protocol, which carries an ID and
+ * `offsetMs` rather than the spoken text.
  */
-export class VoiceCallLedger {
+export class UtteranceAssembler {
   private fragments: TranscriptFragment[] = []
   private consumedUntil = -1
   private lastArrival = 0
-  private queue: Promise<void> = Promise.resolve()
-  /** Counts calls; queued work from an earlier call is dropped instead of run. */
-  private call = 0
-  private inFlight: InFlight | null = null
   private watchers = new Set<UtteranceWatcher>()
-  private stream: MediaStream | null = null
-  private monitoring = false
-  private micGeneration = 0
 
-  /** Stable getters passed to `VoiceOrb` so its 60 fps loop never forces React re-renders. */
-  readonly readInputLevel = () => this.inputLevel()
-  readonly readOutputLevel = () => globalThis.__vedoraReadRealtimeOutputLevel?.() ?? 0
-
-  private clearWatchers() {
+  clearWatchers() {
     for (const watcher of [...this.watchers]) watcher.cancel()
   }
 
-  /** Starts a new call: what the last one left queued no longer runs. */
   reset() {
-    this.call += 1
     this.clearWatchers()
     this.fragments = []
     this.consumedUntil = -1
@@ -134,12 +120,14 @@ export class VoiceCallLedger {
     for (const watcher of [...this.watchers]) watcher.onFragment()
   }
 
+  lastFragmentAt() {
+    return this.lastArrival
+  }
+
   /**
    * The words of the utterance a delegation fired on, as one message. GPT-Live often
    * delegates before the user finishes, so the utterance is the run of words around
    * `offsetMs` with no pause longer than `UTTERANCE_PAUSE_MS`, trailing words included.
-   * Earlier words it answered itself (small talk, "xong chưa") are dropped, and later
-   * words, after a pause, wait for their own delegation.
    */
   takeUtterance(offsetMs: number | undefined) {
     const fresh = this.fragments.filter((fragment) => fragment.endMs > this.consumedUntil)
@@ -154,16 +142,6 @@ export class VoiceCallLedger {
     return taken.map((fragment) => fragment.text).join("").trim()
   }
 
-  /** When the newest transcript fragment arrived, in `Date.now()` milliseconds. */
-  lastFragmentAt() {
-    return this.lastArrival
-  }
-
-  /**
-   * Whether the words a delegation fired on can be taken now. The transcript must reach the
-   * delegation point (`offsetMs`); then a finished sentence goes at once, and otherwise the
-   * words go once none arrived for `TRANSCRIPT_SETTLE_MS`.
-   */
   utteranceReady(offsetMs: number | undefined, now: number) {
     const last = this.fragments.at(-1)
     if (!last) return false
@@ -172,11 +150,6 @@ export class VoiceCallLedger {
     return now - this.lastArrival >= TRANSCRIPT_SETTLE_MS
   }
 
-  /**
-   * Waits until `utteranceReady` holds for `offsetMs` (a sentence end resolves on the
-   * arriving fragment; an unfinished sentence waits `TRANSCRIPT_SETTLE_MS` after the last
-   * fragment), capped at `graceMs`. Resolves `false` if the call resets or ends first.
-   */
   waitForUtterance(offsetMs: number | undefined, graceMs: number): Promise<boolean> {
     if (this.utteranceReady(offsetMs, Date.now())) return Promise.resolve(true)
 
@@ -219,15 +192,27 @@ export class VoiceCallLedger {
       schedule()
     })
   }
+}
 
-  /**
-   * Runs `task` after the tasks before it, unless the call ended first. A task that fails
-   * does not stop the ones after it: every later delegation would go unanswered.
-   */
+type InFlight = { delegationId: string; message: string; controller: AbortController; startedAt: number }
+
+/**
+ * Serializes delegated voice turns so the chat thread stays ordered, tracks the
+ * currently running turn's `AbortController`, and drops stale queued work when a call ends.
+ */
+export class TurnQueue {
+  private queue: Promise<void> = Promise.resolve()
+  private generation = 0
+  private inFlight: InFlight | null = null
+
+  nextCall() {
+    this.generation += 1
+  }
+
   enqueue(task: () => Promise<void>) {
-    const call = this.call
+    const generation = this.generation
     const next = this.queue.then(() => {
-      if (this.call !== call) return
+      if (this.generation !== generation) return
       return task()
     })
     this.queue = next.catch((error: unknown) => {
@@ -235,33 +220,21 @@ export class VoiceCallLedger {
     })
   }
 
-  /** Waits for every queued task; for tests. */
   idle() {
     return this.queue
   }
 
-  /** The call ended: stops the running delegation, drops the queued ones and releases the microphone. */
-  endCall() {
-    this.call += 1
-    this.clearWatchers()
-    this.cancel()
-    this.releaseMicrophone()
-  }
-
-  /** Marks a delegation as running; its controller stops the API request. */
   begin(delegationId: string, message: string) {
     const controller = new AbortController()
     this.inFlight = { delegationId, message, controller, startedAt: Date.now() }
     return controller
   }
 
-  /** The delegation the API is working on, if any. */
   running(): { delegationId: string; message: string } | null {
     if (!this.inFlight) return null
     return { delegationId: this.inFlight.delegationId, message: this.inFlight.message }
   }
 
-  /** How long the running delegation has taken so far, in milliseconds. */
   runningFor(delegationId: string) {
     if (this.inFlight?.delegationId !== delegationId) return 0
     return Date.now() - this.inFlight.startedAt
@@ -271,7 +244,6 @@ export class VoiceCallLedger {
     if (this.inFlight?.delegationId === delegationId) this.inFlight = null
   }
 
-  /** Stops the running delegation, if any, and returns its id. */
   cancel(): string | null {
     const running = this.inFlight
     if (!running) return null
@@ -280,34 +252,75 @@ export class VoiceCallLedger {
     return running.delegationId
   }
 
-  /** Marks a new microphone acquisition so stale getUserMedia resolutions can be discarded. */
-  beginMicrophone() {
-    this.micGeneration += 1
-    return this.micGeneration
+  stop() {
+    this.generation += 1
+    this.cancel()
+  }
+}
+
+/**
+ * Owns the active microphone `MediaStream`, generation guard against stale `getUserMedia`
+ * resolutions, and 60 fps level getters for `VoiceOrb`.
+ */
+export class MicrophoneSession {
+  private stream: MediaStream | null = null
+  private monitoring = false
+  private generation = 0
+  private level = 0
+
+  readonly readInputLevel = () => (this.monitoring ? this.level : 0)
+  readonly readOutputLevel = () => globalThis.__vedoraReadRealtimeOutputLevel?.() ?? 0
+
+  setInputLevel(level: number) {
+    this.level = level
   }
 
-  isCurrentMicrophone(generation: number) {
-    return this.micGeneration === generation
+  begin() {
+    this.generation += 1
+    return this.generation
   }
 
-  attachMicrophone(stream: MediaStream) {
+  isCurrent(generation: number) {
+    return this.generation === generation
+  }
+
+  attach(stream: MediaStream) {
     this.stream = stream
   }
 
-  /** A 0–1 level of the microphone, read once per animation frame by the orb. */
-  inputLevel() {
-    return this.monitoring ? (globalThis.__vedoraRealtimeInputLevel ?? 0) : 0
-  }
-
-  /** Pauses reading the microphone level when the orb is not listening. */
   setMonitoring(active: boolean) {
     this.monitoring = active
   }
 
-  releaseMicrophone() {
-    this.micGeneration += 1
+  release() {
+    this.generation += 1
     this.monitoring = false
+    this.level = 0
     for (const track of this.stream?.getTracks() ?? []) track.stop()
     this.stream = null
+  }
+}
+
+/**
+ * Composes the non-rendering state of one voice call: transcript assembly, turn
+ * serialization/cancellation, and microphone lifecycle.
+ */
+export class VoiceCallLedger {
+  readonly utterances = new UtteranceAssembler()
+  readonly turns = new TurnQueue()
+  readonly mic = new MicrophoneSession()
+
+  readonly readInputLevel = this.mic.readInputLevel
+  readonly readOutputLevel = this.mic.readOutputLevel
+
+  reset() {
+    this.turns.nextCall()
+    this.utterances.reset()
+  }
+
+  endCall() {
+    this.utterances.clearWatchers()
+    this.turns.stop()
+    this.mic.release()
   }
 }

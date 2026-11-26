@@ -59,7 +59,7 @@ import {
   readScrollState,
   scrollContainer,
   VOICE_GLOW_MS,
-  type VoiceEffects,
+  type VoiceScreenCommand,
   type VoiceOpenRecipe,
   type VoiceScreen,
   type VoiceScreenPanel,
@@ -226,7 +226,7 @@ export function MealPlannerView() {
    * is not planned), the food diary, the BMI panel, or the day it showed or changed.
    * Opening one panel closes the others, so the agent never stacks sheets.
    */
-  function showVoiceEffects({ focus, close, scroll }: VoiceEffects) {
+  function showVoiceScreen({ focus, close, scroll }: VoiceScreenCommand) {
     setLastVoiceFocusAt(Date.now())
     if (close) closeVoicePanels(close)
     if (!focus) {
@@ -497,7 +497,7 @@ export function MealPlannerView() {
                 weekStart={weekStart}
                 today={plan.data?.today}
                 threadId={chat.threadId}
-                onEffects={showVoiceEffects}
+                onScreen={showVoiceScreen}
                 // Voice turns are saved in the chat's thread; reloading it shows them in the chat.
                 onTurnEnd={(threadId) => void chat.selectThread(threadId)}
                 onClose={() => setVoiceOpen(false)}

@@ -19,6 +19,12 @@ export function requestKnowledgeUpload(token: string, file: File) {
   })
 }
 
+export function confirmKnowledgeUpload(token: string, id: string) {
+  return sendJson(knowledgeDocumentSchema, `${KNOWLEDGE_DOCUMENTS_KEY}/${id}/confirm`, token, {
+    method: "POST",
+  })
+}
+
 export async function deleteKnowledgeDocument(token: string, id: string) {
   await send(`${KNOWLEDGE_DOCUMENTS_KEY}/${id}`, token, { method: "DELETE" })
 }
