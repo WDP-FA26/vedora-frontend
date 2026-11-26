@@ -81,23 +81,29 @@ export function preloadDeepFilterAssets(): void {
 
 /**
  * Loads `@workadventure/noise-suppression/deepfilternet` lazily and creates a 48 kHz
- * AudioWorklet node configured for low-latency full-duplex voice (pause gate disabled so
- * it does not add an extra 30 ms of lookahead delay on top of our own noise gate).
+ * AudioWorklet node synchronized with the mic pipeline:
+ * - `postGain: true` replaces browser AGC (which is turned off on the mic when AI denoise is on,
+ *   so AGC does not amplify room noise before the denoiser).
+ * - When `usePauseGate` is true (Auto sensitivity), uses DeepFilterNet3's low-latency pause gate
+ *   (`pauseGateLookaheadFrames: 1`, +10 ms instead of +30 ms). When manual dB threshold is used,
+ *   disables the internal pause gate so the user's dB slider has single-gate control.
  */
 export async function attachDeepFilterNode(
   ctx: AudioContext,
-  options: { onOverload?: (load: number) => void } = {}
+  options: { usePauseGate?: boolean; onOverload?: (load: number) => void } = {}
 ): Promise<DeepFilterNetAudioWorkletHandle> {
   const { createDeepFilterNetAudioWorklet } = await import(
     "@workadventure/noise-suppression/deepfilternet"
   )
+  const usePauseGate = options.usePauseGate ?? true
   return createDeepFilterNetAudioWorklet(ctx, {
     moduleUrl: DEEPFILTER_MODULE_URL,
     wasmUrl: DEEPFILTER_WASM_URL,
     modelUrl: DEEPFILTER_MODEL_URL,
-    // Keep speech attenuation moderate and disable the extra 30 ms pause gate for full-duplex.
     speechAttenuationDb: 25,
-    pauseAttenuationDb: 25,
+    pauseAttenuationDb: usePauseGate ? 45 : 25,
+    pauseGateLookaheadFrames: 1,
+    postGain: true,
     bypassUntilReady: true,
     onOverload: options.onOverload,
   })

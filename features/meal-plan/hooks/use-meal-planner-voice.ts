@@ -98,6 +98,21 @@ async function sendContext(
   }
 }
 
+function syncBrowserMicDsp(stream: MediaStream | null, aiDenoiseActive: boolean) {
+  const track = stream?.getAudioTracks()[0]
+  if (!track || typeof track.applyConstraints !== "function") return
+  // Disable browser NS & AGC while DeepFilterNet3 handles denoising + postGain;
+  // re-enable them when AI denoise is off or falls back.
+  void track
+    .applyConstraints({
+      noiseSuppression: !aiDenoiseActive,
+      autoGainControl: !aiDenoiseActive,
+    })
+    .catch(() => {
+      // Ignore browsers that reject dynamic constraint updates on an active track.
+    })
+}
+
 async function openVoiceCall({
   ledger,
   capture,
@@ -105,6 +120,7 @@ async function openVoiceCall({
   sendEvent,
   isMuted,
   aiDenoise,
+  aiDenoisePauseGate,
   onAiDenoiseStatus,
   onError,
 }: {
@@ -114,6 +130,7 @@ async function openVoiceCall({
   sendEvent: SendRealtimeEvent
   isMuted: () => boolean
   aiDenoise: boolean
+  aiDenoisePauseGate: boolean
   onAiDenoiseStatus: (status: VoiceAiDenoiseStatus) => void
   onError: (message: string) => void
 }) {
@@ -126,9 +143,9 @@ async function openVoiceCall({
     stream = await navigator.mediaDevices.getUserMedia({
       audio: {
         echoCancellation: true,
-        // Avoid double-suppressing when DeepFilterNet3 runs on the audio thread.
+        // Avoid amplifying or double-processing noise before DeepFilterNet3 (which provides postGain).
         noiseSuppression: !aiDenoise,
-        autoGainControl: true,
+        autoGainControl: !aiDenoise,
       },
     })
   } catch {
@@ -155,6 +172,7 @@ async function openVoiceCall({
     onLevel: (level) => ledger.mic.setInputLevel(level),
     isMuted,
     aiDenoise,
+    aiDenoisePauseGate,
     onAiDenoiseStatus,
   })
 }
@@ -215,22 +233,25 @@ export function useMealPlannerVoice({
   const [capture] = useState(() => new VoiceAudioCapture())
   const [micSettings, setMicSettings] = useState<VoiceMicSettings>(loadVoiceMicSettings)
   const [aiDenoiseStatus, setAiDenoiseStatus] = useState<VoiceAiDenoiseStatus>("off")
-  const aiDenoiseRef = useRef(micSettings.aiDenoise)
+  const micSettingsRef = useRef(micSettings)
 
   useEffect(() => {
-    aiDenoiseRef.current = micSettings.aiDenoise
+    micSettingsRef.current = micSettings
     capture.configureGate(micSettings)
   }, [capture, micSettings])
 
-  function restartCapture(aiDenoise: boolean) {
+  function handleAiDenoiseStatus(status: VoiceAiDenoiseStatus) {
+    setAiDenoiseStatus(status)
+    if (status === "overloaded" || status === "error") {
+      // Restore browser NS + AGC when DeepFilterNet3 falls back so mic is never left raw.
+      syncBrowserMicDsp(ledger.mic.currentStream(), false)
+    }
+  }
+
+  function restartCapture(settings: VoiceMicSettings) {
     const stream = ledger.mic.currentStream()
     if (!stream) return
-    const track = stream.getAudioTracks()[0]
-    if (track && typeof track.applyConstraints === "function") {
-      void track.applyConstraints({ noiseSuppression: !aiDenoise }).catch(() => {
-        // Ignore browsers that reject dynamic constraint updates on an active track.
-      })
-    }
+    syncBrowserMicDsp(stream, settings.aiDenoise)
     capture.start(stream, {
       onAudio: async (audio) => {
         try {
@@ -241,19 +262,23 @@ export function useMealPlannerVoice({
       },
       onLevel: (level) => ledger.mic.setInputLevel(level),
       isMuted: () => mutedRef.current,
-      aiDenoise,
-      onAiDenoiseStatus: setAiDenoiseStatus,
+      aiDenoise: settings.aiDenoise,
+      aiDenoisePauseGate: settings.autoSensitivity,
+      onAiDenoiseStatus: handleAiDenoiseStatus,
     })
   }
 
   function updateMicSettings(patch: Partial<VoiceMicSettings>) {
-    const next: VoiceMicSettings = { ...micSettings, ...patch }
-    const aiDenoiseChanged = next.aiDenoise !== aiDenoiseRef.current
-    aiDenoiseRef.current = next.aiDenoise
+    const prev = micSettingsRef.current
+    const next: VoiceMicSettings = { ...prev, ...patch }
+    const needsCaptureRestart =
+      next.aiDenoise !== prev.aiDenoise ||
+      (next.aiDenoise && next.autoSensitivity !== prev.autoSensitivity)
+    micSettingsRef.current = next
     saveVoiceMicSettings(next)
     setMicSettings(next)
-    if (aiDenoiseChanged) {
-      restartCapture(next.aiDenoise)
+    if (needsCaptureRestart) {
+      restartCapture(next)
     }
   }
 
@@ -381,8 +406,9 @@ export function useMealPlannerVoice({
       connect: connectRealtime,
       sendEvent: sendRealtimeEvent,
       isMuted: () => mutedRef.current,
-      aiDenoise: aiDenoiseRef.current,
-      onAiDenoiseStatus: setAiDenoiseStatus,
+      aiDenoise: micSettingsRef.current.aiDenoise,
+      aiDenoisePauseGate: micSettingsRef.current.autoSensitivity,
+      onAiDenoiseStatus: handleAiDenoiseStatus,
       onError: setError,
     })
   }
@@ -410,8 +436,14 @@ export function useMealPlannerVoice({
       connect: connectRealtime,
       sendEvent: sendRealtimeEvent,
       isMuted: () => mutedRef.current,
-      aiDenoise: aiDenoiseRef.current,
-      onAiDenoiseStatus: setAiDenoiseStatus,
+      aiDenoise: micSettingsRef.current.aiDenoise,
+      aiDenoisePauseGate: micSettingsRef.current.autoSensitivity,
+      onAiDenoiseStatus: (status) => {
+        setAiDenoiseStatus(status)
+        if (status === "overloaded" || status === "error") {
+          syncBrowserMicDsp(ledger.mic.currentStream(), false)
+        }
+      },
       onError: setError,
     })
     return () => {

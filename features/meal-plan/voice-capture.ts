@@ -222,6 +222,7 @@ export type VoiceCaptureCallbacks = {
   onLevel: (level: number) => void
   isMuted: () => boolean
   aiDenoise?: boolean
+  aiDenoisePauseGate?: boolean
   onAiDenoiseStatus?: (status: VoiceAiDenoiseStatus) => void
   onError?: (error: Error) => void
 }
@@ -392,6 +393,7 @@ export class VoiceAudioCapture {
           }
 
           void attachDeepFilterNode(ctx, {
+            usePauseGate: callbacks.aiDenoisePauseGate,
             onOverload: () => bypassDeepFilter("overloaded"),
           })
             .then((handle) => {
