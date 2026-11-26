@@ -1,7 +1,12 @@
 "use client"
 
-import { useEffect, useRef, useState } from "react"
-import { RotateCcwIcon, UtensilsCrossedIcon } from "lucide-react"
+import { useEffect, useRef, useState, type ReactNode } from "react"
+import {
+  ChevronLeftIcon,
+  ChevronRightIcon,
+  RotateCcwIcon,
+  UtensilsCrossedIcon,
+} from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -21,6 +26,7 @@ import {
 } from "@/features/recipes/hooks/use-recipe-catalog"
 import type { RecipeCategory } from "@/features/recipes/schemas"
 import type { RecipeTag } from "@/features/recipes/tags"
+import { cn } from "@/lib/utils"
 
 /**
  * The "Công thức" tab: the public recipe catalog, filtered by category chips,
@@ -58,6 +64,37 @@ function categoryLabels(categories: RecipeCategory[]) {
   return labels
 }
 
+type ScrollEdges = { start: boolean; end: boolean }
+
+/** Which ends of a horizontal scroller still hide content, kept current on scroll and resize. */
+function useScrollEdges() {
+  const ref = useRef<HTMLDivElement>(null)
+  const [edges, setEdges] = useState<ScrollEdges>({ start: false, end: false })
+
+  useEffect(() => {
+    const node = ref.current
+    if (!node) return
+    const update = () => {
+      const maxScroll = node.scrollWidth - node.clientWidth
+      setEdges({ start: node.scrollLeft > 1, end: node.scrollLeft < maxScroll - 1 })
+    }
+    update()
+    node.addEventListener("scroll", update, { passive: true })
+    const observer = new ResizeObserver(update)
+    observer.observe(node)
+    return () => {
+      node.removeEventListener("scroll", update)
+      observer.disconnect()
+    }
+  }, [])
+
+  return { ref, edges }
+}
+
+/**
+ * One scrolling row of category chips, like YouTube's: the hidden side fades out
+ * and gets an arrow button, so the row never ends in a cut-off chip.
+ */
 function CategoryChips({
   categories,
   selected,
@@ -67,41 +104,99 @@ function CategoryChips({
   selected: RecipeCategory | null
   onSelect: (category: RecipeCategory | null) => void
 }) {
+  const { ref, edges } = useScrollEdges()
+
+  function scrollByPage(direction: -1 | 1) {
+    const node = ref.current
+    if (!node) return
+    node.scrollBy({ left: direction * node.clientWidth * 0.7, behavior: "smooth" })
+  }
+
+  function choose(category: RecipeCategory | null, chip: HTMLElement) {
+    onSelect(category)
+    chip.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "nearest" })
+  }
+
+  return (
+    <div className="relative px-4 pt-4 sm:px-5 sm:pt-5">
+      <div
+        ref={ref}
+        role="group"
+        aria-label="Lọc theo danh mục"
+        className="flex gap-2 overflow-x-auto overscroll-x-contain scroll-px-10 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+      >
+        <CategoryChip active={selected === null} onClick={(chip) => choose(null, chip)}>
+          Tất cả
+        </CategoryChip>
+        {categories.map((category) => {
+          const Icon = RECIPE_CATEGORY_ICON_VIEWS[category.icon].icon
+          return (
+            <CategoryChip
+              key={category.id}
+              active={selected?.id === category.id}
+              title={category.description ?? undefined}
+              onClick={(chip) => choose(category, chip)}
+            >
+              <Icon aria-hidden />
+              {category.name}
+            </CategoryChip>
+          )
+        })}
+      </div>
+      {edges.start && <ScrollArrow side="start" onClick={() => scrollByPage(-1)} />}
+      {edges.end && <ScrollArrow side="end" onClick={() => scrollByPage(1)} />}
+    </div>
+  )
+}
+
+function CategoryChip({
+  active,
+  title,
+  onClick,
+  children,
+}: {
+  active: boolean
+  title?: string
+  onClick: (chip: HTMLButtonElement) => void
+  children: ReactNode
+}) {
+  return (
+    <Button
+      type="button"
+      shape="pill"
+      variant={active ? "default" : "secondary"}
+      aria-pressed={active}
+      title={title}
+      onClick={(event) => onClick(event.currentTarget)}
+    >
+      {children}
+    </Button>
+  )
+}
+
+/** Covers one end of the chip row with a fade and a round arrow that scrolls that way. */
+function ScrollArrow({ side, onClick }: { side: "start" | "end"; onClick: () => void }) {
+  const isStart = side === "start"
   return (
     <div
-      role="group"
-      aria-label="Lọc theo danh mục"
-      className="flex gap-2 overflow-x-auto overscroll-x-contain px-4 pt-4 [scrollbar-width:none] sm:px-5 sm:pt-5 [&::-webkit-scrollbar]:hidden"
+      className={cn(
+        "pointer-events-none absolute bottom-0 flex h-8 w-20 items-center",
+        isStart
+          ? "left-4 justify-start bg-gradient-to-r from-background from-40% to-transparent sm:left-5"
+          : "right-4 justify-end bg-gradient-to-l from-background from-40% to-transparent sm:right-5"
+      )}
     >
       <Button
         type="button"
-        size="sm"
+        variant="outline"
+        size="icon"
         shape="pill"
-        variant={selected === null ? "default" : "outline"}
-        aria-pressed={selected === null}
-        onClick={() => onSelect(null)}
+        aria-label={isStart ? "Xem danh mục trước" : "Xem thêm danh mục"}
+        onClick={onClick}
+        className="pointer-events-auto"
       >
-        Tất cả
+        {isStart ? <ChevronLeftIcon aria-hidden /> : <ChevronRightIcon aria-hidden />}
       </Button>
-      {categories.map((category) => {
-        const Icon = RECIPE_CATEGORY_ICON_VIEWS[category.icon].icon
-        const active = selected?.id === category.id
-        return (
-          <Button
-            key={category.id}
-            type="button"
-            size="sm"
-            shape="pill"
-            variant={active ? "default" : "outline"}
-            aria-pressed={active}
-            title={category.description ?? undefined}
-            onClick={() => onSelect(category)}
-          >
-            <Icon aria-hidden />
-            {category.name}
-          </Button>
-        )
-      })}
     </div>
   )
 }
