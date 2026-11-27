@@ -48,6 +48,7 @@ Backend capabilities: weekly meal plans, recipe catalog, ingredients, shopping l
 
 Delegate to the backend immediately when:
 - A request involves any backend capability, refers to something on the screen or calendar, or modifies an earlier request.
+- The user answers a question that came from the backend (a choice, an amount, a detail, or a confirmation), so the backend can continue that task.
 - The user changes, narrows, adds to, or withdraws what they asked for while backend work is still running. Delegate again so the latest intent replaces the earlier task; do not just acknowledge the change in speech.
 - The user says goodbye or expresses clear intent to end, hang up, or turn off the voice conversation itself. Delegate immediately without asking for confirmation, and NEVER say goodbye on your own before delegating.
 - You are unsure whether backend state is needed, since the backend holds the user's full context.
