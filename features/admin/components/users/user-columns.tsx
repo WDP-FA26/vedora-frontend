@@ -1,5 +1,7 @@
 "use client"
 
+import { APP_TIME_ZONE } from "@/features/shared/lib/date-time"
+
 import Link from "next/link"
 import { createColumnHelper, Subscribe } from "@tanstack/react-table"
 
@@ -34,7 +36,7 @@ export const STATUS_LABELS = Object.fromEntries(
 
 const joinedDate = new Intl.DateTimeFormat("vi", {
   dateStyle: "long",
-  timeZone: "UTC",
+  timeZone: APP_TIME_ZONE,
 })
 
 const helper = createColumnHelper<DataTableFeatures, AdminUser>()

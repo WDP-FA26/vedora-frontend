@@ -1,5 +1,7 @@
 "use client"
 
+import { APP_TIME_ZONE } from "@/features/shared/lib/date-time"
+
 import { useState, type FormEvent } from "react"
 import Link from "next/link"
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from "recharts"
@@ -49,8 +51,8 @@ function DashboardContent({ data }: { data: Dashboard }) {
   return (
     <>
       <div className="flex flex-wrap items-center justify-between gap-2 text-sm text-muted-foreground">
-        <p>{displayDashboardDate(range.from)} – {displayDashboardDate(range.to)} · {range.dayCount} ngày · Giờ Bangkok (UTC+7)</p>
-        <p>Cập nhật {new Intl.DateTimeFormat("vi-VN", { timeZone: "Asia/Bangkok", hour: "2-digit", minute: "2-digit", second: "2-digit" }).format(new Date(data.generatedAt))}</p>
+        <p>{displayDashboardDate(range.from)} – {displayDashboardDate(range.to)} · {range.dayCount} ngày · Giờ Việt Nam (UTC+7)</p>
+        <p>Cập nhật {new Intl.DateTimeFormat("vi-VN", { timeZone: APP_TIME_ZONE, hour: "2-digit", minute: "2-digit", second: "2-digit" }).format(new Date(data.generatedAt))}</p>
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
@@ -146,7 +148,7 @@ export function DashboardView({ initialRange }: { initialRange: DashboardRange }
         <div className="space-y-1.5"><label htmlFor="dashboard-from" className="text-sm font-medium">Từ ngày</label><Input id="dashboard-from" type="date" required value={draft.from} onChange={(event) => { setDraft({ ...draft, from: event.target.value }); setRangeError(null) }} aria-describedby="dashboard-range-note" /></div>
         <div className="space-y-1.5"><label htmlFor="dashboard-to" className="text-sm font-medium">Đến ngày</label><Input id="dashboard-to" type="date" required value={draft.to} onChange={(event) => { setDraft({ ...draft, to: event.target.value }); setRangeError(null) }} aria-describedby="dashboard-range-note" /></div>
         <Button type="submit" disabled={isValidating}>Áp dụng</Button>
-        <p id="dashboard-range-note" className="w-full text-xs text-muted-foreground">Tối đa 90 ngày · Asia/Bangkok (UTC+7). Các số ghi “Hiện tại” không thay đổi theo bộ lọc ngày.</p>
+        <p id="dashboard-range-note" className="w-full text-xs text-muted-foreground">Tối đa 90 ngày · Giờ Việt Nam (UTC+7). Các số ghi “Hiện tại” không thay đổi theo bộ lọc ngày.</p>
         {rangeError && <p role="alert" className="w-full text-sm text-destructive">{rangeError}</p>}
       </form>
 

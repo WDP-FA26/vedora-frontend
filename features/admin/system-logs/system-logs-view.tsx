@@ -13,6 +13,7 @@ import { DataTable } from "@/features/admin/components/data-table/data-table"
 import { useAuthedSWR } from "@/features/auth/hooks/use-authed-swr"
 import { API_URL } from "@/features/auth/lib/api"
 import { ApiError, sendJson } from "@/features/shared/lib/api-client"
+import { vietnamDayBoundary } from "@/features/shared/lib/date-time"
 import { SystemLogActions, logColumns } from "./log-columns"
 import { SystemLogSheet } from "./log-sheet"
 import { RESOURCE_LABELS, systemLogPageSchema, type SystemLog } from "./schema"
@@ -50,8 +51,8 @@ export function SystemLogsView() {
   if (outcome) params.set("outcome", outcome)
   if (resourceType) params.set("resourceType", resourceType)
   if (actor) params.set("actorId", actor.id)
-  if (from) params.set("from", new Date(from + "T00:00:00").toISOString())
-  if (to) params.set("to", new Date(to + "T23:59:59.999").toISOString())
+  if (from) params.set("from", vietnamDayBoundary(from, "start"))
+  if (to) params.set("to", vietnamDayBoundary(to, "end"))
   const { data, error, isLoading, isValidating, mutate } = useAuthedSWR(
     invalidRange ? null : API_URL + "/admin/system-logs?" + params.toString(),
     fetchLogs,

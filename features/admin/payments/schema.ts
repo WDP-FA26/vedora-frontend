@@ -1,3 +1,5 @@
+import { APP_TIME_ZONE } from "@/features/shared/lib/date-time"
+
 import { z } from "zod";
 
 const count = z.number().int().nonnegative();
@@ -139,7 +141,7 @@ export const money = (value: string, currency = "VND") =>
     : `${value} ${currency}`;
 export const timestamp = (value: string | null) =>
   value
-    ? new Date(value).toLocaleString("vi-VN", { timeZone: "Asia/Bangkok" })
+    ? new Date(value).toLocaleString("vi-VN", { timeZone: APP_TIME_ZONE })
     : "—";
 export function queryString(values: Record<string, string | number>) {
   return new URLSearchParams(
