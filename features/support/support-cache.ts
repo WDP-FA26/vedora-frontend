@@ -18,6 +18,10 @@ export function supportTicketPath(id: string) {
   return `${SUPPORT_PATH}/${id}`
 }
 
+export function paymentSupportPath(paymentId: string) {
+  return `${SUPPORT_PATH}/payment/${encodeURIComponent(paymentId)}`
+}
+
 export function adminSupportTicketPath(id: string) {
   return `${ADMIN_SUPPORT_PATH}/${id}`
 }
