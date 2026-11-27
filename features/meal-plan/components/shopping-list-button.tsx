@@ -301,7 +301,7 @@ export function ShoppingListButton({
         <ShoppingBasketIcon aria-hidden />
         Đi chợ
       </SheetTrigger>
-      <SheetContent className="data-[side=right]:w-full data-[side=right]:sm:max-w-md">
+      <SheetContent className="data-[side=right]:w-full data-[side=right]:sm:max-w-lg data-[side=right]:lg:max-w-xl">
         <SheetHeader>
           <SheetTitle>Danh sách mua sắm</SheetTitle>
           <SheetDescription>

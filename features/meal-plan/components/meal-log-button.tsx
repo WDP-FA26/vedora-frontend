@@ -235,7 +235,7 @@ export function MealLogButton({
         <NotebookPenIcon aria-hidden />
         Nhật ký
       </SheetTrigger>
-      <SheetContent className="data-[side=right]:w-full data-[side=right]:sm:max-w-md">
+      <SheetContent className="data-[side=right]:w-full data-[side=right]:sm:max-w-lg data-[side=right]:lg:max-w-xl">
         <SheetHeader>
           <SheetTitle>Nhật ký ăn uống</SheetTitle>
           <SheetDescription>

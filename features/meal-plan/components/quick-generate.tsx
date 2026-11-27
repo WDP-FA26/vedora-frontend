@@ -163,7 +163,10 @@ export function QuickGenerate({
       )}
 
       <Sheet open={open} onOpenChange={setOpen}>
-        <SheetContent side="right" className="sm:max-w-md">
+        <SheetContent
+          side="right"
+          className="data-[side=right]:w-full data-[side=right]:sm:max-w-lg"
+        >
           <form
             onSubmit={submit}
             noValidate

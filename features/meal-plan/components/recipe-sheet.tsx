@@ -195,7 +195,7 @@ export function RecipeSheet({
 
   return (
     <Sheet open={open} onOpenChange={(next) => !next && onClose()}>
-      <SheetContent className="overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden data-[side=right]:w-full data-[side=right]:sm:max-w-xl data-[side=right]:lg:max-w-2xl">
+      <SheetContent className="overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden data-[side=right]:w-full data-[side=right]:sm:max-w-2xl data-[side=right]:lg:max-w-3xl">
         {dish && (
           <>
             <div ref={top} aria-hidden />

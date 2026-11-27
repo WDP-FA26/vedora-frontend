@@ -455,7 +455,10 @@ export function NutritionCompanionBar({
       </div>
 
       <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
-        <SheetContent side="right" className="w-full overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:max-w-xl">
+        <SheetContent
+          side="right"
+          className="overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden data-[side=right]:w-full data-[side=right]:sm:max-w-xl data-[side=right]:lg:max-w-2xl"
+        >
           <SheetHeader>
             <SheetTitle>Trợ lý Dinh dưỡng & Theo dõi BMI</SheetTitle>
             <SheetDescription>
