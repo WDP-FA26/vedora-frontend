@@ -11,7 +11,7 @@ BE tiếp tục kiểm tra role thật khi đọc/lưu.
 - Giá/quota Plus/Pro mới chỉ áp dụng đơn mới. QR đang chờ, đơn đã thanh toán và
   gói đang dùng giữ hợp đồng đã lưu; Free cập nhật ngay mà không reset usage.
 - Thoại AI hai chiều chỉ dành cho Pro còn hạn, gồm cả Pro đã mua trước đó.
-  Không có hạn mức phút và không trừ lượt AI chữ. Bảng gói hiện rõ đặc quyền
+  Không có hạn mức phút; mỗi yêu cầu trợ lý xử lý qua voice dùng chung một lượt AI chữ. Bảng gói hiện rõ đặc quyền
   này; trang không quản lý guest hoặc thời lượng kỹ thuật mỗi phiên gọi.
 
 ## Hợp đồng API và cache
