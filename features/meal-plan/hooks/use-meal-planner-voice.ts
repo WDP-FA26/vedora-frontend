@@ -249,7 +249,6 @@ export function useMealPlannerVoice({
   })
 
   const sendRealtimeEvent = realtime.sendEvent
-  const stopPlayback = realtime.stopPlayback
   const mutedRef = useRef(false)
   useEffect(() => {
     mutedRef.current = realtime.session?.isInputMuted ?? false
@@ -281,9 +280,6 @@ export function useMealPlannerVoice({
       if (event.speaker === "user") {
         ledger.utterances.addFragment({ text: event.delta, startMs: event.startMs, endMs: event.endMs })
         setHeard(true)
-        if (playingRef.current && event.delta.trim().length > 0) {
-          stopPlayback()
-        }
         if (farewell.shouldCancel(event.delta)) keepTalking()
       } else {
         farewell.spoke(event.startMs, event.endMs)
