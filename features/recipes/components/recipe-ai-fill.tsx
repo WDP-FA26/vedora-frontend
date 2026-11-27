@@ -33,6 +33,7 @@ import { LogoMark } from "@/features/shared/components/wordmark"
 import { cn } from "@/lib/utils"
 
 const MAX_TEXT_LENGTH = 20000
+const MAX_INSTRUCTION_LENGTH = 2000
 
 export type RecipeAiHandle = {
   openWithAi: () => void
@@ -75,7 +76,6 @@ function buildSnapshotText(values: RecipeFormValues, catalog: readonly Ingredien
   if (!title && ingredientLines.length === 0 && stepLines.length === 0) return null
 
   const parts: string[] = [
-    "[Công thức hiện tại trên form]",
     `Tên món: ${title || "Chưa đặt tên"}`,
     `Khẩu phần: ${values.servings || "2"}`,
   ]
@@ -90,6 +90,14 @@ function buildSnapshotText(values: RecipeFormValues, catalog: readonly Ingredien
     parts.push(`Các bước:\n${stepLines.join("\n")}`)
   }
   return parts.join("\n")
+}
+
+/** Asks AI to revise the form's recipe; the request travels apart from the recipe text. */
+function formRevision(snapshot: string, instruction: string): RecipeDraftSource {
+  return {
+    currentRecipe: snapshot.slice(0, MAX_TEXT_LENGTH),
+    instruction: instruction.slice(0, MAX_INSTRUCTION_LENGTH),
+  }
 }
 
 function failureMessage(error: unknown): string {
@@ -208,6 +216,11 @@ export function RecipeAiFill({
           : `Mình đã chuẩn bị xong bản đề xuất cho “${recipe.title}”.`,
       ]
       if (recipe.calorieNote) summaryParts.push(recipe.calorieNote)
+      if (response.calorieResearch === "FAILED") {
+        summaryParts.push(
+          "Mình chưa tra được Kcal trên web lúc này, nên số Kcal chỉ là ước tính sơ bộ, bạn kiểm tra lại giúp mình nhé."
+        )
+      }
       if (unmatched > 0) {
         summaryParts.push(
           `Lưu ý: có ${unmatched} nguyên liệu chưa khớp danh mục, sau khi áp dụng bạn nhớ bấm “Tạo nguyên liệu” ở dòng đó nhé.`
@@ -253,12 +266,11 @@ export function RecipeAiFill({
     }
     const snapshot = buildSnapshotText(getFormSnapshot(), catalog)
     if (snapshot) {
-      const prompt = `${snapshot}\n\n[Yêu cầu của Admin]\nHãy rà soát lại công thức trên, dùng web search ước tính Kcal cho 1 suất ăn và giải thích kèm nguồn tham khảo.`.slice(
-        0,
-        MAX_TEXT_LENGTH
-      )
       void runDraft({
-        source: { text: prompt },
+        source: formRevision(
+          snapshot,
+          "Hãy rà soát lại công thức trên, dùng web search ước tính Kcal cho 1 suất ăn và giải thích kèm nguồn tham khảo."
+        ),
         userLabel: "Tra web tính Kcal & rà soát công thức đang nhập",
         autoApplyWhenEmpty: false,
       })
@@ -291,11 +303,11 @@ export function RecipeAiFill({
     if (!trimmed || reading) return
     setInput("")
     const snapshot = buildSnapshotText(getFormSnapshot(), catalog)
-    const fullPrompt = snapshot
-      ? `${snapshot}\n\n[Yêu cầu của Admin]\n${trimmed}`.slice(0, MAX_TEXT_LENGTH)
-      : trimmed.slice(0, MAX_TEXT_LENGTH)
+    const source: RecipeDraftSource = snapshot
+      ? formRevision(snapshot, trimmed)
+      : { text: trimmed.slice(0, MAX_TEXT_LENGTH) }
     void runDraft({
-      source: { text: fullPrompt },
+      source,
       userLabel: trimmed,
       autoApplyWhenEmpty: false,
     })
@@ -396,9 +408,11 @@ export function RecipeAiFill({
                       requestAnimationFrame(() => textarea.current?.focus())
                       return
                     }
-                    const prompt = `${snapshot}\n\n[Yêu cầu của Admin]\nChỉ dựa vào món và nguyên liệu trên form, hãy tra cứu web search để tính Kcal / 1 suất và nêu rõ nguồn tham khảo.`
                     void runDraft({
-                      source: { text: prompt.slice(0, MAX_TEXT_LENGTH) },
+                      source: formRevision(
+                        snapshot,
+                        "Chỉ dựa vào món và nguyên liệu trên form, hãy tra cứu web search để tính Kcal / 1 suất và nêu rõ nguồn tham khảo."
+                      ),
                       userLabel: "Tra web tính Kcal cho món trên form",
                       autoApplyWhenEmpty: false,
                     })

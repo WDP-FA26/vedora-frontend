@@ -155,9 +155,15 @@ export const saveRecipe = (token: string, id: string | undefined, body: RecipeIn
 
 /**
  * What AI reads a recipe draft from: a post's caption and transcripts (only
- * `mediaId`'s transcript when given), or pasted text.
+ * `mediaId`'s transcript when given), pasted text, or the recipe on the form.
+ * `instruction` is the admin's own request and the only part AI follows as
+ * instructions, so never fold it into `text` or `currentRecipe`.
  */
-export type RecipeDraftSource = { postId: string; mediaId?: string } | { text: string }
+export type RecipeDraftSource = (
+  | { postId: string; mediaId?: string }
+  | { text: string }
+  | { currentRecipe: string }
+) & { instruction?: string }
 
 /** Asks AI to read `source` into a recipe draft; nothing is saved. */
 export function requestRecipeDraft(token: string, source: RecipeDraftSource) {

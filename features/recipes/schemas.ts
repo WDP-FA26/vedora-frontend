@@ -197,6 +197,11 @@ export const recipeDraftSchema = z.object({
     .nullable(),
   /** Videos still waiting for a transcript; what they say is missing. */
   untranscribedVideos: z.number(),
+  /**
+   * `DONE`: kcal checked on the web; `SKIPPED`: no check was needed;
+   * `FAILED`: the check failed, so the kcal is only AI's rough estimate.
+   */
+  calorieResearch: z.enum(["DONE", "SKIPPED", "FAILED"]),
 })
 
 /** The public catalog adds whether the caller saved the recipe; guests get false. */
