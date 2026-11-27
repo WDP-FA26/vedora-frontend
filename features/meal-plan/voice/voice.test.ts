@@ -34,6 +34,7 @@ describe("voiceErrorText", () => {
     expect(voiceErrorText(`Failed to fetch realtime setup: ${VOICE_QUOTA_STATUS}`)).toContain("hết lượt")
     expect(voiceErrorText("Failed to fetch realtime setup: 429")).toContain("hơi nhanh")
     expect(voiceErrorText("Failed to fetch realtime setup: 401")).toContain("Phiên đăng nhập")
+    expect(voiceErrorText("Failed to fetch realtime setup: 403")).toContain("Pro còn hiệu lực")
     expect(voiceErrorText("Failed to fetch realtime setup: 503")).toContain("tạm ngưng")
     expect(voiceErrorText("Failed to fetch realtime setup: 500")).toContain("Chưa kết nối được")
   })

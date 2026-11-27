@@ -3,7 +3,8 @@ import type { AdminPlans } from "../../features/admin/subscription-plans/schema"
 import { signInAs } from "../helpers/auth"
 import { mockApi } from "../helpers/api"
 import { test, expect, appAlerts } from "../helpers/test"
-import { payment, PAYMENT_IDS, PIXEL_PNG } from "../fixtures/data-extra.mjs"
+import { payment, PAYMENT_IDS, PIXEL_PNG, billingOverview } from "../fixtures/data-extra.mjs"
+import { users } from "../fixtures/data.mjs"
 
 const initial: AdminPlans = {
   id: "9fd37843-83f6-48a4-ad66-012caec15136", version: 0, source: "ENV", updatedAt: null, updatedById: null,
@@ -198,3 +199,34 @@ test("shows the old order allowances on its QR page when the new catalog has dif
   await expect(page.getByText(/Giá và hạn mức được giữ theo thời điểm tạo đơn/)).toBeVisible()
   expect(catalogReads).toHaveLength(0)
 })
+
+for (const planCode of ["FREE", "PLUS"]) {
+  test(`${planCode} sees the Pro voice upgrade before any microphone or session request`, async ({ page, context }) => {
+    await context.clearCookies()
+    await signInAs(context, "member")
+    const voiceCalls: string[] = []
+    await mockApi(page, "/auth/me", { body: { ...users.member, accountType: "PERSONAL", actor: null } })
+    await mockApi(page, "/dietary/me", { body: { allergies: [], preferences: [] } })
+    await mockApi(page, "/dietary/nutrition", { body: {
+      heightCm: 165, weightKg: 60, targetWeightKg: null, birthYear: 2000,
+      biologicalSex: "FEMALE", activityLevel: "MODERATE", nutritionGoal: "MAINTAIN",
+      bmi: 22, bmiCategory: "NORMAL", suggestedGoal: "MAINTAIN", effectiveGoal: "MAINTAIN",
+      idealWeightMinKg: 50, idealWeightMaxKg: 62, bmr: 1400, tdee: 2000,
+      dailyCalorieTarget: 2000, dailyCalorieMin: 1800, dailyCalorieMax: 2200, safetyNote: null, history: [],
+    } })
+    await mockApi(page, "/meal-plan/chat/threads", { body: { items: [], meta: { page: 1, limit: 50, totalItems: 0, totalPages: 0, hasNextPage: false, hasPreviousPage: false } } }, "GET")
+    await page.addInitScript(() => {
+      navigator.mediaDevices.getUserMedia = () => Promise.reject(new Error("Microphone should not be opened for non-Pro"))
+    })
+    await page.route("**/api/meal-planner/voice/session**", (route) => {
+      voiceCalls.push(route.request().url())
+      return route.fulfill({ status: 403, json: { code: "PRO_REQUIRED", message: "Need Pro" } })
+    })
+    await mockApi(page, "/billing/me", { body: { ...billingOverview, membership: { planCode, startsAt: null, expiresAt: null } } })
+    await page.goto("/meal-planner")
+    await page.getByRole("button", { name: "Trò chuyện bằng giọng nói", exact: true }).first().click()
+    await expect(page.getByRole("heading", { name: "Thoại AI hai chiều dành cho Pro", exact: true })).toBeVisible()
+    await expect(page.getByRole("link", { name: "Xem gói Pro", exact: true })).toHaveAttribute("href", "/billing")
+    expect(voiceCalls).toHaveLength(0)
+  })
+}
