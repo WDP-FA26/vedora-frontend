@@ -2,6 +2,9 @@
 
 import { useEffect, useRef, useState, type ReactNode } from "react"
 import { createPortal } from "react-dom"
+import Link from "next/link"
+import { useBilling } from "@/features/billing/hooks"
+import { Spinner } from "@/components/ui/spinner"
 import {
   ActivityIcon,
   BookOpenIcon,
@@ -16,7 +19,7 @@ import {
   type LucideIcon,
 } from "lucide-react"
 
-import { Button } from "@/components/ui/button"
+import { Button, buttonVariants } from "@/components/ui/button"
 import {
   Popover,
   PopoverContent,
@@ -27,9 +30,9 @@ import {
 } from "@/components/ui/popover"
 import { Switch } from "@/components/ui/switch"
 import { VoiceOrb, type VoiceOrbState } from "@/components/ui/voice-orb"
-import { useMealPlannerVoice, type VoiceUsageAnchor } from "@/features/meal-plan/hooks/use-meal-planner-voice"
+import { useMealPlannerVoice } from "@/features/meal-plan/hooks/use-meal-planner-voice"
 import { type VoiceAiDenoiseStatus, type VoiceMicSettings } from "@/features/meal-plan/voice/voice-capture"
-import { VOICE_MAX_SECONDS, type VoiceOpenRecipe } from "@/features/meal-plan/voice/voice-session"
+import type { VoiceOpenRecipe } from "@/features/meal-plan/voice/voice-session"
 import type { VoiceScreen, VoiceScreenCommand } from "@/features/meal-plan/voice/voice-stream"
 import { LogoMark } from "@/features/shared/components/wordmark"
 
@@ -51,8 +54,6 @@ const FEATURES: { icon: LucideIcon; text: string }[] = [
   { icon: NotebookPenIcon, text: "Ghi món đã ăn vào nhật ký" },
   { icon: ActivityIcon, text: "Cập nhật cân nặng, xem BMI" },
 ]
-
-const MINUTE_SECONDS = 60
 
 const METER_MIN_DB = -70
 const METER_MAX_DB = -10
@@ -152,33 +153,27 @@ function MicSettingsPopover({
   )
 }
 
-function VoiceCountdown({ usage, live }: { usage: VoiceUsageAnchor | null; live: boolean }) {
-  const [now, setNow] = useState<number | null>(null)
-  const baseRemaining =
-    usage === null ? VOICE_MAX_SECONDS : Math.max(0, VOICE_MAX_SECONDS - usage.seconds)
-  const elapsedSinceSync =
-    live && usage !== null && now !== null && now > usage.at ? (now - usage.at) / 1000 : 0
-  const secondsLeft = Math.max(0, Math.ceil(baseRemaining - elapsedSinceSync))
-  const countingSeconds = live && usage !== null && secondsLeft < MINUTE_SECONDS
-
-  useEffect(() => {
-    if (!live || usage === null) return
-    if (countingSeconds) {
-      const timer = setInterval(() => setNow(Date.now()), 1000)
-      return () => clearInterval(timer)
-    }
-    const waitMs = Math.max(0, (baseRemaining - (MINUTE_SECONDS - 1)) * 1000)
-    const timer = setTimeout(() => setNow(Date.now()), waitMs)
-    return () => clearTimeout(timer)
-  }, [live, usage, countingSeconds, baseRemaining])
-
-  if (secondsLeft < MINUTE_SECONDS) {
-    return <>Trò chuyện bằng giọng nói · còn {secondsLeft} giây</>
+export function VoicePanel(props: Parameters<typeof ProVoicePanel>[0]) {
+  const billing = useBilling()
+  if (billing.isLoading || !billing.data || billing.error) {
+    return <div className="flex h-full min-h-64 flex-col items-center justify-center gap-4 p-6 text-center">
+      {billing.error ? <><p>Chưa kiểm tra được quyền sử dụng thoại AI.</p><Button variant="outline" onClick={() => void billing.mutate().catch(() => undefined)}>Thử lại</Button></> : <><Spinner /><p>Đang kiểm tra gói của bạn…</p></>}
+      <Button variant="ghost" onClick={props.onClose}>Quay lại</Button>
+    </div>
   }
-  return <>Trò chuyện bằng giọng nói · còn {Math.round(secondsLeft / MINUTE_SECONDS)} phút</>
+  if (billing.data.membership.planCode !== "PRO") {
+    return <div className="flex h-full min-h-64 flex-col items-center justify-center gap-4 p-6 text-center">
+      <LogoMark className="size-16" />
+      <h2 className="font-heading text-xl font-semibold">Thoại AI hai chiều dành cho Pro</h2>
+      <p className="max-w-sm text-sm text-muted-foreground">Nâng cấp Pro để trò chuyện trực tiếp với trợ lý Vedora. Không tính hạn mức phút và không trừ lượt AI chữ.</p>
+      <Link href="/billing" className={buttonVariants()}>Xem gói Pro</Link>
+      <Button variant="ghost" onClick={props.onClose}>Quay lại</Button>
+    </div>
+  }
+  return <ProVoicePanel {...props} />
 }
 
-export function VoicePanel({
+function ProVoicePanel({
   weekStart,
   today,
   threadId,
@@ -229,7 +224,7 @@ export function VoicePanel({
         <div className="min-w-0 flex-1">
           <h2 className="font-heading text-base font-bold leading-tight">Trợ lý Vedora</h2>
           <p className="mt-0.5 truncate text-xs text-muted-foreground">
-            <VoiceCountdown usage={voice.usage} live={live} />
+            Trò chuyện bằng giọng nói · Đặc quyền Pro
           </p>
         </div>
         {trailing}

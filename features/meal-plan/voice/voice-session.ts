@@ -21,6 +21,7 @@ export function voiceErrorText(message: string) {
   }
   if (status === 429) return "Bạn thao tác hơi nhanh. Đợi một chút rồi thử lại nhé."
   if (status === 401) return "Phiên đăng nhập đã hết hạn. Hãy tải lại trang rồi thử lại."
+  if (status === 403) return "Thoại AI hai chiều chỉ dành cho gói Pro còn hiệu lực."
   if (status === 503) return "Trợ lý giọng nói đang tạm ngưng. Hãy thử lại sau."
   return "Chưa kết nối được trợ lý giọng nói. Hãy thử lại sau ít phút."
 }
