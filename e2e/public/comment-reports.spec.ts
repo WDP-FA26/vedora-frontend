@@ -151,7 +151,7 @@ test("a duplicate report is acknowledged and a removed target shows an error", a
   await openReport(page)
   await page.getByRole("radio", { name: "Spam hoặc quảng cáo" }).click()
   await page.getByRole("button", { name: "Gửi báo cáo" }).click()
-  await expect(page.getByRole("heading", { name: "Đã gửi báo cáo" })).toBeVisible()
+  await expect(page.getByRole("heading", { name: "Bạn đã báo cáo bình luận này rồi" })).toBeVisible()
   await page.getByRole("button", { name: "Xong" }).click()
   await mockApi(
     page,

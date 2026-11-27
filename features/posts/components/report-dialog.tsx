@@ -3,7 +3,7 @@
 import { useEffect, useId, useRef, useState } from "react"
 import { Controller, useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
-import { CircleCheckIcon } from "lucide-react"
+import { CircleCheckIcon, InfoIcon } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -56,7 +56,7 @@ export function ReportDialog({
 }) {
   const { accessToken } = useAuth()
   const formId = useId()
-  const [sent, setSent] = useState(false)
+  const [result, setResult] = useState<"SENT" | "ALREADY_REPORTED" | null>(null)
   const [images, setImages] = useState<PickedImage[]>([])
   const imageRef = useRef(images)
   const uploaded = useRef(new Map<File, string>())
@@ -94,10 +94,10 @@ export function ReportDialog({
           ...(evidenceIds.length ? { evidenceIds } : {}),
         })
       }
-      setSent(true)
+      setResult("SENT")
     } catch (error) {
       if (error instanceof ApiError && error.code === "ALREADY_REPORTED") {
-        setSent(true)
+        setResult("ALREADY_REPORTED")
         return
       }
       form.setError("root", {
@@ -113,7 +113,7 @@ export function ReportDialog({
     if (isSubmitting) return
     if (!next) {
       form.reset()
-      setSent(false)
+      setResult(null)
       releasePickedImages(images)
       setImages([])
       uploaded.current.clear()
@@ -124,13 +124,17 @@ export function ReportDialog({
   return (
     <Dialog open={open} onOpenChange={changeOpen}>
       <DialogContent>
-        {sent ? (
+        {result ? (
           <>
             <DialogHeader>
-              <CircleCheckIcon aria-hidden className="mb-1 size-8 text-primary" />
-              <DialogTitle>Đã gửi báo cáo</DialogTitle>
+              {result === "SENT"
+                ? <CircleCheckIcon aria-hidden className="mb-1 size-8 text-primary" />
+                : <InfoIcon aria-hidden className="mb-1 size-8 text-muted-foreground" />}
+              <DialogTitle>{result === "SENT" ? "Đã gửi báo cáo" : `Bạn đã báo cáo ${subject} này rồi`}</DialogTitle>
               <DialogDescription>
-                Cảm ơn bạn. Đội ngũ Vedora sẽ xem {subject} này và xử lý nếu vi phạm.
+                {result === "SENT"
+                  ? `Cảm ơn bạn. Đội ngũ Vedora sẽ xem ${subject} này và xử lý nếu vi phạm.`
+                  : `Mỗi tài khoản chỉ được báo cáo một ${subject} một lần. Báo cáo trước của bạn vẫn được lưu; không có báo cáo mới được tạo.`}
               </DialogDescription>
             </DialogHeader>
             <DialogFooter>
@@ -149,6 +153,7 @@ export function ReportDialog({
               <DialogTitle>Báo cáo {subject}</DialogTitle>
               <DialogDescription>
                 {authorName} sẽ không biết ai đã báo cáo {subject} này.
+                {` Mỗi tài khoản chỉ được báo cáo một ${subject} một lần.`}
               </DialogDescription>
             </DialogHeader>
 

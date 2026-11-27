@@ -127,3 +127,25 @@ test("keeps a completed upload for report retry and blocks submit while uploadin
   expect(sends).toHaveLength(2)
   expect(uploads).toHaveLength(1)
 })
+
+test("explains an existing report instead of claiming a new successful submission", async ({ page }) => {
+  const sends = await mockApi(page, "/posts/p-1/report", { status: 409, body: { code: "ALREADY_REPORTED", message: "Already reported" } }, "POST")
+  const dialog = await openReport(page)
+  await dialog.getByRole("button", { name: "Gửi báo cáo", exact: true }).click()
+  await expect(page.getByRole("heading", { name: "Bạn đã báo cáo bài viết này rồi", exact: true })).toBeVisible()
+  await expect(page.getByText(/không có báo cáo mới được tạo/)).toBeVisible()
+  await expect(page.getByRole("heading", { name: "Đã gửi báo cáo", exact: true })).toHaveCount(0)
+  await expect(page.getByRole("button", { name: "Gửi báo cáo", exact: true })).toHaveCount(0)
+  expect(sends).toHaveLength(1)
+})
+
+test("stops before submitting a new report if the evidence upload says already reported", async ({ page }) => {
+  const uploads = await mockApi(page, "/posts/p-1/report/evidence", { status: 409, body: { code: "ALREADY_REPORTED", message: "Already reported" } }, "POST")
+  const sends = await mockApi(page, "/posts/p-1/report", { status: 201, body: {} }, "POST")
+  const dialog = await openReport(page)
+  await dialog.locator('input[type="file"]').setInputFiles(png)
+  await dialog.getByRole("button", { name: "Gửi báo cáo", exact: true }).click()
+  await expect(page.getByRole("heading", { name: "Bạn đã báo cáo bài viết này rồi", exact: true })).toBeVisible()
+  expect(uploads).toHaveLength(1)
+  expect(sends).toHaveLength(0)
+})
