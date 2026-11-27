@@ -47,13 +47,13 @@ import {
   LEGAL_ENTITY_VIEWS,
   PROOF_KIND_VIEWS,
   PROOF_KINDS,
+  provinceName,
   REJECT_REASON_LABELS,
   REJECT_REASONS,
   REVIEW_CHECKLIST_ITEMS,
   REVIEW_CHECKLIST_LABELS,
   taxCodeLookupUrl,
   VEGETARIAN_LEVEL_LABELS,
-  VN_PROVINCES,
   WARNING_LABELS,
   type ReviewChecklistItem,
 } from "@/features/workspaces/onboarding"
@@ -173,7 +173,8 @@ function proofsInFormOrder(proofs: AdminWorkspaceDetail["proofs"]) {
 function fullAddress(workspace: AdminWorkspaceDetail) {
   const parts = [workspace.address]
   if (workspace.ward) parts.push(workspace.ward)
-  if (workspace.provinceCode) parts.push(VN_PROVINCES[workspace.provinceCode])
+  const province = workspace.provinceCode ? provinceName(workspace.provinceCode) : null
+  if (province) parts.push(province)
   return parts.join(", ")
 }
 
