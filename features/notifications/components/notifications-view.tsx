@@ -18,6 +18,7 @@ import {
   ShieldAlertIcon,
   StoreIcon,
   Trash2Icon,
+  UserMinusIcon,
   UserPlusIcon,
 } from "lucide-react"
 import { cn } from "cn"
@@ -64,6 +65,8 @@ const ICONS = {
   SUPPORT_TICKET_REMINDER: ClockIcon,
   WORKSPACE_APPROVED: StoreIcon,
   WORKSPACE_REJECTED: ShieldAlertIcon,
+  WORKSPACE_MANAGER_ADDED: StoreIcon,
+  WORKSPACE_MANAGER_REMOVED: UserMinusIcon,
 } as const
 
 const ADMIN_NOTE_TYPES = new Set<ApiNotification["type"]>([
@@ -93,7 +96,12 @@ function noteText(notification: ApiNotification, note: string): string {
 function hrefFor(notification: ApiNotification) {
   if (notification.type === "SUBSCRIPTION_GRANTED") return "/billing"
   const { postId, ticketId, workspaceId, type, postType, actor } = notification
-  if (workspaceId && (type === "WORKSPACE_APPROVED" || type === "WORKSPACE_REJECTED")) {
+  if (
+    workspaceId &&
+    (type === "WORKSPACE_APPROVED" ||
+      type === "WORKSPACE_REJECTED" ||
+      type === "WORKSPACE_MANAGER_ADDED")
+  ) {
     return workspacePath(workspaceId)
   }
   if (
