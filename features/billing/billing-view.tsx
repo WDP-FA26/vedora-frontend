@@ -271,7 +271,7 @@ function BillingContent({ userId, token }: { userId: string; token?: string }) {
                   {[
                     `${plan.textLimit} lượt AI văn bản/chu kỳ`,
                     `${plan.imageLimit} lượt tạo hoặc chỉnh ảnh/chu kỳ`,
-                    ...(plan.code === "PRO" ? ["Thoại AI hai chiều, không trừ lượt AI chữ"] : []),
+                    ...(plan.code === "PRO" ? ["Thoại AI hai chiều, dùng chung lượt AI chữ"] : []),
                     "AI dinh dưỡng, thực đơn và viết blog",
                     "Đầy đủ tính năng của gói Miễn phí",
                   ].map((text) => (

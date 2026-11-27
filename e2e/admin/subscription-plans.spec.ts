@@ -200,8 +200,8 @@ test("shows the old order allowances on its QR page when the new catalog has dif
   expect(catalogReads).toHaveLength(0)
 })
 
-for (const planCode of ["FREE", "PLUS"]) {
-  test(`${planCode} sees the Pro voice upgrade before any microphone or session request`, async ({ page, context }) => {
+for (const planCode of ["FREE", "PLUS", "PRO"]) {
+  test(`${planCode} voice gate checks entitlement and text quota before microphone or session requests`, async ({ page, context }) => {
     await context.clearCookies()
     await signInAs(context, "member")
     const voiceCalls: string[] = []
@@ -222,11 +222,18 @@ for (const planCode of ["FREE", "PLUS"]) {
       voiceCalls.push(route.request().url())
       return route.fulfill({ status: 403, json: { code: "PRO_REQUIRED", message: "Need Pro" } })
     })
-    await mockApi(page, "/billing/me", { body: { ...billingOverview, membership: { planCode, startsAt: null, expiresAt: null } } })
+    await mockApi(page, "/billing/me", { body: { ...billingOverview, membership: { planCode, startsAt: null, expiresAt: null },
+      ...(planCode === "PRO" ? { usage: { ...billingOverview.usage, text: { ...billingOverview.usage.text, used: 10, remaining: 0 } } } : {}),
+    } })
     await page.goto("/meal-planner")
     await page.getByRole("button", { name: "Trò chuyện bằng giọng nói", exact: true }).first().click()
-    await expect(page.getByRole("heading", { name: "Thoại AI hai chiều dành cho Pro", exact: true })).toBeVisible()
-    await expect(page.getByRole("link", { name: "Xem gói Pro", exact: true })).toHaveAttribute("href", "/billing")
+    if (planCode === "PRO") {
+      await expect(page.getByText("Bạn đã dùng hết lượt AI chữ của chu kỳ này. Voice dùng chung hạn mức AI chữ.")).toBeVisible()
+      await expect(page.getByRole("button", { name: "Kết nối lại" })).toBeDisabled()
+    } else {
+      await expect(page.getByRole("heading", { name: "Thoại AI hai chiều dành cho Pro", exact: true })).toBeVisible()
+      await expect(page.getByRole("link", { name: "Xem gói Pro", exact: true })).toHaveAttribute("href", "/billing")
+    }
     expect(voiceCalls).toHaveLength(0)
   })
 }

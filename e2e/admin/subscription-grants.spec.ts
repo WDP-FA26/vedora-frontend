@@ -77,7 +77,7 @@ test("previews replacement, pending QR and Pro voice then grants once with revis
   await expect(sheet.getByText(/Không cộng dồn thời gian còn lại/)).toBeVisible()
   await sheet.getByLabel("Gói được cấp", { exact: true }).selectOption("PRO")
   await expect(sheet.getByText(/900 lượt AI chữ · 40 lượt tạo ảnh/)).toBeVisible()
-  await expect(sheet.getByText("Có thoại AI hai chiều, không tính hạn mức phút.")).toBeVisible()
+  await expect(sheet.getByText("Có thoại AI hai chiều, dùng chung lượt AI chữ, không tính hạn mức phút.")).toBeVisible()
   await sheet.getByLabel("Lý do cấp gói").fill("Hỗ trợ người dùng")
   state.delay = 1000
   await sheet.getByRole("button", { name: "Xác nhận cấp gói", exact: true }).click()

@@ -138,7 +138,7 @@ function GrantForm({ detail, catalog, onBack, onClose, setBusy }: { detail: Gran
       <label className="flex flex-col gap-2 text-sm font-medium">Gói được cấp<NativeSelect aria-label="Gói được cấp" value={code} disabled={locked || saving} onChange={e => setCode(e.target.value as "PLUS" | "PRO")}><NativeSelectOption value="PLUS">Plus</NativeSelectOption><NativeSelectOption value="PRO">Pro</NativeSelectOption></NativeSelect></label>
       <div className="space-y-1 rounded-xl bg-muted/50 p-3 text-sm">
         <p>{plan.durationDays} ngày từ lúc cấp · {plan.textLimit} lượt AI chữ · {plan.imageLimit} lượt tạo ảnh.</p>
-        <p>{code === "PRO" ? "Có thoại AI hai chiều, không tính hạn mức phút." : "Không có thoại AI hai chiều."}</p>
+        <p>{code === "PRO" ? "Có thoại AI hai chiều, dùng chung lượt AI chữ, không tính hạn mức phút." : "Không có thoại AI hai chiều."}</p>
         <p className="text-xs text-muted-foreground">Cấu hình phiên bản {catalog.version}. Không thu tiền và không tính doanh thu.</p>
       </div>
       <Alert><AlertDescription>Gói mới thay gói đang dùng ngay khi cấp, bắt đầu lại chu kỳ và hạn mức. Không cộng dồn thời gian còn lại.</AlertDescription></Alert>
