@@ -16,9 +16,10 @@ import {
 } from "ai"
 import { test } from "vitest"
 
-import { appendableText, streamVoiceTurn, VOICE_MODEL_ID, voicePageContext, voiceSessionConfig } from "@/features/meal-plan/voice"
-import { FarewellTracker, VoiceCallLedger } from "@/features/meal-plan/voice-call"
-import { handleDelegation, reviseTurn, runVoiceTurn, type QueueTurn } from "@/features/meal-plan/voice-turn-runner"
+import { FarewellTracker, VoiceCallLedger } from "@/features/meal-plan/voice/voice-call"
+import { appendableText, VOICE_MODEL_ID, voicePageContext, voiceSessionConfig } from "@/features/meal-plan/voice/voice-session"
+import { streamVoiceTurn } from "@/features/meal-plan/voice/voice-stream"
+import { handleDelegation, reviseTurn, runVoiceTurn, type QueueTurn } from "@/features/meal-plan/voice/voice-turn-runner"
 
 const RATE = 24_000
 const FRAME = RATE / 50
@@ -91,7 +92,9 @@ async function speech(text: string, apiKey: string) {
 test(`voice call scenario ${SCENARIO}`, async () => {
   if (!PHRASES[SCENARIO]) throw new Error(`Unknown scenario ${SCENARIO}`)
   mkdirSync(OUT_DIR, { recursive: true })
-  const logFile = join(OUT_DIR, `${new Date().toISOString().replace(/[:.]/g, "-")}-${SCENARIO}.log`)
+  const runName = `${new Date().toISOString().replace(/[:.]/g, "-")}-${SCENARIO}`
+  const logFile = join(OUT_DIR, `${runName}.log`)
+  const audioFile = join(OUT_DIR, `${runName}.audio.jsonl`)
   let t0 = performance.now()
   const now = () => Math.round(performance.now() - t0)
   let assistantText = ""
@@ -161,8 +164,9 @@ test(`voice call scenario ${SCENARIO}`, async () => {
   let playbackUntil = 0
   let lastAssistantAt = 0
   let lastCommentaryAt = 0
-  let bargedIn = false
   const mic: Float32Array[] = []
+  const audioStats = { chunks: 0, silent: 0, maxGapMs: 0 }
+  const jitter = { lastChunkAt: 0 }
   const playing = () => performance.now() < playbackUntil
 
   const append = async (delegationId: string | null, channel: "thinking" | "commentary", content: string) => {
@@ -222,7 +226,18 @@ test(`voice call scenario ${SCENARIO}`, async () => {
   function handle(event: ServerEvent) {
     counts[event.type] = (counts[event.type] ?? 0) + 1
     if (event.type === "audio-chunk") {
-      playbackUntil = Math.max(performance.now(), playbackUntil) + (decodeRealtimeAudio(event.delta).length / RATE) * 1000
+      const samples = decodeRealtimeAudio(event.delta)
+      const arrivedAt = performance.now()
+      const durationMs = (samples.length / RATE) * 1000
+      let energy = 0
+      for (const sample of samples) energy += sample * sample
+      const silent = Math.sqrt(energy / Math.max(1, samples.length)) < 0.001
+      appendFileSync(audioFile, `${JSON.stringify({ at: Math.round(arrivedAt * 10) / 10, ms: durationMs, silent })}\n`)
+      audioStats.chunks += 1
+      if (silent) audioStats.silent += 1
+      if (jitter.lastChunkAt > 0) audioStats.maxGapMs = Math.max(audioStats.maxGapMs, Math.round(arrivedAt - jitter.lastChunkAt))
+      jitter.lastChunkAt = arrivedAt
+      playbackUntil = Math.max(arrivedAt, playbackUntil) + durationMs
     } else if (event.type === "session-started") {
       t0 = performance.now()
       ready = true
@@ -235,11 +250,6 @@ test(`voice call scenario ${SCENARIO}`, async () => {
     } else if (event.type === "transcript-fragment") {
       log(`user [${event.startMs}-${event.endMs}]: ${JSON.stringify(event.delta)}`)
       ledger.utterances.addFragment({ text: event.delta, startMs: event.startMs, endMs: event.endMs })
-      if (playing() && event.delta.trim() && !bargedIn) {
-        bargedIn = true
-        log("[speaker] stopPlayback")
-      }
-      if (event.delta.trim()) playbackUntil = Math.min(playbackUntil, performance.now())
       if (farewell.shouldCancel(event.delta)) keepTalking()
     } else if (event.type === "delegation-created") {
       log(`[delegate] created ${event.delegationId} offsetMs=${event.offsetMs}`)
@@ -313,7 +323,6 @@ test(`voice call scenario ${SCENARIO}`, async () => {
   }, 200)
 
   async function say(text: string) {
-    bargedIn = false
     log(`[user] says ${JSON.stringify(text)}`)
     mic.push(audio.get(text)!)
     while (mic.length > 0) await sleep(10)
@@ -351,6 +360,8 @@ test(`voice call scenario ${SCENARIO}`, async () => {
     await until("session closed", () => closed, 3000)
     socket.close()
     log(`[summary] events ${JSON.stringify(counts)}`)
+    log(`[summary] audio ${JSON.stringify(audioStats)}`)
+    log(`[summary] audio trace ${audioFile}`)
     log(`[summary] log ${logFile}`)
   }
 })
