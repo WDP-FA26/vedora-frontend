@@ -23,8 +23,10 @@ import {
   type ChatThreadSummary,
   type PlanChange,
 } from "@/features/meal-plan/meal-plan"
-import { MY_DIETARY_KEY, MY_NUTRITION_KEY } from "@/features/dietary/dietary"
-import { isMealLogKey } from "@/features/meal-plan/meal-log"
+import {
+  applyPlannerState,
+  plannerStateEventSchema,
+} from "@/features/meal-plan/planner-state-protocol"
 import { ApiError } from "@/features/shared/lib/api-client"
 
 const THREAD_LIST_URL = `${MEAL_PLANNER_CHAT_THREADS_KEY}?limit=50`
@@ -480,6 +482,11 @@ export function useMealPlannerChat(weekStart: string | undefined) {
     useChat<PlannerMessage>({
       transport,
       messages: [WELCOME],
+      onData: (part) => {
+        if (part.type !== "data-state") return
+        const parsed = plannerStateEventSchema.safeParse(part.data)
+        if (parsed.success) applyPlannerState(mutate, parsed.data)
+      },
       onFinish: () => {
         void threads.mutate()
       },
@@ -495,43 +502,6 @@ export function useMealPlannerChat(weekStart: string | undefined) {
   useEffect(() => {
     latestRef.current = { accessToken, threadId, messages }
   }, [accessToken, threadId, messages])
-
-  // Every change the planner saves shows on the calendar as soon as its tool finishes.
-  let savedChanges = 0
-  let undoCount = 0
-  let logMealCount = 0
-  let bodyMetricsCount = 0
-  for (const message of messages) {
-    savedChanges += messagePlanChanges(message).length
-    for (const part of message.parts) {
-      if (!isToolUIPart(part) || part.state !== "output-available") continue
-      if (part.type === "tool-undoLastChange") undoCount += 1
-      else if (part.type === "tool-logMeal") logMealCount += 1
-      else if (part.type === "tool-updateBodyMetrics") bodyMetricsCount += 1
-    }
-  }
-  useEffect(() => {
-    if (savedChanges === 0 && undoCount === 0) return
-    void mutate(isMealPlanKey)
-  }, [savedChanges, undoCount, mutate])
-
-  useEffect(() => {
-    if (logMealCount === 0) return
-    void mutate(isMealLogKey)
-  }, [logMealCount, mutate])
-
-  useEffect(() => {
-    if (bodyMetricsCount === 0) return
-    void mutate((key) => Array.isArray(key) && key[0] === MY_NUTRITION_KEY)
-  }, [bodyMetricsCount, mutate])
-
-  // The planner can change the "Dị ứng" and "Sở thích" lines, which the dietary profile shows.
-  let profileNoteUpdates = 0
-  for (const message of messages) profileNoteUpdates += messageProfileNoteUpdates(message).length
-  useEffect(() => {
-    if (profileNoteUpdates === 0) return
-    void mutate((key) => Array.isArray(key) && key[0] === MY_DIETARY_KEY)
-  }, [profileNoteUpdates, mutate])
 
   async function selectThread(id: string) {
     const token = latestRef.current.accessToken

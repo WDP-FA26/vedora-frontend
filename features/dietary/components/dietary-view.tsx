@@ -128,7 +128,7 @@ export function DietaryView() {
             <div className="rounded-2xl border border-border bg-card p-4">
               <h3 className="mb-3 text-sm font-bold">Thiết lập thể trạng &amp; mục tiêu</h3>
               <NutritionProfileForm
-                key={`${nutrition.data.heightCm}-${nutrition.data.weightKg}-${nutrition.data.nutritionGoal}`}
+                key={`${nutrition.data.heightCm}-${nutrition.data.weightKg}-${nutrition.data.birthYear}-${nutrition.data.biologicalSex}-${nutrition.data.activityLevel}-${nutrition.data.nutritionGoal}`}
                 profile={nutrition.data}
                 onSaved={async (updated) => {
                   await nutrition.mutate(updated, { revalidate: false })

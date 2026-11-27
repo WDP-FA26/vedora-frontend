@@ -33,6 +33,7 @@ import {
   type VoiceAiDenoiseStatus,
   type VoiceMicSettings,
 } from "@/features/meal-plan/voice-capture"
+import { applyPlannerState } from "@/features/meal-plan/planner-state-protocol"
 import { runVoiceTurn } from "@/features/meal-plan/voice-turn-runner"
 
 /** Created once: a new model object would replace the hook's session. */
@@ -381,6 +382,7 @@ export function useMealPlannerVoice({
         farewell,
         append,
         onScreen,
+        onState: (state) => applyPlannerState(mutate, state),
         onRefresh: refresh,
         onRefreshAll: refreshAll,
         onPendingChange: (delta) => setPending((count) => count + delta),

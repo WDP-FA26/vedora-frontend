@@ -7,6 +7,10 @@ import { z } from "zod"
 
 import { API_URL } from "@/features/auth/lib/api"
 import { WEEKDAYS, type Weekday } from "@/features/meal-plan/meal-plan"
+import {
+  plannerStateEventSchema,
+  type PlannerStateEvent,
+} from "@/features/meal-plan/planner-state-protocol"
 import { send } from "@/features/shared/lib/api-client"
 
 // Mirrors vedora-api's `/meal-plan/voice/*` routes: the meal planner voice agent.
@@ -267,6 +271,7 @@ export type VoiceRefreshCommand = {
 
 export type VoiceTurnEvent =
   | { type: "started" }
+  | { type: "state"; state: PlannerStateEvent }
   | { type: "screen"; screen: VoiceScreenCommand }
   | { type: "refresh"; refresh: VoiceRefreshCommand }
   | { type: "progress"; text: string }
@@ -343,6 +348,11 @@ export async function* streamVoiceTurn(
       }
       if (chunk.type === "finish") {
         yield { type: "ready" }
+        continue
+      }
+      if (chunk.type === "data-state") {
+        const data = plannerStateEventSchema.safeParse(chunk.data)
+        if (data.success) yield { type: "state", state: data.data }
         continue
       }
       if (chunk.type === "data-screen") {

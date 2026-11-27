@@ -1,3 +1,4 @@
+import type { PlannerStateEvent } from "@/features/meal-plan/planner-state-protocol"
 import {
   streamVoiceTurn,
   type VoiceRefreshCommand,
@@ -42,6 +43,7 @@ export type RunVoiceTurnOptions = {
   farewell: FarewellTracker
   append: (delegationId: string, channel: "thinking" | "commentary", content: string) => Promise<void>
   onScreen: (screen: VoiceScreenCommand) => void
+  onState?: (state: PlannerStateEvent) => void
   onRefresh: (refresh: VoiceRefreshCommand) => void
   onRefreshAll: () => void
   onPendingChange: (delta: 1 | -1) => void
@@ -66,6 +68,7 @@ export async function runVoiceTurn({
   farewell,
   append,
   onScreen,
+  onState,
   onRefresh,
   onRefreshAll,
   onPendingChange,
@@ -109,14 +112,20 @@ export async function runVoiceTurn({
       { weekStart, message, threadId, requestId: delegationId, screen },
       controller.signal
     )
+    let receivedStateEvent = false
     for await (const event of turn) {
       saved = true
+      if (event.type === "state") {
+        receivedStateEvent = true
+        onState?.(event.state)
+        continue
+      }
       if (event.type === "screen") {
         onScreen(event.screen)
         continue
       }
       if (event.type === "refresh") {
-        onRefresh(event.refresh)
+        if (!receivedStateEvent || !onState) onRefresh(event.refresh)
         continue
       }
       if (event.type === "progress") {

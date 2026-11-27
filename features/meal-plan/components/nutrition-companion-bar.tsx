@@ -353,6 +353,7 @@ export function NutritionCompanionBar({
     if (!nutrition) {
       return <p className="text-sm text-muted-foreground">Đang tải hồ sơ BMI…</p>
     }
+    const profileKey = `${nutrition.heightCm}-${nutrition.weightKg}-${nutrition.birthYear}-${nutrition.biologicalSex}-${nutrition.activityLevel}-${nutrition.nutritionGoal}`
     if (!hasBmi) {
       return (
         <>
@@ -360,7 +361,7 @@ export function NutritionCompanionBar({
           <div className="rounded-2xl border border-border bg-card p-4">
             <h3 className="mb-3 text-sm font-bold">Thiết lập thông số cơ thể &amp; mục tiêu</h3>
             <NutritionProfileForm
-              key={`${nutrition.heightCm}-${nutrition.weightKg}-${nutrition.nutritionGoal}`}
+              key={profileKey}
               profile={nutrition}
               onSaved={onNutritionSaved}
             />
@@ -389,7 +390,7 @@ export function NutritionCompanionBar({
               onClick={() => setEditingProfile((open) => !open)}
             >
               {editingProfile ? <ChevronUpIcon aria-hidden /> : <ChevronDownIcon aria-hidden />}
-              Chỉnh chiều cao &amp; mục tiêu
+              Chỉnh chỉ số cơ thể &amp; mục tiêu
             </Button>
             <button
               type="button"
@@ -402,7 +403,7 @@ export function NutritionCompanionBar({
           {editingProfile && (
             <div className="mt-3 border-t border-border pt-3">
               <NutritionProfileForm
-                key={`${nutrition.heightCm}-${nutrition.weightKg}-${nutrition.nutritionGoal}`}
+                key={profileKey}
                 profile={nutrition}
                 onSaved={async (updated) => {
                   await onNutritionSaved(updated)

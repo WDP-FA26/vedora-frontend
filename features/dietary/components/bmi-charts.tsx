@@ -442,7 +442,14 @@ export function WeightQuickCheckIn({
   const { accessToken } = useAuth()
   const todayIso = localTodayIso()
   const [date, setDate] = useState(todayIso)
-  const [weight, setWeight] = useState(profile.weightKg?.toString() ?? "")
+  const recordedForDate =
+    profile.history.find((item) => item.date === date)?.weightKg.toString() ?? ""
+  const [lastRecorded, setLastRecorded] = useState(recordedForDate)
+  const [weight, setWeight] = useState(recordedForDate)
+  if (recordedForDate !== lastRecorded) {
+    setLastRecorded(recordedForDate)
+    setWeight(recordedForDate)
+  }
   const [height, setHeight] = useState(profile.heightCm?.toString() ?? "")
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -456,9 +463,9 @@ export function WeightQuickCheckIn({
     setError(null)
     setSavedToast(false)
     const existing = profile.history.find((item) => item.date === nextDate)
-    if (existing) {
-      setWeight(existing.weightKg.toString())
-    }
+    const nextWeight = existing ? existing.weightKg.toString() : ""
+    setLastRecorded(nextWeight)
+    setWeight(nextWeight)
   }
 
   async function submit(event: FormEvent<HTMLFormElement>) {
@@ -562,7 +569,9 @@ export function WeightQuickCheckIn({
               setWeight(event.target.value)
               setError(null)
             }}
-            placeholder="56.5"
+            placeholder={
+              profile.weightKg !== null ? `Gần nhất: ${profile.weightKg} kg` : "56.5"
+            }
             className="mt-1"
           />
         </label>
