@@ -46,8 +46,10 @@ import {
   LEGAL_ENTITY_VIEWS,
   VEGETARIAN_LEVEL_LABELS,
   VEGETARIAN_LEVELS,
+  isVnProvinceCode,
   VN_PROVINCES,
   VN_PROVINCES_BY_NAME,
+  type VnProvinceCode,
 } from "@/features/workspaces/onboarding"
 import {
   MAX_BIO_LENGTH,
@@ -89,7 +91,7 @@ const STEP_FIELDS: readonly (readonly FieldName[])[] = [
     "username",
     "bio",
     "provinceCode",
-    "ward",
+    "wardCode",
     "address",
     "location",
     "businessForm",
@@ -131,7 +133,7 @@ const EMPTY_VALUES: DefaultValues<WorkspaceFormInput> = {
   name: "",
   username: "",
   bio: "",
-  ward: "",
+  wardCode: "",
   address: "",
   phone: "",
   website: "",
@@ -150,8 +152,8 @@ function defaultsFrom(workspace: Workspace | null): DefaultValues<WorkspaceFormI
     name: workspace.name,
     username: workspace.username,
     bio: workspace.bio ?? "",
-    provinceCode: workspace.provinceCode ?? undefined,
-    ward: workspace.ward ?? "",
+    provinceCode: knownProvince(workspace.provinceCode),
+    wardCode: workspace.wardCode ?? "",
     address: workspace.address,
     location: { longitude: workspace.longitude, latitude: workspace.latitude },
     businessForm: workspace.businessForm ?? undefined,
@@ -392,12 +394,14 @@ function SelectField<T extends string>({
   label,
   placeholder,
   options,
+  disabled = false,
 }: {
   control: FormControl
   name: FieldName
   label: string
   placeholder: string
   options: readonly { value: T; label: string }[]
+  disabled?: boolean
 }) {
   return (
     <Controller
@@ -414,6 +418,7 @@ function SelectField<T extends string>({
             onChange={(event) => field.onChange(event.target.value || undefined)}
             onBlur={field.onBlur}
             aria-invalid={fieldState.invalid}
+            disabled={disabled}
             className="w-full"
           >
             <NativeSelectOption value="" disabled>
@@ -428,6 +433,66 @@ function SelectField<T extends string>({
           {fieldState.invalid && <FieldError errors={[fieldState.error]} />}
         </Field>
       )}
+    />
+  )
+}
+
+/** A rejected application's province, if it is one the dropdown offers. */
+function knownProvince(code: string | null): VnProvinceCode | undefined {
+  if (code === null || !isVnProvinceCode(code)) return undefined
+  return code
+}
+
+type WardList = Record<VnProvinceCode, readonly (readonly [string, string])[]>
+
+/** The 3,321 wards are a separate chunk, fetched once the form needs them. */
+function useWards() {
+  const [wards, setWards] = useState<WardList | null>(null)
+  const [failed, setFailed] = useState(false)
+  useEffect(() => {
+    let current = true
+    import("@/features/workspaces/vn-wards")
+      .then(({ VN_WARDS }) => {
+        if (current) setWards(VN_WARDS)
+      })
+      .catch(() => {
+        if (current) setFailed(true)
+      })
+    return () => {
+      current = false
+    }
+  }, [])
+  return { wards, failed }
+}
+
+/** Lists the wards of the chosen province; a new province clears the old ward. */
+function WardField({ form }: { form: FormApi }) {
+  const { control } = form
+  const province = useWatch({ control, name: "provinceCode" })
+  const { wards, failed } = useWards()
+  const previous = useRef(province)
+
+  useEffect(() => {
+    if (previous.current === province) return
+    // Only a change the person makes; restoring a draft keeps its ward.
+    if (previous.current !== undefined) form.setValue("wardCode", "")
+    previous.current = province
+  }, [form, province])
+
+  const options = province && wards ? wards[province] : []
+  let placeholder = "Chọn phường, xã"
+  if (!province) placeholder = "Chọn tỉnh trước"
+  else if (failed) placeholder = "Không tải được danh sách"
+  else if (!wards) placeholder = "Đang tải…"
+
+  return (
+    <SelectField
+      control={control}
+      name="wardCode"
+      label="Phường, xã"
+      placeholder={placeholder}
+      disabled={!province || !wards}
+      options={options.map(([value, label]) => ({ value, label }))}
     />
   )
 }
@@ -504,12 +569,7 @@ function RestaurantStep({ form, disabled }: { form: FormApi; disabled: boolean }
           placeholder="Chọn tỉnh, thành phố"
           options={PROVINCE_OPTIONS}
         />
-        <TextField
-          control={control}
-          name="ward"
-          label="Phường, xã"
-          placeholder="Phường Hoàn Kiếm"
-        />
+        <WardField form={form} />
       </div>
 
       <TextField control={control} name="address" label="Địa chỉ" placeholder="Số nhà, tên đường" />

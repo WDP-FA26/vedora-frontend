@@ -28,7 +28,6 @@ export { MAX_PROOF_MB, MAX_REVIEW_NOTE_LENGTH, MAX_STATEMENT_LENGTH }
 
 /** The API's `MAX_WORKSPACE_PROOFS`. */
 export const MAX_PROOFS = 10
-export const MAX_WARD_LENGTH = 100
 export const MAX_LEGAL_NAME_LENGTH = 200
 export const MAX_PERSON_NAME_LENGTH = 100
 export const MAX_OTHER_PLATFORM_URLS = 5
@@ -62,7 +61,8 @@ const restaurantLocationSchema = z.object({
 
 /** The 3-step form's restaurant fields; null on applications made before it. */
 const restaurantProfileSchema = restaurantLocationSchema.extend({
-  provinceCode: z.enum(VN_PROVINCE_CODES).nullable(),
+  provinceCode: z.string().nullable(),
+  wardCode: z.string().nullable(),
   ward: z.string().nullable(),
   businessForm: z.enum(BUSINESS_FORMS).nullable(),
   vegetarianLevel: z.enum(VEGETARIAN_LEVELS).nullable(),
@@ -410,11 +410,7 @@ export const workspaceFormSchema = z
     username: newUsernameSchema,
     bio: optionalText(MAX_BIO_LENGTH, `Tối đa ${MAX_BIO_LENGTH} ký tự`),
     provinceCode: z.enum(VN_PROVINCE_CODES, { error: "Chọn tỉnh, thành phố" }),
-    ward: z
-      .string()
-      .trim()
-      .min(1, "Nhập phường, xã")
-      .max(MAX_WARD_LENGTH, `Tối đa ${MAX_WARD_LENGTH} ký tự`),
+    wardCode: z.string().min(1, "Chọn phường, xã"),
     address: locationFields.address,
     location: locationFields.location,
     businessForm: z.enum(BUSINESS_FORMS, {
