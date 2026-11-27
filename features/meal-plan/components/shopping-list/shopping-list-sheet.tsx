@@ -424,7 +424,7 @@ export function ShoppingListSheet({
                 <EmptyTitle>Ngày đã qua</EmptyTitle>
                 <EmptyDescription>
                   {wholeWeek
-                    ? "Tuần này đã qua hết nên không còn nguyên liệu cần đi chợ."
+                    ? "Cả tuần đã qua nên không còn nguyên liệu cần đi chợ."
                     : `${dayNames(days)} đã qua nên không có danh sách đi chợ. Hãy chọn từ hôm nay trở đi.`}
                 </EmptyDescription>
               </EmptyHeader>

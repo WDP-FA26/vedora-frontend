@@ -278,7 +278,7 @@ export function NutritionCompanionBar({
             >
               <TabsList className="mb-4 grid w-full grid-cols-3">
                 <TabsTrigger value="weekly">
-                  <BarChart3Icon aria-hidden /> Tuần này
+                  <BarChart3Icon aria-hidden /> Theo tuần
                 </TabsTrigger>
                 <TabsTrigger value="bmi">
                   <ActivityIcon aria-hidden /> BMI

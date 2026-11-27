@@ -713,7 +713,7 @@ export function MealPlannerPreview() {
               <div className="flex flex-1 flex-col items-center justify-center gap-4 px-6 py-16 text-center">
                 <span className="flex size-16 items-center justify-center rounded-3xl bg-primary/10 text-primary"><CalendarDaysIcon aria-hidden className="size-8" /></span>
                 <div className="max-w-[19rem] space-y-2">
-                  <h3 className="font-heading text-xl font-bold">Tuần này mình ăn gì?</h3>
+                  <h3 className="font-heading text-xl font-bold">Cả tuần mình ăn gì?</h3>
                   <p className="text-sm leading-relaxed text-muted-foreground">Điền yêu cầu tại đây rồi gửi trong chat để xem thực đơn mẫu.</p>
                 </div>
                 <Button onClick={() => { setTab("plan"); setConfirmationOpen(true) }}>Bắt đầu lên thực đơn <ArrowRightIcon aria-hidden /></Button>

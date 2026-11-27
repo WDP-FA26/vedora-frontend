@@ -149,7 +149,7 @@ export function Timetable({
           <span className="mb-4 flex size-16 items-center justify-center rounded-[1.4rem] border border-primary/10 bg-secondary text-primary">
             <CalendarDaysIcon className="size-8" aria-hidden />
           </span>
-          <h3 className="font-heading text-xl font-bold">Tuần này mình ăn gì?</h3>
+          <h3 className="font-heading text-xl font-bold">Cả tuần mình ăn gì?</h3>
           <p className="mt-2 max-w-sm text-sm leading-6 text-muted-foreground">
             Trao đổi với trợ lý hoặc điền yêu cầu để tạo thực đơn phù hợp với bạn.
           </p>
