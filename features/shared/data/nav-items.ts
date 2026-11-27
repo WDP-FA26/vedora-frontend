@@ -1,5 +1,5 @@
 import { RESTAURANTS_PATH, WORKSPACES_PATH } from "@/features/workspaces/workspaces-cache"
-import { MEAL_PLANNER_PATH } from "@/features/meal-plan/meal-plan"
+import { MEAL_PLANNER_PATH } from "@/features/meal-plan/api/meal-plan.api"
 import { ADMIN_HOME } from "@/features/admin/data/nav-items"
 import { ANALYTICS_PATH } from "@/features/post-analytics/post-analytics-cache"
 import {

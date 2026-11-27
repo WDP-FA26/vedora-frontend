@@ -36,7 +36,7 @@ import {
   NutritionProfileForm,
   WeightBmiTrendChart,
 } from "@/features/dietary/components/bmi-charts"
-import { MEAL_PLANNER_PATH } from "@/features/meal-plan/meal-plan"
+import { MEAL_PLANNER_PATH } from "@/features/meal-plan/api/meal-plan.api"
 import { profilePath } from "@/features/profiles/profiles-cache"
 
 const ALLERGIES_ID = "dietary-allergies"

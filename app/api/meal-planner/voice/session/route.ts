@@ -1,6 +1,6 @@
 import { getAccessToken } from "@/features/auth/server/session"
 import { API_URL } from "@/features/auth/lib/api"
-import { VOICE_QUOTA_STATUS, voiceSessionSchema } from "@/features/meal-plan/voice"
+import { VOICE_QUOTA_STATUS, voiceSessionSchema } from "@/features/meal-plan/voice/voice-session"
 import { ApiError, sendJson } from "@/features/shared/lib/api-client"
 
 export async function POST(request: Request) {

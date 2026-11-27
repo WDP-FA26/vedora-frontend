@@ -2,7 +2,7 @@
 
 import { useId, useState } from "react"
 
-import type { MealSection } from "@/features/meal-plan/meal-plan"
+import type { MealSection } from "@/features/meal-plan/schemas/meal-plan.schema"
 import { cn } from "@/lib/utils"
 
 const FRAMES: Record<MealSection, string> = {

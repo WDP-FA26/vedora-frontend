@@ -1,6 +1,6 @@
 "use client"
 
-import { WeekPlanButton } from "@/features/meal-plan/components/week-plan-button"
+import { WeekPlanButton } from "@/features/meal-plan/components/calendar/week-plan-button"
 import { useState } from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"

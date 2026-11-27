@@ -21,23 +21,26 @@ import { useAuth } from "@/features/auth/hooks/use-auth"
 import { useAuthedSWR } from "@/features/auth/hooks/use-authed-swr"
 import { NUTRITION_PILLAR_META } from "@/features/dietary/dietary"
 import {
+  fetchMealPlan,
+  isMealPlanKey,
+  MEAL_PLANNER_PATH,
+  mealPlanKey,
+  saveMealDays,
+} from "@/features/meal-plan/api/meal-plan.api"
+import {
   DAY_LABELS,
   editableDaysOf,
-  fetchMealPlan,
-  inputsForChanges,
-  isMealPlanKey,
-  MAX_DISHES_PER_SECTION,
-  MEAL_PLANNER_PATH,
-  MEAL_SECTIONS,
-  mealPlanKey,
-  recipesAt,
-  saveMealDays,
   SECTION_LABELS,
   todayOf,
+} from "@/features/meal-plan/lib/dates"
+import { inputsForChanges, recipesAt } from "@/features/meal-plan/lib/plan-mutations"
+import {
+  MAX_DISHES_PER_SECTION,
+  MEAL_SECTIONS,
   WEEKDAYS,
   type MealSection,
   type Weekday,
-} from "@/features/meal-plan/meal-plan"
+} from "@/features/meal-plan/schemas/meal-plan.schema"
 import { RecipeRating } from "@/features/recipes/components/recipe-rating"
 import { usePublicRecipe } from "@/features/recipes/hooks/use-recipe-catalog"
 import { useRecipeFavorite } from "@/features/recipes/hooks/use-recipe-favorite"

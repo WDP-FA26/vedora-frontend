@@ -35,7 +35,8 @@ import {
 } from "@/components/ui/trace"
 import { Button } from "@/components/ui/button"
 import { Popover, PopoverContent, PopoverHeader, PopoverTitle, PopoverTrigger } from "@/components/ui/popover"
-import { problemSchema, problemText } from "@/features/meal-plan/meal-plan"
+import { problemText } from "@/features/meal-plan/lib/problems"
+import { problemSchema } from "@/features/meal-plan/schemas/meal-plan.schema"
 
 const queryInputSchema = z.object({ query: z.string().optional() })
 const knowledgeHitSchema = z.object({ title: z.string(), page: z.number(), text: z.string() })

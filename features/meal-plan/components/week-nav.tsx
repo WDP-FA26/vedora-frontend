@@ -4,7 +4,8 @@ import { ChevronLeftIcon, ChevronRightIcon } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Spinner } from "@/components/ui/spinner"
-import { weekRangeLabel, type MealPlan } from "@/features/meal-plan/meal-plan"
+import { weekRangeLabel } from "@/features/meal-plan/lib/dates"
+import type { MealPlan } from "@/features/meal-plan/schemas/meal-plan.schema"
 
 type WeekNavProps = {
   plan: MealPlan | undefined

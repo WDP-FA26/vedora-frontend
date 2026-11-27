@@ -8,6 +8,18 @@ import { useSWRConfig } from "swr"
 import type { VoiceOrbState } from "@/components/ui/voice-orb"
 import { useAuth } from "@/features/auth/hooks/use-auth"
 import {
+  applyPlannerState,
+  invalidateAllPlannerState,
+} from "@/features/meal-plan/lib/planner-state-protocol"
+import { FarewellTracker, VoiceCallLedger } from "@/features/meal-plan/voice/voice-call"
+import {
+  loadVoiceMicSettings,
+  saveVoiceMicSettings,
+  VoiceAudioCapture,
+  type VoiceAiDenoiseStatus,
+  type VoiceMicSettings,
+} from "@/features/meal-plan/voice/voice-capture"
+import {
   appendableText,
   VOICE_MAX_SECONDS,
   VOICE_MODEL_ID,
@@ -18,22 +30,9 @@ import {
   voiceSessionConfig,
   voiceSessionRoute,
   type VoiceOpenRecipe,
-  type VoiceScreen,
-  type VoiceScreenCommand,
-} from "@/features/meal-plan/voice"
-import { FarewellTracker, VoiceCallLedger } from "@/features/meal-plan/voice-call"
-import {
-  loadVoiceMicSettings,
-  saveVoiceMicSettings,
-  VoiceAudioCapture,
-  type VoiceAiDenoiseStatus,
-  type VoiceMicSettings,
-} from "@/features/meal-plan/voice-capture"
-import {
-  applyPlannerState,
-  invalidateAllPlannerState,
-} from "@/features/meal-plan/planner-state-protocol"
-import { handleDelegation, reviseTurn, runVoiceTurn } from "@/features/meal-plan/voice-turn-runner"
+} from "@/features/meal-plan/voice/voice-session"
+import type { VoiceScreen, VoiceScreenCommand } from "@/features/meal-plan/voice/voice-stream"
+import { handleDelegation, reviseTurn, runVoiceTurn } from "@/features/meal-plan/voice/voice-turn-runner"
 
 const model = gateway.experimental_realtime(VOICE_MODEL_ID)
 

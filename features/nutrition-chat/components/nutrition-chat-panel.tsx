@@ -7,7 +7,7 @@ import { Streamdown } from "streamdown"
 import { Turnstile } from "@marsidev/react-turnstile"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { ArrowUpIcon, CalendarRangeIcon, RotateCcwIcon, XIcon } from "lucide-react"
-import { MEAL_PLANNER_PATH } from "@/features/meal-plan/meal-plan"
+import { MEAL_PLANNER_PATH } from "@/features/meal-plan/api/meal-plan.api"
 
 import { Bubble, BubbleContent, BubbleGroup } from "@/components/ui/bubble"
 import { Button } from "@/components/ui/button"

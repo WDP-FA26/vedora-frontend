@@ -16,7 +16,7 @@ import { profilePath } from "@/features/profiles/profiles-cache"
 import type { FollowSuggestion } from "@/features/profiles/schemas"
 import { PROFESSIONAL_LABEL } from "@/features/verification/schemas"
 import { VerifiedBadge } from "@/features/shared/components/verified-badge"
-import { MEAL_PLANNER_PATH } from "@/features/meal-plan/meal-plan"
+import { MEAL_PLANNER_PATH } from "@/features/meal-plan/api/meal-plan.api"
 
 function useStickyTop() {
   const ref = useRef<HTMLElement>(null)
