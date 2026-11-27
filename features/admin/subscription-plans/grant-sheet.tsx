@@ -27,7 +27,7 @@ export function GrantSheet({ catalog, onClose }: { catalog: AdminPlans; onClose:
   const [selected, setSelected] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   return <Sheet open onOpenChange={(open) => { if (!open && !busy) onClose() }}>
-    <SheetContent className="w-full max-w-full overflow-y-auto sm:max-w-lg">
+    <SheetContent className="overflow-y-auto data-[side=right]:w-full data-[side=right]:sm:max-w-lg">
       <SheetHeader>
         <SheetTitle>Cấp gói cho người dùng</SheetTitle>
         <SheetDescription>Cấp Plus hoặc Pro ngay, bắt đầu một chu kỳ mới và lưu lịch sử quản trị.</SheetDescription>

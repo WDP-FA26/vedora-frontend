@@ -135,7 +135,9 @@ test("warns about suspended accounts and keeps the grant form usable on mobile",
   await sheet.getByLabel("Lý do cấp gói").fill("Cấp thử nghiệm Pro")
   await sheet.getByLabel("Gói được cấp", { exact: true }).selectOption("PRO")
   await expect(sheet.getByText("Các lần cấp gần đây")).toBeVisible()
+  expect((await sheet.boundingBox())?.width).toBe(390)
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
+  await sheet.evaluate(element => element.scrollTo(0, 0))
   await page.screenshot({ path: test.info().outputPath("subscription-grant-mobile.png"), fullPage: true })
 })
 
