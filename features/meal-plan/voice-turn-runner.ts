@@ -1,7 +1,6 @@
 import type { PlannerStateEvent } from "@/features/meal-plan/planner-state-protocol"
 import {
   streamVoiceTurn,
-  type VoiceRefreshCommand,
   type VoiceScreen,
   type VoiceScreenCommand,
   type VoiceTurnEvent,
@@ -43,9 +42,8 @@ export type RunVoiceTurnOptions = {
   farewell: FarewellTracker
   append: (delegationId: string, channel: "thinking" | "commentary", content: string) => Promise<void>
   onScreen: (screen: VoiceScreenCommand) => void
-  onState?: (state: PlannerStateEvent) => void
-  onRefresh: (refresh: VoiceRefreshCommand) => void
-  onRefreshAll: () => void
+  onState: (state: PlannerStateEvent) => void
+  onAbortInvalidate: () => void
   onPendingChange: (delta: 1 | -1) => void
   onEnding: () => void
   onTurnEnd: (threadId: string) => void
@@ -54,7 +52,7 @@ export type RunVoiceTurnOptions = {
 
 /**
  * Executes a single delegated voice turn: streams `POST /meal-plan/voice/turns`,
- * mirrors `data-screen` and `data-refresh` live, relays progress to GPT-Live, and
+ * mirrors `data-state` and `data-screen` live, relays progress to GPT-Live, and
  * delivers the final spoken reply as soon as `ready` arrives.
  */
 export async function runVoiceTurn({
@@ -69,8 +67,7 @@ export async function runVoiceTurn({
   append,
   onScreen,
   onState,
-  onRefresh,
-  onRefreshAll,
+  onAbortInvalidate,
   onPendingChange,
   onEnding,
   onTurnEnd,
@@ -112,20 +109,14 @@ export async function runVoiceTurn({
       { weekStart, message, threadId, requestId: delegationId, screen },
       controller.signal
     )
-    let receivedStateEvent = false
     for await (const event of turn) {
       saved = true
       if (event.type === "state") {
-        receivedStateEvent = true
-        onState?.(event.state)
+        onState(event.state)
         continue
       }
       if (event.type === "screen") {
         onScreen(event.screen)
-        continue
-      }
-      if (event.type === "refresh") {
-        if (!receivedStateEvent || !onState) onRefresh(event.refresh)
         continue
       }
       if (event.type === "progress") {
@@ -160,7 +151,7 @@ export async function runVoiceTurn({
   } catch (cause) {
     // A cancelled turn was superseded or the call ended; the next turn speaks. The API may
     // still have saved changes the stream never showed, so reload what it could touch.
-    if (controller.signal.aborted || isAbort(cause)) onRefreshAll()
+    if (controller.signal.aborted || isAbort(cause)) onAbortInvalidate()
     else await append(delegationId, "commentary", voiceTurnFailureText(cause))
   } finally {
     clearTimeout(spokenProgress)

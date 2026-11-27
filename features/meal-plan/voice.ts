@@ -262,18 +262,10 @@ export type VoiceScreenCommand = {
   scroll?: ScreenScrollDirection | null
 }
 
-export type VoiceRefreshCommand = {
-  plan?: boolean
-  log?: boolean
-  nutrition?: boolean
-  dietary?: boolean
-}
-
 export type VoiceTurnEvent =
   | { type: "started" }
   | { type: "state"; state: PlannerStateEvent }
   | { type: "screen"; screen: VoiceScreenCommand }
-  | { type: "refresh"; refresh: VoiceRefreshCommand }
   | { type: "progress"; text: string }
   | { type: "summary"; text: string }
   | { type: "end-call" }
@@ -300,18 +292,11 @@ const voiceScreenDataSchema = z.object({
   scroll: z.enum(SCREEN_SCROLL_DIRECTIONS).nullable().optional(),
 })
 
-const voiceRefreshDataSchema = z.object({
-  plan: z.boolean().optional(),
-  log: z.boolean().optional(),
-  nutrition: z.boolean().optional(),
-  dietary: z.boolean().optional(),
-})
-
 const voiceTextDataSchema = z.object({ text: z.string().min(1) })
 
 /**
  * Runs one spoken turn and yields typed events from the API's UI message stream:
- * transient `data-*` commands (`data-screen`, `data-refresh`, `data-progress`,
+ * transient `data-*` commands (`data-state`, `data-screen`, `data-progress`,
  * `data-summary`, `data-end-call`), text deltas, and `ready` on `finish`.
  */
 export async function* streamVoiceTurn(
@@ -358,11 +343,6 @@ export async function* streamVoiceTurn(
       if (chunk.type === "data-screen") {
         const data = voiceScreenDataSchema.safeParse(chunk.data)
         if (data.success) yield { type: "screen", screen: data.data }
-        continue
-      }
-      if (chunk.type === "data-refresh") {
-        const data = voiceRefreshDataSchema.safeParse(chunk.data)
-        if (data.success) yield { type: "refresh", refresh: data.data }
         continue
       }
       if (chunk.type === "data-progress") {

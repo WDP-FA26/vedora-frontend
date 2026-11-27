@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
+import type { PlannerStateEvent } from "@/features/meal-plan/planner-state-protocol"
 import {
   appendableText,
   readScrollState,
@@ -10,7 +11,6 @@ import {
   voiceRecipeContext,
   voiceSessionConfig,
   voiceSessionRoute,
-  type VoiceRefreshCommand,
   type VoiceScreenCommand,
   type VoiceTurnEvent,
 } from "@/features/meal-plan/voice"
@@ -112,7 +112,7 @@ describe("streamVoiceTurn", () => {
     const fetchMock = vi.fn(async () =>
       sse([
         { type: "start", messageId: "msg_1" },
-        { type: "data-refresh", data: { plan: true }, transient: true },
+        { type: "data-state", data: { invalidate: ["plan", "shoppingList"] }, transient: true },
         {
           type: "data-screen",
           data: { focus: { kind: "planDay", weekStart: "2026-11-23", day: "SAT" }, close: null },
@@ -136,7 +136,7 @@ describe("streamVoiceTurn", () => {
 
     expect(events).toEqual([
       { type: "started" },
-      { type: "refresh", refresh: { plan: true } },
+      { type: "state", state: { invalidate: ["plan", "shoppingList"] } },
       { type: "screen", screen: { focus: { kind: "planDay", weekStart: "2026-11-23", day: "SAT" }, close: null } },
       { type: "progress", text: "Đã lưu thay đổi thực đơn cho Thứ Bảy, đang làm tiếp." },
       { type: "text", delta: "Đã thêm phở." },
@@ -202,12 +202,12 @@ describe("runVoiceTurn", () => {
     vi.useRealTimers()
   })
 
-  it("dispatches screen/refresh/end-call events and falls back to summary when text is empty", async () => {
+  it("dispatches screen/state/end-call events and falls back to summary when text is empty", async () => {
     const turns = new TurnQueue()
     const farewell = new FarewellTracker()
     const appended: [string, "thinking" | "commentary", string][] = []
     const screens: VoiceScreenCommand[] = []
-    const refreshes: VoiceRefreshCommand[] = []
+    const states: PlannerStateEvent[] = []
     const pendingDeltas: number[] = []
     let endingCalled = false
     let endedThread: string | null = null
@@ -225,8 +225,8 @@ describe("runVoiceTurn", () => {
         appended.push([id, ch, text])
       },
       onScreen: (s) => screens.push(s),
-      onRefresh: (r) => refreshes.push(r),
-      onRefreshAll: vi.fn(),
+      onState: (s) => states.push(s),
+      onAbortInvalidate: vi.fn(),
       onPendingChange: (d) => pendingDeltas.push(d),
       onEnding: () => {
         endingCalled = true
@@ -236,7 +236,7 @@ describe("runVoiceTurn", () => {
       },
       streamTurn: async function* () {
         yield { type: "started" }
-        yield { type: "refresh", refresh: { plan: true } }
+        yield { type: "state", state: { invalidate: ["plan"] } }
         yield { type: "screen", screen: { focus: { kind: "bodyMetrics" }, close: null } }
         yield { type: "end-call" }
         yield { type: "summary", text: "Người dùng muốn kết thúc cuộc gọi, hãy chào tạm biệt ngắn gọn." }
@@ -244,7 +244,7 @@ describe("runVoiceTurn", () => {
       },
     })
 
-    expect(refreshes).toEqual([{ plan: true }])
+    expect(states).toEqual([{ invalidate: ["plan"] }])
     expect(screens).toEqual([{ focus: { kind: "bodyMetrics" }, close: null }])
     expect(endingCalled).toBe(true)
     expect(farewell.phase).toBe("sent")
@@ -255,11 +255,11 @@ describe("runVoiceTurn", () => {
     expect(endedThread).toBe("thread_1")
   })
 
-  it("speaks progress commentary on long turns and refreshes all on abort", async () => {
+  it("speaks progress commentary on long turns and invalidates all on abort", async () => {
     const turns = new TurnQueue()
     const farewell = new FarewellTracker()
     const appended: [string, "thinking" | "commentary", string][] = []
-    const onRefreshAll = vi.fn()
+    const onAbortInvalidate = vi.fn()
 
     let release: (() => void) | undefined
     const running = runVoiceTurn({
@@ -275,8 +275,8 @@ describe("runVoiceTurn", () => {
         appended.push([id, ch, text])
       },
       onScreen: vi.fn(),
-      onRefresh: vi.fn(),
-      onRefreshAll,
+      onState: vi.fn(),
+      onAbortInvalidate,
       onPendingChange: vi.fn(),
       onEnding: vi.fn(),
       onTurnEnd: vi.fn(),
@@ -300,6 +300,6 @@ describe("runVoiceTurn", () => {
     turns.cancel()
     release?.()
     await running
-    expect(onRefreshAll).toHaveBeenCalledTimes(1)
+    expect(onAbortInvalidate).toHaveBeenCalledTimes(1)
   })
 })

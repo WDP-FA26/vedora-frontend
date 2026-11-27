@@ -7,9 +7,6 @@ import { useSWRConfig } from "swr"
 
 import type { VoiceOrbState } from "@/components/ui/voice-orb"
 import { useAuth } from "@/features/auth/hooks/use-auth"
-import { MY_DIETARY_KEY, MY_NUTRITION_KEY } from "@/features/dietary/dietary"
-import { isMealLogKey } from "@/features/meal-plan/meal-log"
-import { isMealPlanKey } from "@/features/meal-plan/meal-plan"
 import {
   appendableText,
   VOICE_MAX_SECONDS,
@@ -21,7 +18,6 @@ import {
   voiceSessionConfig,
   voiceSessionRoute,
   type VoiceOpenRecipe,
-  type VoiceRefreshCommand,
   type VoiceScreen,
   type VoiceScreenCommand,
 } from "@/features/meal-plan/voice"
@@ -33,7 +29,10 @@ import {
   type VoiceAiDenoiseStatus,
   type VoiceMicSettings,
 } from "@/features/meal-plan/voice-capture"
-import { applyPlannerState } from "@/features/meal-plan/planner-state-protocol"
+import {
+  applyPlannerState,
+  invalidateAllPlannerState,
+} from "@/features/meal-plan/planner-state-protocol"
 import { runVoiceTurn } from "@/features/meal-plan/voice-turn-runner"
 
 /** Created once: a new model object would replace the hook's session. */
@@ -311,19 +310,8 @@ export function useMealPlannerVoice({
     return sendContext(sendRealtimeEvent, delegationId, channel, content)
   }
 
-  function refresh(command: VoiceRefreshCommand) {
-    if (command.plan) void mutate(isMealPlanKey)
-    if (command.log) void mutate(isMealLogKey)
-    if (command.nutrition) {
-      void mutate((key) => Array.isArray(key) && key[0] === MY_NUTRITION_KEY)
-    }
-    if (command.dietary) {
-      void mutate((key) => Array.isArray(key) && key[0] === MY_DIETARY_KEY)
-    }
-  }
-
-  function refreshAll() {
-    refresh({ plan: true, log: true, nutrition: true, dietary: true })
+  function invalidateAll() {
+    invalidateAllPlannerState(mutate)
   }
 
   function handleEvent(event: Experimental_RealtimeServerEvent) {
@@ -383,8 +371,7 @@ export function useMealPlannerVoice({
         append,
         onScreen,
         onState: (state) => applyPlannerState(mutate, state),
-        onRefresh: refresh,
-        onRefreshAll: refreshAll,
+        onAbortInvalidate: invalidateAll,
         onPendingChange: (delta) => setPending((count) => count + delta),
         onEnding: () => setEnding(true),
         onTurnEnd,

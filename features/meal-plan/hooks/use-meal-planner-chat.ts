@@ -25,6 +25,7 @@ import {
 } from "@/features/meal-plan/meal-plan"
 import {
   applyPlannerState,
+  invalidateAllPlannerState,
   plannerStateEventSchema,
 } from "@/features/meal-plan/planner-state-protocol"
 import { ApiError } from "@/features/shared/lib/api-client"
@@ -495,6 +496,7 @@ export function useMealPlannerChat(weekStart: string | undefined) {
           router.refresh()
           return
         }
+        invalidateAllPlannerState(mutate)
         void threads.mutate()
       },
     })
@@ -692,8 +694,11 @@ export function useMealPlannerChat(weekStart: string | undefined) {
     streamingId: replying ? last.id : null,
     error: error ? errorMessage(error) : null,
     send: sendTyped,
-    /** Stops the running turn; what the planner already saved stays saved. */
-    stop: () => void stop(),
+    /** Stops the running turn and reconciles planner state in case a tool already committed. */
+    stop: () => {
+      void stop()
+      invalidateAllPlannerState(mutate)
+    },
     /** The user allowed web search in this conversation. */
     webSearchAllowed: webSearch,
     /** The assistant's request to search the web, waiting for the user's answer. */
