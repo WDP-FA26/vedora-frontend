@@ -18,6 +18,10 @@ const initial: AdminCommentReport = {
   action: null,
   reporter: { ...author, id: "u-member", fullName: "Nguyễn Minh Anh" },
   postAvailable: true,
+  reportCount: 1,
+  pendingReportCount: 1,
+  resolvedReportCount: 0,
+  dismissedReportCount: 0,
   comment: {
     id: "comment-1",
     parentId: null,
@@ -25,12 +29,16 @@ const initial: AdminCommentReport = {
     author,
     currentBody: "Nội dung đã sửa",
     isAvailable: true,
+    isEdited: true,
+    currentVersion: "a".repeat(64),
     replyCount: 2,
   },
 }
 
 async function setup(page: Page, overrides: Partial<typeof initial> = {}) {
   const state = { row: { ...initial, ...overrides }, failing: false }
+  if (!state.row.comment.isAvailable)
+    state.row.comment = { ...state.row.comment, currentVersion: null }
   const reads = await mockApi(
     page,
     "/admin/comment-reports",
@@ -52,7 +60,13 @@ async function setup(page: Page, overrides: Partial<typeof initial> = {}) {
     (route) => {
       if (state.failing) return { status: 500, body: { message: "Failed" } }
       const { action } = route.request().postDataJSON() as { action: string }
-      state.row = { ...state.row, status: action === "DISMISS" ? "DISMISSED" : "RESOLVED" }
+      state.row = {
+        ...state.row,
+        status: action === "DISMISS" ? "DISMISSED" : "RESOLVED",
+        pendingReportCount: 0,
+        resolvedReportCount: action === "REMOVE" ? 1 : 0,
+        dismissedReportCount: action === "DISMISS" ? 1 : 0,
+      }
       return {
         body: {
           ...state.row,
@@ -112,7 +126,7 @@ test("dismissing keeps content and refreshes the pending queue", async ({ page }
   expect(writes).toHaveLength(1)
   expect(writes[0].body).toEqual({ action: "DISMISS" })
   await page.getByRole("button", { name: "Đã bỏ qua", exact: true }).click()
-  await expect(page.getByText(initial.comment.body, { exact: true })).toBeVisible()
+  await expect(page.getByText(initial.comment.currentBody!, { exact: true })).toBeVisible()
   await expect(page.getByRole("button", { name: "Gỡ bình luận", exact: true })).toHaveCount(0)
 })
 
@@ -128,7 +142,10 @@ test("root removal requires confirmation explaining the cascade", async ({ page 
   await page.getByRole("button", { name: "Gỡ bình luận", exact: true }).click()
   await page.getByRole("alertdialog").getByRole("button", { name: "Xác nhận gỡ" }).click()
   await expect(page.getByText("Không có báo cáo bình luận trong mục này.")).toBeVisible()
-  expect(writes[0].body).toEqual({ action: "REMOVE" })
+  expect(writes[0].body).toEqual({
+    action: "REMOVE",
+    expectedCommentVersion: initial.comment.currentVersion,
+  })
 })
 
 test("reply removal explains that sibling replies remain", async ({ page }) => {
@@ -155,7 +172,7 @@ test("a failed removal keeps the confirmation open and can be retried", async ({
 test("evidence remains readable for deleted content without a broken post link", async ({
   page,
 }) => {
-  await setup(page, {
+  const { writes } = await setup(page, {
     postAvailable: false,
     reporter: null,
     comment: { ...initial.comment, currentBody: null, isAvailable: false },
@@ -168,6 +185,8 @@ test("evidence remains readable for deleted content without a broken post link",
   await expect(sheet.getByRole("link", { name: "Xem trong bài viết" })).toHaveCount(0)
   await sheet.getByRole("button", { name: "Xác nhận đã xóa" }).click()
   await expect(page.getByRole("alertdialog")).toContainText("giữ bằng chứng")
+  await page.getByRole("alertdialog").getByRole("button", { name: "Đánh dấu đã xử lý" }).click()
+  expect(writes[0].body).toEqual({ action: "REMOVE", expectedCommentVersion: null })
 })
 
 test("API permission errors are visible", async ({ page }) => {
@@ -185,6 +204,8 @@ test("a conflicting admin decision refreshes the queue and reports the conflict"
     "/admin/comment-reports/cr-1/review",
     () => {
       state.row.status = "RESOLVED"
+      state.row.pendingReportCount = 0
+      state.row.resolvedReportCount = 1
       return { status: 409, body: { code: "CONFLICT", message: "Already reviewed" } }
     },
     "POST"
@@ -201,8 +222,16 @@ async function pagedQueue(page: Page) {
   const rows: AdminCommentReport[] = Array.from({ length: 52 }, (_, i) => ({
     ...initial,
     id: `cr-${i}`,
+    commentId: `comment-${i}`,
     status: i === 51 ? "DISMISSED" : "PENDING",
-    comment: { ...initial.comment, body: `Bình luận ${i + 1}` },
+    pendingReportCount: i === 51 ? 0 : 1,
+    dismissedReportCount: i === 51 ? 1 : 0,
+    comment: {
+      ...initial.comment,
+      id: `comment-${i}`,
+      body: `Bình luận ${i + 1}`,
+      currentBody: `Bình luận ${i + 1}`,
+    },
   }))
   const reads = await mockApi(
     page,
@@ -225,6 +254,148 @@ async function pagedQueue(page: Page) {
   )
   return reads
 }
+
+test("groups reports across API pages by comment ID and keeps different comments with identical text separate", async ({
+  page,
+}) => {
+  let rows: AdminCommentReport[] = [
+    { ...initial, reportCount: 3, pendingReportCount: 2, dismissedReportCount: 1 },
+    {
+      ...initial,
+      id: "cr-2",
+      reason: "SPAM",
+      createdAt: "2026-11-24T10:00:00Z",
+      reporter: { ...author, id: "reporter-2", fullName: "Người thứ hai" },
+      reportCount: 3,
+      pendingReportCount: 2,
+      dismissedReportCount: 1,
+      comment: { ...initial.comment, body: "Nội dung đã sửa", isEdited: false },
+    },
+    {
+      ...initial,
+      id: "cr-3",
+      status: "DISMISSED",
+      reporter: null,
+      reportCount: 3,
+      pendingReportCount: 2,
+      dismissedReportCount: 1,
+    },
+    {
+      ...initial,
+      id: "cr-other",
+      commentId: "different-comment",
+      comment: { ...initial.comment, id: "different-comment" },
+    },
+  ]
+  await mockApi(
+    page,
+    "/admin/comment-reports",
+    (route) => {
+      const pageNumber = Number(new URL(route.request().url()).searchParams.get("page"))
+      return {
+        body: {
+          items: pageNumber === 1 ? rows.slice(0, 2) : rows.slice(2),
+          meta: {
+            page: pageNumber,
+            totalItems: rows.length,
+            hasNextPage: pageNumber === 1,
+            hasPreviousPage: pageNumber > 1,
+          },
+        },
+      }
+    },
+    "GET"
+  )
+  const dismissals = await mockApi(
+    page,
+    "/admin/comment-reports/cr-1/review",
+    () => {
+      rows = rows.map((row) =>
+        row.commentId === initial.commentId
+          ? {
+              ...row,
+              pendingReportCount: 1,
+              dismissedReportCount: 2,
+              ...(row.id === "cr-1" ? { status: "DISMISSED" as const } : {}),
+            }
+          : row
+      )
+      return { body: rows[0] }
+    },
+    "POST"
+  )
+  await openQueue(page)
+  await expect(page.locator("tbody tr")).toHaveCount(2)
+  const group = page.getByRole("row").filter({ hasText: "3 lượt báo cáo" })
+  await expect(group).toHaveCount(1)
+  await expect(group).toContainText("2 chờ xử lý")
+  await expect(group.getByRole("button", { name: "Bỏ qua báo cáo", exact: true })).toHaveCount(0)
+  await page.getByRole("button", { name: "Đã bỏ qua", exact: true }).click()
+  await expect(page.locator("tbody tr")).toHaveCount(1)
+  await group.getByRole("button", { name: "Xem báo cáo bình luận của Lê Bếp Chay" }).click()
+  const sheet = page.getByRole("dialog", { name: "Bình luận bị báo cáo" })
+  await expect(
+    sheet.getByRole("region", { name: "Các lượt báo cáo" }).getByRole("listitem")
+  ).toHaveCount(3)
+  await expect(sheet.getByText("Nội dung gốc lúc báo cáo", { exact: true }).first()).toBeVisible()
+  await expect(sheet.getByRole("region", { name: "Nội dung hiện tại" })).toContainText(
+    "Nội dung đã sửa"
+  )
+  await sheet
+    .getByRole("listitem", { name: "Báo cáo của Nguyễn Minh Anh", exact: true })
+    .getByRole("button", { name: "Bỏ qua báo cáo" })
+    .click()
+  await expect(sheet).toContainText("3 lượt báo cáo · 1 chờ xử lý")
+  expect(dismissals[0].body).toEqual({ action: "DISMISS" })
+  await page.screenshot({
+    path: test.info().outputPath("grouped-comment-reports.png"),
+    fullPage: true,
+  })
+})
+
+test("freezes the removal preview and requires a new confirmation after a later edit", async ({
+  page,
+}) => {
+  const { state } = await setup(page)
+  const writes = await mockApi(
+    page,
+    "/admin/comment-reports/cr-1/review",
+    (route) => {
+      const body = route.request().postDataJSON() as { expectedCommentVersion: string }
+      if (body.expectedCommentVersion !== state.row.comment.currentVersion)
+        return { status: 409, body: { code: "COMMENT_CHANGED", message: "Edited after preview" } }
+      state.row = {
+        ...state.row,
+        status: "RESOLVED",
+        pendingReportCount: 0,
+        resolvedReportCount: 1,
+      }
+      return { body: state.row }
+    },
+    "POST"
+  )
+  await openQueue(page)
+  await page.getByRole("button", { name: "Gỡ bình luận", exact: true }).click()
+  await expect(page.getByRole("alertdialog")).toContainText(initial.comment.currentBody!)
+  state.row = {
+    ...state.row,
+    comment: {
+      ...state.row.comment,
+      currentBody: "Bản sửa sau khi mở xác nhận",
+      currentVersion: "b".repeat(64),
+    },
+  }
+  await page.getByRole("alertdialog").getByRole("button", { name: "Xác nhận gỡ" }).click()
+  await expect(page.getByRole("alertdialog")).toHaveCount(0)
+  await expect(appAlerts(page)).toContainText("sau khi bạn mở xác nhận")
+  expect(writes[0].body).toEqual({ action: "REMOVE", expectedCommentVersion: "a".repeat(64) })
+  await expect(page.getByRole("table")).toContainText("Bản sửa sau khi mở xác nhận")
+  await page.getByRole("button", { name: "Gỡ bình luận", exact: true }).click()
+  await expect(page.getByRole("alertdialog")).toContainText("Bản sửa sau khi mở xác nhận")
+  await page.getByRole("alertdialog").getByRole("button", { name: "Xác nhận gỡ" }).click()
+  await expect(page.getByText("Không có báo cáo bình luận trong mục này.")).toBeVisible()
+  expect(writes[1].body).toEqual({ action: "REMOVE", expectedCommentVersion: "b".repeat(64) })
+})
 
 test("the shared table paginates all API pages and resets pagination when changing views", async ({
   page,
@@ -264,8 +435,28 @@ test("columns and sorting match the post moderation table", async ({ page }) => 
     {
       body: {
         items: [
-          { ...initial, id: "a", comment: { ...initial.comment, body: "A nội dung" } },
-          { ...initial, id: "z", comment: { ...initial.comment, body: "Z nội dung" } },
+          {
+            ...initial,
+            id: "a",
+            commentId: "comment-a",
+            comment: {
+              ...initial.comment,
+              id: "comment-a",
+              body: "A nội dung",
+              currentBody: "A nội dung",
+            },
+          },
+          {
+            ...initial,
+            id: "z",
+            commentId: "comment-z",
+            comment: {
+              ...initial.comment,
+              id: "comment-z",
+              body: "Z nội dung",
+              currentBody: "Z nội dung",
+            },
+          },
         ],
         meta: { page: 1, totalItems: 2, hasNextPage: false, hasPreviousPage: false },
       },

@@ -22,7 +22,8 @@ import { useAuthedSWR } from "@/features/auth/hooks/use-authed-swr"
 import { ApiError } from "@/features/shared/lib/api-client"
 import { COMMENT_REPORTS_KEY, fetchAllCommentReports, reviewCommentReport } from "./api"
 import { commentReportColumns, CommentReportActionsContext } from "./report-columns"
-import { CommentReportSheet } from "./report-sheet"
+import { CommentReportSheet } from "./group-report-sheet"
+import { groupCommentReports, type CommentReportGroup } from "./report-groups"
 import type { AdminCommentReport } from "./schema"
 
 const VIEWS: DataTableView[] = [
@@ -47,7 +48,7 @@ const VIEWS: DataTableView[] = [
   { id: "all", label: "Tất cả", columnFilters: [] },
 ]
 const NO_REPORTS: AdminCommentReport[] = []
-const getRowId = (report: AdminCommentReport) => report.id
+const getRowId = (report: CommentReportGroup) => report.commentId
 
 export function CommentReportsView() {
   const params = useSearchParams()
@@ -57,19 +58,24 @@ export function CommentReportsView() {
     fetchAllCommentReports
   )
   const reports = data ?? NO_REPORTS
+  const groups = groupCommentReports(reports)
   const [openId, setOpenId] = useState<string | null>(() => params.get("reportId"))
-  const [confirmId, setConfirmId] = useState<string | null>(null)
+  const [selected, setSelected] = useState<AdminCommentReport | null>(null)
   const [busy, setBusy] = useState<string | null>(null)
   const [actionError, setActionError] = useState<string | null>(null)
-  const selected = reports.find((report) => report.id === confirmId)
 
   async function review(report: AdminCommentReport, action: "DISMISS" | "REMOVE") {
     if (!accessToken || busy) return
     setBusy(report.id)
     setActionError(null)
     try {
-      const reviewed = await reviewCommentReport(accessToken, report.id, action)
-      setConfirmId(null)
+      const reviewed = await reviewCommentReport(
+        accessToken,
+        report.id,
+        action,
+        report.comment.currentVersion
+      )
+      setSelected(null)
       await mutate((rows) => rows?.map((row) => (row.id === reviewed.id ? reviewed : row)), {
         revalidate: false,
       })
@@ -77,11 +83,13 @@ export function CommentReportsView() {
     } catch (failure) {
       setActionError(
         failure instanceof ApiError && failure.status === 409
-          ? "Báo cáo đã được admin khác xử lý. Danh sách đã được cập nhật."
+          ? failure.code === "COMMENT_CHANGED"
+            ? "Bình luận đã được chỉnh sửa hoặc xóa sau khi bạn mở xác nhận. Hãy xem lại nội dung mới trước khi gỡ."
+            : "Báo cáo đã được admin khác xử lý. Danh sách đã được cập nhật."
           : "Không xử lý được báo cáo. Vui lòng thử lại."
       )
       if (failure instanceof ApiError && failure.status === 409) {
-        setConfirmId(null)
+        setSelected(null)
         await mutate()
       }
     } finally {
@@ -90,7 +98,20 @@ export function CommentReportsView() {
   }
 
   function requestRemoval(id: string) {
-    setConfirmId(id)
+    const group = groups.find(
+      (group) => group.id === id || group.reports.some((report) => report.id === id)
+    )
+    setSelected(
+      group
+        ? {
+            ...group,
+            comment: {
+              ...group.comment,
+              isEdited: group.reports.some((report) => report.comment.isEdited),
+            },
+          }
+        : null
+    )
     setActionError(null)
   }
 
@@ -136,7 +157,7 @@ export function CommentReportsView() {
         >
           <DataTable
             columns={commentReportColumns}
-            data={reports}
+            data={groups}
             getRowId={getRowId}
             views={VIEWS}
             defaultView="pending"
@@ -146,8 +167,14 @@ export function CommentReportsView() {
         </CommentReportActionsContext>
       )}
       <CommentReportSheet
-        report={reports.find((report) => report.id === openId) ?? null}
+        group={
+          groups.find(
+            (group) =>
+              group.commentId === openId || group.reports.some((report) => report.id === openId)
+          ) ?? null
+        }
         busy={Boolean(busy)}
+        error={actionError}
         onClose={() => setOpenId(null)}
         onDismiss={(report) => void review(report, "DISMISS")}
         onRemove={requestRemoval}
@@ -155,7 +182,7 @@ export function CommentReportsView() {
       <AlertDialog
         open={Boolean(selected)}
         onOpenChange={(open) => {
-          if (!open && !busy) setConfirmId(null)
+          if (!open && !busy) setSelected(null)
         }}
       >
         <AlertDialogContent>
@@ -170,6 +197,17 @@ export function CommentReportsView() {
                   ? "Chỉ phản hồi này bị xóa vĩnh viễn. Các phản hồi khác được giữ lại."
                   : `Bình luận gốc và tất cả phản hồi sẽ bị xóa vĩnh viễn (hiện có ${selected.comment.replyCount} phản hồi). Các báo cáo đang chờ của những nội dung bị xóa cũng được hoàn tất.`}
             </AlertDialogDescription>
+            {selected?.comment.isAvailable && (
+              <div className="space-y-2 rounded-xl border p-3 text-sm">
+                <p className="font-medium">Nội dung hiện tại sẽ bị gỡ</p>
+                <p className="whitespace-pre-wrap break-words">{selected.comment.currentBody}</p>
+                {selected.comment.isEdited && (
+                  <p className="text-muted-foreground">
+                    Nội dung này đã sửa sau báo cáo. Bằng chứng gốc vẫn được giữ trong chi tiết.
+                  </p>
+                )}
+              </div>
+            )}
           </AlertDialogHeader>
           {actionError && (
             <p role="alert" className="text-sm text-destructive">

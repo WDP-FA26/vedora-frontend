@@ -21,6 +21,10 @@ export const commentReportSchema = z.object({
   action: z.enum(["DISMISSED", "REMOVED", "ALREADY_REMOVED"]).nullable(),
   reporter: authorSchema.nullable(),
   postAvailable: z.boolean(),
+  reportCount: z.number().int().nonnegative(),
+  pendingReportCount: z.number().int().nonnegative(),
+  resolvedReportCount: z.number().int().nonnegative(),
+  dismissedReportCount: z.number().int().nonnegative(),
   comment: z.object({
     id: z.string(),
     parentId: z.string().nullable(),
@@ -28,6 +32,8 @@ export const commentReportSchema = z.object({
     author: authorSchema,
     currentBody: z.string().nullable(),
     isAvailable: z.boolean(),
+    isEdited: z.boolean(),
+    currentVersion: z.string().nullable(),
     replyCount: z.number().int().nonnegative(),
   }),
 })

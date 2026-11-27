@@ -18,9 +18,14 @@ export async function fetchAllCommentReports([url, token]: readonly [string, str
   }
 }
 
-export function reviewCommentReport(token: string, id: string, action: "DISMISS" | "REMOVE") {
+export function reviewCommentReport(
+  token: string,
+  id: string,
+  action: "DISMISS" | "REMOVE",
+  expectedCommentVersion?: string | null
+) {
   return sendJson(commentReportSchema, `${COMMENT_REPORTS_KEY}/${id}/review`, token, {
     method: "POST",
-    body: JSON.stringify({ action }),
+    body: JSON.stringify({ action, ...(action === "REMOVE" ? { expectedCommentVersion } : {}) }),
   })
 }
