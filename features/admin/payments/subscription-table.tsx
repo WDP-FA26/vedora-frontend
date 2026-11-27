@@ -44,7 +44,7 @@ function Subscribers({ query }: { query: string }) {
               <th className="p-2">Người dùng</th>
               <th className="p-2">Gói hiện tại</th>
               <th className="p-2">Bắt đầu / hết hạn</th>
-              <th className="p-2">Đơn kích hoạt</th>
+              <th className="p-2">Nguồn kích hoạt</th>
             </tr>
           </thead>
           <tbody>
@@ -62,20 +62,20 @@ function Subscribers({ query }: { query: string }) {
                 <td className="p-2">
                   {planLabel(order.planCode)}
                   <p className="text-xs text-muted-foreground">
-                    Đã mua: {order.purchasedPlanName}
+                    {"source" in order ? "Quản trị viên cấp" : `Đã mua: ${order.purchasedPlanName}`}
                   </p>
                 </td>
                 <td className="p-2">
-                  <p>{timestamp(order.capturedAt)}</p>
-                  <p>{timestamp(order.subscriptionExpiresAt)}</p>
+                  <p>{timestamp("source" in order ? order.startsAt : order.capturedAt)}</p>
+                  <p>{timestamp("source" in order ? order.expiresAt : order.subscriptionExpiresAt)}</p>
                 </td>
                 <td className="p-2">
-                  <Link
+                  {"source" in order ? <span className="text-muted-foreground">Admin cấp · không thu tiền</span> : <Link
                     className="text-primary underline underline-offset-4"
                     href={`/admin/payments/${order.id}`}
                   >
                     {order.invoiceNumber}
-                  </Link>
+                  </Link>}
                 </td>
               </tr>
             ))}

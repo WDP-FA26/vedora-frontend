@@ -43,6 +43,11 @@ export const ordersSchema = z.object({
   ...page,
 });
 export const subscriptionsSchema = ordersSchema.extend({
+  items: z.array(z.union([adminOrderSchema, z.object({
+    id: z.uuid(), userId: z.uuid(), source: z.literal("ADMIN_GRANT"), planCode: plan,
+    startsAt: z.iso.datetime(), expiresAt: z.iso.datetime(), textLimit: count, imageLimit: count,
+    customer: customer.nullable(),
+  })])),
   asOf: z.iso.datetime(),
 });
 export const receiptSchema = z.object({
