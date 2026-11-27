@@ -1,25 +1,37 @@
 diff --git a/dist/index.js b/dist/index.js
-index 8f1889e..3be18ff 100644
+index 8f1889e0e95e35514a9b3779e1a1afb2c32646bb..d529cd87a8cf9fbec7179989b1b10f106cee08f1 100644
 --- a/dist/index.js
 +++ b/dist/index.js
-@@ -14184,6 +14184,25 @@ function resolveRealtimeToolDescription({ tool, toolName, toolsContext }) {
+@@ -14184,6 +14184,37 @@ function resolveRealtimeToolDescription({ tool, toolName, toolsContext }) {
  }
  //#endregion
  //#region src/realtime/browser-realtime-audio.ts
 +/**
-+ * vedora patch: adaptive jitter buffer with decay, gentle catch-up, click-free fadeout,
-+ * and playback RMS metering. Microphone capture lives in app code (capture: false).
++ * vedora patch: stall-aware jitter buffer, click-free fadeout, and playback RMS metering.
++ * Microphone capture lives in app code (capture: false).
++ *
++ * GPT-Live streams audio continuously (silence included) but generates speech slightly slower
++ * than real time and sometimes stalls for a few hundred milliseconds. The buffer learns the
++ * longest recent stall, holds that much audio ahead during silence (inserting or trimming
++ * silence, which is inaudible), slows speech by up to 3% when the buffer runs low instead of
++ * letting it drain, and restarts quickly after an underrun.
 + */
-+const PLAYBACK_PREBUFFER_MIN_SECONDS = 0.15;
-+const PLAYBACK_PREBUFFER_MAX_SECONDS = 1;
-+const PLAYBACK_PREBUFFER_GROWTH = 1.4;
-+const PLAYBACK_PREBUFFER_DECAY = 0.85;
-+const PLAYBACK_DECAY_AFTER_SECONDS = 8;
-+const PLAYBACK_GAP_SECONDS = 0.45;
-+const PLAYBACK_CATCHUP_START_SECONDS = 2.5;
-+const PLAYBACK_CATCHUP_STOP_SECONDS = 0.6;
-+const PLAYBACK_CATCHUP_RATE = 1.06;
++const PLAYBACK_TARGET_MIN_SECONDS = 0.4;
++const PLAYBACK_TARGET_MAX_SECONDS = 0.6;
++const PLAYBACK_TARGET_MARGIN_SECONDS = 0.04;
++const PLAYBACK_STALL_DECAY_PER_SECOND = 0.97;
++const PLAYBACK_HYSTERESIS_SECONDS = 0.06;
++const PLAYBACK_TRIM_AFTER_QUIET_SECONDS = 0.8;
++const PLAYBACK_LOW_WATER_RATIO = 0.8;
++const PLAYBACK_MIN_RATE = 0.97;
++const PLAYBACK_RESTART_SECONDS = 0.06;
++const PLAYBACK_SILENCE_RMS = 0.001;
 +const PLAYBACK_FADEOUT_SECONDS = 0.008;
++function isSilentChunk(samples) {
++	let sum = 0;
++	for (let i = 0; i < samples.length; i++) sum += samples[i] * samples[i];
++	return Math.sqrt(sum / Math.max(1, samples.length)) < PLAYBACK_SILENCE_RMS;
++}
 +function computeRmsLevel(samples) {
 +	let sum = 0;
 +	for (let i = 0; i < samples.length; i++) sum += samples[i] * samples[i];
@@ -28,7 +40,7 @@ index 8f1889e..3be18ff 100644
  var BrowserRealtimeAudio = class {
  	constructor(options) {
  		this.captureContext = null;
-@@ -14194,12 +14213,19 @@ var BrowserRealtimeAudio = class {
+@@ -14194,12 +14225,19 @@ var BrowserRealtimeAudio = class {
  		this.captureCleanup = [];
  		this.captureGeneration = 0;
  		this.playbackContext = null;
@@ -41,14 +53,14 @@ index 8f1889e..3be18ff 100644
  		this.activeSources = /* @__PURE__ */ new Set();
  		this.isPlaying = false;
  		this.playbackPaused = false;
-+		this.prebufferSeconds = PLAYBACK_PREBUFFER_MIN_SECONDS;
-+		this.lastDrainTime = -Infinity;
-+		this.smoothSince = 0;
-+		this.catchingUp = false;
++		this.stallSeconds = 0;
++		this.lastArrivalTime = null;
++		this.lastChunkSeconds = 0;
++		this.quietSeconds = 0;
  		this.captureSampleRate = options.captureSampleRate;
  		this.playbackSampleRate = options.playbackSampleRate;
  		this.onAudio = options.onAudio;
-@@ -14212,11 +14238,25 @@ var BrowserRealtimeAudio = class {
+@@ -14212,11 +14250,25 @@ var BrowserRealtimeAudio = class {
  		if (this.playbackContext == null) {
  			this.playbackContext = new AudioContext({ sampleRate: this.playbackSampleRate });
  			const context = this.playbackContext;
@@ -74,7 +86,7 @@ index 8f1889e..3be18ff 100644
  	async resumePlayback() {
  		this.ensurePlaybackContext();
  		const context = this.playbackContext;
-@@ -14298,28 +14338,77 @@ var BrowserRealtimeAudio = class {
+@@ -14298,28 +14350,76 @@ var BrowserRealtimeAudio = class {
  	}
  	stopPlayback() {
  		this.playbackQueue = [];
@@ -125,10 +137,9 @@ index 8f1889e..3be18ff 100644
 +			} catch {}
 +		}
  		if (this.playbackContext != null) this.playbackTime = this.playbackContext.currentTime;
-+		// A deliberate stop (barge-in) is not a network gap.
-+		this.lastDrainTime = -Infinity;
-+		this.smoothSince = 0;
-+		this.catchingUp = false;
++		// A deliberate stop (barge-in) is not a stall; keep the learned stall length.
++		this.lastArrivalTime = null;
++		this.quietSeconds = 0;
  		this.setPlaying(false);
  	}
  	getPlaybackOffsetMs() {
@@ -151,45 +162,56 @@ index 8f1889e..3be18ff 100644
  		this.playbackContext = null;
  		this.playbackTime = 0;
  		this.playbackPaused = false;
-+		this.prebufferSeconds = PLAYBACK_PREBUFFER_MIN_SECONDS;
-+		this.lastDrainTime = -Infinity;
-+		this.smoothSince = 0;
-+		this.catchingUp = false;
++		this.stallSeconds = 0;
++		this.lastArrivalTime = null;
++		this.lastChunkSeconds = 0;
++		this.quietSeconds = 0;
  	}
  	setPlaying(isPlaying) {
  		if (isPlaying && !this.isPlaying) this.playbackStartTime = this.playbackContext?.currentTime ?? 0;
-@@ -14337,17 +14426,44 @@ var BrowserRealtimeAudio = class {
+@@ -14333,16 +14433,45 @@ var BrowserRealtimeAudio = class {
+ 		if (ctx == null || this.playbackQueue.length === 0) return;
+ 		while (this.playbackQueue.length > 0) {
+ 			const samples = this.playbackQueue.shift();
++			// vedora patch: stall-aware jitter buffer (see PLAYBACK_* above).
++			const now = ctx.currentTime;
++			const duration = samples.length / this.playbackSampleRate;
++			if (this.lastArrivalTime != null) {
++				const since = Math.max(0, now - this.lastArrivalTime);
++				this.stallSeconds *= Math.pow(PLAYBACK_STALL_DECAY_PER_SECOND, since);
++				const excess = since - this.lastChunkSeconds;
++				if (excess > this.stallSeconds) this.stallSeconds = excess;
++			}
++			this.lastArrivalTime = now;
++			this.lastChunkSeconds = duration;
++			const silent = isSilentChunk(samples);
++			this.quietSeconds = silent ? this.quietSeconds + duration : 0;
++			const target = Math.min(PLAYBACK_TARGET_MAX_SECONDS, Math.max(PLAYBACK_TARGET_MIN_SECONDS, this.stallSeconds + PLAYBACK_TARGET_MARGIN_SECONDS));
++			const queuedAhead = this.playbackTime - now;
++			let startTime = this.playbackTime;
++			let offset = 0;
++			let rate = 1;
++			if (queuedAhead <= 0) startTime = now + (silent ? target : PLAYBACK_RESTART_SECONDS);
++			else if (silent && queuedAhead < target - PLAYBACK_HYSTERESIS_SECONDS / 2) startTime = this.playbackTime + (target - queuedAhead);
++			else if (silent && this.quietSeconds >= PLAYBACK_TRIM_AFTER_QUIET_SECONDS && queuedAhead > target + PLAYBACK_HYSTERESIS_SECONDS) offset = Math.min(duration, queuedAhead - target);
++			else if (!silent && queuedAhead < target * PLAYBACK_LOW_WATER_RATIO) {
++				const lowWater = target * PLAYBACK_LOW_WATER_RATIO;
++				rate = Math.max(PLAYBACK_MIN_RATE, 1 - (1 - PLAYBACK_MIN_RATE) * (1 - queuedAhead / lowWater));
++			}
++			if (offset >= duration) continue;
+ 			const buffer = ctx.createBuffer(1, samples.length, this.playbackSampleRate);
  			buffer.getChannelData(0).set(samples);
  			const source = ctx.createBufferSource();
  			source.buffer = buffer;
 -			source.connect(ctx.destination);
 -			const startTime = Math.max(this.playbackTime, ctx.currentTime);
-+			source.connect(this.playbackGain ?? ctx.destination);
-+			// vedora patch: adaptive jitter buffer with decay and gentle catch-up.
-+			const wasPlaying = this.isPlaying;
-+			const queuedAhead = this.playbackTime - ctx.currentTime;
-+			const queued = queuedAhead > 0;
-+			if (!queued) {
-+				if (ctx.currentTime - this.lastDrainTime < PLAYBACK_GAP_SECONDS) {
-+					this.prebufferSeconds = Math.min(PLAYBACK_PREBUFFER_MAX_SECONDS, this.prebufferSeconds * PLAYBACK_PREBUFFER_GROWTH);
-+				}
-+				this.smoothSince = ctx.currentTime;
-+				this.catchingUp = false;
-+			} else {
-+				if (this.smoothSince === 0) this.smoothSince = ctx.currentTime;
-+				if (this.prebufferSeconds > PLAYBACK_PREBUFFER_MIN_SECONDS && ctx.currentTime - this.smoothSince >= PLAYBACK_DECAY_AFTER_SECONDS) {
-+					this.prebufferSeconds = Math.max(PLAYBACK_PREBUFFER_MIN_SECONDS, this.prebufferSeconds * PLAYBACK_PREBUFFER_DECAY);
-+					this.smoothSince = ctx.currentTime;
-+				}
-+				if (queuedAhead >= PLAYBACK_CATCHUP_START_SECONDS) this.catchingUp = true;
-+				else if (queuedAhead <= PLAYBACK_CATCHUP_STOP_SECONDS) this.catchingUp = false;
-+			}
-+			const rate = this.catchingUp ? PLAYBACK_CATCHUP_RATE : 1;
-+			if (rate !== 1) source.playbackRate.value = rate;
-+			const startTime = queued ? this.playbackTime : ctx.currentTime + this.prebufferSeconds;
- 			source.start(startTime);
+-			source.start(startTime);
 -			this.playbackTime = startTime + buffer.duration;
-+			this.playbackTime = startTime + buffer.duration / rate;
++			source.connect(this.playbackGain ?? ctx.destination);
++			const wasPlaying = this.isPlaying;
++			if (rate !== 1) source.playbackRate.value = rate;
++			source.start(startTime, offset);
++			this.playbackTime = startTime + (buffer.duration - offset) / rate;
  			this.activeSources.add(source);
  			this.setPlaying(ctx.state === "running");
 +			// Playback offsets (truncation on barge-in) count from when audio is heard, not queued.
@@ -197,13 +219,3 @@ index 8f1889e..3be18ff 100644
  			if (this.playbackContext !== ctx) return;
  			source.onended = () => {
  				source.disconnect();
- 				this.activeSources.delete(source);
--				if (this.playbackQueue.length === 0 && this.activeSources.size === 0) this.setPlaying(false);
-+				if (this.playbackQueue.length === 0 && this.activeSources.size === 0) {
-+					this.lastDrainTime = ctx.currentTime;
-+					this.catchingUp = false;
-+					this.setPlaying(false);
-+				}
- 			};
- 		}
- 	}
