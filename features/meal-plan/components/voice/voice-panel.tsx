@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, type ReactNode } from "react"
 import { createPortal } from "react-dom"
 import Link from "next/link"
 import { useBilling } from "@/features/billing/hooks"
+import { useAuth } from "@/features/auth/hooks/use-auth"
 import { Spinner } from "@/components/ui/spinner"
 import {
   ActivityIcon,
@@ -165,7 +166,7 @@ export function VoicePanel(props: Parameters<typeof ProVoicePanel>[0]) {
     return <div className="flex h-full min-h-64 flex-col items-center justify-center gap-4 p-6 text-center">
       <LogoMark className="size-16" />
       <h2 className="font-heading text-xl font-semibold">Thoại AI hai chiều dành cho Pro</h2>
-      <p className="max-w-sm text-sm text-muted-foreground">Nâng cấp Pro để trò chuyện trực tiếp với trợ lý Vedora. Không tính hạn mức phút và không trừ lượt AI chữ.</p>
+      <p className="max-w-sm text-sm text-muted-foreground">Nâng cấp Pro để trò chuyện trực tiếp với trợ lý Vedora. Mỗi yêu cầu trợ lý qua voice dùng 1 lượt AI chữ, không tính hạn mức phút.</p>
       <Link href="/billing" className={buttonVariants()}>Xem gói Pro</Link>
       <Button variant="ghost" onClick={props.onClose}>Quay lại</Button>
     </div>
@@ -200,7 +201,11 @@ function ProVoicePanel({
   leading?: ReactNode
   trailing?: ReactNode
 }) {
+  const billing = useBilling()
+  const { user } = useAuth()
+  const exhausted = user?.role !== "ADMIN" && billing.data?.usage.text.remaining === 0
   const voice = useMealPlannerVoice({
+    canStart: !exhausted,
     weekStart,
     today,
     threadId,
@@ -226,6 +231,7 @@ function ProVoicePanel({
           <p className="mt-0.5 truncate text-xs text-muted-foreground">
             Trò chuyện bằng giọng nói · Đặc quyền Pro
           </p>
+          <p className="text-xs text-muted-foreground">Mỗi yêu cầu qua voice dùng 1 lượt AI chữ{billing.data && ` · Còn ${billing.data.usage.text.remaining.toLocaleString("vi-VN")} lượt`}</p>
         </div>
         {trailing}
       </header>
@@ -257,9 +263,10 @@ function ProVoicePanel({
         {failed && (
           <div role="alert" className="flex max-w-xs flex-col items-center gap-3 text-center text-sm text-destructive">
             <p>{voice.error ?? "Cuộc trò chuyện bị ngắt."}</p>
-            <Button variant="outline" size="sm" onClick={() => void voice.start()}>
+            <Button variant="outline" size="sm" disabled={exhausted} onClick={() => void voice.start()}>
               <RotateCcwIcon aria-hidden /> Kết nối lại
             </Button>
+            {exhausted && <Link href="/billing" className={buttonVariants({ variant: "outline", size: "sm" })}>Xem gói và hạn mức</Link>}
           </div>
         )}
         {!failed && !voice.heard && live && (

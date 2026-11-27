@@ -17,7 +17,7 @@ export function voiceErrorText(message: string) {
   if (!setup) return message
   const status = Number(setup[1])
   if (status === VOICE_QUOTA_STATUS) {
-    return "Bạn đã dùng hết lượt trợ lý AI hiện có nên chưa thể bắt đầu trò chuyện bằng giọng nói."
+    return "Bạn đã dùng hết lượt AI chữ của chu kỳ này nên chưa thể bắt đầu trò chuyện bằng giọng nói."
   }
   if (status === 429) return "Bạn thao tác hơi nhanh. Đợi một chút rồi thử lại nhé."
   if (status === 401) return "Phiên đăng nhập đã hết hạn. Hãy tải lại trang rồi thử lại."

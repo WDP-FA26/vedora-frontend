@@ -7,6 +7,7 @@ import { useSWRConfig } from "swr"
 
 import type { VoiceOrbState } from "@/components/ui/voice-orb"
 import { useAuth } from "@/features/auth/hooks/use-auth"
+import { API_URL } from "@/features/auth/lib/api"
 import {
   applyPlannerState,
   invalidateAllPlannerState,
@@ -32,7 +33,11 @@ import {
   type VoiceOpenRecipe,
 } from "@/features/meal-plan/voice/voice-session"
 import type { VoiceScreen, VoiceScreenCommand } from "@/features/meal-plan/voice/voice-stream"
-import { handleDelegation, reviseTurn, runVoiceTurn } from "@/features/meal-plan/voice/voice-turn-runner"
+import {
+  handleDelegation,
+  reviseTurn,
+  runVoiceTurn,
+} from "@/features/meal-plan/voice/voice-turn-runner"
 
 const model = gateway.experimental_realtime(VOICE_MODEL_ID)
 
@@ -74,8 +79,7 @@ function syncBrowserMicDsp(stream: MediaStream | null, aiDenoiseActive: boolean)
       noiseSuppression: !aiDenoiseActive,
       autoGainControl: !aiDenoiseActive,
     })
-    .catch(() => {
-    })
+    .catch(() => {})
 }
 
 async function openVoiceCall({
@@ -87,6 +91,7 @@ async function openVoiceCall({
   aiDenoise,
   onAiDenoiseStatus,
   onError,
+  canStart,
 }: {
   ledger: VoiceCallLedger
   capture: VoiceAudioCapture
@@ -96,7 +101,12 @@ async function openVoiceCall({
   aiDenoise: boolean
   onAiDenoiseStatus: (status: VoiceAiDenoiseStatus) => void
   onError: (message: string) => void
+  canStart: () => boolean
 }) {
+  if (!canStart()) {
+    onError("Bạn đã dùng hết lượt AI chữ của chu kỳ này. Voice dùng chung hạn mức AI chữ.")
+    return
+  }
   capture.stop()
   ledger.reset()
   const generation = ledger.mic.begin()
@@ -112,7 +122,9 @@ async function openVoiceCall({
     })
   } catch {
     if (ledger.mic.isCurrent(generation)) {
-      onError("Trình duyệt chưa cho phép dùng micro. Hãy bật quyền micro cho trang này rồi thử lại.")
+      onError(
+        "Trình duyệt chưa cho phép dùng micro. Hãy bật quyền micro cho trang này rồi thử lại."
+      )
     }
     return
   }
@@ -127,8 +139,7 @@ async function openVoiceCall({
     onAudio: async (audio) => {
       try {
         await sendEvent({ type: "input-audio-append", audio })
-      } catch {
-      }
+      } catch {}
     },
     onLevel: (level) => ledger.mic.setInputLevel(level),
     isMuted,
@@ -138,6 +149,7 @@ async function openVoiceCall({
 }
 
 type VoiceOptions = {
+  canStart: boolean
   weekStart?: string
   today?: string
   threadId: string
@@ -149,6 +161,7 @@ type VoiceOptions = {
 }
 
 export function useMealPlannerVoice({
+  canStart,
   weekStart,
   today,
   threadId,
@@ -158,6 +171,10 @@ export function useMealPlannerVoice({
   getScreen,
   openRecipe,
 }: VoiceOptions) {
+  const canStartRef = useRef(canStart)
+  useEffect(() => {
+    canStartRef.current = canStart
+  }, [canStart])
   const { accessToken, user } = useAuth()
   const { mutate } = useSWRConfig()
   const [sessionConfig] = useState(() => voiceSessionConfig(user?.fullName))
@@ -194,8 +211,7 @@ export function useMealPlannerVoice({
       onAudio: async (audio) => {
         try {
           await sendRealtimeEvent({ type: "input-audio-append", audio })
-        } catch {
-        }
+        } catch {}
       },
       onLevel: (level) => ledger.mic.setInputLevel(level),
       isMuted: () => mutedRef.current,
@@ -236,7 +252,11 @@ export function useMealPlannerVoice({
     mutedRef.current = realtime.session?.isInputMuted ?? false
   })
 
-  function append(delegationId: string | null, channel: "thinking" | "commentary", content: string) {
+  function append(
+    delegationId: string | null,
+    channel: "thinking" | "commentary",
+    content: string
+  ) {
     return sendContext(sendRealtimeEvent, delegationId, channel, content)
   }
 
@@ -260,7 +280,11 @@ export function useMealPlannerVoice({
     }
     if (event.type === "transcript-fragment") {
       if (event.speaker === "user") {
-        ledger.utterances.addFragment({ text: event.delta, startMs: event.startMs, endMs: event.endMs })
+        ledger.utterances.addFragment({
+          text: event.delta,
+          startMs: event.startMs,
+          endMs: event.endMs,
+        })
         setHeard(true)
         if (farewell.shouldCancel(event.delta)) keepTalking()
       } else {
@@ -274,7 +298,15 @@ export function useMealPlannerVoice({
     }
   }
 
-  function queueTurn({ delegationId, message, revision }: { delegationId: string; message: string; revision: boolean }) {
+  function queueTurn({
+    delegationId,
+    message,
+    revision,
+  }: {
+    delegationId: string
+    message: string
+    revision: boolean
+  }) {
     return runVoiceTurn({
       delegationId,
       message,
@@ -294,6 +326,15 @@ export function useMealPlannerVoice({
       onPendingChange: (delta) => setPending((count) => count + delta),
       onEnding: () => setEnding(true),
       onTurnEnd,
+      onUsageChanged: () => {
+        void mutate([`${API_URL}/billing/me`, accessToken]).catch(() => undefined)
+      },
+      onQuotaExceeded: () => {
+        setError("Bạn đã dùng hết lượt AI chữ của chu kỳ này. Voice dùng chung hạn mức AI chữ.")
+        capture.stop()
+        ledger.endCall()
+        void closeRealtime().catch(() => undefined)
+      },
     })
   }
 
@@ -316,6 +357,7 @@ export function useMealPlannerVoice({
       aiDenoise: micSettingsRef.current.aiDenoise,
       onAiDenoiseStatus: handleAiDenoiseStatus,
       onError: setError,
+      canStart: () => canStartRef.current,
     })
   }
 
@@ -350,6 +392,7 @@ export function useMealPlannerVoice({
         }
       },
       onError: setError,
+      canStart: () => canStartRef.current,
     })
     return () => {
       capture.stop()

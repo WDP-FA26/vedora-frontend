@@ -7,12 +7,16 @@ import {
   type VoiceTurnEvent,
   type VoiceTurnRequest,
 } from "@/features/meal-plan/voice/voice-stream"
-import type { FarewellTracker, TurnQueue, VoiceCallLedger } from "@/features/meal-plan/voice/voice-call"
+import type {
+  FarewellTracker,
+  TurnQueue,
+  VoiceCallLedger,
+} from "@/features/meal-plan/voice/voice-call"
 import { ApiError } from "@/features/shared/lib/api-client"
 
 export function voiceTurnFailureText(error: unknown) {
   if (error instanceof ApiError && error.code === "AI_QUOTA_EXCEEDED") {
-    return "Người dùng đã dùng hết lượt trợ lý AI hiện có, nên yêu cầu này chưa được thực hiện."
+    return "Người dùng đã dùng hết lượt AI chữ của chu kỳ này. Voice dùng chung hạn mức đó nên yêu cầu này chưa được thực hiện."
   }
   if (error instanceof ApiError && error.status === 429) {
     return "Người dùng gửi yêu cầu quá nhanh nên yêu cầu này chưa được thực hiện; đợi vài giây là thử lại được."
@@ -30,13 +34,24 @@ export function supersededNote(saved: readonly string[]) {
 export const OUTDATED_RESULT_NOTE =
   "The user spoke again before this result was delivered, so it may no longer match what they want; their latest words are being handled as an updated request. Do not read this result out on its own:"
 
-type Append = (delegationId: string, channel: "thinking" | "commentary", content: string) => Promise<void>
+type Append = (
+  delegationId: string,
+  channel: "thinking" | "commentary",
+  content: string
+) => Promise<void>
 
-export type QueueTurn = (turn: { delegationId: string; message: string; revision: boolean }) => Promise<void>
+export type QueueTurn = (turn: {
+  delegationId: string
+  message: string
+  revision: boolean
+}) => Promise<void>
 
 type DelegationDeps = { ledger: VoiceCallLedger; append: Append; queueTurn: QueueTurn }
 
-export async function handleDelegation(delegationId: string, { ledger, append, queueTurn }: DelegationDeps) {
+export async function handleDelegation(
+  delegationId: string,
+  { ledger, append, queueTurn }: DelegationDeps
+) {
   const seq = ledger.turns.claimDelegation()
   const running = ledger.turns.running()
   let carried = ""
@@ -51,7 +66,10 @@ export async function handleDelegation(delegationId: string, { ledger, append, q
   ledger.turns.enqueue(() => queueTurn({ delegationId, message, revision: false }), seq)
 }
 
-export function reviseTurn(delegationId: string, { ledger, queueTurn }: Omit<DelegationDeps, "append">) {
+export function reviseTurn(
+  delegationId: string,
+  { ledger, queueTurn }: Omit<DelegationDeps, "append">
+) {
   const seq = ledger.turns.claimDelegation()
   ledger.turns.enqueue(async () => {
     const message = ledger.utterances.takeUtterance()
@@ -82,7 +100,13 @@ export type RunVoiceTurnOptions = {
   onPendingChange: (delta: 1 | -1) => void
   onEnding: () => void
   onTurnEnd: (threadId: string) => void
-  streamTurn?: (token: string, request: VoiceTurnRequest, signal: AbortSignal) => AsyncGenerator<VoiceTurnEvent>
+  onUsageChanged?: () => void
+  onQuotaExceeded?: () => void
+  streamTurn?: (
+    token: string,
+    request: VoiceTurnRequest,
+    signal: AbortSignal
+  ) => AsyncGenerator<VoiceTurnEvent>
 }
 
 export async function runVoiceTurn({
@@ -104,6 +128,8 @@ export async function runVoiceTurn({
   onPendingChange,
   onEnding,
   onTurnEnd,
+  onUsageChanged,
+  onQuotaExceeded,
   streamTurn = streamVoiceTurn,
 }: RunVoiceTurnOptions) {
   if (!message) {
@@ -141,7 +167,13 @@ export async function runVoiceTurn({
   try {
     const turn = streamTurn(
       accessToken,
-      { weekStart, message, threadId, requestId: revision ? `${delegationId}:${crypto.randomUUID()}` : delegationId, screen },
+      {
+        weekStart,
+        message,
+        threadId,
+        requestId: revision ? `${delegationId}:${crypto.randomUUID()}` : delegationId,
+        screen,
+      },
       controller.signal
     )
     for await (const event of turn) {
@@ -180,10 +212,14 @@ export async function runVoiceTurn({
     }
   } catch (cause) {
     if (controller.signal.aborted || isAbort(cause)) onAbortInvalidate()
-    else await append(delegationId, "commentary", voiceTurnFailureText(cause))
+    else {
+      await append(delegationId, "commentary", voiceTurnFailureText(cause))
+      if (cause instanceof ApiError && cause.code === "AI_QUOTA_EXCEEDED") onQuotaExceeded?.()
+    }
   } finally {
     turns.finish(delegationId)
     onPendingChange(-1)
+    onUsageChanged?.()
     if (saved) onTurnEnd(threadId)
   }
 }
