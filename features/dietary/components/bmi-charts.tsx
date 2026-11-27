@@ -1,5 +1,7 @@
 "use client"
 
+import { vietnamDateKey, vietnamYear } from "@/features/shared/lib/date-time"
+
 import { useState, type FormEvent } from "react"
 import {
   ScaleIcon,
@@ -415,12 +417,8 @@ export function WeightBmiTrendChart({ profile }: { profile: NutritionProfile }) 
   )
 }
 
-function localTodayIso(): string {
-  const now = new Date()
-  const year = now.getFullYear()
-  const month = String(now.getMonth() + 1).padStart(2, "0")
-  const day = String(now.getDate()).padStart(2, "0")
-  return `${year}-${month}-${day}`
+function getTodayIso(): string {
+  return vietnamDateKey()
 }
 
 export function WeightQuickCheckIn({
@@ -431,7 +429,7 @@ export function WeightQuickCheckIn({
   onSaved: (next: NutritionProfile) => Promise<void> | void
 }) {
   const { accessToken } = useAuth()
-  const todayIso = localTodayIso()
+  const todayIso = getTodayIso()
   const [date, setDate] = useState(todayIso)
   const recordedForDate =
     profile.history.find((item) => item.date === date)?.weightKg.toString() ?? ""
@@ -596,7 +594,7 @@ export function NutritionProfileForm({
   onSaved: (next: NutritionProfile) => Promise<void> | void
 }) {
   const { accessToken } = useAuth()
-  const currentYear = new Date().getFullYear()
+  const currentYear = vietnamYear()
   const [heightCm, setHeightCm] = useState(profile.heightCm?.toString() ?? "")
   const [weightKg, setWeightKg] = useState(profile.weightKg?.toString() ?? "")
   const [birthYear, setBirthYear] = useState(profile.birthYear?.toString() ?? "")

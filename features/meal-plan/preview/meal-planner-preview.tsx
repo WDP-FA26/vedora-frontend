@@ -1,5 +1,7 @@
 "use client"
 
+import { vietnamDateKey } from "@/features/shared/lib/date-time"
+
 import { useEffect, useRef, useState, type FormEvent } from "react"
 import Image from "next/image"
 import Link from "next/link"
@@ -126,8 +128,8 @@ function cloneDays(days: PreviewDay[]) {
 }
 
 function dateLabel(iso: string) {
-  const date = new Date(`${iso}T12:00:00`)
-  return `${WEEKDAY_SHORT[date.getDay()]}, ${formatPreviewDate(iso)}`
+  const date = new Date(`${iso}T12:00:00Z`)
+  return `${WEEKDAY_SHORT[date.getUTCDay()]}, ${formatPreviewDate(iso)}`
 }
 
 export function MealPlannerPreview() {
@@ -733,7 +735,7 @@ export function MealPlannerPreview() {
                     <div className="flex min-w-0 flex-1 gap-2 overflow-x-auto pb-1" aria-label="Chọn ngày">
                       {draft.map((day, index) => (
                         <button key={day.date} type="button" aria-current={selectedDay === index ? "date" : undefined} className={cn("min-w-14 rounded-xl border px-2 py-2 text-center text-xs outline-none transition-colors focus-visible:ring-3 focus-visible:ring-ring/30", selectedDay === index ? "border-primary bg-primary text-primary-foreground" : "border-border bg-background hover:border-primary/40")} onClick={() => setSelectedDay(index)}>
-                          <span className="block font-semibold">{WEEKDAY_SHORT[new Date(`${day.date}T12:00:00`).getDay()]}</span>
+                          <span className="block font-semibold">{WEEKDAY_SHORT[new Date(`${day.date}T12:00:00Z`).getUTCDay()]}</span>
                           <span className="block">{formatPreviewDate(day.date)}</span>
                           {day.date === formatToday() && <span className="mt-0.5 block text-[10px]">Hôm nay</span>}
                         </button>
@@ -818,6 +820,5 @@ export function MealPlannerPreview() {
 }
 
 function formatToday() {
-  const today = new Date()
-  return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`
+  return vietnamDateKey()
 }

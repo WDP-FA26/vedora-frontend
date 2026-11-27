@@ -1,5 +1,7 @@
 "use client"
 
+import { vietnamHour } from "@/features/shared/lib/date-time"
+
 import { useState } from "react"
 import {
   BookOpenIcon,
@@ -24,7 +26,7 @@ import {
 import { cn } from "@/lib/utils"
 
 function currentMealSection(): MealSection {
-  const hour = new Date().getHours()
+  const hour = vietnamHour()
   if (hour < 10) return "BREAKFAST"
   if (hour < 15) return "LUNCH"
   if (hour < 21) return "DINNER"

@@ -1,5 +1,7 @@
 "use client"
 
+import { vietnamYear } from "@/features/shared/lib/date-time"
+
 import { useState, type FormEvent, type ReactNode } from "react"
 import Link from "next/link"
 
@@ -43,7 +45,7 @@ export function MealPlannerOnboardingGate({
   onCompleted: (savedNutrition: NutritionProfile, savedDietary: DietaryMemory) => Promise<void>
 }) {
   const { accessToken } = useAuth()
-  const currentYear = new Date().getFullYear()
+  const currentYear = vietnamYear()
   const initialNote = initialRestrictions.allergies.join("\n")
 
   const [heightCm, setHeightCm] = useState(initialNutrition.heightCm?.toString() ?? "")

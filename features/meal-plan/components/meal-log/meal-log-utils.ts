@@ -1,3 +1,5 @@
+import { vietnamHour } from "@/features/shared/lib/date-time"
+
 import { DAY_SHORT, formatDayMonth } from "@/features/meal-plan/lib/dates"
 import type { ScreenScrollDirection, VoiceScrollState } from "@/features/meal-plan/lib/scroll"
 import {
@@ -55,7 +57,7 @@ export function logErrorMessage(error: unknown) {
 }
 
 export function sectionForNow(): MealSection {
-  const hour = new Date().getHours()
+  const hour = vietnamHour()
   if (hour < 10) return "BREAKFAST"
   if (hour < 15) return "LUNCH"
   if (hour < 21) return "DINNER"

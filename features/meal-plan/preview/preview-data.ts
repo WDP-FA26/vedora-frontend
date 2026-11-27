@@ -1,3 +1,5 @@
+import { APP_TIME_ZONE, vietnamDateKey } from "@/features/shared/lib/date-time"
+
 export type PreviewMealKey = "breakfast" | "lunch" | "dinner"
 
 export type PreviewMeal = {
@@ -58,27 +60,21 @@ const ALTERNATES: Record<PreviewMealKey, string[]> = {
 }
 
 export function shiftDate(iso: string, offset: number) {
-  const date = new Date(`${iso}T12:00:00`)
-  date.setDate(date.getDate() + offset)
-  const year = date.getFullYear()
-  const month = String(date.getMonth() + 1).padStart(2, "0")
-  const day = String(date.getDate()).padStart(2, "0")
-  return `${year}-${month}-${day}`
+  const date = new Date(`${iso}T12:00:00Z`)
+  date.setUTCDate(date.getUTCDate() + offset)
+  return date.toISOString().slice(0, 10)
 }
 
-export function previewStartDate() {
-  const today = new Date()
-  const year = today.getFullYear()
-  const month = String(today.getMonth() + 1).padStart(2, "0")
-  const day = String(today.getDate()).padStart(2, "0")
-  const iso = `${year}-${month}-${day}`
-  const daysUntilMonday = (8 - today.getDay()) % 7 || 7
+export function previewStartDate(now = new Date()) {
+  const iso = vietnamDateKey(now)
+  const weekday = new Date(`${iso}T12:00:00Z`).getUTCDay()
+  const daysUntilMonday = (8 - weekday) % 7 || 7
   return shiftDate(iso, daysUntilMonday)
 }
 
 export function formatPreviewDate(iso: string, options?: Intl.DateTimeFormatOptions) {
-  return new Intl.DateTimeFormat("vi-VN", options ?? { day: "2-digit", month: "2-digit" }).format(
-    new Date(`${iso}T12:00:00`)
+  return new Intl.DateTimeFormat("vi-VN", { ...(options ?? { day: "2-digit", month: "2-digit" }), timeZone: APP_TIME_ZONE }).format(
+    new Date(`${iso}T12:00:00+07:00`)
   )
 }
 
