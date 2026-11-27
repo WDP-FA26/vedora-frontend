@@ -1,6 +1,11 @@
 import type { ApiNotification } from "@/features/notifications/schemas"
 import { PENDING_REVIEW_MESSAGE, rejectionMessage } from "@/features/posts/lib/moderation-labels"
 import { REPORT_REASONS, REPORT_REASON_LABELS, type ReportReason } from "@/features/posts/schemas"
+import {
+  REJECT_REASON_LABELS,
+  REJECT_REASONS,
+  type RejectReason,
+} from "@/features/workspaces/onboarding"
 
 const MEMBER_TEXT = {
   LIKE: "đã thích bài viết của bạn",
@@ -19,6 +24,12 @@ function subjectOf(notification: ApiNotification) {
 function reportReasonLabel(reason: string | null | undefined) {
   return REPORT_REASONS.includes(reason as ReportReason)
     ? REPORT_REASON_LABELS[reason as ReportReason].toLowerCase()
+    : null
+}
+
+function workspaceRejectReasonLabel(reason: string | null | undefined) {
+  return REJECT_REASONS.includes(reason as RejectReason)
+    ? REJECT_REASON_LABELS[reason as RejectReason].toLowerCase()
     : null
 }
 
@@ -139,6 +150,18 @@ export function describeNotification(notification: ApiNotification) {
         from: "Vedora",
         text: `Bài viết${quoted(notification.note)} mà bạn báo cáo đã bị gỡ khỏi Vedora. Cảm ơn bạn đã báo cáo.`,
       }
+    case "WORKSPACE_APPROVED":
+      return {
+        from: "Vedora",
+        text: "Đơn mở trang nhà hàng của bạn đã được duyệt. Bạn có thể chuyển sang trang nhà hàng để quản lý và đăng bài.",
+      }
+    case "WORKSPACE_REJECTED": {
+      const reason = workspaceRejectReasonLabel(notification.reason)
+      return {
+        from: "Vedora",
+        text: `Đơn mở trang nhà hàng của bạn chưa được duyệt${reason ? ` (${reason})` : ""}. Bạn có thể chỉnh sửa và gửi lại đơn.`,
+      }
+    }
     default:
       return { from: actor?.fullName ?? "Vedora", text: "" }
   }

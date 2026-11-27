@@ -27,6 +27,8 @@ export const notificationSchema = z.object({
     "SUPPORT_TICKET_CLOSED",
     "SUPPORT_TICKET_EXPIRED",
     "SUPPORT_TICKET_REMINDER",
+    "WORKSPACE_APPROVED",
+    "WORKSPACE_REJECTED",
   ]),
   actor: z
     .object({
@@ -44,6 +46,7 @@ export const notificationSchema = z.object({
   note: z.string().nullable().optional(),
   commentId: z.string().nullable().optional(),
   ticketId: z.string().nullable().optional(),
+  workspaceId: z.string().nullable().optional(),
   readAt: z.string().nullable(),
   createdAt: z.string(),
 })

@@ -15,6 +15,7 @@ import {
   Repeat2Icon,
   RotateCcwIcon,
   ShieldAlertIcon,
+  StoreIcon,
   Trash2Icon,
   UserPlusIcon,
 } from "lucide-react"
@@ -32,6 +33,7 @@ import { editBlogPath } from "@/features/blogs/blogs-cache"
 import { useNotifications, useUnreadCount } from "@/features/notifications/hooks/use-notifications"
 import type { ApiNotification } from "@/features/notifications/schemas"
 import { profilePath } from "@/features/profiles/profiles-cache"
+import { workspacePath } from "@/features/workspaces/workspaces-cache"
 
 const ICONS = {
   LIKE: HeartIcon,
@@ -58,6 +60,8 @@ const ICONS = {
   SUPPORT_TICKET_CLOSED: ShieldAlertIcon,
   SUPPORT_TICKET_EXPIRED: ClockIcon,
   SUPPORT_TICKET_REMINDER: ClockIcon,
+  WORKSPACE_APPROVED: StoreIcon,
+  WORKSPACE_REJECTED: ShieldAlertIcon,
 } as const
 
 const ADMIN_NOTE_TYPES = new Set<ApiNotification["type"]>([
@@ -70,6 +74,8 @@ const ADMIN_NOTE_TYPES = new Set<ApiNotification["type"]>([
   "SUPPORT_TICKET_CLOSED",
   "SUPPORT_TICKET_EXPIRED",
   "SUPPORT_TICKET_REMINDER",
+  "WORKSPACE_APPROVED",
+  "WORKSPACE_REJECTED",
 ])
 
 const SYSTEM_NOTE_TYPES = new Set<ApiNotification["type"]>([
@@ -83,7 +89,10 @@ function noteText(notification: ApiNotification, note: string): string {
 }
 
 function hrefFor(notification: ApiNotification) {
-  const { postId, ticketId, type, postType, actor } = notification
+  const { postId, ticketId, workspaceId, type, postType, actor } = notification
+  if (workspaceId && (type === "WORKSPACE_APPROVED" || type === "WORKSPACE_REJECTED")) {
+    return workspacePath(workspaceId)
+  }
   if (
     ticketId &&
     (type === "SUPPORT_TICKET_REPLIED" ||
