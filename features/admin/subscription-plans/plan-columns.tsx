@@ -31,5 +31,6 @@ export const planColumns = helper.columns([
   }),
   helper.accessor("textLimit", { header: "Lượt AI chữ", cell: ({ getValue }) => count.format(getValue()), meta: { label: "Lượt AI chữ" } }),
   helper.accessor("imageLimit", { header: "Lượt tạo ảnh", cell: ({ getValue }) => count.format(getValue()), meta: { label: "Lượt tạo ảnh" } }),
+  helper.display({ id: "voice", header: "Thoại AI hai chiều", cell: ({ row }) => row.original.code === "PRO" ? <Badge variant="outline">Đã bao gồm</Badge> : "Không hỗ trợ", meta: { label: "Thoại AI hai chiều" } }),
   helper.display({ id: "actions", header: "Thao tác", cell: ({ row }) => <EditPlan plan={row.original} />, meta: { label: "Thao tác" } }),
 ])

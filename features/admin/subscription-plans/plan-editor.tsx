@@ -87,7 +87,8 @@ export function PlanEditor({ plan, catalog, onClose }: { plan: ManagedPlan; cata
           ? "Thay đổi có hiệu lực ngay cho gói Free. Số lượt đã dùng trong ngày vẫn được giữ."
           : "Giá và hạn mức mới chỉ áp dụng cho đơn tạo sau khi lưu. QR đang chờ và gói đã mua giữ nguyên giá, hạn mức và thời hạn đã chốt."}</AlertDescription></Alert>
         {!free && field("Giá (VND)", "priceVnd", "Nhập số nguyên từ 1 đến 1.000.000.000 đồng.")}
-        {field("Hạn mức AI chữ", "textLimit", "Tổng lượt dùng chung cho các tính năng AI chữ và yêu cầu voice; từ 0 đến 1.000.000.")}
+        {field("Hạn mức AI chữ", "textLimit", "Tổng lượt dùng chung cho các tính năng AI chữ, không gồm thoại AI hai chiều; từ 0 đến 1.000.000.")}
+        <p className="text-sm text-muted-foreground">Thoại AI hai chiều: {plan.code === "PRO" ? "đặc quyền của Pro, không tính hạn mức phút hoặc lượt AI chữ." : "chỉ có trong gói Pro."}</p>
         {field("Hạn mức tạo ảnh", "imageLimit", `Số lượt tạo ảnh AI ${free ? "mỗi ngày" : "trong chu kỳ"}; từ 0 đến 1.000.000. Nhập 0 để không cấp lượt.`)}
         {error && <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>}
         {conflict && <Button type="button" variant="outline" onClick={() => void reload()} disabled={saving}>Bỏ bản nháp và tải cấu hình mới</Button>}
