@@ -761,6 +761,9 @@ export function NutritionProfileForm({
               )
             })}
           </div>
+          <FieldDescription>
+            Ảnh hưởng đến tốc độ trao đổi chất cơ bản (BMR) khi ước tính năng lượng hằng ngày.
+          </FieldDescription>
         </Field>
 
         <Field>
@@ -792,6 +795,9 @@ export function NutritionProfileForm({
               )
             })}
           </div>
+          <FieldDescription>
+            Cho biết mức tiêu hao năng lượng từ sinh hoạt và tập luyện hằng ngày (hệ số nhân BMR từ ×1,2 đến ×1,725) để tính đúng định mức calo mỗi ngày (TDEE).
+          </FieldDescription>
         </Field>
 
         <Field>
