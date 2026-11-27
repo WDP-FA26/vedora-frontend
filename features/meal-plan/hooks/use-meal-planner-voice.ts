@@ -96,7 +96,6 @@ async function openVoiceCall({
   sendEvent,
   isMuted,
   aiDenoise,
-  aiDenoisePauseGate,
   onAiDenoiseStatus,
   onError,
 }: {
@@ -106,7 +105,6 @@ async function openVoiceCall({
   sendEvent: SendRealtimeEvent
   isMuted: () => boolean
   aiDenoise: boolean
-  aiDenoisePauseGate: boolean
   onAiDenoiseStatus: (status: VoiceAiDenoiseStatus) => void
   onError: (message: string) => void
 }) {
@@ -146,7 +144,6 @@ async function openVoiceCall({
     onLevel: (level) => ledger.mic.setInputLevel(level),
     isMuted,
     aiDenoise,
-    aiDenoisePauseGate,
     onAiDenoiseStatus,
   })
 }
@@ -191,8 +188,7 @@ export function useMealPlannerVoice({
 
   useEffect(() => {
     micSettingsRef.current = micSettings
-    capture.configureGate(micSettings)
-  }, [capture, micSettings])
+  }, [micSettings])
 
   function handleAiDenoiseStatus(status: VoiceAiDenoiseStatus) {
     setAiDenoiseStatus(status)
@@ -215,7 +211,6 @@ export function useMealPlannerVoice({
       onLevel: (level) => ledger.mic.setInputLevel(level),
       isMuted: () => mutedRef.current,
       aiDenoise: settings.aiDenoise,
-      aiDenoisePauseGate: settings.autoSensitivity,
       onAiDenoiseStatus: handleAiDenoiseStatus,
     })
   }
@@ -223,9 +218,7 @@ export function useMealPlannerVoice({
   function updateMicSettings(patch: Partial<VoiceMicSettings>) {
     const prev = micSettingsRef.current
     const next: VoiceMicSettings = { ...prev, ...patch }
-    const needsCaptureRestart =
-      next.aiDenoise !== prev.aiDenoise ||
-      (next.aiDenoise && next.autoSensitivity !== prev.autoSensitivity)
+    const needsCaptureRestart = next.aiDenoise !== prev.aiDenoise
     micSettingsRef.current = next
     saveVoiceMicSettings(next)
     setMicSettings(next)
@@ -234,8 +227,8 @@ export function useMealPlannerVoice({
     }
   }
 
-  function readMicMeter() {
-    return capture.readMeter()
+  function readMicLevelDb() {
+    return capture.readLevelDb()
   }
 
   const realtime = experimental_useRealtime({
@@ -332,7 +325,6 @@ export function useMealPlannerVoice({
       sendEvent: sendRealtimeEvent,
       isMuted: () => mutedRef.current,
       aiDenoise: micSettingsRef.current.aiDenoise,
-      aiDenoisePauseGate: micSettingsRef.current.autoSensitivity,
       onAiDenoiseStatus: handleAiDenoiseStatus,
       onError: setError,
     })
@@ -362,7 +354,6 @@ export function useMealPlannerVoice({
       sendEvent: sendRealtimeEvent,
       isMuted: () => mutedRef.current,
       aiDenoise: micSettingsRef.current.aiDenoise,
-      aiDenoisePauseGate: micSettingsRef.current.autoSensitivity,
       onAiDenoiseStatus: (status) => {
         setAiDenoiseStatus(status)
         if (status === "overloaded" || status === "error") {
@@ -474,7 +465,7 @@ export function useMealPlannerVoice({
     micSettings,
     aiDenoiseStatus,
     updateMicSettings,
-    readMicMeter,
+    readMicLevelDb,
     ending,
     keepTalking,
     start,

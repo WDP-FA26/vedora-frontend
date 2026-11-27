@@ -25,17 +25,10 @@ import {
   PopoverTitle,
   PopoverTrigger,
 } from "@/components/ui/popover"
-import { Slider } from "@/components/ui/slider"
 import { Switch } from "@/components/ui/switch"
 import { VoiceOrb, type VoiceOrbState } from "@/components/ui/voice-orb"
 import { useMealPlannerVoice, type VoiceUsageAnchor } from "@/features/meal-plan/hooks/use-meal-planner-voice"
-import {
-  MIC_THRESHOLD_MAX_DB,
-  MIC_THRESHOLD_MIN_DB,
-  type VoiceAiDenoiseStatus,
-  type VoiceMicMeterSnapshot,
-  type VoiceMicSettings,
-} from "@/features/meal-plan/voice/voice-capture"
+import { type VoiceAiDenoiseStatus, type VoiceMicSettings } from "@/features/meal-plan/voice/voice-capture"
 import { VOICE_MAX_SECONDS, type VoiceOpenRecipe } from "@/features/meal-plan/voice/voice-session"
 import type { VoiceScreen, VoiceScreenCommand } from "@/features/meal-plan/voice/voice-stream"
 import { LogoMark } from "@/features/shared/components/wordmark"
@@ -61,9 +54,12 @@ const FEATURES: { icon: LucideIcon; text: string }[] = [
 
 const MINUTE_SECONDS = 60
 
+const METER_MIN_DB = -70
+const METER_MAX_DB = -10
+
 function dbToPercent(db: number): number {
-  const clamped = Math.max(MIC_THRESHOLD_MIN_DB, Math.min(MIC_THRESHOLD_MAX_DB, db))
-  return ((clamped - MIC_THRESHOLD_MIN_DB) / (MIC_THRESHOLD_MAX_DB - MIC_THRESHOLD_MIN_DB)) * 100
+  const clamped = Math.max(METER_MIN_DB, Math.min(METER_MAX_DB, db))
+  return ((clamped - METER_MIN_DB) / (METER_MAX_DB - METER_MIN_DB)) * 100
 }
 
 const AI_DENOISE_STATUS_TEXT: Record<VoiceAiDenoiseStatus, string | null> = {
@@ -74,44 +70,34 @@ const AI_DENOISE_STATUS_TEXT: Record<VoiceAiDenoiseStatus, string | null> = {
   error: "Không tải được mô hình, dùng lọc cơ bản",
 }
 
-function MicSensitivityPopover({
+function MicSettingsPopover({
   settings,
   aiDenoiseStatus,
   onChange,
-  readMeter,
+  readLevelDb,
   disabled,
 }: {
   settings: VoiceMicSettings
   aiDenoiseStatus: VoiceAiDenoiseStatus
   onChange: (patch: Partial<VoiceMicSettings>) => void
-  readMeter: () => VoiceMicMeterSnapshot
+  readLevelDb: () => number
   disabled: boolean
 }) {
   const [open, setOpen] = useState(false)
   const barRef = useRef<HTMLDivElement>(null)
-  const markerRef = useRef<HTMLDivElement>(null)
-  const statusRef = useRef<HTMLSpanElement>(null)
 
   useEffect(() => {
     if (!open) return
     let rafId = 0
     const tick = () => {
-      const meter = readMeter()
       if (barRef.current) {
-        barRef.current.style.width = `${dbToPercent(meter.levelDb).toFixed(1)}%`
-        barRef.current.dataset.open = meter.open ? "true" : "false"
-      }
-      if (markerRef.current) {
-        markerRef.current.style.left = `${dbToPercent(meter.thresholdDb).toFixed(1)}%`
-      }
-      if (statusRef.current) {
-        statusRef.current.textContent = meter.open ? "Đang thu giọng nói" : "Đang lọc nhiễu"
+        barRef.current.style.width = `${dbToPercent(readLevelDb()).toFixed(1)}%`
       }
       rafId = window.requestAnimationFrame(tick)
     }
     rafId = window.requestAnimationFrame(tick)
     return () => window.cancelAnimationFrame(rafId)
-  }, [open, readMeter])
+  }, [open, readLevelDb])
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -123,7 +109,7 @@ function MicSensitivityPopover({
             size="icon-lg"
             shape="pill"
             disabled={disabled}
-            aria-label="Độ nhạy micro và lọc nhiễu"
+            aria-label="Micro và lọc nhiễu"
           />
         }
       >
@@ -131,9 +117,9 @@ function MicSensitivityPopover({
       </PopoverTrigger>
       <PopoverContent side="top" align="center" sideOffset={10} className="w-72">
         <PopoverHeader>
-          <PopoverTitle>Độ nhạy micro</PopoverTitle>
+          <PopoverTitle>Micro</PopoverTitle>
           <PopoverDescription>
-            Lọc tạp âm nhỏ hơn ngưỡng để trợ lý không bị ngắt quãng.
+            Trợ lý nghe trọn những gì micro thu được. Bật lọc nhiễu AI nếu xung quanh ồn.
           </PopoverDescription>
         </PopoverHeader>
 
@@ -153,58 +139,12 @@ function MicSensitivityPopover({
               onCheckedChange={(checked) => onChange({ aiDenoise: checked })}
             />
           </label>
-
-          <label className="flex cursor-pointer items-center justify-between gap-3 text-xs font-medium">
-            <span>Tự động điều chỉnh ngưỡng</span>
-            <Switch
-              size="sm"
-              checked={settings.autoSensitivity}
-              onCheckedChange={(checked) => onChange({ autoSensitivity: checked })}
-            />
-          </label>
         </div>
 
         <div className="space-y-1.5">
-          <div className="flex items-center justify-between text-[11px] text-muted-foreground">
-            <span ref={statusRef}>Đang lọc nhiễu</span>
-            <span>
-              {settings.autoSensitivity
-                ? "Tự động"
-                : `${Math.round(dbToPercent(settings.thresholdDb))}% (${settings.thresholdDb} dB)`}
-            </span>
-          </div>
+          <div className="text-[11px] text-muted-foreground">Mức âm thanh micro</div>
           <div className="relative h-2.5 w-full overflow-hidden rounded-full bg-muted">
-            <div
-              ref={barRef}
-              data-open="false"
-              className="h-full rounded-full bg-amber-500/70 transition-[background-color] duration-75 data-[open=true]:bg-emerald-500"
-              style={{ width: "0%" }}
-            />
-            <div
-              ref={markerRef}
-              aria-hidden
-              className="pointer-events-none absolute top-0 bottom-0 w-0.5 bg-foreground/80"
-              style={{ left: `${dbToPercent(settings.thresholdDb).toFixed(1)}%` }}
-            />
-          </div>
-        </div>
-
-        <div className="space-y-1.5">
-          <Slider
-            aria-label="Ngưỡng độ nhạy micro (dB)"
-            disabled={settings.autoSensitivity}
-            min={MIC_THRESHOLD_MIN_DB}
-            max={MIC_THRESHOLD_MAX_DB}
-            step={1}
-            value={[settings.thresholdDb]}
-            onValueChange={(value) => {
-              const next = Array.isArray(value) ? value[0] : value
-              if (typeof next === "number") onChange({ thresholdDb: next })
-            }}
-          />
-          <div className="flex justify-between text-[10px] text-muted-foreground">
-            <span>Nhạy hơn ({MIC_THRESHOLD_MIN_DB} dB)</span>
-            <span>Lọc mạnh ({MIC_THRESHOLD_MAX_DB} dB)</span>
+            <div ref={barRef} className="h-full rounded-full bg-emerald-500" style={{ width: "0%" }} />
           </div>
         </div>
       </PopoverContent>
@@ -351,11 +291,11 @@ export function VoicePanel({
         >
           {voice.muted ? <MicOffIcon aria-hidden /> : <MicIcon aria-hidden />}
         </Button>
-        <MicSensitivityPopover
+        <MicSettingsPopover
           settings={voice.micSettings}
           aiDenoiseStatus={voice.aiDenoiseStatus}
           onChange={voice.updateMicSettings}
-          readMeter={voice.readMicMeter}
+          readLevelDb={voice.readMicLevelDb}
           disabled={!live}
         />
         <Button variant="destructive" size="pill" shape="pill" onClick={() => void voice.end()}>

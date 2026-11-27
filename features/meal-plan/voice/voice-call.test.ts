@@ -9,7 +9,6 @@ import {
   UtteranceAssembler,
   VoiceCallLedger,
 } from "@/features/meal-plan/voice/voice-call"
-import { GATE_HOLD_MS, VoiceNoiseGate } from "@/features/meal-plan/voice/voice-capture"
 
 function words(assembler: UtteranceAssembler, fragments: [text: string, startMs: number, endMs: number][]) {
   for (const [text, startMs, endMs] of fragments) assembler.addFragment({ text, startMs, endMs })
@@ -230,30 +229,6 @@ describe("FarewellTracker", () => {
     tracker.reset()
     advance(30_000)
     expect(tracker.done(false)).toBe(false)
-  })
-})
-
-describe("VoiceNoiseGate", () => {
-  it("blocks quiet background noise and opens for speech with hangover hold in manual mode", () => {
-    const gate = new VoiceNoiseGate({ autoSensitivity: false, thresholdDb: -40 })
-    expect(gate.processDb(-55, 0)).toBe(false)
-    expect(gate.processDb(-41, 20)).toBe(false)
-    expect(gate.processDb(-35, 40)).toBe(true)
-    expect(gate.processDb(-44, 60)).toBe(true)
-    expect(gate.processDb(-60, 60 + GATE_HOLD_MS - 10)).toBe(true)
-    expect(gate.processDb(-60, 60 + GATE_HOLD_MS)).toBe(false)
-  })
-
-  it("adapts threshold automatically above steady ambient room noise", () => {
-    const gate = new VoiceNoiseGate({ autoSensitivity: true, thresholdDb: -45 })
-    let t = 0
-    for (let i = 0; i < 250; i += 1) {
-      t += 20
-      gate.processDb(-45, t)
-    }
-    expect(gate.effectiveThresholdDb()).toBeGreaterThan(-45)
-    expect(gate.processDb(-45, t + 1000)).toBe(false)
-    expect(gate.processDb(-20, t + 1020)).toBe(true)
   })
 })
 
