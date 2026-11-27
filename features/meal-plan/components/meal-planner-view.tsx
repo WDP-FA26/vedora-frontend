@@ -17,6 +17,10 @@ import { toast } from "@/components/ui/toast"
 import { useAuth } from "@/features/auth/hooks/use-auth"
 import { isAccessTokenFresh } from "@/features/auth/lib/tokens"
 import {
+  ACTIVITY_LEVELS,
+  ACTIVITY_LEVEL_LABELS,
+  BIOLOGICAL_SEXES,
+  BIOLOGICAL_SEX_LABELS,
   DIETARY_PATH,
   fetchMyDietary,
   fetchMyNutrition,
@@ -29,6 +33,8 @@ import {
   NUTRITION_GOAL_LABELS,
   saveMyDietary,
   saveMyNutrition,
+  type ActivityLevel,
+  type BiologicalSex,
   type DietaryMemory,
   type NutritionGoal,
   type NutritionProfile,
@@ -592,7 +598,10 @@ export function MealPlannerView() {
   const hasNutritionProfile =
     nutrition.data !== undefined &&
     nutrition.data.heightCm !== null &&
-    nutrition.data.weightKg !== null
+    nutrition.data.weightKg !== null &&
+    nutrition.data.birthYear !== null &&
+    nutrition.data.biologicalSex !== null &&
+    nutrition.data.activityLevel !== null
 
   if (!nutrition.data || !restrictions.data) {
     if (nutrition.error || restrictions.error) {
@@ -856,10 +865,18 @@ function MealPlannerOnboardingGate({
   onCompleted: (savedNutrition: NutritionProfile, savedDietary: DietaryMemory) => Promise<void>
 }) {
   const { accessToken } = useAuth()
+  const currentYear = new Date().getFullYear()
   const initialNote = initialRestrictions.allergies.join("\n")
 
   const [heightCm, setHeightCm] = useState(initialNutrition.heightCm?.toString() ?? "")
   const [weightKg, setWeightKg] = useState(initialNutrition.weightKg?.toString() ?? "")
+  const [birthYear, setBirthYear] = useState(initialNutrition.birthYear?.toString() ?? "")
+  const [biologicalSex, setBiologicalSex] = useState<BiologicalSex | null>(
+    initialNutrition.biologicalSex ?? null
+  )
+  const [activityLevel, setActivityLevel] = useState<ActivityLevel | null>(
+    initialNutrition.activityLevel ?? null
+  )
   const [nutritionGoal, setNutritionGoal] = useState<NutritionGoal | null>(
     initialNutrition.nutritionGoal ?? null
   )
@@ -873,6 +890,7 @@ function MealPlannerOnboardingGate({
 
     const heightNum = Number(heightCm.trim().replace(",", "."))
     const weightNum = Number(weightKg.trim().replace(",", "."))
+    const birthYearNum = Number(birthYear.trim())
 
     if (!Number.isInteger(heightNum) || heightNum < 100 || heightNum > 250) {
       setError("Nhập chiều cao hợp lệ từ 100 đến 250 cm để tính định mức calo.")
@@ -880,6 +898,24 @@ function MealPlannerOnboardingGate({
     }
     if (!Number.isFinite(weightNum) || weightNum < 25 || weightNum > 300) {
       setError("Nhập cân nặng hợp lệ từ 25 đến 300 kg để tính định mức calo.")
+      return
+    }
+    if (
+      !Number.isInteger(birthYearNum) ||
+      birthYearNum < currentYear - 100 ||
+      birthYearNum > currentYear - 13
+    ) {
+      setError(
+        `Nhập năm sinh hợp lệ từ ${currentYear - 100} đến ${currentYear - 13} (từ 13 tuổi trở lên).`
+      )
+      return
+    }
+    if (biologicalSex === null) {
+      setError("Chọn giới tính sinh học để tính chính xác năng lượng nền (BMR).")
+      return
+    }
+    if (activityLevel === null) {
+      setError("Chọn mức độ vận động hằng ngày để tính chính xác định mức calo.")
       return
     }
 
@@ -896,6 +932,9 @@ function MealPlannerOnboardingGate({
         saveMyNutrition(accessToken, {
           heightCm: heightNum,
           weightKg: Math.round(weightNum * 10) / 10,
+          birthYear: birthYearNum,
+          biologicalSex,
+          activityLevel,
           nutritionGoal,
         }),
         saveMyDietary(accessToken, { allergies }),
@@ -929,16 +968,16 @@ function MealPlannerOnboardingGate({
         >
           <div className="space-y-1">
             <h2 className="font-heading text-lg font-bold">
-              Thiết lập nhanh chỉ số ăn uống của bạn
+              Thiết lập đầy đủ chỉ số cơ thể của bạn
             </h2>
             <p className="text-xs leading-5 text-muted-foreground">
-              Trợ lý chỉ hỏi đúng 3 thông tin dùng trực tiếp để chia khẩu phần hợp lý và loại bỏ món gây dị ứng cho bạn.
+              Các chỉ số này dùng trực tiếp để tính chính xác BMR, TDEE, định mức calo mỗi ngày và loại bỏ món gây dị ứng cho bạn.
             </p>
           </div>
 
           <FieldGroup>
             <div className="space-y-2">
-              <div className="grid gap-3 sm:grid-cols-2">
+              <div className="grid gap-3 sm:grid-cols-3">
                 <Field>
                   <FieldLabel htmlFor="gate-height">Chiều cao (cm) *</FieldLabel>
                   <Input
@@ -957,7 +996,7 @@ function MealPlannerOnboardingGate({
                   />
                 </Field>
                 <Field>
-                  <FieldLabel htmlFor="gate-weight">Cân nặng hiện tại (kg) *</FieldLabel>
+                  <FieldLabel htmlFor="gate-weight">Cân nặng (kg) *</FieldLabel>
                   <Input
                     id="gate-weight"
                     type="number"
@@ -973,11 +1012,89 @@ function MealPlannerOnboardingGate({
                     placeholder="Ví dụ: 55.5"
                   />
                 </Field>
+                <Field>
+                  <FieldLabel htmlFor="gate-birth-year">Năm sinh *</FieldLabel>
+                  <Input
+                    id="gate-birth-year"
+                    type="number"
+                    required
+                    min={currentYear - 100}
+                    max={currentYear - 13}
+                    step={1}
+                    value={birthYear}
+                    onChange={(event) => {
+                      setBirthYear(event.target.value)
+                      setError(null)
+                    }}
+                    placeholder="Ví dụ: 1996"
+                  />
+                </Field>
               </div>
               <FieldDescription>
-                Dùng để tính chỉ số BMI và định mức calo mỗi ngày (~kcal/ngày) nhằm ghép đủ số món cho từng bữa.
+                Dùng để tính chỉ số BMI và năng lượng nền (BMR) theo độ tuổi và thể trạng của bạn.
               </FieldDescription>
             </div>
+
+            <Field>
+              <FieldLabel>Giới tính sinh học *</FieldLabel>
+              <div className="grid grid-cols-3 gap-2">
+                {BIOLOGICAL_SEXES.map((sex) => {
+                  const selected = biologicalSex === sex
+                  return (
+                    <button
+                      key={sex}
+                      type="button"
+                      aria-pressed={selected}
+                      onClick={() => {
+                        setBiologicalSex(sex)
+                        setError(null)
+                      }}
+                      className={cn(
+                        "rounded-xl border px-3 py-2 text-xs font-semibold transition-colors",
+                        selected
+                          ? "border-primary bg-primary/10 text-primary"
+                          : "border-border bg-background hover:bg-accent/50"
+                      )}
+                    >
+                      {BIOLOGICAL_SEX_LABELS[sex]}
+                    </button>
+                  )
+                })}
+              </div>
+            </Field>
+
+            <Field>
+              <FieldLabel>Mức độ vận động hằng ngày *</FieldLabel>
+              <div className="grid gap-2 sm:grid-cols-2">
+                {ACTIVITY_LEVELS.map((level) => {
+                  const selected = activityLevel === level
+                  return (
+                    <button
+                      key={level}
+                      type="button"
+                      aria-pressed={selected}
+                      onClick={() => {
+                        setActivityLevel(level)
+                        setError(null)
+                      }}
+                      className={cn(
+                        "flex flex-col items-start gap-0.5 rounded-xl border p-3 text-left transition-colors",
+                        selected
+                          ? "border-primary bg-primary/10"
+                          : "border-border bg-background hover:bg-accent/50"
+                      )}
+                    >
+                      <span className="text-xs font-semibold">
+                        {ACTIVITY_LEVEL_LABELS[level].label}
+                      </span>
+                      <span className="text-[0.6875rem] leading-4 text-muted-foreground">
+                        {ACTIVITY_LEVEL_LABELS[level].hint}
+                      </span>
+                    </button>
+                  )
+                })}
+              </div>
+            </Field>
 
             <Field>
               <FieldLabel>Mục tiêu thực đơn</FieldLabel>

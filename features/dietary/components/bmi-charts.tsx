@@ -32,12 +32,18 @@ import { Input } from "@/components/ui/input"
 import { Spinner } from "@/components/ui/spinner"
 import { useAuth } from "@/features/auth/hooks/use-auth"
 import {
+  ACTIVITY_LEVELS,
+  ACTIVITY_LEVEL_LABELS,
+  BIOLOGICAL_SEXES,
+  BIOLOGICAL_SEX_LABELS,
   BMI_CATEGORY_META,
   BODY_FEELING_LABELS,
   NUTRITION_GOALS,
   NUTRITION_GOAL_LABELS,
   checkInWeight,
   saveMyNutrition,
+  type ActivityLevel,
+  type BiologicalSex,
   type BodyFeeling,
   type BodyMetricLog,
   type NutritionGoal,
@@ -417,7 +423,15 @@ export function WeightBmiTrendChart({ profile }: { profile: NutritionProfile }) 
   )
 }
 
-/** 1-line weight check-in that immediately updates charts, BMI, and daily calorie target. */
+function localTodayIso(): string {
+  const now = new Date()
+  const year = now.getFullYear()
+  const month = String(now.getMonth() + 1).padStart(2, "0")
+  const day = String(now.getDate()).padStart(2, "0")
+  return `${year}-${month}-${day}`
+}
+
+/** Weight check-in with date picker so users can log today or fix a previous day's entry. */
 export function WeightQuickCheckIn({
   profile,
   onSaved,
@@ -426,6 +440,8 @@ export function WeightQuickCheckIn({
   onSaved: (next: NutritionProfile) => Promise<void> | void
 }) {
   const { accessToken } = useAuth()
+  const todayIso = localTodayIso()
+  const [date, setDate] = useState(todayIso)
   const [weight, setWeight] = useState(profile.weightKg?.toString() ?? "")
   const [height, setHeight] = useState(profile.heightCm?.toString() ?? "")
   const [saving, setSaving] = useState(false)
@@ -433,10 +449,25 @@ export function WeightQuickCheckIn({
   const [savedToast, setSavedToast] = useState(false)
 
   const needsHeight = profile.heightCm === null
+  const isPastDate = date < todayIso
+
+  function handleDateChange(nextDate: string) {
+    setDate(nextDate)
+    setError(null)
+    setSavedToast(false)
+    const existing = profile.history.find((item) => item.date === nextDate)
+    if (existing) {
+      setWeight(existing.weightKg.toString())
+    }
+  }
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     if (!accessToken || saving) return
+    if (!date || date > todayIso) {
+      setError("Chỉ có thể ghi nhận cho hôm nay hoặc ngày trước đó.")
+      return
+    }
     const weightNum = Number(weight.replace(",", "."))
     if (!Number.isFinite(weightNum) || weightNum < 25 || weightNum > 300) {
       setError("Nhập cân nặng hợp lệ từ 25 đến 300 kg.")
@@ -458,6 +489,7 @@ export function WeightQuickCheckIn({
     try {
       const updated = await checkInWeight(accessToken, {
         weightKg: Math.round(weightNum * 10) / 10,
+        date,
         ...(heightNum !== undefined ? { heightCm: heightNum } : {}),
       })
       await onSaved(updated)
@@ -479,15 +511,27 @@ export function WeightQuickCheckIn({
       noValidate
       className="space-y-2.5 rounded-2xl border border-border bg-card p-4"
     >
-      <div className="flex items-center justify-between gap-2">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <h3 className="flex items-center gap-1.5 text-sm font-bold">
           <ScaleIcon aria-hidden className="size-4 text-primary" />
-          Cập nhật cân nặng hôm nay
+          Cập nhật cân nặng
         </h3>
-        <span className="text-[0.6875rem] text-muted-foreground">Cập nhật BMI &amp; định mức calo</span>
+        <span className="text-[0.6875rem] text-muted-foreground">
+          Chọn ngày trước nếu cần sửa số đã nhập nhầm
+        </span>
       </div>
 
       <div className="flex flex-wrap items-end gap-2">
+        <label className="min-w-36 flex-1 text-xs font-medium">
+          Ngày ghi nhận
+          <Input
+            type="date"
+            max={todayIso}
+            value={date}
+            onChange={(event) => handleDateChange(event.target.value)}
+            className="mt-1"
+          />
+        </label>
         {needsHeight && (
           <label className="min-w-28 flex-1 text-xs font-medium">
             Chiều cao (cm)
@@ -506,8 +550,8 @@ export function WeightQuickCheckIn({
             />
           </label>
         )}
-        <label className="min-w-36 flex-1 text-xs font-medium">
-          Cân nặng hôm nay (kg)
+        <label className="min-w-32 flex-1 text-xs font-medium">
+          Cân nặng (kg)
           <Input
             type="number"
             min={25}
@@ -524,7 +568,7 @@ export function WeightQuickCheckIn({
         </label>
         <Button type="submit" size="sm" disabled={saving}>
           {saving && <Spinner aria-hidden />}
-          Cập nhật
+          {isPastDate ? "Sửa ngày này" : "Cập nhật"}
         </Button>
       </div>
 
@@ -535,14 +579,16 @@ export function WeightQuickCheckIn({
       )}
       {savedToast && (
         <p role="status" className="text-xs text-primary">
-          Đã cập nhật BMI, biểu đồ &amp; mức năng lượng gợi ý.
+          {isPastDate
+            ? `Đã sửa cân nặng ngày ${formatLongDate(date)} và cập nhật biểu đồ.`
+            : "Đã cập nhật BMI, biểu đồ & mức năng lượng gợi ý."}
         </p>
       )}
     </form>
   )
 }
 
-/** Form for editing core body measurements (height, weight) and menu goal. */
+/** Form for editing core body measurements (height, weight, birth year, sex, activity) and menu goal. */
 export function NutritionProfileForm({
   profile,
   onSaved,
@@ -551,8 +597,16 @@ export function NutritionProfileForm({
   onSaved: (next: NutritionProfile) => Promise<void> | void
 }) {
   const { accessToken } = useAuth()
+  const currentYear = new Date().getFullYear()
   const [heightCm, setHeightCm] = useState(profile.heightCm?.toString() ?? "")
   const [weightKg, setWeightKg] = useState(profile.weightKg?.toString() ?? "")
+  const [birthYear, setBirthYear] = useState(profile.birthYear?.toString() ?? "")
+  const [biologicalSex, setBiologicalSex] = useState<BiologicalSex | null>(
+    profile.biologicalSex ?? null
+  )
+  const [activityLevel, setActivityLevel] = useState<ActivityLevel | null>(
+    profile.activityLevel ?? null
+  )
   const [nutritionGoal, setNutritionGoal] = useState<string>(profile.nutritionGoal ?? "")
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -571,6 +625,7 @@ export function NutritionProfileForm({
 
     const h = parseOptNum(heightCm)
     const w = parseOptNum(weightKg)
+    const y = parseOptNum(birthYear)
 
     if (h === null || !Number.isInteger(h) || h < 100 || h > 250) {
       setError("Nhập chiều cao hợp lệ từ 100 đến 250 cm.")
@@ -578,6 +633,18 @@ export function NutritionProfileForm({
     }
     if (w === null || Number.isNaN(w) || w < 25 || w > 300) {
       setError("Nhập cân nặng hợp lệ từ 25 đến 300 kg.")
+      return
+    }
+    if (y === null || !Number.isInteger(y) || y < currentYear - 100 || y > currentYear - 13) {
+      setError(`Nhập năm sinh hợp lệ từ ${currentYear - 100} đến ${currentYear - 13} (từ 13 tuổi trở lên).`)
+      return
+    }
+    if (biologicalSex === null) {
+      setError("Chọn giới tính sinh học để tính chính xác BMR.")
+      return
+    }
+    if (activityLevel === null) {
+      setError("Chọn mức độ vận động để tính chính xác TDEE.")
       return
     }
 
@@ -588,6 +655,9 @@ export function NutritionProfileForm({
       const updated = await saveMyNutrition(accessToken, {
         heightCm: h,
         weightKg: Math.round(w * 10) / 10,
+        birthYear: y,
+        biologicalSex,
+        activityLevel,
         nutritionGoal: nutritionGoal ? (nutritionGoal as NutritionGoal) : null,
       })
       await onSaved(updated)
@@ -607,7 +677,7 @@ export function NutritionProfileForm({
     <form onSubmit={submit} noValidate className="space-y-4">
       <FieldGroup>
         <div className="space-y-2">
-          <div className="grid gap-3 sm:grid-cols-2">
+          <div className="grid gap-3 sm:grid-cols-3">
             <Field>
               <FieldLabel htmlFor="nutrition-height">Chiều cao (cm) *</FieldLabel>
               <Input
@@ -626,7 +696,7 @@ export function NutritionProfileForm({
               />
             </Field>
             <Field>
-              <FieldLabel htmlFor="nutrition-weight">Cân nặng hiện tại (kg) *</FieldLabel>
+              <FieldLabel htmlFor="nutrition-weight">Cân nặng (kg) *</FieldLabel>
               <Input
                 id="nutrition-weight"
                 type="number"
@@ -642,11 +712,87 @@ export function NutritionProfileForm({
                 placeholder="Ví dụ: 55.5"
               />
             </Field>
+            <Field>
+              <FieldLabel htmlFor="nutrition-birth-year">Năm sinh *</FieldLabel>
+              <Input
+                id="nutrition-birth-year"
+                type="number"
+                required
+                min={currentYear - 100}
+                max={currentYear - 13}
+                step={1}
+                value={birthYear}
+                onChange={(event) => {
+                  setBirthYear(event.target.value)
+                  setError(null)
+                }}
+                placeholder="Ví dụ: 1996"
+              />
+            </Field>
           </div>
           <FieldDescription>
-            Dùng để tính chỉ số BMI và định mức năng lượng (~kcal/ngày) nhằm ghép đủ số món cho từng bữa.
+            Dùng để tính chỉ số BMI, BMR và định mức năng lượng (~kcal/ngày) theo công thức Mifflin-St Jeor.
           </FieldDescription>
         </div>
+
+        <Field>
+          <FieldLabel>Giới tính sinh học *</FieldLabel>
+          <div className="grid grid-cols-3 gap-2">
+            {BIOLOGICAL_SEXES.map((sex) => {
+              const selected = biologicalSex === sex
+              return (
+                <button
+                  key={sex}
+                  type="button"
+                  aria-pressed={selected}
+                  onClick={() => {
+                    setBiologicalSex(sex)
+                    setError(null)
+                  }}
+                  className={cn(
+                    "rounded-xl border px-3 py-2 text-xs font-semibold transition-colors",
+                    selected
+                      ? "border-primary bg-primary/10 text-primary"
+                      : "border-border bg-background hover:bg-accent/50"
+                  )}
+                >
+                  {BIOLOGICAL_SEX_LABELS[sex]}
+                </button>
+              )
+            })}
+          </div>
+        </Field>
+
+        <Field>
+          <FieldLabel>Mức độ vận động *</FieldLabel>
+          <div className="grid gap-2 sm:grid-cols-2">
+            {ACTIVITY_LEVELS.map((level) => {
+              const selected = activityLevel === level
+              return (
+                <button
+                  key={level}
+                  type="button"
+                  aria-pressed={selected}
+                  onClick={() => {
+                    setActivityLevel(level)
+                    setError(null)
+                  }}
+                  className={cn(
+                    "flex flex-col items-start gap-0.5 rounded-xl border p-2.5 text-left transition-colors",
+                    selected
+                      ? "border-primary bg-primary/10"
+                      : "border-border bg-background hover:bg-accent/50"
+                  )}
+                >
+                  <span className="text-xs font-semibold">{ACTIVITY_LEVEL_LABELS[level].label}</span>
+                  <span className="text-[0.6875rem] leading-4 text-muted-foreground">
+                    {ACTIVITY_LEVEL_LABELS[level].hint}
+                  </span>
+                </button>
+              )
+            })}
+          </div>
+        </Field>
 
         <Field>
           <FieldLabel>Mục tiêu thực đơn</FieldLabel>
