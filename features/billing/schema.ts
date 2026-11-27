@@ -67,6 +67,7 @@ export const allowanceSchema = z.object({
 })
 export const overviewSchema = z.object({
   membership: z.object({
+    source: z.literal("ADMIN_GRANT").optional(),
     planCode: z.enum(["FREE", "PLUS", "PRO"]),
     startsAt: z.iso.datetime().nullable(),
     expiresAt: z.iso.datetime().nullable(),

@@ -180,6 +180,7 @@ function BillingContent({ userId, token }: { userId: string; token?: string }) {
             </Badge>
           </div>
           <CardDescription>
+            {membership.source === "ADMIN_GRANT" && <span className="block">Gói được quản trị viên cấp.</span>}
             {membership.expiresAt
               ? `Có hiệu lực đến ${dateTime(membership.expiresAt)} (UTC+7).`
               : "Hạn mức văn bản đặt lại hằng ngày lúc 00:00 (UTC+7)."}
@@ -190,7 +191,7 @@ function BillingContent({ userId, token }: { userId: string; token?: string }) {
             <Allowance title="AI văn bản dùng chung" value={usage.text} />
             <Allowance title="Tạo và chỉnh ảnh AI" value={usage.images} />
           </div>
-          {!free && <p className="mt-4 text-xs text-muted-foreground">Hạn mức gói đang dùng được giữ theo đơn đã thanh toán. Các quyền lợi trong bảng gói bên dưới áp dụng cho lần mua mới.</p>}
+          {!free && <p className="mt-4 text-xs text-muted-foreground">Hạn mức gói đang dùng được giữ theo lần kích hoạt. Các quyền lợi trong bảng gói bên dưới áp dụng cho lần mua mới.</p>}
         </CardContent>
       </Card>
       {pendingPayment && (
