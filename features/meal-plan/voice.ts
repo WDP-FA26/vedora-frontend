@@ -6,7 +6,7 @@ import {
 import { z } from "zod"
 
 import { API_URL } from "@/features/auth/lib/api"
-import { WEEKDAYS, type Weekday } from "@/features/meal-plan/meal-plan"
+import { WEEKDAYS, type MealSection, type Weekday } from "@/features/meal-plan/meal-plan"
 import {
   plannerStateEventSchema,
   type PlannerStateEvent,
@@ -231,6 +231,10 @@ export function scrollContainer(element: HTMLElement | null, direction: ScreenSc
 /** Panels the voice agent can close; `all` is whatever is open. */
 export type VoiceScreenPanel = "recipe" | "eatingLog" | "bodyMetrics" | "shoppingList" | "all"
 
+/** Tabs inside the `bodyMetrics` nutrition & BMI companion sheet. */
+export const BODY_METRICS_TABS = ["weekly", "bmi", "dietary"] as const
+export type BodyMetricsTab = (typeof BODY_METRICS_TABS)[number]
+
 /** What the planner page shows while the user speaks, sent with each turn (`screen`). */
 export type VoiceScreen = {
   weekStart: string
@@ -239,7 +243,14 @@ export type VoiceScreen = {
   recipeId?: string
   recipeSection?: RecipeSection
   recipeStep?: number
+  recipeDay?: Weekday
+  recipeMealSection?: MealSection
+  recipeEaten?: boolean
   eatingLogDate?: string
+  bodyMetricsTab?: BodyMetricsTab
+  shoppingDays?: Weekday[]
+  shoppingPeople?: number
+  shoppingCheckedCount?: number
   scrollState?: VoiceScrollState
 }
 
@@ -247,8 +258,17 @@ export type VoiceScreen = {
 export type VoiceFocus =
   | { kind: "recipe"; recipeId: string; title: string; section: RecipeSection | null; step?: number | null }
   | { kind: "eatingLog"; date: string | null }
-  | { kind: "bodyMetrics" }
-  | { kind: "shoppingList" }
+  | { kind: "bodyMetrics"; tab?: BodyMetricsTab | null; weekStart?: string | null }
+  | {
+      kind: "shoppingList"
+      weekStart?: string | null
+      day?: Weekday | null
+      wholeWeek?: boolean
+      people?: number | null
+      checkItems?: string[] | null
+      uncheckItems?: string[] | null
+      clearChecked?: boolean
+    }
   /** `day: null` shows the week without picking a day. */
   | { kind: "planDay"; weekStart: string; day: Weekday | null }
 
@@ -281,8 +301,21 @@ const voiceFocusSchema = z.discriminatedUnion("kind", [
     step: z.number().int().nullable().optional(),
   }),
   z.object({ kind: z.literal("eatingLog"), date: z.string().nullable() }),
-  z.object({ kind: z.literal("bodyMetrics") }),
-  z.object({ kind: z.literal("shoppingList") }),
+  z.object({
+    kind: z.literal("bodyMetrics"),
+    tab: z.enum(BODY_METRICS_TABS).nullable().optional(),
+    weekStart: z.string().nullable().optional(),
+  }),
+  z.object({
+    kind: z.literal("shoppingList"),
+    weekStart: z.string().nullable().optional(),
+    day: z.enum(WEEKDAYS).nullable().optional(),
+    wholeWeek: z.boolean().optional(),
+    people: z.number().int().min(1).max(4).nullable().optional(),
+    checkItems: z.array(z.string()).nullable().optional(),
+    uncheckItems: z.array(z.string()).nullable().optional(),
+    clearChecked: z.boolean().optional(),
+  }),
   z.object({ kind: z.literal("planDay"), weekStart: z.string(), day: z.enum(WEEKDAYS).nullable() }),
 ])
 

@@ -73,6 +73,7 @@ import { ApiError } from "@/features/shared/lib/api-client"
 import {
   readScrollState,
   scrollContainer,
+  type BodyMetricsTab,
   type ScreenScrollDirection,
   type VoiceScrollState,
 } from "@/features/meal-plan/voice"
@@ -263,12 +264,13 @@ function buildBalancePrompt(
 }
 
 export type NutritionCompanionBarHandle = {
-  showBodyMetrics: () => void
+  showBodyMetrics: (tab?: BodyMetricsTab) => void
   showDietary: () => void
   hideBodyMetrics: () => void
   scrollBodyMetrics: (direction: ScreenScrollDirection) => void
-  /** Whether the BMI tab is on screen, for the voice agent's view of the page. */
+  /** Whether the nutrition & BMI sheet is open, for the voice agent's view of the page. */
   isBodyMetricsOpen: () => boolean
+  bodyMetricsTab: () => BodyMetricsTab
   bodyMetricsScrollState: () => VoiceScrollState | undefined
 }
 
@@ -303,8 +305,8 @@ export function NutritionCompanionBar({
   const bodyRef = useRef<HTMLDivElement>(null)
 
   useImperativeHandle(handle, () => ({
-    showBodyMetrics() {
-      setActiveTab("bmi")
+    showBodyMetrics(tab?: BodyMetricsTab) {
+      setActiveTab(tab ?? "bmi")
       setSheetOpen(true)
     },
     showDietary() {
@@ -318,7 +320,10 @@ export function NutritionCompanionBar({
       requestAnimationFrame(() => scrollContainer(bodyRef.current?.parentElement ?? null, direction))
     },
     isBodyMetricsOpen() {
-      return sheetOpen && activeTab === "bmi"
+      return sheetOpen
+    },
+    bodyMetricsTab() {
+      return activeTab
     },
     bodyMetricsScrollState() {
       if (!sheetOpen) return undefined

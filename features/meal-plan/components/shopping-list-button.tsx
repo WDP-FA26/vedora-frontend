@@ -168,11 +168,47 @@ function dayNames(days: readonly Weekday[]) {
   return days.map((day) => DAY_LABELS[day]).join(", ")
 }
 
+function normalizeMatchText(text: string): string {
+  return text
+    .toLowerCase()
+    .replaceAll("đ", "d")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim()
+}
+
+function matchesAnyQuery(itemName: string, queries: readonly string[]): boolean {
+  const normalizedItem = normalizeMatchText(itemName)
+  for (const query of queries) {
+    const normalizedQuery = normalizeMatchText(query)
+    if (!normalizedQuery) continue
+    if (normalizedItem.includes(normalizedQuery) || normalizedQuery.includes(normalizedItem)) {
+      return true
+    }
+  }
+  return false
+}
+
+export type ShoppingListOpenOptions = {
+  day?: Weekday | null
+  wholeWeek?: boolean
+  people?: number | null
+  checkItems?: string[] | null
+  uncheckItems?: string[] | null
+  clearChecked?: boolean
+}
+
 export type ShoppingListHandle = {
-  open: () => void
+  open: (options?: ShoppingListOpenOptions) => void
   close: () => void
   scroll: (direction: ScreenScrollDirection) => void
-  screen: () => { open: boolean; scrollState?: VoiceScrollState }
+  screen: () => {
+    open: boolean
+    days: Weekday[]
+    people: PeopleCount
+    checkedCount: number
+    scrollState?: VoiceScrollState
+  }
 }
 
 /**
@@ -208,6 +244,10 @@ export function ShoppingListButton({
     keys: loadCheckedKeys(weekStart),
   }))
   const [openRecipeId, setOpenRecipeId] = useState<string | null>(null)
+  const pendingCheckOpRef = useRef<{
+    checkItems?: string[]
+    uncheckItems?: string[]
+  } | null>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
   const router = useRouter()
 
@@ -215,23 +255,26 @@ export function ShoppingListButton({
     checkedByWeek.weekStart === weekStart ? checkedByWeek.keys : loadCheckedKeys(weekStart)
   const checkedSet = new Set(checkedKeys)
 
-  useImperativeHandle(handle, () => ({
-    open() {
-      setOpen(true)
-    },
-    close() {
-      setOpen(false)
-    },
-    scroll(direction) {
-      requestAnimationFrame(() => scrollContainer(scrollRef.current, direction))
-    },
-    screen() {
-      return {
-        open,
-        scrollState: open ? readScrollState(scrollRef.current) : undefined,
+  function applyCheckMutation(
+    currentKeys: readonly string[],
+    targetItems: readonly ShoppingItem[],
+    checkItems?: readonly string[],
+    uncheckItems?: readonly string[]
+  ) {
+    const next = new Set(currentKeys)
+    for (const item of targetItems) {
+      const key = `${item.ingredientId}:${item.unit ?? ""}`
+      if (checkItems && checkItems.length > 0 && matchesAnyQuery(item.name, checkItems)) {
+        next.add(key)
       }
-    },
-  }))
+      if (uncheckItems && uncheckItems.length > 0 && matchesAnyQuery(item.name, uncheckItems)) {
+        next.delete(key)
+      }
+    }
+    const nextArray = [...next]
+    setCheckedByWeek({ weekStart, keys: nextArray })
+    saveCheckedKeys(weekStart, nextArray)
+  }
 
   const wholeWeek = days.length === WEEKDAYS.length
   const allSelectedPast =
@@ -247,11 +290,78 @@ export function ShoppingListButton({
 
   const shouldFetch = open && !allSelectedPast && !nothingPlanned
   const list = useAuthedSWR(shouldFetch ? shoppingListKey(weekStart, days) : null, fetchShoppingList, {
+    onSuccess: (data) => {
+      const pending = pendingCheckOpRef.current
+      if (!pending || data.items.length === 0) return
+      pendingCheckOpRef.current = null
+      const current = loadCheckedKeys(weekStart)
+      applyCheckMutation(current, data.items, pending.checkItems, pending.uncheckItems)
+    },
     onError: (error) => {
       if (error instanceof ApiError && error.status === 401) router.refresh()
     },
   })
   const items = list.data?.items ?? []
+
+  let checkedCount = 0
+  for (const item of items) {
+    if (checkedSet.has(`${item.ingredientId}:${item.unit ?? ""}`)) checkedCount += 1
+  }
+
+  useImperativeHandle(handle, () => ({
+    open(options) {
+      if (options?.day) {
+        setDays([options.day])
+      } else if (options?.wholeWeek) {
+        setDays([...WEEKDAYS])
+      }
+      if (options?.people !== undefined && options.people !== null) {
+        const matched = PEOPLE_COUNTS.find((count) => count === options.people)
+        if (matched) {
+          setPeople(matched)
+          savePeopleCount(matched)
+        }
+      }
+      if (options?.clearChecked) {
+        setCheckedByWeek({ weekStart, keys: [] })
+        saveCheckedKeys(weekStart, [])
+      }
+      const hasCheck = Boolean(options?.checkItems && options.checkItems.length > 0)
+      const hasUncheck = Boolean(options?.uncheckItems && options.uncheckItems.length > 0)
+      if (hasCheck || hasUncheck) {
+        const baseKeys = options?.clearChecked ? [] : checkedKeys
+        if (items.length > 0) {
+          applyCheckMutation(
+            baseKeys,
+            items,
+            options?.checkItems ?? undefined,
+            options?.uncheckItems ?? undefined
+          )
+        } else {
+          pendingCheckOpRef.current = {
+            checkItems: options?.checkItems ?? undefined,
+            uncheckItems: options?.uncheckItems ?? undefined,
+          }
+        }
+      }
+      setOpen(true)
+    },
+    close() {
+      setOpen(false)
+    },
+    scroll(direction) {
+      requestAnimationFrame(() => scrollContainer(scrollRef.current, direction))
+    },
+    screen() {
+      return {
+        open,
+        days,
+        people,
+        checkedCount,
+        scrollState: open ? readScrollState(scrollRef.current) : undefined,
+      }
+    },
+  }))
 
   function toggleChecked(itemKey: string) {
     const next = checkedSet.has(itemKey)
@@ -288,11 +398,6 @@ export function ShoppingListButton({
       return
     }
     setOpenRecipeId(recipeId)
-  }
-
-  let checkedCount = 0
-  for (const item of items) {
-    if (checkedSet.has(`${item.ingredientId}:${item.unit ?? ""}`)) checkedCount += 1
   }
 
   return (

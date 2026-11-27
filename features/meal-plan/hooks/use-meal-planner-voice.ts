@@ -467,6 +467,18 @@ export function useMealPlannerVoice({
   // Adjusting state while rendering: React re-renders right away, before painting.
   if (connected && !wasConnected) setWasConnected(true)
   const lastSentRecipeKey = useRef<string | null>(null)
+  const lastWeekContextRef = useRef<string | null>(null)
+  useEffect(() => {
+    if (!connected || !weekStart || !today) {
+      lastWeekContextRef.current = null
+      return
+    }
+    const key = `${weekStart}:${today}`
+    if (lastWeekContextRef.current === key) return
+    lastWeekContextRef.current = key
+    void sendContext(sendRealtimeEvent, null, "thinking", voicePageContext(weekStart, today))
+  }, [connected, weekStart, today, sendRealtimeEvent])
+
   useEffect(() => {
     if (!connected) {
       lastSentRecipeKey.current = null

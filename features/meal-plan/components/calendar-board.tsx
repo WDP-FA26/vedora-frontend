@@ -50,6 +50,7 @@ import { RecipeSheet, type OpenedDish, type RecipeSheetHandle } from "@/features
 import {
   readScrollState,
   scrollContainer,
+  type BodyMetricsTab,
   type RecipeSection,
   type ScreenScrollDirection,
   type VoiceOpenRecipe,
@@ -115,7 +116,7 @@ export type CalendarBoardHandle = {
     scroll?: ScreenScrollDirection | null
   ) => void
   closeDish: () => void
-  showBodyMetrics: () => void
+  showBodyMetrics: (tab?: BodyMetricsTab) => void
   showDietary: () => void
   hideBodyMetrics: () => void
   scrollBodyMetrics: (direction: ScreenScrollDirection) => void
@@ -123,8 +124,17 @@ export type CalendarBoardHandle = {
   /** The selected day, the open recipe sheet and the BMI panel, for the voice agent's view of the page. */
   screen: () => {
     day: Weekday
-    recipe: { id: string; section: RecipeSection | null; step: number | null; scrollState?: VoiceScrollState } | null
+    recipe: {
+      id: string
+      day: Weekday
+      mealSection: MealSection
+      eaten?: boolean
+      section: RecipeSection | null
+      step: number | null
+      scrollState?: VoiceScrollState
+    } | null
     bodyMetricsOpen: boolean
+    bodyMetricsTab?: BodyMetricsTab
     bodyMetricsScrollState?: VoiceScrollState
     mobileScrollState?: VoiceScrollState
   }
@@ -246,8 +256,8 @@ export function CalendarBoard({
     closeDish() {
       setSheetOpen(false)
     },
-    showBodyMetrics() {
-      nutritionBar.current?.showBodyMetrics()
+    showBodyMetrics(tab?: BodyMetricsTab) {
+      nutritionBar.current?.showBodyMetrics(tab)
     },
     showDietary() {
       nutritionBar.current?.showDietary()
@@ -265,10 +275,21 @@ export function CalendarBoard({
       }
     },
     screen() {
+      const openedEaten =
+        sheetOpen && opened && mealLog
+          ? (mealLog.days
+              .find((item) => item.day === opened.day)
+              ?.entries.some(
+                (entry) => entry.section === opened.section && entry.recipeId === opened.recipeId
+              ) ?? false)
+          : undefined
       const recipe =
         sheetOpen && opened
           ? {
               id: opened.recipeId,
+              day: opened.day,
+              mealSection: opened.section,
+              eaten: openedEaten,
               section: opened.voice?.section ?? null,
               step: opened.voice?.step ?? null,
               scrollState: recipeSheet.current?.scrollState(),
@@ -281,6 +302,7 @@ export function CalendarBoard({
         day: selectedDay,
         recipe,
         bodyMetricsOpen: nutritionBar.current?.isBodyMetricsOpen() ?? false,
+        bodyMetricsTab: nutritionBar.current?.bodyMetricsTab(),
         bodyMetricsScrollState: nutritionBar.current?.bodyMetricsScrollState(),
         mobileScrollState,
       }

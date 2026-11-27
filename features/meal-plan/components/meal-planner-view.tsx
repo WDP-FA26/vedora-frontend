@@ -98,6 +98,16 @@ const WEEK_PATTERN = /^\d{4}-\d{2}-\d{2}$/
 type Tab = "chat" | "calendar"
 type AskContext = { title: string; day: Weekday; section: MealSection }
 
+/** Returns the Monday (YYYY-MM-DD) of the week containing `isoDate`. */
+function mondayOfDate(isoDate: string): string | null {
+  if (!WEEK_PATTERN.test(isoDate)) return null
+  const [year, month, day] = isoDate.split("-").map(Number)
+  const date = new Date(Date.UTC(year, month - 1, day))
+  const offset = (date.getUTCDay() + 6) % 7
+  date.setUTCDate(date.getUTCDate() - offset)
+  return date.toISOString().slice(0, 10)
+}
+
 /** What went wrong saving a calendar edit, in words the user can act on. */
 function calendarErrorMessage(error: unknown) {
   if (!(error instanceof ApiError)) return "Không lưu được thay đổi. Hãy thử lại."
@@ -139,6 +149,12 @@ export function MealPlannerView() {
   const calendarScrollRef = useRef<HTMLDivElement>(null)
   /** A day the voice agent showed in another week; the calendar picks it when that week mounts. */
   const [voiceDay, setVoiceDay] = useState<{ weekStart: string; day: Weekday } | null>(null)
+  /** A panel command targeting another week; applied once that week finishes loading. */
+  const pendingVoiceCommandRef = useRef<{
+    targetWeek: string
+    command: VoiceScreenCommand
+  } | null>(null)
+  const showVoiceScreenRef = useRef<(command: VoiceScreenCommand) => void>(() => undefined)
   const [voiceDish, setVoiceDish] = useState<OpenedDish | null>(null)
   const [voiceDishOpen, setVoiceDishOpen] = useState(false)
   const [calendarRecipe, setCalendarRecipe] = useState<VoiceOpenRecipe | null>(null)
@@ -175,6 +191,14 @@ export function MealPlannerView() {
   useEffect(() => {
     if (weekRefused && weekParam) window.history.replaceState(null, "", window.location.pathname)
   }, [weekRefused, weekParam])
+
+  useEffect(() => {
+    const pending = pendingVoiceCommandRef.current
+    if (!pending || weekStart !== pending.targetWeek) return
+    pendingVoiceCommandRef.current = null
+    const frame = requestAnimationFrame(() => showVoiceScreenRef.current(pending.command))
+    return () => cancelAnimationFrame(frame)
+  }, [weekStart])
 
   /** Puts the week in the URL without a server round trip; the current week needs no param. */
   function writeWeek(next: string | undefined) {
@@ -218,13 +242,23 @@ export function MealPlannerView() {
         ...screen,
         panel: "recipe",
         recipeId: board.recipe.id,
+        recipeDay: board.recipe.day,
+        recipeMealSection: board.recipe.mealSection,
+        recipeEaten: board.recipe.eaten,
         recipeSection: board.recipe.section ?? undefined,
         recipeStep: board.recipe.step ?? undefined,
         scrollState: board.recipe.scrollState,
       }
     }
     if (shop?.open) {
-      return { ...screen, panel: "shoppingList", scrollState: shop.scrollState }
+      return {
+        ...screen,
+        panel: "shoppingList",
+        shoppingDays: shop.days,
+        shoppingPeople: shop.people,
+        shoppingCheckedCount: shop.checkedCount,
+        scrollState: shop.scrollState,
+      }
     }
     if (diary?.open) {
       return {
@@ -235,7 +269,12 @@ export function MealPlannerView() {
       }
     }
     if (board?.bodyMetricsOpen) {
-      return { ...screen, panel: "bodyMetrics", scrollState: board.bodyMetricsScrollState }
+      return {
+        ...screen,
+        panel: "bodyMetrics",
+        bodyMetricsTab: board.bodyMetricsTab,
+        scrollState: board.bodyMetricsScrollState,
+      }
     }
     const desktopScroll =
       calendarScrollRef.current && calendarScrollRef.current.offsetParent !== null
@@ -273,6 +312,16 @@ export function MealPlannerView() {
       return
     }
     if (focus.kind === "eatingLog") {
+      const targetWeek =
+        focus.date !== null
+          ? mondayOfDate(focus.date)
+          : plan.data?.currentWeekStart ?? null
+      if (targetWeek && weekStart && targetWeek !== weekStart) {
+        closeVoicePanels("all")
+        pendingVoiceCommandRef.current = { targetWeek, command: { focus, close, scroll } }
+        showWeek(targetWeek)
+        return
+      }
       closeVoicePanels("all", "eatingLog")
       setTab("calendar")
       mealLog.current?.openDay(focus.date)
@@ -280,16 +329,35 @@ export function MealPlannerView() {
       return
     }
     if (focus.kind === "bodyMetrics") {
+      if (focus.weekStart && weekStart && focus.weekStart !== weekStart) {
+        closeVoicePanels("all")
+        pendingVoiceCommandRef.current = { targetWeek: focus.weekStart, command: { focus, close, scroll } }
+        showWeek(focus.weekStart)
+        return
+      }
       closeVoicePanels("all", "bodyMetrics")
       setTab("calendar")
-      calendar.current?.showBodyMetrics()
+      calendar.current?.showBodyMetrics(focus.tab ?? undefined)
       if (scroll) calendar.current?.scrollBodyMetrics(scroll)
       return
     }
     if (focus.kind === "shoppingList") {
+      if (focus.weekStart && weekStart && focus.weekStart !== weekStart) {
+        closeVoicePanels("all")
+        pendingVoiceCommandRef.current = { targetWeek: focus.weekStart, command: { focus, close, scroll } }
+        showWeek(focus.weekStart)
+        return
+      }
       closeVoicePanels("all", "shoppingList")
       setTab("calendar")
-      shoppingList.current?.open()
+      shoppingList.current?.open({
+        day: focus.day,
+        wholeWeek: focus.wholeWeek,
+        people: focus.people,
+        checkItems: focus.checkItems,
+        uncheckItems: focus.uncheckItems,
+        clearChecked: focus.clearChecked,
+      })
       if (scroll) shoppingList.current?.scroll(scroll)
       return
     }
@@ -332,6 +400,10 @@ export function MealPlannerView() {
     setVoiceDish({ recipeId: focus.recipeId, title: focus.title, voice })
     setVoiceDishOpen(true)
   }
+
+  useEffect(() => {
+    showVoiceScreenRef.current = showVoiceScreen
+  })
 
   function askAssistant(prompt: string) {
     setAssistantOpen(true)
