@@ -8,6 +8,7 @@ import {
   ClockIcon,
   FlagIcon,
   FlagOffIcon,
+  GiftIcon,
   HeartIcon,
   HourglassIcon,
   LifeBuoyIcon,
@@ -36,6 +37,7 @@ import { profilePath } from "@/features/profiles/profiles-cache"
 import { workspacePath } from "@/features/workspaces/workspaces-cache"
 
 const ICONS = {
+  SUBSCRIPTION_GRANTED: GiftIcon,
   LIKE: HeartIcon,
   COMMENT: MessageCircleIcon,
   COMMENT_REPLY: MessageCircleIcon,
@@ -89,6 +91,7 @@ function noteText(notification: ApiNotification, note: string): string {
 }
 
 function hrefFor(notification: ApiNotification) {
+  if (notification.type === "SUBSCRIPTION_GRANTED") return "/billing"
   const { postId, ticketId, workspaceId, type, postType, actor } = notification
   if (workspaceId && (type === "WORKSPACE_APPROVED" || type === "WORKSPACE_REJECTED")) {
     return workspacePath(workspaceId)

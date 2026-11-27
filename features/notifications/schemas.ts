@@ -3,6 +3,7 @@ import { z } from "zod"
 export const notificationSchema = z.object({
   id: z.string(),
   type: z.enum([
+    "SUBSCRIPTION_GRANTED",
     "LIKE",
     "COMMENT",
     "COMMENT_REPLY",
