@@ -9,6 +9,7 @@ import {
   type UploadTask,
 } from "@/features/posts/lib/cloudinary-upload"
 import { discardMedia, requestVideoUpload } from "@/features/posts/lib/posts-api"
+import { videoDuration } from "@/features/post-drafts/video-file"
 import { ApiError } from "@/features/shared/lib/api-client"
 import {
   MAX_POST_MEDIA,
@@ -34,22 +35,6 @@ type Entry = MediaUpload & {
   task: UploadTask | null
   attempt: number
   cleanup: Promise<void> | null
-}
-
-function readDuration(file: File): Promise<number | null> {
-  return new Promise((resolve) => {
-    const video = document.createElement("video")
-    const url = URL.createObjectURL(file)
-    const done = (duration: number | null) => {
-      URL.revokeObjectURL(url)
-      resolve(duration)
-    }
-    video.preload = "metadata"
-    video.onloadedmetadata = () =>
-      done(Number.isFinite(video.duration) ? video.duration : null)
-    video.onerror = () => done(null)
-    video.src = url
-  })
 }
 
 export function useMediaUploads({
@@ -203,7 +188,7 @@ export function useMediaUploads({
       entries.current = [...entries.current, entry]
       sync()
 
-      const duration = await readDuration(file)
+      const duration = await videoDuration(file)
       if (!entries.current.includes(entry)) continue
       entry.durationSec = duration
       sync()

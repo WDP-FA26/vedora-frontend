@@ -66,6 +66,8 @@ export class PostDraftManager {
   private jobs = new Map<string, Promise<void>>()
   private tasks = new Map<string, UploadTask>()
   private files = new Map<string, File>()
+  private publishedPosts = new Map<string, ApiPost>()
+  private lastErrors = new Map<string, unknown>()
   private started = false
   constructor(readonly ownerId: string) {}
 
@@ -187,7 +189,7 @@ export class PostDraftManager {
   }
 
   ensure = async (id: string, kind: DraftKind) => {
-    if (!this.snapshot.loaded || this.find(id)) return
+    if (!this.snapshot.loaded || this.find(id) || this.publishedPosts.has(id)) return
     await this.store({
       key: localDraftKey(this.ownerId, id),
       id,
@@ -344,12 +346,13 @@ export class PostDraftManager {
     if (this.active) this.timer = setTimeout(() => this.kick(), 5000)
   }
 
-  private run(id: string): Promise<void> {
+  private run(id: string, waitForLock = false): Promise<void> {
     const existing = this.jobs.get(id)
     if (existing) return existing
     const job = (async () => {
       await this.writes
       if (!this.active || !this.token || this.snapshot.storageError) return
+      this.lastErrors.delete(id)
       const execute = async () => {
         if (this.active) await this.process(id)
       }
@@ -357,13 +360,14 @@ export class PostDraftManager {
         if (navigator.locks)
           await navigator.locks.request(
             `vedora-post-draft:${this.ownerId}:${id}`,
-            { ifAvailable: true },
+            waitForLock ? {} : { ifAvailable: true },
             async (lock) => {
               if (lock) await execute()
             }
           )
         else await execute()
       } catch (error) {
+        this.lastErrors.set(id, error)
         const draft = this.find(id)
         if (draft && this.active)
           await this.store({
@@ -580,13 +584,16 @@ export class PostDraftManager {
     if (!draft || draft.conflict) throw new Error("Draft is unavailable")
     await this.store({ ...draft, publishing: true, error: undefined })
     await this.jobs.get(id)
-    if (this.find(id)) await this.run(id)
-    const post = this.snapshot.published
-    if (!this.find(id) && post?.id === id) return post
+    if (this.find(id)) await this.run(id, true)
+    const post = this.publishedPosts.get(id)
+    if (post) return post
+    const lastError = this.lastErrors.get(id)
+    if (lastError instanceof ApiError) throw lastError
     throw new Error(this.find(id)?.error ?? "Chưa đăng được. Nháp vẫn được giữ.")
   }
 
   private async published(id: string, post: ApiPost) {
+    this.publishedPosts.set(id, post)
     await this.forget(id)
     this.emit({
       published: post,

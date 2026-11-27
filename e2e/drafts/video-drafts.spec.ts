@@ -296,6 +296,8 @@ test("a rejected publish releases the editor so the saved draft can be corrected
   api.rejectPublish(false)
   await submit.click()
   await expect.poll(() => api.published.size).toBe(1)
+  await expect(page.getByRole("dialog")).toHaveCount(0)
+  await expect(page.getByText("Không gửi được bài viết", { exact: false })).toHaveCount(0)
   expect([...api.published.values()][0].body).toBe("Nội dung đã sửa")
 })
 

@@ -106,9 +106,14 @@ function ShortPostComposer({
   useEffect(() => {
     if (durable.draft && restored.current !== durable.id) {
       restored.current = durable.id
-      if (draftId) form.reset({ body: durable.draft.body, mediaIds: [] })
+      if (draftId) {
+        form.reset({
+          body: durable.draft.body,
+          mediaIds: durable.uploads.flatMap((item) => (item.mediaId ? [item.mediaId] : [])),
+        })
+      }
     }
-  }, [durable.id, durable.draft, draftId, form])
+  }, [durable.id, durable.draft, durable.uploads, draftId, form])
 
   const words = countWords(body)
   const remaining = MAX_POST_WORDS - words
@@ -292,7 +297,7 @@ function ShortPostComposer({
           </section>
         )}
 
-        {uploadError && <FieldError className="mt-3">{uploadError}</FieldError>}
+        {uploadError && !errors.root && <FieldError className="mt-3">{uploadError}</FieldError>}
       </div>
 
       <div className="shrink-0 border-t border-border/70 bg-card px-5 pt-3 pb-[max(1rem,env(safe-area-inset-bottom))] sm:px-6 sm:pb-5">

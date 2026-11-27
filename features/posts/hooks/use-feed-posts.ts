@@ -63,12 +63,7 @@ export function useProcessingPost(id: string) {
     refreshInterval: (latest) =>
       !latest || latest.status === "PROCESSING" ? 3000 : 0,
     onSuccess: (post) => {
-      if (
-        post.status !== "PROCESSING" &&
-        post.status !== "PENDING_REVIEW" &&
-        post.status !== "REJECTED" &&
-        post.status !== "REMOVED"
-      ) {
+      if (post.status === "PUBLISHED") {
         void upsert(post)
       }
     },

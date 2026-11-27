@@ -2,10 +2,11 @@
 
 import { useEffect, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
+import { useSWRConfig } from "swr"
 import type { EditorState } from "lexical"
 
 import { useAuth } from "@/features/auth/hooks/use-auth"
-import { newBlogDraftPath } from "@/features/blogs/blogs-cache"
+import { MY_BLOG_DRAFTS_KEY, MY_BLOGS_KEY, newBlogDraftPath } from "@/features/blogs/blogs-cache"
 import { createBlog, updateBlog, type BlogInput } from "@/features/blogs/lib/blogs-api"
 import { isVideoUrl } from "@/features/blogs/editor/media-node"
 import { markdownOf } from "@/features/blogs/editor/markdown"
@@ -41,6 +42,7 @@ function failureMessage(error: unknown) {
 
 export function useBlogDraft(initial: ApiBlog | null) {
   const { accessToken } = useAuth()
+  const { mutate } = useSWRConfig()
   const router = useRouter()
   const [title, setTitleState] = useState(initial?.blog.title ?? "")
   const [status, setStatus] = useState<BlogStatus>(initial?.status ?? "DRAFT")
@@ -81,23 +83,23 @@ export function useBlogDraft(initial: ApiBlog | null) {
     touch()
   }
 
-  async function save(extra: BlogInput = {}): Promise<boolean> {
+  async function save(extra: BlogInput = {}): Promise<BlogStatus | null> {
     if (locked) {
       setSaveState("error")
       setError("Blog đang khóa chỉnh sửa vì đang kháng cáo hoặc đã bị gỡ.")
-      return false
+      return null
     }
     if (timer.current) clearTimeout(timer.current)
     const trimmed = titleRef.current.trim()
     if (!trimmed) {
       setSaveState("error")
       setError("Nhập tiêu đề trước khi lưu.")
-      return false
+      return null
     }
     if (!accessToken) {
       setSaveState("error")
       setError("Phiên đăng nhập đã hết hạn. Hãy đăng nhập lại.")
-      return false
+      return null
     }
     while (inflight.current) await inflight.current.catch(() => {})
 
@@ -105,7 +107,7 @@ export function useBlogDraft(initial: ApiBlog | null) {
     if (content.length > MAX_BLOG_CONTENT_LENGTH) {
       setSaveState("error")
       setError(`Bài viết quá dài (tối đa ${MAX_BLOG_CONTENT_LENGTH.toLocaleString("vi")} ký tự).`)
-      return false
+      return null
     }
 
     const savedRevision = revision.current
@@ -124,31 +126,33 @@ export function useBlogDraft(initial: ApiBlog | null) {
       }
       statusRef.current = blog.status
       setStatus(blog.status)
+      void mutate([MY_BLOGS_KEY, accessToken])
+      void mutate([MY_BLOG_DRAFTS_KEY, accessToken])
+      const unchanged = revision.current === savedRevision
       if (blog.status === "PROCESSING") {
-        setSaveState("saved")
-        setDirty(false)
+        setSaveState(unchanged ? "saved" : "idle")
+        if (unchanged) setDirty(false)
         setError("Đã lưu. Blog đang được kiểm duyệt, chỉ bạn thấy cho đến khi xong. Bạn sẽ nhận thông báo khi có kết quả.")
-        return true
+        return blog.status
       }
       if (blog.status === "PENDING_REVIEW") {
         setSaveState("error")
         setError("Bài viết đang chờ quản trị viên xem xét và sẽ được đăng nếu được duyệt.")
-        return false
+        return null
       }
       if (blog.status === "REJECTED") {
         setSaveState("error")
         setError("Bài viết vi phạm tiêu chuẩn cộng đồng nên chưa được đăng. Hãy chỉnh sửa rồi thử lại.")
-        return false
+        return null
       }
-      const unchanged = revision.current === savedRevision
       setSaveState(unchanged ? "saved" : "idle")
       if (unchanged) setDirty(false)
-      return true
+      return blog.status
     } catch (err) {
       if (err instanceof ApiError && err.status === 401) router.refresh()
       setSaveState("error")
       setError(failureMessage(err))
-      return false
+      return null
     } finally {
       inflight.current = null
     }

@@ -32,9 +32,9 @@ export function usePostDraft({
     callback.current = onChange
   })
   useEffect(() => {
-    if (manager && state.loaded && !draftId && !draft)
+    if (manager && state.loaded && !draftId)
       void manager.ensure(id, kind).catch(() => undefined)
-  }, [manager, state.loaded, id, kind, draftId, draft])
+  }, [manager, state.loaded, id, kind, draftId])
   const uploads: MediaUpload[] = (draft?.files ?? []).map((file) => {
     const complete =
       file.state === "ready" || (file.state === "uploaded" && file.media?.status === "PROCESSING")

@@ -69,7 +69,12 @@ export function BlogEditor({ initial }: { initial: ApiBlog | null }) {
   }
 
   async function publish() {
-    if (await draft.publish()) toast.add({ title: "Đã đăng blog", description: draft.title.trim() })
+    const nextStatus = await draft.publish()
+    if (!nextStatus) return
+    toast.add({
+      title: nextStatus === "PROCESSING" ? "Đã gửi blog để kiểm duyệt" : "Đã đăng blog",
+      description: draft.title.trim(),
+    })
   }
 
   if (!mounted) return <div className="min-h-dvh" aria-busy />

@@ -66,13 +66,14 @@ export function ComposeDialog({
 
   function requestLeave(next: ComposeMode | null) {
     if (submittingRef.current) return
-    if (mode === "video" || draft.mediaCount > 0) {
+    const hasContent = draft.hasText || draft.mediaCount > 0
+    if (draft.mediaCount > 0 || (mode === "video" && hasContent)) {
       if (next) setMode(next)
       else close()
       setNotice("Đã giữ bản nháp. Video tiếp tục tải; bạn có thể mở Bản nháp để xem và đăng sau.")
       return
     }
-    if (draft.hasText || draft.mediaCount > 0) {
+    if (hasContent) {
       setDiscardTo(next)
       setConfirmDiscard(true)
       return

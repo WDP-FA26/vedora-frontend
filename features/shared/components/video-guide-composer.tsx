@@ -127,7 +127,6 @@ export function VideoGuideComposer({
   const upsertFeedPost = useUpsertFeedPost()
   const inputRef = useRef<HTMLInputElement>(null)
   const draftTextRef = useRef({ title: "", description: "" })
-  const sawReplacementRef = useRef(false)
   const [mediaIds, setMediaIds] = useState<string[]>([])
   const [fieldErrors, setFieldErrors] = useState<{ title?: string; description?: string; video?: string }>({})
   const [submitError, setSubmitError] = useState<string | null>(null)
@@ -136,7 +135,6 @@ export function VideoGuideComposer({
   const [templateOpen, setTemplateOpen] = useState(false)
   const [pendingTemplate, setPendingTemplate] = useState<GuideTemplate | null>(null)
   const [undoDescription, setUndoDescription] = useState<string | null>(null)
-  const [replaceOriginalKey, setReplaceOriginalKey] = useState<string | null>(null)
 
   const durable = usePostDraft({
     kind: "VIDEO", draftId,
@@ -159,21 +157,7 @@ export function VideoGuideComposer({
   const currentWords = countWords(currentBody)
   const remaining = MAX_POST_WORDS - currentWords
   const readyUpload = uploads.length === 1 && uploads[0].status === "ready"
-  const canSubmit = !isSubmitting && !replaceOriginalKey && !uploads.some((upload) => upload.status === "uploading")
-
-  useEffect(() => {
-    if (!replaceOriginalKey) return
-    const replacement = uploads.find((upload) => upload.key !== replaceOriginalKey)
-    if (replacement) sawReplacementRef.current = true
-    const originalStillPresent = uploads.some((upload) => upload.key === replaceOriginalKey)
-    if (replacement?.status !== "ready" && originalStillPresent && !(sawReplacementRef.current && !replacement)) return
-    const timer = window.setTimeout(() => {
-      if (replacement?.status === "ready") remove(replaceOriginalKey)
-      setReplaceOriginalKey(null)
-      sawReplacementRef.current = false
-    }, 0)
-    return () => window.clearTimeout(timer)
-  }, [replaceOriginalKey, uploads, remove])
+  const canSubmit = !isSubmitting && !uploads.some((upload) => upload.status === "uploading")
 
   function updateText(nextTitle: string, nextDescription: string) {
     draftTextRef.current = { title: nextTitle, description: nextDescription }
@@ -214,18 +198,7 @@ export function VideoGuideComposer({
     }
     setSubmitError(null)
     setFieldErrors((previous) => ({ ...previous, video: undefined }))
-    if (uploads.length === 1) {
-      sawReplacementRef.current = false
-      setReplaceOriginalKey(uploads[0].key)
-    }
     void add([file])
-  }
-
-  function discardUpload(key: string) {
-    sawReplacementRef.current = false
-    if (key === replaceOriginalKey) setReplaceOriginalKey(null)
-    else if (replaceOriginalKey) setReplaceOriginalKey(null)
-    remove(key)
   }
 
   function validate() {
@@ -412,18 +385,17 @@ export function VideoGuideComposer({
                         <div className="min-w-0"><p className="max-w-64 truncate text-sm font-semibold" title={upload.fileName}>{upload.fileName}</p><p className="text-xs text-muted-foreground">{durationLabel(upload.durationSec) ?? "Chưa đọc được thời lượng"} · {upload.status === "ready" ? "Đã tải lên" : upload.status === "failed" ? "Tải lên thất bại" : "Đang tải lên"}</p></div>
                         <div className="flex items-center gap-1">
                           {upload.status === "failed" && <Button type="button" variant="outline" size="sm" shape="pill" onClick={() => void retry(upload.key)}>Thử lại</Button>}
-                          <Button type="button" variant="ghost" size="icon" shape="pill" aria-label={`Xóa ${upload.fileName}`} onClick={() => discardUpload(upload.key)} disabled={isSubmitting}><XIcon aria-hidden className="size-4" /></Button>
+                          <Button type="button" variant="ghost" size="icon" shape="pill" aria-label={`Xóa ${upload.fileName}`} onClick={() => remove(upload.key)} disabled={isSubmitting}><XIcon aria-hidden className="size-4" /></Button>
                         </div>
                       </div>
                       {upload.status === "uploading" && <div className="px-3 pb-3"><Progress value={Math.round(upload.progress)} aria-label={`Tiến trình tải ${upload.fileName}`}><span className="text-xs tabular-nums">Đang tải lên {Math.round(upload.progress)}%</span></Progress></div>}
                       {upload.status === "failed" && <p className="px-3 pb-3 text-xs text-destructive">{upload.error ?? "Tải video lên thất bại. Bạn có thể thử lại."}</p>}
                     </div>
                   ))}
-                  <Button type="button" variant="outline" size="sm" shape="pill" onClick={selectVideo} disabled={isSubmitting || uploads.length > 1}>{replaceOriginalKey ? "Chọn video khác" : "Thay video"}</Button>
-                  {replaceOriginalKey && <p className="text-xs text-muted-foreground">Đang lưu video thay thế vào bản nháp trên thiết bị.</p>}
+                  <Button type="button" variant="outline" size="sm" shape="pill" onClick={selectVideo} disabled={isSubmitting || uploads.length > 1}>Thay video</Button>
                 </div>
               )}
-              {(fieldErrors.video || uploadError) && <FieldError>{fieldErrors.video ?? uploadError}</FieldError>}
+              {(fieldErrors.video || (uploadError && !submitError)) && <FieldError>{fieldErrors.video ?? uploadError}</FieldError>}
             </section>
 
             <details className="group rounded-2xl border border-border/80 bg-background/60 px-4 py-3">
