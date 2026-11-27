@@ -63,6 +63,8 @@ export type ShoppingListOpenOptions = {
   checkItems?: string[] | null
   uncheckItems?: string[] | null
   clearChecked?: boolean
+  expandItems?: string[] | null
+  collapseItems?: string[] | null
 }
 
 export type ShoppingListHandle = {
@@ -100,17 +102,55 @@ export function ShoppingListSheet({
     weekStart,
     keys: loadCheckedKeys(weekStart),
   }))
+  const [expandedByWeek, setExpandedByWeek] = useState<{ weekStart: string; keys: string[] }>({
+    weekStart,
+    keys: [],
+  })
   const [openRecipeId, setOpenRecipeId] = useState<string | null>(null)
   const pendingCheckOpRef = useRef<{
     checkItems?: string[]
     uncheckItems?: string[]
   } | null>(null)
+  const pendingExpandOpRef = useRef<{
+    expandItems?: string[]
+    collapseItems?: string[]
+  } | null>(null)
+  const rowRefs = useRef<Map<string, HTMLLIElement>>(new Map())
   const scrollRef = useRef<HTMLDivElement>(null)
   const router = useRouter()
 
   const checkedKeys =
     checkedByWeek.weekStart === weekStart ? checkedByWeek.keys : loadCheckedKeys(weekStart)
   const checkedSet = new Set(checkedKeys)
+  const expandedKeys = expandedByWeek.weekStart === weekStart ? expandedByWeek.keys : []
+  const expandedSet = new Set(expandedKeys)
+
+  function applyExpandMutation(
+    currentKeys: readonly string[],
+    targetItems: readonly ShoppingItem[],
+    expandItems?: readonly string[],
+    collapseItems?: readonly string[]
+  ) {
+    const next = new Set(currentKeys)
+    let firstExpandedKey: string | null = null
+    for (const item of targetItems) {
+      const key = `${item.ingredientId}:${item.unit ?? ""}`
+      if (expandItems && expandItems.length > 0 && matchesAnyQuery(item.name, expandItems)) {
+        next.add(key)
+        if (firstExpandedKey === null) firstExpandedKey = key
+      }
+      if (collapseItems && collapseItems.length > 0 && matchesAnyQuery(item.name, collapseItems)) {
+        next.delete(key)
+      }
+    }
+    setExpandedByWeek({ weekStart, keys: [...next] })
+    if (firstExpandedKey) {
+      const targetKey = firstExpandedKey
+      requestAnimationFrame(() => {
+        rowRefs.current.get(targetKey)?.scrollIntoView({ behavior: "smooth", block: "nearest" })
+      })
+    }
+  }
 
   function applyCheckMutation(
     currentKeys: readonly string[],
@@ -147,11 +187,18 @@ export function ShoppingListSheet({
   const shouldFetch = open && !allSelectedPast && !nothingPlanned
   const list = useAuthedSWR(shouldFetch ? shoppingListKey(weekStart, days) : null, fetchShoppingList, {
     onSuccess: (data) => {
-      const pending = pendingCheckOpRef.current
-      if (!pending || data.items.length === 0) return
-      pendingCheckOpRef.current = null
-      const current = loadCheckedKeys(weekStart)
-      applyCheckMutation(current, data.items, pending.checkItems, pending.uncheckItems)
+      if (data.items.length === 0) return
+      const pendingCheck = pendingCheckOpRef.current
+      if (pendingCheck) {
+        pendingCheckOpRef.current = null
+        const current = loadCheckedKeys(weekStart)
+        applyCheckMutation(current, data.items, pendingCheck.checkItems, pendingCheck.uncheckItems)
+      }
+      const pendingExpand = pendingExpandOpRef.current
+      if (pendingExpand) {
+        pendingExpandOpRef.current = null
+        applyExpandMutation(expandedKeys, data.items, pendingExpand.expandItems, pendingExpand.collapseItems)
+      }
     },
     onError: (error) => {
       if (error instanceof ApiError && error.status === 401) router.refresh()
@@ -200,6 +247,23 @@ export function ShoppingListSheet({
           }
         }
       }
+      const hasExpand = Boolean(options?.expandItems && options.expandItems.length > 0)
+      const hasCollapse = Boolean(options?.collapseItems && options.collapseItems.length > 0)
+      if (hasExpand || hasCollapse) {
+        if (items.length > 0) {
+          applyExpandMutation(
+            expandedKeys,
+            items,
+            options?.expandItems ?? undefined,
+            options?.collapseItems ?? undefined
+          )
+        } else {
+          pendingExpandOpRef.current = {
+            expandItems: options?.expandItems ?? undefined,
+            collapseItems: options?.collapseItems ?? undefined,
+          }
+        }
+      }
       setOpen(true)
     },
     close() {
@@ -225,6 +289,13 @@ export function ShoppingListSheet({
       : [...checkedKeys, itemKey]
     setCheckedByWeek({ weekStart, keys: next })
     saveCheckedKeys(weekStart, next)
+  }
+
+  function toggleExpanded(itemKey: string) {
+    const next = expandedSet.has(itemKey)
+      ? expandedKeys.filter((key) => key !== itemKey)
+      : [...expandedKeys, itemKey]
+    setExpandedByWeek({ weekStart, keys: next })
   }
 
   function clearChecked() {
@@ -428,8 +499,14 @@ export function ShoppingListSheet({
                       item={item}
                       people={people}
                       checked={checkedSet.has(itemKey)}
+                      expanded={expandedSet.has(itemKey)}
                       onToggleChecked={() => toggleChecked(itemKey)}
+                      onToggleExpanded={() => toggleExpanded(itemKey)}
                       onOpenRecipe={handleOpenRecipe}
+                      itemRef={(element) => {
+                        if (element) rowRefs.current.set(itemKey, element)
+                        else rowRefs.current.delete(itemKey)
+                      }}
                     />
                   )
                 })}

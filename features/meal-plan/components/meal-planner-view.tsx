@@ -317,6 +317,8 @@ export function MealPlannerView() {
         checkItems: focus.checkItems,
         uncheckItems: focus.uncheckItems,
         clearChecked: focus.clearChecked,
+        expandItems: focus.expandItems,
+        collapseItems: focus.collapseItems,
       })
       if (scroll) shoppingList.current?.scroll(scroll)
       return

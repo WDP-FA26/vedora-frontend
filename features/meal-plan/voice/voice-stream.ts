@@ -61,6 +61,8 @@ export type VoiceFocus =
       checkItems?: string[] | null
       uncheckItems?: string[] | null
       clearChecked?: boolean
+      expandItems?: string[] | null
+      collapseItems?: string[] | null
     }
   | { kind: "planDay"; weekStart: string; day: Weekday | null }
 
@@ -105,6 +107,8 @@ const voiceFocusSchema = z.discriminatedUnion("kind", [
     checkItems: z.array(z.string()).nullable().optional(),
     uncheckItems: z.array(z.string()).nullable().optional(),
     clearChecked: z.boolean().optional(),
+    expandItems: z.array(z.string()).nullable().optional(),
+    collapseItems: z.array(z.string()).nullable().optional(),
   }),
   z.object({ kind: z.literal("planDay"), weekStart: z.string(), day: z.enum(WEEKDAYS).nullable() }),
 ])

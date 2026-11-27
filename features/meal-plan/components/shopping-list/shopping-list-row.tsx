@@ -17,17 +17,23 @@ export function ShoppingListRow({
   item,
   people,
   checked,
+  expanded,
   onToggleChecked,
+  onToggleExpanded,
   onOpenRecipe,
+  itemRef,
 }: {
   item: ShoppingItem
   people: PeopleCount
   checked: boolean
+  expanded: boolean
   onToggleChecked: () => void
+  onToggleExpanded: () => void
   onOpenRecipe: (id: string, title: string) => void
+  itemRef?: (element: HTMLLIElement | null) => void
 }) {
   return (
-    <li>
+    <li ref={itemRef}>
       <div className="flex items-start gap-2.5 px-3 py-2.5">
         <Checkbox
           checked={checked}
@@ -35,8 +41,14 @@ export function ShoppingListRow({
           aria-label={`Đánh dấu đã mua ${item.name}`}
           className="mt-0.5 shrink-0"
         />
-        <details className="group min-w-0 flex-1">
-          <summary className="flex cursor-pointer list-none items-center justify-between gap-3 text-sm focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/30 [&::-webkit-details-marker]:hidden">
+        <details open={expanded} className="group min-w-0 flex-1">
+          <summary
+            onClick={(event) => {
+              event.preventDefault()
+              onToggleExpanded()
+            }}
+            className="flex cursor-pointer list-none items-center justify-between gap-3 text-sm focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/30 [&::-webkit-details-marker]:hidden"
+          >
             <span className={cn("min-w-0", checked && "line-through opacity-55")}>
               <span className="block font-medium">{item.name}</span>
               <span className="block text-muted-foreground">{itemAmount(item, people)}</span>

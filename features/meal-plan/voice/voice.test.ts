@@ -197,6 +197,39 @@ describe("streamVoiceTurn", () => {
     await expect(turn).rejects.toBeInstanceOf(ApiError)
     await expect(turn).rejects.toMatchObject({ status: 429, code: "AI_QUOTA_EXCEEDED" })
   })
+
+  it("parses shoppingList expandItems and collapseItems in data-screen", async () => {
+    vi.stubGlobal("fetch", async () =>
+      sse([
+        { type: "start", messageId: "msg_1" },
+        {
+          type: "data-screen",
+          data: {
+            focus: {
+              kind: "shoppingList",
+              expandItems: ["đậu phụ"],
+              collapseItems: ["cà chua"],
+            },
+            close: null,
+          },
+          transient: true,
+        },
+        { type: "finish" },
+      ])
+    )
+    const events = await collect(streamVoiceTurn("token_1", request, new AbortController().signal))
+    expect(events).toContainEqual({
+      type: "screen",
+      screen: {
+        focus: {
+          kind: "shoppingList",
+          expandItems: ["đậu phụ"],
+          collapseItems: ["cà chua"],
+        },
+        close: null,
+      },
+    })
+  })
 })
 
 describe("runVoiceTurn", () => {
