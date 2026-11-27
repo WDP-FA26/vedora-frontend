@@ -10,8 +10,9 @@ BE tiếp tục kiểm tra role thật khi đọc/lưu.
 - Quota 0 không cấp lượt; không có quy ước -1 để mở không giới hạn.
 - Giá/quota Plus/Pro mới chỉ áp dụng đơn mới. QR đang chờ, đơn đã thanh toán và
   gói đang dùng giữ hợp đồng đã lưu; Free cập nhật ngay mà không reset usage.
-- Voice chạy planner dùng quota chữ hiện tại; trang không quản lý guest hoặc
-  thời lượng phiên gọi.
+- Thoại AI hai chiều chỉ dành cho Pro còn hạn, gồm cả Pro đã mua trước đó.
+  Không có hạn mức phút và không trừ lượt AI chữ. Bảng gói hiện rõ đặc quyền
+  này; trang không quản lý guest hoặc thời lượng kỹ thuật mỗi phiên gọi.
 
 ## Hợp đồng API và cache
 
