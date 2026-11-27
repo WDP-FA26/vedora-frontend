@@ -1,14 +1,25 @@
 import { ApiError } from "@/features/shared/lib/api-client"
+import { APP_TIME_ZONE } from "@/features/shared/lib/date-time"
+
+const formalDate = new Intl.DateTimeFormat("en-GB", {
+  timeZone: APP_TIME_ZONE,
+  hourCycle: "h23",
+  hour: "2-digit",
+  minute: "2-digit",
+  day: "2-digit",
+  month: "2-digit",
+  year: "numeric",
+})
 
 export function formatFormalTimestamp(iso: string): string {
   const date = new Date(iso)
   if (Number.isNaN(date.getTime())) return iso
-  const pad = (value: number) => String(value).padStart(2, "0")
-  const hours = pad(date.getHours())
-  const minutes = pad(date.getMinutes())
-  const day = pad(date.getDate())
-  const month = pad(date.getMonth() + 1)
-  const year = date.getFullYear()
+  const parts = formalDate.formatToParts(date)
+  const hours = parts.find(({ type }) => type === "hour")!.value
+  const minutes = parts.find(({ type }) => type === "minute")!.value
+  const day = parts.find(({ type }) => type === "day")!.value
+  const month = parts.find(({ type }) => type === "month")!.value
+  const year = parts.find(({ type }) => type === "year")!.value
   return `${hours}:${minutes} ${day}/${month}/${year}`
 }
 

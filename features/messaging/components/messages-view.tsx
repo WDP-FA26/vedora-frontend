@@ -1,5 +1,7 @@
 "use client"
 
+import { APP_TIME_ZONE } from "@/features/shared/lib/date-time"
+
 import { useEffect, useLayoutEffect, useRef, useState } from "react"
 import Link from "next/link"
 import { useRouter, useSearchParams } from "next/navigation"
@@ -400,6 +402,7 @@ function Thread({
               </p>}
               <span className="mt-1 text-[0.65rem] text-muted-foreground">
                 {new Date(message.createdAt).toLocaleTimeString("vi-VN", {
+                  timeZone: APP_TIME_ZONE,
                   hour: "2-digit",
                   minute: "2-digit",
                 })}
