@@ -17,8 +17,8 @@ import { formatPostDateLong } from "@/features/shared/lib/format"
 export const QueueActionsContext = createContext<{
   open: (postId: string) => void
   decide: (postId: string, decision: "APPROVE" | "REJECT") => void
-  closeReport: (reportId: string, status: "RESOLVED" | "DISMISSED") => void
-}>({ open: () => {}, decide: () => {}, closeReport: () => {} })
+  dismissReport: (reportId: string) => void
+}>({ open: () => {}, decide: () => {}, dismissReport: () => {} })
 
 function RiskCell({ row }: { row: QueueRow }) {
   const labelOf = useCategoryLabel()
@@ -44,7 +44,7 @@ function ReasonCell({ row }: { row: QueueRow }) {
 }
 
 function Actions({ row }: { row: QueueRow }) {
-  const { open, decide, closeReport } = use(QueueActionsContext)
+  const { open, decide, dismissReport } = use(QueueActionsContext)
   return (
     <div className="flex items-center justify-end gap-1">
       {row.kind === "held" && (
@@ -60,22 +60,13 @@ function Actions({ row }: { row: QueueRow }) {
         </Button>
       )}
       {row.kind === "report" && row.report && row.pendingReportCount === 1 && (
-        <>
-          <Button
-            variant="action"
-            size="sm"
-            onClick={() => closeReport(row.report!.id, "DISMISSED")}
-          >
-            Bỏ qua
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => closeReport(row.report!.id, "RESOLVED")}
-          >
-            Đã xử lý
-          </Button>
-        </>
+        <Button
+          variant="action"
+          size="sm"
+          onClick={() => dismissReport(row.report!.id)}
+        >
+          Bỏ qua
+        </Button>
       )}
       <Button variant="action" size="sm" onClick={() => open(row.postId)}>
         Xem

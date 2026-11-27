@@ -52,7 +52,7 @@ export function ModerationTable() {
   const posts = useAdminPosts()
   const reports = useAdminReports()
   const moderate = useModerateAdminPost()
-  const closeReport = useReviewReport()
+  const reviewReport = useReviewReport()
   const [openPostId, setOpenPostId] = useState<string | null>(() => params.get("postId"))
 
   const error = posts.error ?? reports.error
@@ -83,7 +83,7 @@ export function ModerationTable() {
   const actions = {
     open: setOpenPostId,
     decide: (postId: string, decision: "APPROVE" | "REJECT") => void moderate(postId, decision, ""),
-    closeReport: (id: string, status: "RESOLVED" | "DISMISSED") => void closeReport(id, status),
+    dismissReport: (id: string) => void reviewReport(id, "DISMISSED"),
   }
 
   return (

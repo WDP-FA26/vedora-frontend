@@ -30,12 +30,12 @@ export function PostReportHistory({ postId, postStatus }: { postId: string; post
   const total = reports[0]?.reportCount ?? reports.length
   const pending =
     reports[0]?.pendingReportCount ?? reports.filter((row) => row.status === "PENDING").length
-  async function decide(id: string, status: "RESOLVED" | "DISMISSED") {
+  async function dismiss(id: string) {
     if (!accessToken || busy) return
     setBusy(id)
     setActionError(null)
     try {
-      await reviewReport(accessToken, id, status)
+      await reviewReport(accessToken, id, "DISMISSED")
     } catch (error) {
       setActionError(
         error instanceof ApiError && error.status === 409
@@ -123,17 +123,9 @@ export function PostReportHistory({ postId, postStatus }: { postId: string; post
                     variant="action"
                     size="sm"
                     disabled={Boolean(busy)}
-                    onClick={() => void decide(report.id, "DISMISSED")}
+                    onClick={() => void dismiss(report.id)}
                   >
                     Bỏ qua báo cáo
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    disabled={Boolean(busy)}
-                    onClick={() => void decide(report.id, "RESOLVED")}
-                  >
-                    Đánh dấu đã xử lý
                   </Button>
                 </div>
               )}
