@@ -29,7 +29,6 @@ import {
 } from "@/features/meal-plan/api/meal-log.api"
 import {
   fetchMealPlan,
-  generateMealDays,
   isMealPlanKey,
   mealPlanKey,
   saveMealDays,
@@ -39,7 +38,6 @@ import { RecipeSheet, type OpenedDish, type RecipeSheetHandle } from "@/features
 import { PlannerChat, type PlannerChatHandle } from "@/features/meal-plan/components/chat/planner-chat"
 import { MealLogSheet, type MealLogHandle } from "@/features/meal-plan/components/meal-log/meal-log-sheet"
 import { MealPlannerOnboardingGate } from "@/features/meal-plan/components/onboarding-gate"
-import { QuickGenerate } from "@/features/meal-plan/components/quick-generate-dialog"
 import { ShoppingListSheet, type ShoppingListHandle } from "@/features/meal-plan/components/shopping-list/shopping-list-sheet"
 import { VoicePanel } from "@/features/meal-plan/components/voice/voice-panel"
 import { VoiceScreenGlow } from "@/features/meal-plan/components/voice/voice-screen-glow"
@@ -56,7 +54,6 @@ import { problemText } from "@/features/meal-plan/lib/problems"
 import { readScrollState, scrollContainer } from "@/features/meal-plan/lib/scroll"
 import {
   problemSchema,
-  type GenerateInput,
   type MealPlan,
   type MealSection,
   type SlotChange,
@@ -387,74 +384,6 @@ export function MealPlannerView() {
       if (error instanceof ApiError && error.status === 401) router.refresh()
       if (error instanceof ApiError && error.code === "MEAL_DAY_LOCKED") void plan.mutate()
       throw new Error(calendarErrorMessage(error))
-    }
-  }
-
-  async function handleQuickGenerate(request: GenerateInput): Promise<string | null> {
-    const current = plan.data
-    if (!accessToken || !current) return "Thực đơn chưa sẵn sàng."
-    try {
-      const generated = await generateMealDays(accessToken, {
-        ...request,
-        weekStart: current.weekStart,
-      })
-      if (generated.days.length === 0) {
-        return "Không tìm được món phù hợp cho các ô bạn chọn."
-      }
-      const previousChanges: SlotChange[] = []
-      const changes: SlotChange[] = []
-      for (const dayItem of generated.days) {
-        const existingDay = current.days.find((item) => item.day === dayItem.day)
-        for (const sec of dayItem.sections) {
-          const prevRecipes =
-            existingDay?.sections.find((item) => item.section === sec.section)?.recipes ?? []
-          previousChanges.push({
-            day: dayItem.day,
-            section: sec.section,
-            recipeIds: prevRecipes.map((recipe) => recipe.id),
-          })
-          changes.push({
-            day: dayItem.day,
-            section: sec.section,
-            recipeIds: sec.recipes.map((recipe) => recipe.id),
-          })
-        }
-      }
-      const snapshotWeekStart = current.weekStart
-      const snapshotPlan = current
-      await plan.mutate(
-        saveMealDays(accessToken, snapshotWeekStart, inputsForChanges(current, changes)),
-        {
-          populateCache: true,
-          revalidate: false,
-        }
-      )
-      void swrMutate(isMealPlanKey)
-      toast.add({
-        title: `Đã lên món nhanh cho ${generated.days.length} ngày`,
-        actionProps: {
-          children: "Hoàn tác",
-          onClick: () => {
-            void plan
-              .mutate(
-                saveMealDays(
-                  accessToken,
-                  snapshotWeekStart,
-                  inputsForChanges(snapshotPlan, previousChanges)
-                ),
-                { populateCache: true, revalidate: false }
-              )
-              .then(() => {
-                void swrMutate(isMealPlanKey)
-                toast.add({ title: "Đã hoàn tác thực đơn trước đó" })
-              })
-          },
-        },
-      })
-      return null
-    } catch (caught) {
-      if (caught instanceof ApiError && caught.status === 401) router.refresh()
-      return calendarErrorMessage(caught)
     }
   }
 
@@ -809,13 +738,6 @@ export function MealPlannerView() {
                       onNext={() => plan.data && showWeek(shiftWeek(plan.data.weekStart, 1))}
                       onToday={() => plan.data && showWeek(plan.data.currentWeekStart)}
                     />
-                    {plan.data && (
-                      <QuickGenerate
-                        plan={plan.data}
-                        disabled={chat.busy}
-                        onGenerate={handleQuickGenerate}
-                      />
-                    )}
                     {plan.data && (
                       <ShoppingListSheet
                         weekStart={plan.data.weekStart}

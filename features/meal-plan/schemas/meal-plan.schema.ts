@@ -10,7 +10,6 @@ export type Weekday = (typeof WEEKDAYS)[number]
 export type MealSection = (typeof MEAL_SECTIONS)[number]
 
 export const MAX_DISHES_PER_SECTION = 5
-export const MAX_GENERATE_QUERY_LENGTH = 100
 
 export const daySchema = z.enum(WEEKDAYS)
 export const sectionSchema = z.enum(MEAL_SECTIONS)
@@ -108,10 +107,6 @@ export const planChangeSchema = z.object({
   problems: z.array(problemSchema).default([]),
 })
 
-export const generatedSchema = proposalSchema
-  .omit({ ok: true })
-  .extend({ problems: z.array(problemSchema) })
-
 export const recipeSearchSchema = z.object({
   items: z.array(
     z.object({
@@ -141,14 +136,3 @@ export type MealDayInput = {
 
 export type SlotRef = { day: Weekday; section: MealSection }
 export type SlotChange = SlotRef & { recipeIds: string[] }
-
-export type GenerateRequest = {
-  weekStart: string
-  days: Weekday[]
-  sections: MealSection[]
-  onlyEmpty: boolean
-  maxMinutes?: number
-  query?: string
-}
-
-export type GenerateInput = Omit<GenerateRequest, "weekStart">

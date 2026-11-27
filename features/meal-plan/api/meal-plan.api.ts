@@ -1,9 +1,7 @@
 import { API_URL } from "@/features/auth/lib/api"
 import {
-  generatedSchema,
   mealPlanSchema,
   recipeSearchSchema,
-  type GenerateRequest,
   type MealDayInput,
 } from "@/features/meal-plan/schemas/meal-plan.schema"
 import { sendJson } from "@/features/shared/lib/api-client"
@@ -33,14 +31,6 @@ export function searchRecipeOptions(token: string, query: string) {
   const text = query.trim()
   if (text) params.set("q", text)
   return sendJson(recipeSearchSchema, `${API_URL}/recipes?${params.toString()}`, token)
-}
-
-export async function generateMealDays(token: string, request: GenerateRequest) {
-  const preview = await sendJson(generatedSchema, `${MEAL_PLAN_URL}/generate`, token, {
-    method: "POST",
-    body: JSON.stringify(request),
-  })
-  return { days: preview.days, ok: preview.problems.length === 0 }
 }
 
 export function saveMealDays(token: string, weekStart: string, days: MealDayInput[]) {
