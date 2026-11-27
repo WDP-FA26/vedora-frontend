@@ -12,6 +12,7 @@ export const RESOURCE_LABELS = {
   INCOMPATIBILITY_RULE: "Quy tắc kết hợp",
   KNOWLEDGE: "Tài liệu kiến thức",
   MODERATION_SETTINGS: "Chính sách kiểm duyệt",
+  SUBSCRIPTION_PLANS: "Gói đăng ký",
   SUPPORT_TICKET: "Hồ sơ hỗ trợ",
   VERIFICATION: "Xác minh chuyên gia",
   WORKSPACE: "Trang nhà hàng",
