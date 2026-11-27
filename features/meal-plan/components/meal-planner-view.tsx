@@ -35,6 +35,7 @@ import { CalendarBoard, type CalendarBoardHandle } from "@/features/meal-plan/co
 import { MealLogButton, type MealLogHandle } from "@/features/meal-plan/components/meal-log-button"
 import { PlannerChat, type PlannerChatHandle } from "@/features/meal-plan/components/planner-chat"
 import { RecipeSheet, type OpenedDish, type RecipeSheetHandle } from "@/features/meal-plan/components/recipe-sheet"
+import { ShoppingListButton } from "@/features/meal-plan/components/shopping-list-button"
 import { VoicePanel } from "@/features/meal-plan/components/voice-panel"
 import { VoiceScreenGlow } from "@/features/meal-plan/components/voice-screen-glow"
 import { WeekNav } from "@/features/meal-plan/components/week-nav"
@@ -50,6 +51,7 @@ import {
   saveMealDays,
   SECTION_LABELS,
   shiftWeek,
+  type MealPlan,
   type MealSection,
   type SlotChange,
   type SlotRef,
@@ -557,6 +559,9 @@ export function MealPlannerView() {
                       onToday={() => plan.data && showWeek(plan.data.currentWeekStart)}
                     />
                     {plan.data && (
+                      <ShoppingListButton weekStart={plan.data.weekStart} plannedDays={plannedDays(plan.data)} />
+                    )}
+                    {plan.data && (
                       <MealLogButton plan={plan.data} onAskAssistant={askAssistant} handle={mealLog} />
                     )}
                     {!assistantOpen && voicePillButton("hidden lg:inline-flex")}
@@ -593,6 +598,15 @@ export function MealPlannerView() {
       {voiceOpen && <VoiceScreenGlow active={lastVoiceFocusAt !== null} />}
     </section>
   )
+}
+
+/** Days of the saved week with at least one dish; the shopping list skips the others. */
+function plannedDays(plan: MealPlan): Weekday[] {
+  const days: Weekday[] = []
+  for (const { day, sections } of plan.days) {
+    if (sections.some(({ recipes }) => recipes.length > 0)) days.push(day)
+  }
+  return days
 }
 
 function MealPlannerOnboardingGate({
