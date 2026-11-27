@@ -18,6 +18,9 @@ const publicEnvSchema = z.object({
   NEXT_PUBLIC_TURNSTILE_SITE_KEY: z.string().min(1).optional(),
   // Mapbox public token (pk.*). Without it maps are hidden and addresses are typed by hand.
   NEXT_PUBLIC_MAPBOX_TOKEN: z.string().startsWith("pk.").optional(),
+  // Seconds before a meal planner voice call hangs up on its own, so a forgotten tab
+  // does not keep a paid session open. Capped at an hour.
+  NEXT_PUBLIC_VOICE_MAX_SECONDS: z.coerce.number().int().min(60).max(3600).default(900),
 })
 
 const isProduction = process.env.NODE_ENV === "production"
@@ -41,6 +44,7 @@ function readPublicEnv() {
     // An empty value in .env.local means "not configured", not an empty key.
     NEXT_PUBLIC_TURNSTILE_SITE_KEY: process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY || undefined,
     NEXT_PUBLIC_MAPBOX_TOKEN: process.env.NEXT_PUBLIC_MAPBOX_TOKEN || undefined,
+    NEXT_PUBLIC_VOICE_MAX_SECONDS: process.env.NEXT_PUBLIC_VOICE_MAX_SECONDS || undefined,
   })
 
   if (!parsed.success) {
@@ -78,4 +82,5 @@ export const PUBLIC_ENV = {
   turnstileSiteKey: data.NEXT_PUBLIC_TURNSTILE_SITE_KEY ?? TURNSTILE_TEST_SITE_KEY,
   /** `null` when maps are not configured. */
   mapboxToken: data.NEXT_PUBLIC_MAPBOX_TOKEN ?? null,
+  voiceMaxSeconds: data.NEXT_PUBLIC_VOICE_MAX_SECONDS,
 }

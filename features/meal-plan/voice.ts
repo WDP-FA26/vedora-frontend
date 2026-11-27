@@ -12,6 +12,7 @@ import {
   type PlannerStateEvent,
 } from "@/features/meal-plan/planner-state-protocol"
 import { send } from "@/features/shared/lib/api-client"
+import { PUBLIC_ENV } from "@/lib/env"
 
 // Mirrors vedora-api's `/meal-plan/voice/*` routes: the meal planner voice agent.
 // Contract: vedora-api/docs/docs-for-FE/meal-plan-voice.md
@@ -52,8 +53,11 @@ export function voiceErrorText(message: string) {
 /** Must match the API's VOICE_REALTIME_MODEL: the token and its URL are bound to it. */
 export const VOICE_MODEL_ID = "openai/gpt-live-1.1"
 
-/** The call ends on its own after this long, so a forgotten tab does not keep a paid session open. */
-export const VOICE_MAX_SECONDS = 5 * 60
+/**
+ * The call ends on its own after this long, so a forgotten tab does not keep a paid session
+ * open. Set by NEXT_PUBLIC_VOICE_MAX_SECONDS (lib/env.ts), 15 minutes by default.
+ */
+export const VOICE_MAX_SECONDS = PUBLIC_ENV.voiceMaxSeconds
 
 /** One append to GPT-Live carries at most 500 tokens; Vietnamese text stays well under this. */
 const MAX_APPEND_CHARACTERS = 1200
