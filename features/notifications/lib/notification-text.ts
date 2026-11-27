@@ -44,6 +44,8 @@ export function describeNotification(notification: ApiNotification) {
   }
   const subject = subjectOf(notification)
   switch (type) {
+    case "SUBSCRIPTION_GRANTED":
+      return { from: "Vedora", text: notification.note || "Bạn vừa được quản trị viên cấp gói. Xem quyền lợi tại Gói của bạn." }
     case "POST_REJECTED":
       return {
         from: "Vedora",
