@@ -156,6 +156,20 @@ export const adminWorkspacePageSchema = z.object({
   meta: z.object({ hasNextPage: z.boolean() }),
 })
 
+/** The tax department's public record of a company tax code (`GET /admin/workspaces/:id/tax-code`). */
+export const taxCodeLookupSchema = z.object({
+  status: z.enum(["FOUND", "NOT_FOUND", "NOT_APPLICABLE", "UNAVAILABLE"]),
+  taxCode: z.string().nullable(),
+  officialName: z.string().nullable(),
+  shortName: z.string().nullable(),
+  address: z.string().nullable(),
+  taxStatus: z.string().nullable(),
+  nameMatches: z.boolean().nullable(),
+  sourceUpdatedAt: z.string().nullable(),
+})
+
+export type TaxCodeLookup = z.infer<typeof taxCodeLookupSchema>
+
 export const adminWorkspaceDetailSchema = adminWorkspaceSchema.extend({
   proofs: z.array(z.object({ id: z.string(), kind: z.enum(PROOF_KINDS), url: z.string() })),
   warnings: z.array(

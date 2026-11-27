@@ -24,6 +24,10 @@ export function adminWorkspaceKey(id: string) {
   return `${ADMIN_WORKSPACES_KEY}/${id}`
 }
 
+export function adminTaxCodeKey(id: string) {
+  return `${adminWorkspaceKey(id)}/tax-code`
+}
+
 /** Public: approved restaurants, sorted nearest-first when location is set or A–Z otherwise. */
 export function restaurantsKey(userLocation?: LngLat | null) {
   if (!userLocation) return `${API_URL}/restaurants`

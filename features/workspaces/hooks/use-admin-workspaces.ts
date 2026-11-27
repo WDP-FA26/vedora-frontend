@@ -7,11 +7,16 @@ import { useAuthedSWR } from "@/features/auth/hooks/use-authed-swr"
 import {
   fetchAdminWorkspace,
   fetchAllAdminWorkspaces,
+  fetchTaxCodeLookup,
   reviewWorkspace,
   type WorkspaceReviewInput,
 } from "@/features/workspaces/lib/workspaces-api"
 import type { AdminWorkspace } from "@/features/workspaces/schemas"
-import { ADMIN_WORKSPACES_KEY, adminWorkspaceKey } from "@/features/workspaces/workspaces-cache"
+import {
+  ADMIN_WORKSPACES_KEY,
+  adminTaxCodeKey,
+  adminWorkspaceKey,
+} from "@/features/workspaces/workspaces-cache"
 
 // TanStack Table rebuilds its row models whenever `data` changes identity.
 const NO_WORKSPACES: AdminWorkspace[] = []
@@ -29,6 +34,25 @@ export function useAdminWorkspace(id: string | null) {
     { dedupingInterval: 0 }
   )
   return { workspace: data ?? null, error, isLoading }
+}
+
+/**
+ * The tax department's record of an application's company tax code. The
+ * source allows only a few lookups a minute, so it is fetched once per sheet
+ * and only refreshed on request.
+ */
+export function useTaxCodeLookup(id: string | null) {
+  const { data, error, isLoading, isValidating, mutate } = useAuthedSWR(
+    id ? adminTaxCodeKey(id) : null,
+    fetchTaxCodeLookup,
+    { revalidateOnFocus: false, revalidateIfStale: false, shouldRetryOnError: false }
+  )
+  return {
+    lookup: data ?? null,
+    error,
+    loading: isLoading || isValidating,
+    retry: () => void mutate(),
+  }
 }
 
 /** Approves or rejects an application and writes the result into the list. */
