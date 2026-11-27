@@ -31,7 +31,9 @@ import { ApiError } from "@/features/shared/lib/api-client"
 
 describe("voiceErrorText", () => {
   it("explains setup failures by their status", () => {
-    expect(voiceErrorText(`Failed to fetch realtime setup: ${VOICE_QUOTA_STATUS}`)).toContain("hết lượt")
+    expect(voiceErrorText(`Failed to fetch realtime setup: ${VOICE_QUOTA_STATUS}`)).toContain(
+      "hết lượt"
+    )
     expect(voiceErrorText("Failed to fetch realtime setup: 429")).toContain("hơi nhanh")
     expect(voiceErrorText("Failed to fetch realtime setup: 401")).toContain("Phiên đăng nhập")
     expect(voiceErrorText("Failed to fetch realtime setup: 403")).toContain("Pro còn hiệu lực")
@@ -98,7 +100,8 @@ describe("readScrollState", () => {
 })
 
 function sse(chunks: unknown[], status = 200) {
-  const body = chunks.map((chunk) => `data: ${JSON.stringify(chunk)}\n\n`).join("") + "data: [DONE]\n\n"
+  const body =
+    chunks.map((chunk) => `data: ${JSON.stringify(chunk)}\n\n`).join("") + "data: [DONE]\n\n"
   return new Response(body, { status, headers: { "Content-Type": "text/event-stream" } })
 }
 
@@ -125,7 +128,11 @@ describe("streamVoiceTurn", () => {
           data: { focus: { kind: "planDay", weekStart: "2026-11-23", day: "SAT" }, close: null },
           transient: true,
         },
-        { type: "data-progress", data: { text: "Đã lưu thay đổi thực đơn cho Thứ Bảy, đang làm tiếp." }, transient: true },
+        {
+          type: "data-progress",
+          data: { text: "Đã lưu thay đổi thực đơn cho Thứ Bảy, đang làm tiếp." },
+          transient: true,
+        },
         { type: "text-start", id: "t1" },
         { type: "text-delta", id: "t1", delta: "Đã thêm phở." },
         { type: "text-end", id: "t1" },
@@ -144,7 +151,10 @@ describe("streamVoiceTurn", () => {
     expect(events).toEqual([
       { type: "started" },
       { type: "state", state: { invalidate: ["plan", "shoppingList"] } },
-      { type: "screen", screen: { focus: { kind: "planDay", weekStart: "2026-11-23", day: "SAT" }, close: null } },
+      {
+        type: "screen",
+        screen: { focus: { kind: "planDay", weekStart: "2026-11-23", day: "SAT" }, close: null },
+      },
       { type: "progress", text: "Đã lưu thay đổi thực đơn cho Thứ Bảy, đang làm tiếp." },
       { type: "text", delta: "Đã thêm phở." },
       { type: "ready" },
@@ -161,11 +171,13 @@ describe("streamVoiceTurn", () => {
     })
     vi.stubGlobal(
       "fetch",
-      async () => new Response(body, { status: 200, headers: { "Content-Type": "text/event-stream" } })
+      async () =>
+        new Response(body, { status: 200, headers: { "Content-Type": "text/event-stream" } })
     )
 
     const turn = streamVoiceTurn("token_1", request, new AbortController().signal)
-    const push = (chunk: unknown) => controller.enqueue(encoder.encode(`data: ${JSON.stringify(chunk)}\n\n`))
+    const push = (chunk: unknown) =>
+      controller.enqueue(encoder.encode(`data: ${JSON.stringify(chunk)}\n\n`))
     push({ type: "start", messageId: "msg_1" })
     push({ type: "text-start", id: "t1" })
     push({ type: "text-delta", id: "t1", delta: "Đã xong." })
@@ -183,16 +195,22 @@ describe("streamVoiceTurn", () => {
 
   it("throws when the stream reports an error part", async () => {
     vi.stubGlobal("fetch", async () =>
-      sse([{ type: "start", messageId: "msg_1" }, { type: "error", errorText: "Moderation failed" }])
+      sse([
+        { type: "start", messageId: "msg_1" },
+        { type: "error", errorText: "Moderation failed" },
+      ])
     )
-    await expect(collect(streamVoiceTurn("token_1", request, new AbortController().signal))).rejects.toThrow(
-      "Moderation failed"
-    )
+    await expect(
+      collect(streamVoiceTurn("token_1", request, new AbortController().signal))
+    ).rejects.toThrow("Moderation failed")
   })
 
   it("throws the API error before streaming", async () => {
     vi.stubGlobal("fetch", async () =>
-      Response.json({ statusCode: 429, code: "AI_QUOTA_EXCEEDED", message: "Hết lượt" }, { status: 429 })
+      Response.json(
+        { statusCode: 429, code: "AI_QUOTA_EXCEEDED", message: "Hết lượt" },
+        { status: 429 }
+      )
     )
     const turn = collect(streamVoiceTurn("token_1", request, new AbortController().signal))
     await expect(turn).rejects.toBeInstanceOf(ApiError)
@@ -281,7 +299,10 @@ describe("runVoiceTurn", () => {
         yield { type: "state", state: { invalidate: ["plan"] } }
         yield { type: "screen", screen: { focus: { kind: "bodyMetrics" }, close: null } }
         yield { type: "end-call" }
-        yield { type: "summary", text: "Người dùng muốn kết thúc cuộc gọi, hãy chào tạm biệt ngắn gọn." }
+        yield {
+          type: "summary",
+          text: "Người dùng muốn kết thúc cuộc gọi, hãy chào tạm biệt ngắn gọn.",
+        }
         yield { type: "ready" }
       },
     })
@@ -336,7 +357,9 @@ describe("runVoiceTurn", () => {
     })
 
     await vi.advanceTimersByTimeAsync(30_000)
-    expect(appended).toEqual([["del_2", "thinking", "Đã lưu thay đổi thực đơn cho Thứ Hai, đang làm tiếp."]])
+    expect(appended).toEqual([
+      ["del_2", "thinking", "Đã lưu thay đổi thực đơn cho Thứ Hai, đang làm tiếp."],
+    ])
 
     turns.cancel()
     release?.()
@@ -407,6 +430,55 @@ describe("updated requests while a turn runs", () => {
     }
   }
 
+  it("refreshes shared usage and reports exhaustion even when quota denies the turn before streaming", async () => {
+    const onUsageChanged = vi.fn()
+    const onQuotaExceeded = vi.fn()
+    const onTurnEnd = vi.fn()
+    const append = vi.fn<Parameters<typeof runVoiceTurn>[0]["append"]>(async () => {})
+    await runVoiceTurn(
+      turnOptions({
+        onUsageChanged,
+        onQuotaExceeded,
+        onTurnEnd,
+        append,
+        streamTurn: async function* () {
+          yield* []
+          throw new ApiError(429, "AI_QUOTA_EXCEEDED", "Quota exhausted", undefined)
+        },
+      })
+    )
+    expect(onUsageChanged).toHaveBeenCalledTimes(1)
+    expect(onQuotaExceeded).toHaveBeenCalledTimes(1)
+    expect(onTurnEnd).not.toHaveBeenCalled()
+    expect(append.mock.calls[0]?.[2]).toContain("lượt AI chữ")
+  })
+
+  for (const outcome of ["success", "error", "abort"] as const) {
+    it(`refreshes text usage after a voice turn ends with ${outcome}`, async () => {
+      const turns = new TurnQueue()
+      const onUsageChanged = vi.fn()
+      const onQuotaExceeded = vi.fn()
+      await runVoiceTurn(
+        turnOptions({
+          turns,
+          onUsageChanged,
+          onQuotaExceeded,
+          streamTurn: async function* () {
+            yield { type: "started" }
+            if (outcome === "abort") {
+              turns.cancel()
+              throw new DOMException("Aborted", "AbortError")
+            }
+            if (outcome === "error") throw new Error("Provider failed")
+            yield { type: "ready" }
+          },
+        })
+      )
+      expect(onUsageChanged).toHaveBeenCalledTimes(1)
+      expect(onQuotaExceeded).not.toHaveBeenCalled()
+    })
+  }
+
   it("sends a revision under its own request id so it never reuses the delegation's", async () => {
     const requestIds: (string | undefined)[] = []
     const streamTurn = async function* (_token: string, request: { requestId?: string }) {
@@ -462,7 +534,9 @@ describe("updated requests while a turn runs", () => {
     reviseTurn("del_1", { ledger, queueTurn })
     await ledger.turns.idle()
 
-    expect(queued).toEqual([{ delegationId: "del_1", message: "chỉ bữa sáng thôi", revision: true }])
+    expect(queued).toEqual([
+      { delegationId: "del_1", message: "chỉ bữa sáng thôi", revision: true },
+    ])
   })
 
   it("lets a later delegation take the words instead of a queued revision", async () => {
@@ -498,7 +572,9 @@ describe("updated requests while a turn runs", () => {
     await ledger.turns.idle()
 
     expect(appended).toEqual([["del_1", "thinking", SUPERSEDED_NOTE]])
-    expect(queued).toEqual([{ delegationId: "del_2", message: "chỉ bữa sáng thôi", revision: false }])
+    expect(queued).toEqual([
+      { delegationId: "del_2", message: "chỉ bữa sáng thôi", revision: false },
+    ])
   })
 })
 
@@ -519,7 +595,11 @@ describe("supersededNote", () => {
     })
 
     expect(appended).toEqual([
-      ["del_1", "thinking", supersededNote(["Đã lưu thay đổi thực đơn cho Thứ Hai, đang làm tiếp."])],
+      [
+        "del_1",
+        "thinking",
+        supersededNote(["Đã lưu thay đổi thực đơn cho Thứ Hai, đang làm tiếp."]),
+      ],
     ])
     expect(appended[0][2]).toContain("Đã lưu thay đổi thực đơn cho Thứ Hai")
   })
@@ -531,11 +611,16 @@ describe("supersededNote", () => {
 
 describe("plainSpokenText", () => {
   it("drops display formatting but keeps every word and number", () => {
-    const markdown = "## Tuần sau\n\n- **Calo:** khoảng 1.730 kcal\n2. Giữ `nguyên` thực đơn\n* _ít dầu_"
-    expect(plainSpokenText(markdown)).toBe("Tuần sau Calo: khoảng 1.730 kcal Giữ nguyên thực đơn _ít dầu_")
+    const markdown =
+      "## Tuần sau\n\n- **Calo:** khoảng 1.730 kcal\n2. Giữ `nguyên` thực đơn\n* _ít dầu_"
+    expect(plainSpokenText(markdown)).toBe(
+      "Tuần sau Calo: khoảng 1.730 kcal Giữ nguyên thực đơn _ít dầu_"
+    )
   })
 
   it("leaves plain sentences unchanged", () => {
-    expect(plainSpokenText("Mình đã đổi bữa tối. Bạn xem nhé.")).toBe("Mình đã đổi bữa tối. Bạn xem nhé.")
+    expect(plainSpokenText("Mình đã đổi bữa tối. Bạn xem nhé.")).toBe(
+      "Mình đã đổi bữa tối. Bạn xem nhé."
+    )
   })
 })
