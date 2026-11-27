@@ -112,13 +112,13 @@ test.describe("meal planner", () => {
       body: {
         ...filledMealPlan,
         problems: [
-          { code: "AVOIDED_INGREDIENT", day: "MON", recipes: ["Cháo nấm"], ingredients: ["đậu phộng"], reason: null },
+          { code: "AVOIDED_INGREDIENT", day: "MON", recipes: ["Cháo nấm"], ingredients: [], reason: "Có đậu phộng rang." },
         ],
       },
     }, "GET")
     await page.goto("/meal-planner")
     await expect(page.getByText("Thực đơn có chỗ cần xem lại")).toBeVisible()
-    await expect(page.getByText(/Cháo nấm có đậu phộng/)).toBeVisible()
+    await expect(page.getByText(/Cháo nấm: Có đậu phộng rang/)).toBeVisible()
     await expect(page.getByRole("link", { name: "Xem hồ sơ ăn uống" })).toHaveAttribute("href", "/home/dietary")
   })
 

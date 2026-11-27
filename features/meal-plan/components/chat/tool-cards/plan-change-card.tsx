@@ -5,12 +5,13 @@ import { CalendarCheckIcon } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import type { PlanChangeEntry } from "@/features/meal-plan/lib/chat-message-parsers"
 import { DAY_LABELS, SECTION_LABELS, weekStartRangeLabel } from "@/features/meal-plan/lib/dates"
+import { allergyText } from "@/features/meal-plan/lib/problems"
 import type { MealPlanProblem } from "@/features/meal-plan/schemas/meal-plan.schema"
 
 function leftOutLabel(problem: MealPlanProblem) {
   const day = DAY_LABELS[problem.day]
   if (problem.code === "UNKNOWN_RECIPE") return `${day}: món không còn trong kho`
-  return `${day}: ${problem.recipes.join(", ")} (có ${problem.ingredients.join(", ")} bạn không ăn)`
+  return `${day}: ${problem.recipes.join(", ")} (${allergyText(problem)})`
 }
 
 export function PlanChangeCard({

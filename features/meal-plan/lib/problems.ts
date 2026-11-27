@@ -1,8 +1,15 @@
 import type { MealPlanProblem, Weekday } from "@/features/meal-plan/schemas/meal-plan.schema"
 
-export function problemText({ code, recipes, ingredients, reason }: MealPlanProblem) {
+export function allergyText({ ingredients, reason }: MealPlanProblem) {
+  if (reason) return reason
+  if (ingredients.length > 0) return `Có ${ingredients.join(", ")}, thứ bạn không ăn.`
+  return "Không hợp hồ sơ dị ứng của bạn."
+}
+
+export function problemText(problem: MealPlanProblem) {
+  const { code, recipes, ingredients, reason } = problem
   if (code === "AVOIDED_INGREDIENT") {
-    return `${recipes.join(", ")} có ${ingredients.join(", ")}, thứ bạn không ăn.`
+    return `${recipes.join(", ")}: ${allergyText(problem)}`
   }
   if (code === "DAY_CONFLICT") {
     return `${ingredients.join(" và ")} không nên ăn cùng bữa${reason ? ` (${reason})` : ""}. Có trong: ${recipes.join(", ")}.`
@@ -14,11 +21,12 @@ export function dishKey(day: Weekday, recipeId: string) {
   return `${day}:${recipeId}`
 }
 
-function dishWarningText({ code, ingredients, reason }: MealPlanProblem) {
+function dishWarningText(problem: MealPlanProblem) {
+  const { code, ingredients, reason } = problem
   if (code === "DAY_CONFLICT") {
     return `${ingredients.join(" và ")} không nên ăn cùng bữa${reason ? ` (${reason})` : ""}`
   }
-  return `Có ${ingredients.join(", ")}, thứ bạn không ăn`
+  return allergyText(problem)
 }
 
 export function dishWarnings(problems: MealPlanProblem[]) {
