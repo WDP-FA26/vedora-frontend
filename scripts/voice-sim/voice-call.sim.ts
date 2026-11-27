@@ -16,7 +16,7 @@ import {
 } from "ai"
 import { test } from "vitest"
 
-import { FarewellTracker, VoiceCallLedger } from "@/features/meal-plan/voice/voice-call"
+import { AssistantSpeechActivity, FarewellTracker, VoiceCallLedger } from "@/features/meal-plan/voice/voice-call"
 import { appendableText, VOICE_MODEL_ID, voicePageContext, voiceSessionConfig } from "@/features/meal-plan/voice/voice-session"
 import { streamVoiceTurn } from "@/features/meal-plan/voice/voice-stream"
 import { handleDelegation, reviseTurn, runVoiceTurn, type QueueTurn } from "@/features/meal-plan/voice/voice-turn-runner"
@@ -161,13 +161,14 @@ test(`voice call scenario ${SCENARIO}`, async () => {
   let ending = false
   let ended = false
   let pending = 0
-  let playbackUntil = 0
   let lastAssistantAt = 0
   let lastCommentaryAt = 0
   const mic: Float32Array[] = []
   const audioStats = { chunks: 0, silent: 0, maxGapMs: 0 }
   const jitter = { lastChunkAt: 0 }
-  const playing = () => performance.now() < playbackUntil
+  const assistantSpeech = new AssistantSpeechActivity()
+  let speechAudibleUntil = 0
+  const playing = () => assistantSpeech.update(performance.now() < speechAudibleUntil ? 1 : 0, performance.now())
 
   const append = async (delegationId: string | null, channel: "thinking" | "commentary", content: string) => {
     if (channel === "commentary") lastCommentaryAt = performance.now()
@@ -237,7 +238,7 @@ test(`voice call scenario ${SCENARIO}`, async () => {
       if (silent) audioStats.silent += 1
       if (jitter.lastChunkAt > 0) audioStats.maxGapMs = Math.max(audioStats.maxGapMs, Math.round(arrivedAt - jitter.lastChunkAt))
       jitter.lastChunkAt = arrivedAt
-      playbackUntil = Math.max(arrivedAt, playbackUntil) + durationMs
+      if (!silent) speechAudibleUntil = Math.max(speechAudibleUntil, arrivedAt + 400 + durationMs)
     } else if (event.type === "session-started") {
       t0 = performance.now()
       ready = true
