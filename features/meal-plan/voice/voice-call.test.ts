@@ -1,6 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import {
+  ASSISTANT_AUDIBLE_LEVEL,
+  ASSISTANT_SPEECH_HOLD_MS,
+  AssistantSpeechActivity,
   END_LIMIT_MS,
   END_NO_SPEECH_LIMIT_MS,
   FAREWELL_CANCEL_GRACE_MS,
@@ -232,3 +235,18 @@ describe("FarewellTracker", () => {
   })
 })
 
+
+describe("AssistantSpeechActivity", () => {
+  it("is speaking only while output is audible, bridging short gaps between words", () => {
+    const activity = new AssistantSpeechActivity()
+    expect(activity.update(0, 0)).toBe(false)
+    expect(activity.update(ASSISTANT_AUDIBLE_LEVEL, 100)).toBe(true)
+    expect(activity.update(0, 100 + ASSISTANT_SPEECH_HOLD_MS - 1)).toBe(true)
+    expect(activity.update(0, 100 + ASSISTANT_SPEECH_HOLD_MS)).toBe(false)
+  })
+
+  it("treats a continuous silent stream as not speaking", () => {
+    const activity = new AssistantSpeechActivity()
+    for (let now = 0; now < 5000; now += 50) expect(activity.update(0.001, now)).toBe(false)
+  })
+})

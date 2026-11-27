@@ -36,25 +36,14 @@ import { handleDelegation, reviseTurn, runVoiceTurn } from "@/features/meal-plan
 
 const model = gateway.experimental_realtime(VOICE_MODEL_ID)
 
-const SPEAKING_HOLD_MS = 250
 const END_CHECK_MS = 200
+const SPEECH_CHECK_MS = 50
 const MAX_PLAYBACK_BUFFER_SECONDS = 60
 
 export type VoiceUsageAnchor = { seconds: number; at: number }
 
 function usageSnapshot(seconds: number): VoiceUsageAnchor {
   return { seconds, at: Date.now() }
-}
-
-function useHeldTrue(value: boolean, holdMs: number) {
-  const [held, setHeld] = useState(value)
-  if (value && !held) setHeld(true)
-  useEffect(() => {
-    if (value || !held) return
-    const timer = setTimeout(() => setHeld(false), holdMs)
-    return () => clearTimeout(timer)
-  }, [value, held, holdMs])
-  return value || held
 }
 
 type SendRealtimeEvent = ReturnType<typeof experimental_useRealtime>["sendEvent"]
@@ -372,7 +361,6 @@ export function useMealPlannerVoice({
   const playingRef = useRef(false)
   useEffect(() => {
     endRef.current = end
-    playingRef.current = realtime.isPlaying
   })
   useEffect(() => {
     if (!ending) return
@@ -438,8 +426,23 @@ export function useMealPlannerVoice({
     ledger.endCall()
   }, [ended, capture, ledger])
 
+  const [assistantSpeaking, setAssistantSpeaking] = useState(false)
+  useEffect(() => {
+    if (!connected) {
+      ledger.assistantSpeech.reset()
+      playingRef.current = false
+      return
+    }
+    const timer = setInterval(() => {
+      const speakingNow = ledger.assistantSpeech.update(ledger.readOutputLevel())
+      playingRef.current = speakingNow
+      setAssistantSpeaking(speakingNow)
+    }, SPEECH_CHECK_MS)
+    return () => clearInterval(timer)
+  }, [connected, ledger])
+
   const muted = realtime.session?.isInputMuted ?? false
-  const speaking = useHeldTrue(connected && !muted && realtime.isPlaying, SPEAKING_HOLD_MS)
+  const speaking = connected && !muted && assistantSpeaking
   let orbState: VoiceOrbState = "idle"
   if (realtime.status === "error" || error) orbState = "error"
   else if (realtime.status === "connecting" || !wasConnected) orbState = "connecting"

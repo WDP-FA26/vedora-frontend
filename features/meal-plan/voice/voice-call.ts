@@ -40,6 +40,22 @@ function normalizeUtteranceFragment(text: string): string {
     .trim()
 }
 
+export const ASSISTANT_AUDIBLE_LEVEL = 0.02
+export const ASSISTANT_SPEECH_HOLD_MS = 250
+
+export class AssistantSpeechActivity {
+  private lastAudibleAt = -Infinity
+
+  update(outputLevel: number, now = Date.now()) {
+    if (outputLevel >= ASSISTANT_AUDIBLE_LEVEL) this.lastAudibleAt = now
+    return now - this.lastAudibleAt < ASSISTANT_SPEECH_HOLD_MS
+  }
+
+  reset() {
+    this.lastAudibleAt = -Infinity
+  }
+}
+
 export class FarewellTracker {
   phase: "idle" | "sent" | "speaking" = "idle"
   private sentAt = 0
@@ -270,6 +286,7 @@ export class MicrophoneSession {
 }
 
 export class VoiceCallLedger {
+  readonly assistantSpeech = new AssistantSpeechActivity()
   readonly utterances = new UtteranceAssembler()
   readonly turns = new TurnQueue()
   readonly mic = new MicrophoneSession()
