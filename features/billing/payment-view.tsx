@@ -6,7 +6,7 @@ import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useSWRConfig } from "swr"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { Button } from "@/components/ui/button"
+import { Button, buttonVariants } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
 import { useAuth } from "@/features/auth/hooks/use-auth"
@@ -16,6 +16,7 @@ import { usePayment } from "./hooks"
 import { usePaymentStream } from "./use-payment-stream"
 import { dateTime, money, paymentSchema } from "./schema"
 import { countdownLabel, usePaymentCountdown } from "./use-payment-countdown"
+import { paymentSupportPath } from "@/features/support/support-cache"
 
 export function PaymentView({ id }: { id: string }) {
   const { accessToken } = useAuth()
@@ -79,6 +80,9 @@ function PaymentContent({ id, token }: { id: string; token?: string }) {
       <div className="flex flex-wrap gap-3"><Button disabled={payment.isValidating} onClick={() => { void payment.mutate().catch(() => undefined) }}>{payment.isValidating ? "Đang kiểm tra…" : "Tôi đã thanh toán · Kiểm tra"}</Button><Button variant="outline" disabled={busy || payment.isValidating} onClick={() => { void cancel() }}>{busy ? "Đang hủy…" : "Hủy giao dịch chưa chuyển tiền"}</Button></div>
     </>}
     {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
-    <p className="text-xs text-muted-foreground">Nếu đã chuyển nhưng chưa được xác nhận, không chuyển thêm lần nữa. Giữ mã thanh toán {data.paymentCode} và mã giao dịch ngân hàng để đối soát.</p>
+    {data.status !== "SUCCEEDED" && <div className="space-y-3 rounded-xl border p-4">
+      <p className="text-sm text-muted-foreground">Nếu đã chuyển nhưng chưa được xác nhận, không chuyển thêm lần nữa. Giữ mã thanh toán {data.paymentCode} và biên lai để quản trị viên đối soát.</p>
+      <Link className={buttonVariants({ variant: "outline", className: "h-auto whitespace-normal text-left" })} href={paymentSupportPath(data.id)}>Tôi đã chuyển tiền nhưng chưa được xác nhận</Link>
+    </div>}
   </div>
 }
