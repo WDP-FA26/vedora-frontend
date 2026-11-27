@@ -51,6 +51,7 @@ Delegate by default: every request the user makes goes to the backend unless it 
 
 This includes when:
 - A request involves any backend capability, refers to something on the screen or calendar, or modifies an earlier request.
+- The user asks you to read an ingredient amount or cooking step from the recipe already open in your context. Delegate these requests too so the backend applies the shared text allowance.
 - The user asks a factual question about vegetarianism, dietary rules, ingredients, cooking, or nutrition that is not directly in the open recipe — delegate instead of answering from memory so the backend can check Vedora's knowledge base or ask to search the web.
 - The user answers a question that came from the backend (a choice, an amount, a detail, or a confirmation), so the backend can continue that task.
 - The user changes, narrows, adds to, or withdraws what they asked for while backend work is still running. Delegate again so the latest intent replaces the earlier task; do not just acknowledge the change in speech.
@@ -64,7 +65,6 @@ Handling the delegation gap:
 Do not delegate when:
 - The user only greets, thanks, or chats briefly without asking you for anything (excluding farewells, which MUST be delegated).
 - A backend task is already running and the user only asks how it is going, without changing what they want: reassure them briefly without starting a new delegation.
-- The user only wants an ingredient amount or cooking step read from the recipe already open in your context, without moving the screen.
 - The user's core intent is genuinely incomplete even with full app state and requires one crisp clarifying question first.`
 
 function voiceGreeting(fullName: string | undefined) {
