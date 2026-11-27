@@ -2,6 +2,7 @@ import { z } from "zod"
 
 import { presignedUploadSchema } from "@/features/shared/lib/storage-upload"
 import { newUsernameSchema } from "@/features/auth/schemas"
+import { isWellFormedCitizenId } from "@/features/workspaces/citizen-id"
 import {
   MAX_PROOF_MB,
   MAX_REVIEW_NOTE_LENGTH,
@@ -356,6 +357,9 @@ const TAX_CODE_ERRORS: Record<(typeof LEGAL_ENTITY_TYPES)[number], string> = {
   INDIVIDUAL: "Nhập đúng 12 số CCCD",
 }
 
+const CITIZEN_ID_ERROR =
+  "Số CCCD không hợp lệ: 3 số đầu là mã tỉnh nơi khai sinh, số thứ 4 đến 6 là thế kỷ và năm sinh"
+
 const legalFormSchema = z
   .object({
     entityType: z.enum(LEGAL_ENTITY_TYPES, {
@@ -388,6 +392,9 @@ const legalFormSchema = z
         path: ["taxCode"],
         message: TAX_CODE_ERRORS[legal.entityType],
       })
+    } else if (legal.taxCode.length === 12 && !isWellFormedCitizenId(legal.taxCode)) {
+      // A 12-digit tax code is a citizen ID, as the API checks.
+      context.addIssue({ code: "custom", path: ["taxCode"], message: CITIZEN_ID_ERROR })
     }
     if (legal.entityType !== "INDIVIDUAL" && legal.legalName === "") {
       context.addIssue({
