@@ -166,6 +166,16 @@ function defaultsFrom(workspace: Workspace | null): DefaultValues<WorkspaceFormI
   }
 }
 
+/**
+ * A draft saved before official codes holds a province such as `ha-noi` and a
+ * typed ward; drop both so the person picks them again from the lists.
+ */
+function withKnownProvince(draft: object): object {
+  const province: unknown = Reflect.get(draft, "provinceCode")
+  if (typeof province === "string" && isVnProvinceCode(province)) return draft
+  return { ...draft, provinceCode: undefined, wardCode: "" }
+}
+
 /** Unsent answers survive a reload; files and the commitments are never kept. */
 function useDraft(form: FormApi, enabled: boolean) {
   const { user } = useAuth()
@@ -178,7 +188,7 @@ function useDraft(form: FormApi, enabled: boolean) {
       try {
         const draft: unknown = JSON.parse(saved)
         if (typeof draft === "object" && draft !== null)
-          form.reset({ ...EMPTY_VALUES, ...draft, proofs: [] })
+          form.reset({ ...EMPTY_VALUES, ...withKnownProvince(draft), proofs: [] })
       } catch {
         window.localStorage.removeItem(key)
       }
@@ -388,6 +398,12 @@ function TextField({
   )
 }
 
+/** The select's value; one that matches no option shows the placeholder, not the first option. */
+function optionValue(value: unknown, options: readonly { value: string }[]): string {
+  if (typeof value !== "string") return ""
+  return options.some((option) => option.value === value) ? value : ""
+}
+
 function SelectField<T extends string>({
   control,
   name,
@@ -414,8 +430,12 @@ function SelectField<T extends string>({
             id={field.name}
             name={field.name}
             ref={field.ref}
-            value={typeof field.value === "string" ? field.value : ""}
-            onChange={(event) => field.onChange(event.target.value || undefined)}
+            value={optionValue(field.value, options)}
+            onChange={(event) => {
+              field.onChange(event.target.value || undefined)
+              // A pick is final; check it now rather than when focus leaves.
+              field.onBlur()
+            }}
             onBlur={field.onBlur}
             aria-invalid={fieldState.invalid}
             disabled={disabled}
@@ -479,7 +499,8 @@ function WardField({ form }: { form: FormApi }) {
     previous.current = province
   }, [form, province])
 
-  const options = province && wards ? wards[province] : []
+  // Guarded at run time too: the value can come from an old saved draft.
+  const options = province && isVnProvinceCode(province) && wards ? wards[province] : []
   let placeholder = "Chọn phường, xã"
   if (!province) placeholder = "Chọn tỉnh trước"
   else if (failed) placeholder = "Không tải được danh sách"
