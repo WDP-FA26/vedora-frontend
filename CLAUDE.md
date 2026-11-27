@@ -15,6 +15,7 @@ Client-side data fetching uses [SWR](https://swr.vercel.app). Full guide (read b
 
 - `pnpm test`: Vitest unit tests (`**/*.test.ts`, config in [vitest.config.mts](vitest.config.mts)) for logic that runs without a browser. Keep such logic out of React hooks and components so it can be tested, as [features/meal-plan/voice-call.ts](features/meal-plan/voice-call.ts) does for the voice agent.
 - `pnpm test:e2e`: Playwright against the mock API in `e2e/`.
+- Voice call against real GPT-Live: `VOICE_SIM_SCENARIO=A|B|C|D pnpm vitest run --config scripts/voice-sim/vitest.config.mts` speaks OpenAI TTS phrases into a Live session through the local API (`vedora.admin`, keys from `../vedora-api/.env`) and logs the timeline. It is billed per second, writes to that account's meal plan, and skips the browser mic pipeline (noise gate, echo cancellation, DeepFilter).
 
 <!-- BEGIN:nextjs-agent-rules -->
 
