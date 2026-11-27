@@ -7,6 +7,7 @@ import { EventStreamContentType, fetchEventSource } from "@microsoft/fetch-event
 
 import { toast } from "@/components/ui/toast"
 import { useAuth } from "@/features/auth/hooks/use-auth"
+import { API_URL } from "@/features/auth/lib/api"
 import { describeNotification } from "@/features/notifications/lib/notification-text"
 import {
   NOTIFICATION_STREAM_URL,
@@ -63,6 +64,9 @@ export function useNotificationStream() {
         if (!parsed.success) return
         const incoming = parsed.data
         if (!firstDelivery(incoming.id)) return
+        if (incoming.type === "SUBSCRIPTION_GRANTED") {
+          void mutate([`${API_URL}/billing/me`, accessToken]).catch(() => undefined)
+        }
         if (window.location.pathname !== "/home/notifications") {
           const { from, text } = describeNotification(incoming)
           toast.add({
