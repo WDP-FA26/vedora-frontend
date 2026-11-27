@@ -6,7 +6,8 @@ import { Controller, useForm } from "react-hook-form"
 import { Streamdown } from "streamdown"
 import { Turnstile } from "@marsidev/react-turnstile"
 import { zodResolver } from "@hookform/resolvers/zod"
-import { ArrowUpIcon, RotateCcwIcon, XIcon } from "lucide-react"
+import { ArrowUpIcon, CalendarRangeIcon, RotateCcwIcon, XIcon } from "lucide-react"
+import { MEAL_PLANNER_PATH } from "@/features/meal-plan/meal-plan"
 
 import { Bubble, BubbleContent, BubbleGroup } from "@/components/ui/bubble"
 import { Button } from "@/components/ui/button"
@@ -95,7 +96,16 @@ export function NutritionChatPanel({
     // Let wheel/touch events scroll the transcript natively instead of driving landing-page Lenis.
     <div data-lenis-prevent className="flex h-full min-h-0 flex-col gap-4">
       <header className="-mx-2.5 flex items-center gap-2 border-b border-border px-2.5 pb-2.5">
-        <PopoverTitle className="min-w-0 flex-1">Trợ lý Vedora</PopoverTitle>
+        <PopoverTitle className="min-w-0 flex-1">Hỏi nhanh dinh dưỡng</PopoverTitle>
+        <Button
+          variant="outline"
+          size="xs"
+          nativeButton={false}
+          render={<Link href={MEAL_PLANNER_PATH} onClick={onClose} />}
+        >
+          <CalendarRangeIcon aria-hidden />
+          Lên thực đơn
+        </Button>
         <Button variant="ghost" size="icon-sm" aria-label="Bắt đầu lại" onClick={reset}>
           <RotateCcwIcon />
         </Button>

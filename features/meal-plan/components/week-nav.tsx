@@ -23,7 +23,7 @@ export function WeekNav({ plan, loading, onPrevious, onNext, onToday }: WeekNavP
   const canGoForward = plan !== undefined && plan.weekStart < plan.maxWeekStart
 
   return (
-    <nav aria-label="Chọn tuần" className="flex w-full min-w-0 flex-wrap items-center gap-2">
+    <nav aria-label="Chọn tuần" className="flex min-w-0 flex-wrap items-center gap-1.5">
       <Button
         variant="outline"
         size="icon-sm"

@@ -1,6 +1,6 @@
 "use client"
 
-import { useImperativeHandle, useRef, useState, type ReactNode, type Ref } from "react"
+import { useImperativeHandle, useRef, useState, type FormEvent, type ReactNode, type Ref } from "react"
 import Link from "next/link"
 import {
   ActivityIcon,
@@ -9,6 +9,7 @@ import {
   ChevronDownIcon,
   ChevronUpIcon,
   ScaleIcon,
+  ShieldAlertIcon,
   SparklesIcon,
   TriangleAlertIcon,
 } from "lucide-react"
@@ -27,6 +28,7 @@ import {
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { ChartContainer, type ChartConfig } from "@/components/ui/chart"
+import { Field, FieldDescription, FieldGroup, FieldLabel } from "@/components/ui/field"
 import {
   Sheet,
   SheetContent,
@@ -34,7 +36,11 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet"
+import { Spinner } from "@/components/ui/spinner"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Textarea } from "@/components/ui/textarea"
+import { toast } from "@/components/ui/toast"
+import { useAuth } from "@/features/auth/hooks/use-auth"
 import {
   AsianBmiSpectrumBar,
   NutritionProfileForm,
@@ -44,12 +50,18 @@ import {
 import {
   BMI_CATEGORY_META,
   DIETARY_PATH,
+  MAX_MEMORY_ITEM_LENGTH,
+  MAX_MEMORY_ITEMS,
+  memoryLines,
   NUTRITION_GOAL_LABELS,
   NUTRITION_PILLARS,
   NUTRITION_PILLAR_META,
+  saveMyDietary,
+  type DietaryMemory,
   type NutritionProfile,
 } from "@/features/dietary/dietary"
 import { DAY_SHORT } from "@/features/meal-plan/components/timetable"
+import type { MealLogWeek } from "@/features/meal-plan/meal-log"
 import {
   computeWeekNutrition,
   DAY_LABELS,
@@ -57,6 +69,7 @@ import {
   type DayNutritionSummary,
   type MealPlan,
 } from "@/features/meal-plan/meal-plan"
+import { ApiError } from "@/features/shared/lib/api-client"
 import {
   readScrollState,
   scrollContainer,
@@ -66,7 +79,8 @@ import {
 import { cn } from "@/lib/utils"
 
 const weeklyChartConfig = {
-  calories: { label: "Calo ước tính", color: "var(--chart-1)" },
+  calories: { label: "Kế hoạch", color: "var(--chart-1)" },
+  loggedCalories: { label: "Đã ăn thực tế", color: "#3b82f6" },
 } satisfies ChartConfig
 
 function barColorForStatus(status: DayCalorieStatus): string {
@@ -91,7 +105,7 @@ function WeeklyCalorieTooltip({
   label,
   byDay,
 }: Pick<TooltipContentProps<number, string>, "active" | "label"> & {
-  byDay: Map<string, DayNutritionSummary & { shortDay: string }>
+  byDay: Map<string, DayNutritionSummary & { shortDay: string; loggedCalories: number }>
 }) {
   if (!active || typeof label !== "string") return null
   const item = byDay.get(label)
@@ -101,9 +115,17 @@ function WeeklyCalorieTooltip({
     <div className="grid min-w-52 gap-1.5 rounded-xl border border-border bg-popover px-3 py-2 text-xs shadow-md">
       <p className="font-semibold text-foreground">{DAY_LABELS[item.day]}</p>
       <div className="flex justify-between gap-4">
-        <span className="text-muted-foreground">Năng lượng ước tính</span>
+        <span className="text-muted-foreground">Kế hoạch ước tính</span>
         <span className="font-semibold tabular-nums">~{item.calories} kcal</span>
       </div>
+      {item.loggedCalories > 0 && (
+        <div className="flex justify-between gap-4">
+          <span className="text-blue-600 dark:text-blue-400">Đã ăn thực tế</span>
+          <span className="font-semibold tabular-nums text-blue-600 dark:text-blue-400">
+            ~{item.loggedCalories} kcal
+          </span>
+        </div>
+      )}
       <p className="text-muted-foreground">{statusLabel(item)}</p>
       {item.pillars.length > 0 && (
         <p className="text-primary">
@@ -126,15 +148,20 @@ function WeeklyCalorieTooltip({
 function WeeklyCalorieBarChart({
   plan,
   nutrition,
+  mealLog,
 }: {
   plan: MealPlan
   nutrition: NutritionProfile | undefined
+  mealLog?: MealLogWeek
 }) {
   const weekSummary = computeWeekNutrition(plan, nutrition)
+  const loggedByDay = new Map((mealLog?.days ?? []).map((item) => [item.day, item.loggedCalories]))
   const rows = weekSummary.days.map((item) => ({
     ...item,
     shortDay: DAY_SHORT[item.day],
+    loggedCalories: loggedByDay.get(item.day) ?? 0,
   }))
+  const hasAnyLogged = rows.some((row) => row.loggedCalories > 0)
   const byShortDay = new Map(rows.map((row) => [row.shortDay, row]))
   const target = nutrition?.dailyCalorieTarget ?? null
 
@@ -142,7 +169,9 @@ function WeeklyCalorieBarChart({
     <div className="space-y-3 rounded-2xl border border-border bg-card p-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
-          <h3 className="text-sm font-bold">Năng lượng ước tính trong tuần</h3>
+          <h3 className="text-sm font-bold">
+            {hasAnyLogged ? "Kế hoạch vs. Thực tế trong tuần" : "Năng lượng ước tính trong tuần"}
+          </h3>
           <p className="text-xs text-muted-foreground">
             Tính theo khẩu phần 1 người ăn (ước tính tương đối)
           </p>
@@ -181,11 +210,14 @@ function WeeklyCalorieBarChart({
                 }}
               />
             )}
-            <Bar dataKey="calories" radius={[6, 6, 0, 0]} maxBarSize={36}>
+            <Bar dataKey="calories" radius={[6, 6, 0, 0]} maxBarSize={hasAnyLogged ? 20 : 36}>
               {rows.map((entry) => (
                 <Cell key={entry.day} fill={barColorForStatus(entry.calorieStatus)} />
               ))}
             </Bar>
+            {hasAnyLogged && (
+              <Bar dataKey="loggedCalories" fill="#3b82f6" radius={[6, 6, 0, 0]} maxBarSize={20} />
+            )}
           </BarChart>
         </ChartContainer>
         <figcaption className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-[0.6875rem] text-muted-foreground">
@@ -201,6 +233,12 @@ function WeeklyCalorieBarChart({
             <span aria-hidden className="size-2.5 rounded-xs bg-slate-400" />
             Ngày mới xếp 1–2 bữa
           </span>
+          {hasAnyLogged && (
+            <span className="inline-flex items-center gap-1.5">
+              <span aria-hidden className="size-2.5 rounded-xs bg-blue-500" />
+              Đã ăn thực tế
+            </span>
+          )}
         </figcaption>
       </figure>
     </div>
@@ -226,6 +264,7 @@ function buildBalancePrompt(
 
 export type NutritionCompanionBarHandle = {
   showBodyMetrics: () => void
+  showDietary: () => void
   hideBodyMetrics: () => void
   scrollBodyMetrics: (direction: ScreenScrollDirection) => void
   /** Whether the BMI tab is on screen, for the voice agent's view of the page. */
@@ -240,26 +279,36 @@ export type NutritionCompanionBarHandle = {
 export function NutritionCompanionBar({
   plan,
   nutrition,
+  mealLog,
+  dietary,
   onNutritionSaved,
+  onDietarySaved,
   onAskAssistant,
   trailing,
   handle,
 }: {
   plan: MealPlan
   nutrition: NutritionProfile | undefined
+  mealLog?: MealLogWeek
+  dietary?: DietaryMemory
   onNutritionSaved: (next: NutritionProfile) => Promise<void> | void
+  onDietarySaved?: (next: DietaryMemory) => Promise<void> | void
   onAskAssistant?: (prompt: string) => void
   trailing?: ReactNode
   /** Lets the voice agent open and close the BMI panel. */
   handle?: Ref<NutritionCompanionBarHandle>
 }) {
   const [sheetOpen, setSheetOpen] = useState(false)
-  const [activeTab, setActiveTab] = useState<"weekly" | "bmi">("weekly")
+  const [activeTab, setActiveTab] = useState<"weekly" | "bmi" | "dietary">("weekly")
   const bodyRef = useRef<HTMLDivElement>(null)
 
   useImperativeHandle(handle, () => ({
     showBodyMetrics() {
       setActiveTab("bmi")
+      setSheetOpen(true)
+    },
+    showDietary() {
+      setActiveTab("dietary")
       setSheetOpen(true)
     },
     hideBodyMetrics() {
@@ -286,7 +335,7 @@ export function NutritionCompanionBar({
   const daysWithHints = weekSummary.days.filter((day) => day.hints.length > 0)
   const coveredPillarCount = NUTRITION_PILLARS.length - weekSummary.missingPillars.length
 
-  function openSheet(tab: "weekly" | "bmi") {
+  function openSheet(tab: "weekly" | "bmi" | "dietary") {
     setActiveTab(tab)
     setSheetOpen(true)
   }
@@ -316,12 +365,13 @@ export function NutritionCompanionBar({
               onSaved={onNutritionSaved}
             />
           </div>
-          <Link
-            href={DIETARY_PATH}
+          <button
+            type="button"
+            onClick={() => setActiveTab("dietary")}
             className="inline-block text-xs font-semibold text-primary underline-offset-4 hover:underline"
           >
-            Mở Hồ sơ dị ứng &amp; thực phẩm kiêng
-          </Link>
+            Mở Dị ứng &amp; Sở thích
+          </button>
         </>
       )
     }
@@ -341,12 +391,13 @@ export function NutritionCompanionBar({
               {editingProfile ? <ChevronUpIcon aria-hidden /> : <ChevronDownIcon aria-hidden />}
               Chỉnh chiều cao &amp; mục tiêu
             </Button>
-            <Link
-              href={DIETARY_PATH}
+            <button
+              type="button"
+              onClick={() => setActiveTab("dietary")}
               className="text-xs font-semibold text-primary underline-offset-4 hover:underline"
             >
-              Hồ sơ dị ứng &amp; thực phẩm kiêng
-            </Link>
+              Dị ứng &amp; Sở thích
+            </button>
           </div>
           {editingProfile && (
             <div className="mt-3 border-t border-border pt-3">
@@ -380,34 +431,27 @@ export function NutritionCompanionBar({
             <span className="truncate tabular-nums">{bmiLabel}</span>
           </button>
 
-          {weekSummary.plannedDayCount > 0 && (
-            <button
-              type="button"
-              onClick={() => openSheet("weekly")}
-              className={cn(
-                "inline-flex items-center gap-1 rounded-full px-2.5 py-1 font-medium tabular-nums transition-colors",
-                weekSummary.missingPillars.length === 0
+          <button
+            type="button"
+            onClick={() => openSheet("weekly")}
+            className={cn(
+              "inline-flex items-center gap-1 rounded-full px-2.5 py-1 font-medium tabular-nums transition-colors",
+              weekSummary.plannedDayCount === 0
+                ? "border border-border bg-card text-foreground hover:border-primary/40"
+                : weekSummary.missingPillars.length === 0
                   ? "bg-primary/10 text-primary hover:bg-primary/15"
                   : "bg-amber-500/15 text-amber-800 hover:bg-amber-500/20 dark:text-amber-300"
-              )}
-              title="Xem chi tiết 5 nhóm dưỡng chất chay và biểu đồ calo tuần"
-            >
-              {coveredPillarCount}/{NUTRITION_PILLARS.length} nhóm chất chay
-            </button>
-          )}
-
-          <Button
-            type="button"
-            variant="outline"
-            size="xs"
-            onClick={() => openSheet("weekly")}
+            )}
+            title="Xem chi tiết 5 nhóm dưỡng chất chay và biểu đồ calo tuần"
           >
-            <BarChart3Icon aria-hidden />
-            Biểu đồ &amp; Cân nặng
-          </Button>
+            <BarChart3Icon aria-hidden className="size-3.5 shrink-0" />
+            {weekSummary.plannedDayCount > 0
+              ? `${coveredPillarCount}/${NUTRITION_PILLARS.length} nhóm chất`
+              : "Dinh dưỡng tuần"}
+          </button>
         </div>
 
-        {trailing && <div className="flex shrink-0 items-center gap-2">{trailing}</div>}
+        {trailing && <div className="flex shrink-0 flex-wrap items-center gap-2">{trailing}</div>}
       </div>
 
       <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
@@ -422,20 +466,44 @@ export function NutritionCompanionBar({
           <div ref={bodyRef} className="px-6 pb-6">
             <Tabs
               value={activeTab}
-              onValueChange={(next) => setActiveTab(next as "weekly" | "bmi")}
+              onValueChange={(next) => setActiveTab(next as "weekly" | "bmi" | "dietary")}
             >
-              <TabsList className="mb-4 grid w-full grid-cols-2">
+              <TabsList className="mb-4 grid w-full grid-cols-3">
                 <TabsTrigger value="weekly">
-                  <BarChart3Icon aria-hidden /> Tuần này & Đĩa chay
+                  <BarChart3Icon aria-hidden /> Tuần này
                 </TabsTrigger>
                 <TabsTrigger value="bmi">
-                  <ActivityIcon aria-hidden /> BMI & Xu hướng
+                  <ActivityIcon aria-hidden /> BMI
+                </TabsTrigger>
+                <TabsTrigger value="dietary">
+                  <ShieldAlertIcon aria-hidden /> Dị ứng &amp; Gu
                 </TabsTrigger>
               </TabsList>
 
               <TabsContent value="weekly">
                 <div className="space-y-4">
-                  <WeeklyCalorieBarChart plan={plan} nutrition={nutrition} />
+                  <WeeklyCalorieBarChart plan={plan} nutrition={nutrition} mealLog={mealLog} />
+
+                  {onAskAssistant &&
+                    mealLog &&
+                    mealLog.summary.completeDays > 0 &&
+                    mealLog.summary.remainingDays > 0 && (
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        size="sm"
+                        className="w-full"
+                        onClick={() => {
+                          setSheetOpen(false)
+                          onAskAssistant(
+                            "Xem nhật ký ăn uống tuần này so với kế hoạch và mục tiêu của mình, rồi cân bằng nhẹ nhàng các ngày còn lại trong tuần nhé (hỏi mình trước khi chỉnh)."
+                          )
+                        }}
+                      >
+                        <SparklesIcon aria-hidden />
+                        Cân bằng phần còn lại của tuần theo thực tế đã ăn
+                      </Button>
+                    )}
 
                 <div className="space-y-2.5 rounded-2xl border border-border bg-card p-4">
                   <div className="flex items-center justify-between gap-2">
@@ -520,10 +588,129 @@ export function NutritionCompanionBar({
                   {renderBmiTabContent()}
                 </div>
               </TabsContent>
+
+              <TabsContent value="dietary">
+                <InlineDietaryEditor
+                  key={
+                    dietary
+                      ? `${dietary.allergies.join("|")}::${dietary.preferences.join("|")}`
+                      : "loading"
+                  }
+                  dietary={dietary}
+                  onSaved={onDietarySaved}
+                />
+              </TabsContent>
             </Tabs>
           </div>
         </SheetContent>
       </Sheet>
     </>
+  )
+}
+
+function InlineDietaryEditor({
+  dietary,
+  onSaved,
+}: {
+  dietary?: DietaryMemory
+  onSaved?: (next: DietaryMemory) => Promise<void> | void
+}) {
+  const { accessToken } = useAuth()
+  const [allergiesText, setAllergiesText] = useState(dietary?.allergies.join("\n") ?? "")
+  const [preferencesText, setPreferencesText] = useState(dietary?.preferences.join("\n") ?? "")
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  if (!dietary) {
+    return <p className="text-sm text-muted-foreground">Đang tải hồ sơ ăn uống…</p>
+  }
+
+  async function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    if (!accessToken || saving) return
+    const allergies = memoryLines(allergiesText)
+    const preferences = memoryLines(preferencesText)
+    if (
+      allergies.length > MAX_MEMORY_ITEMS ||
+      allergies.some((line) => line.length > MAX_MEMORY_ITEM_LENGTH)
+    ) {
+      setError(`Dị ứng tối đa ${MAX_MEMORY_ITEMS} dòng, mỗi dòng tối đa ${MAX_MEMORY_ITEM_LENGTH} ký tự.`)
+      return
+    }
+    if (
+      preferences.length > MAX_MEMORY_ITEMS ||
+      preferences.some((line) => line.length > MAX_MEMORY_ITEM_LENGTH)
+    ) {
+      setError(`Sở thích tối đa ${MAX_MEMORY_ITEMS} dòng, mỗi dòng tối đa ${MAX_MEMORY_ITEM_LENGTH} ký tự.`)
+      return
+    }
+    setSaving(true)
+    setError(null)
+    try {
+      const saved = await saveMyDietary(accessToken, { allergies, preferences })
+      await onSaved?.(saved)
+      toast.add({ title: "Đã lưu hồ sơ ăn uống" })
+    } catch (caught) {
+      setError(caught instanceof ApiError ? caught.message : "Chưa lưu được hồ sơ ăn uống.")
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <form onSubmit={submit} className="space-y-4 rounded-2xl border border-border bg-card p-4">
+      <div>
+        <h3 className="text-sm font-bold">Dị ứng &amp; Sở thích ăn uống</h3>
+        <p className="mt-0.5 text-xs text-muted-foreground">
+          Chỉnh trực tiếp tại đây mà không rời trang Lên thực đơn. Mỗi dòng một ý.
+        </p>
+      </div>
+      <FieldGroup>
+        <Field>
+          <FieldLabel htmlFor="inline-allergies">Dị ứng &amp; không ăn</FieldLabel>
+          <Textarea
+            id="inline-allergies"
+            rows={4}
+            value={allergiesText}
+            onChange={(event) => {
+              setAllergiesText(event.target.value)
+              setError(null)
+            }}
+            placeholder={"Ví dụ:\nDị ứng đậu phộng\nKhông ăn ngũ vị tân"}
+          />
+          <FieldDescription>Trợ lý tuyệt đối không xếp món có các thành phần này.</FieldDescription>
+        </Field>
+        <Field>
+          <FieldLabel htmlFor="inline-preferences">Sở thích &amp; thói quen</FieldLabel>
+          <Textarea
+            id="inline-preferences"
+            rows={4}
+            value={preferencesText}
+            onChange={(event) => {
+              setPreferencesText(event.target.value)
+              setError(null)
+            }}
+            placeholder={"Ví dụ:\nKhông thích nấm\nNhà 3 người, chỉ nấu bữa tối\nMỗi món tối đa 30 phút"}
+          />
+        </Field>
+      </FieldGroup>
+      {error && (
+        <p role="alert" className="text-xs text-destructive">
+          {error}
+        </p>
+      )}
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <Button type="submit" size="sm" disabled={saving}>
+          {saving && <Spinner aria-hidden />}
+          Lưu hồ sơ
+        </Button>
+        <Link
+          href={DIETARY_PATH}
+          className="text-xs font-semibold text-primary underline-offset-4 hover:underline"
+        >
+          Mở trang hồ sơ đầy đủ
+        </Link>
+      </div>
+    </form>
   )
 }

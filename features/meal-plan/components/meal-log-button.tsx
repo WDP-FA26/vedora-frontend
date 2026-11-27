@@ -146,9 +146,16 @@ function plannedRecipes(plan: MealPlan, day: Weekday, section: MealSection): Mea
   return planDay?.sections.find((item) => item.section === section)?.recipes ?? []
 }
 
+export type CustomDishPrefill = {
+  name: string
+  details?: string
+  date?: string
+}
+
 /** `openDay(null)` opens the diary on today. */
 export type MealLogHandle = {
   openDay: (date: string | null) => void
+  openCustomDish: (prefill?: CustomDishPrefill) => void
   close: () => void
   scroll: (direction: ScreenScrollDirection) => void
   /** Whether the diary is open and on which day, for the voice agent's view of the page. */
@@ -172,6 +179,7 @@ export function MealLogButton({
 }) {
   const [open, setOpen] = useState(false)
   const [pickedDay, setPickedDay] = useState<Weekday | null>(null)
+  const [prefill, setPrefill] = useState<(CustomDishPrefill & { id: number }) | null>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
   const todayDay = plan.days.find((item) => item.date === plan.today)?.day
   const selectedDay: Weekday = pickedDay ?? todayDay ?? "SUN"
@@ -179,6 +187,16 @@ export function MealLogButton({
   useImperativeHandle(handle, () => ({
     openDay(date) {
       setPickedDay(plan.days.find((item) => item.date === date)?.day ?? null)
+      setPrefill(null)
+      setOpen(true)
+    },
+    openCustomDish(next) {
+      if (next?.date) {
+        setPickedDay(plan.days.find((item) => item.date === next.date)?.day ?? null)
+      } else {
+        setPickedDay(todayDay ?? null)
+      }
+      setPrefill({ name: next?.name ?? "", details: next?.details, date: next?.date, id: Date.now() })
       setOpen(true)
     },
     close() {
@@ -252,9 +270,11 @@ export function MealLogButton({
               />
               {day && (
                 <DayLog
-                  key={day.date}
+                  key={`${day.date}-${prefill?.id ?? 0}`}
                   plan={plan}
                   day={day}
+                  initialPrefill={prefill}
+                  onClearPrefill={() => setPrefill(null)}
                   onChanged={async () => {
                     await log.mutate()
                   }}
@@ -370,15 +390,19 @@ function DayBar({ day, scale }: { day: MealLogDay; scale: number }) {
 function DayLog({
   plan,
   day,
+  initialPrefill,
+  onClearPrefill,
   onChanged,
 }: {
   plan: MealPlan
   day: MealLogDay
+  initialPrefill?: CustomDishPrefill | null
+  onClearPrefill?: () => void
   onChanged: () => Promise<void>
 }) {
   const { accessToken } = useAuth()
   const [busy, setBusy] = useState(false)
-  const [adding, setAdding] = useState(false)
+  const [adding, setAdding] = useState(Boolean(initialPrefill))
 
   async function run(action: (token: string) => Promise<unknown>) {
     if (!accessToken) return
@@ -412,6 +436,23 @@ function DayLog({
         )}
       </div>
 
+      {day.loggable && adding && (
+        <AddDishForm
+          date={day.date}
+          initialName={initialPrefill?.name}
+          initialDetails={initialPrefill?.details}
+          onCancel={() => {
+            setAdding(false)
+            onClearPrefill?.()
+          }}
+          onSaved={async () => {
+            setAdding(false)
+            onClearPrefill?.()
+            await onChanged()
+          }}
+        />
+      )}
+
       {MEAL_SECTIONS.map((section) => (
         <SectionLog
           key={section}
@@ -431,16 +472,6 @@ function DayLog({
           <PlusIcon aria-hidden />
           Thêm món khác
         </Button>
-      )}
-      {day.loggable && adding && (
-        <AddDishForm
-          date={day.date}
-          onCancel={() => setAdding(false)}
-          onSaved={async () => {
-            setAdding(false)
-            await onChanged()
-          }}
-        />
       )}
     </section>
   )
@@ -475,7 +506,7 @@ function SectionLog({
       <ul className="divide-y divide-border rounded-xl border border-border">
         {entries.map((entry) => (
           <EntryRow
-            key={entry.id}
+            key={`${entry.id}:${entry.servings}:${entry.caloriesPerServing ?? "none"}`}
             entry={entry}
             editable={loggable}
             busy={busy}
@@ -559,7 +590,16 @@ function EntryRow({
             </Field>
           </div>
           <div className="flex justify-end gap-2">
-            <Button type="button" variant="ghost" size="sm" onClick={() => setEditing(false)}>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                setServings(String(entry.servings))
+                setCalories(entry.caloriesPerServing === null ? "" : String(entry.caloriesPerServing))
+                setEditing(false)
+              }}
+            >
               Huỷ
             </Button>
             <Button type="submit" size="sm" disabled={busy || parsedServings === null || caloriesInvalid}>
@@ -635,17 +675,21 @@ function References({
 
 function AddDishForm({
   date,
+  initialName = "",
+  initialDetails = "",
   onCancel,
   onSaved,
 }: {
   date: string
+  initialName?: string
+  initialDetails?: string
   onCancel: () => void
   onSaved: () => Promise<void>
 }) {
   const { accessToken } = useAuth()
   const [section, setSection] = useState<MealSection>(sectionForNow)
-  const [name, setName] = useState("")
-  const [details, setDetails] = useState("")
+  const [name, setName] = useState(initialName)
+  const [details, setDetails] = useState(initialDetails)
   const [servings, setServings] = useState("1")
   const [calories, setCalories] = useState("")
   const [estimate, setEstimate] = useState<CalorieEstimate | null>(null)

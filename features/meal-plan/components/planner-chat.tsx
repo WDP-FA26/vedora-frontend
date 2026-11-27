@@ -4,6 +4,7 @@ import { useEffect, useImperativeHandle, useRef, useState, type FormEvent, type 
 import Link from "next/link"
 import { Streamdown } from "streamdown"
 import {
+  ActivityIcon,
   ArrowUpIcon,
   AudioLinesIcon,
   CalendarCheckIcon,
@@ -13,6 +14,7 @@ import {
   MapPinIcon,
   MessageSquarePlusIcon,
   NavigationIcon,
+  NotebookPenIcon,
   RotateCcwIcon,
   SparklesIcon,
   SquareIcon,
@@ -53,11 +55,15 @@ import {
 import { Spinner } from "@/components/ui/spinner"
 import { DIETARY_PATH } from "@/features/dietary/dietary"
 import {
+  messageBodyMetricUpdates,
+  messageLoggedMeals,
   messagePlanChanges,
   messageProfileNoteUpdates,
   messageQuestions,
   messageRestaurantDishes,
   messageText,
+  type BodyMetricsUpdate,
+  type LoggedMealUpdate,
   type MealPlannerChat,
   type PlanChangeEntry,
   type PlannerRestaurantDish,
@@ -127,6 +133,10 @@ export function PlannerChat({
   clearAskContext,
   onOpenWeek,
   onStartVoice,
+  onLogRestaurantDish,
+  onEditDietary,
+  onOpenMealLog,
+  onOpenBodyMetrics,
   voiceDisabled = false,
   leading,
   trailing,
@@ -147,6 +157,14 @@ export function PlannerChat({
   onOpenWeek?: (weekStart: string) => void
   /** Starts a live voice conversation from the chat composer. */
   onStartVoice?: () => void
+  /** Opens the eating diary pre-filled with a recommended restaurant dish. */
+  onLogRestaurantDish?: (dish: PlannerRestaurantDish) => void
+  /** Opens the inline dietary profile tab without leaving the planner. */
+  onEditDietary?: () => void
+  /** Opens the eating diary on a specific date. */
+  onOpenMealLog?: (date?: string) => void
+  /** Opens the inline BMI panel. */
+  onOpenBodyMetrics?: () => void
   voiceDisabled?: boolean
 }) {
   const { messages, busy, waiting, pendingId, streamingId, error, send, reset } = chat
@@ -324,12 +342,22 @@ export function PlannerChat({
         <p className="min-w-0 truncate text-muted-foreground" title={avoidedSummary}>
           <span className="font-semibold text-foreground">Kiêng/Dị ứng:</span> {avoidedSummary}
         </p>
-        <Link
-          href={DIETARY_PATH}
-          className="shrink-0 font-semibold text-primary underline-offset-4 hover:underline focus-visible:underline"
-        >
-          Chỉnh hồ sơ
-        </Link>
+        {onEditDietary ? (
+          <button
+            type="button"
+            onClick={onEditDietary}
+            className="shrink-0 font-semibold text-primary underline-offset-4 hover:underline focus-visible:underline"
+          >
+            Chỉnh hồ sơ
+          </button>
+        ) : (
+          <Link
+            href={DIETARY_PATH}
+            className="shrink-0 font-semibold text-primary underline-offset-4 hover:underline focus-visible:underline"
+          >
+            Chỉnh hồ sơ
+          </Link>
+        )}
       </div>
 
       <div aria-label="Cuộc trò chuyện" aria-live="polite" className="flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto overscroll-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden px-4 py-5 sm:px-5">
@@ -344,6 +372,8 @@ export function PlannerChat({
           const questions = messageQuestions(message)
           const restaurantDishes = messageRestaurantDishes(message)
           const noteUpdates = messageProfileNoteUpdates(message)
+          const loggedMeals = messageLoggedMeals(message)
+          const bodyMetrics = messageBodyMetricUpdates(message)
           const pending = message.id === pendingId
           if (
             !text &&
@@ -351,6 +381,8 @@ export function PlannerChat({
             questions.length === 0 &&
             restaurantDishes.length === 0 &&
             noteUpdates.length === 0 &&
+            loggedMeals.length === 0 &&
+            bodyMetrics.length === 0 &&
             !pending &&
             !hasTrace(message)
           ) {
@@ -380,10 +412,19 @@ export function PlannerChat({
                 />
               ))}
               {noteUpdates.map((update) => (
-                <ProfileNoteCard key={update.id} update={update} />
+                <ProfileNoteCard key={update.id} update={update} onEditDietary={onEditDietary} />
+              ))}
+              {loggedMeals.map((item) => (
+                <MealLoggedCard key={item.id} item={item} onOpenMealLog={onOpenMealLog} />
+              ))}
+              {bodyMetrics.map((item) => (
+                <BodyMetricsCard key={item.id} item={item} onOpenBodyMetrics={onOpenBodyMetrics} />
               ))}
               {!pending && restaurantDishes.length > 0 && (
-                <RestaurantDishCards dishes={restaurantDishes} />
+                <RestaurantDishCards
+                  dishes={restaurantDishes}
+                  onLogDish={onLogRestaurantDish}
+                />
               )}
               {!pending && message.id !== streamingId && <MessageSources message={message} />}
               {questions.map((question) => (
@@ -469,7 +510,7 @@ export function PlannerChat({
           {inputError && <p role="alert" className="mt-1 text-xs text-destructive">{inputError}</p>}
         </form>
         <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-[0.6875rem] leading-4 text-muted-foreground">
-          <p>Đề xuất chỉ thay đổi thực đơn khi bạn lưu.</p>
+          <p>Trợ lý tự lưu thay đổi vào lịch. Bấm Quay lại ở tin nhắn để hoàn tác.</p>
           {chat.webSearchAllowed && (
             <p title="Bạn đã cho phép trợ lý tìm trên web trong đoạn chat này" className="flex items-center gap-1">
               <GlobeIcon aria-hidden className="size-3 shrink-0" /> Được tìm trên web
@@ -674,7 +715,13 @@ function leftOutLabel(problem: MealPlanProblem) {
 }
 
 /** The assistant changed the "Dị ứng" or "Sở thích" lines in the dietary profile. */
-function ProfileNoteCard({ update }: { update: ProfileNoteUpdate }) {
+function ProfileNoteCard({
+  update,
+  onEditDietary,
+}: {
+  update: ProfileNoteUpdate
+  onEditDietary?: () => void
+}) {
   const label = update.section === "allergies" ? "Dị ứng" : "Sở thích"
   const note = update.lines.length > 0 ? update.lines.map((line) => `• ${line}`).join("\n") : null
   return (
@@ -685,9 +732,79 @@ function ProfileNoteCard({ update }: { update: ProfileNoteUpdate }) {
           <h3 className="text-sm font-semibold">Đã cập nhật {label} trong hồ sơ</h3>
           <p className="mt-1 whitespace-pre-line text-sm text-muted-foreground">{note ?? `Đã xoá hết mục ${label}.`}</p>
         </div>
-        <Link href={DIETARY_PATH} className="shrink-0 text-xs font-semibold text-primary underline-offset-4 hover:underline">
-          Chỉnh
-        </Link>
+        {onEditDietary ? (
+          <button
+            type="button"
+            onClick={onEditDietary}
+            className="shrink-0 text-xs font-semibold text-primary underline-offset-4 hover:underline"
+          >
+            Chỉnh
+          </button>
+        ) : (
+          <Link href={DIETARY_PATH} className="shrink-0 text-xs font-semibold text-primary underline-offset-4 hover:underline">
+            Chỉnh
+          </Link>
+        )}
+      </div>
+    </article>
+  )
+}
+
+function MealLoggedCard({
+  item,
+  onOpenMealLog,
+}: {
+  item: LoggedMealUpdate
+  onOpenMealLog?: (date?: string) => void
+}) {
+  return (
+    <article aria-label="Đã ghi vào nhật ký" className="mt-2 w-full rounded-xl border border-border bg-card px-4 py-3">
+      <div className="flex items-start gap-2">
+        <NotebookPenIcon aria-hidden className="mt-0.5 size-4 shrink-0 text-primary" />
+        <div className="min-w-0 flex-1">
+          <h3 className="text-sm font-semibold">Đã ghi vào Nhật ký</h3>
+          <p className="mt-0.5 text-xs text-muted-foreground">
+            {item.name} · Bữa {SECTION_LABELS[item.section].toLowerCase()} ({item.date})
+            {item.calories !== null ? ` · ~${item.calories} kcal` : ""}
+          </p>
+        </div>
+        {onOpenMealLog && (
+          <Button variant="link" size="xs" onClick={() => onOpenMealLog(item.date)}>
+            Xem Nhật ký
+          </Button>
+        )}
+      </div>
+    </article>
+  )
+}
+
+function BodyMetricsCard({
+  item,
+  onOpenBodyMetrics,
+}: {
+  item: BodyMetricsUpdate
+  onOpenBodyMetrics?: () => void
+}) {
+  const details: string[] = []
+  if (item.weightKg !== null) details.push(`${item.weightKg} kg`)
+  if (item.heightCm !== null) details.push(`${item.heightCm} cm`)
+  if (item.bmi !== null) details.push(`BMI ${item.bmi.toFixed(1)}`)
+  if (item.dailyCalorieTarget !== null) details.push(`~${item.dailyCalorieTarget} kcal/ngày`)
+  return (
+    <article aria-label="Đã cập nhật chỉ số cơ thể" className="mt-2 w-full rounded-xl border border-border bg-card px-4 py-3">
+      <div className="flex items-start gap-2">
+        <ActivityIcon aria-hidden className="mt-0.5 size-4 shrink-0 text-primary" />
+        <div className="min-w-0 flex-1">
+          <h3 className="text-sm font-semibold">Đã cập nhật chỉ số cơ thể</h3>
+          {details.length > 0 && (
+            <p className="mt-0.5 text-xs text-muted-foreground tabular-nums">{details.join(" · ")}</p>
+          )}
+        </div>
+        {onOpenBodyMetrics && (
+          <Button variant="link" size="xs" onClick={onOpenBodyMetrics}>
+            Xem BMI
+          </Button>
+        )}
       </div>
     </article>
   )
@@ -805,7 +922,13 @@ function QuestionCard({ question, open, disabled, onAnswer }: {
   )
 }
 
-function RestaurantDishCards({ dishes }: { dishes: PlannerRestaurantDish[] }) {
+function RestaurantDishCards({
+  dishes,
+  onLogDish,
+}: {
+  dishes: PlannerRestaurantDish[]
+  onLogDish?: (dish: PlannerRestaurantDish) => void
+}) {
   return (
     <section aria-label="Món gợi ý từ nhà hàng" className="mt-2 flex w-full flex-col gap-2">
       <h3 className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground">
@@ -889,6 +1012,16 @@ function RestaurantDishCards({ dishes }: { dishes: PlannerRestaurantDish[] }) {
                     <NavigationIcon aria-hidden className="size-3" />
                     Chỉ đường
                   </a>
+                  {onLogDish && (
+                    <button
+                      type="button"
+                      onClick={() => onLogDish(dish)}
+                      className="inline-flex items-center gap-1 font-medium text-primary underline-offset-4 hover:underline"
+                    >
+                      <CheckIcon aria-hidden className="size-3" />
+                      Ghi vào Nhật ký
+                    </button>
+                  )}
                 </div>
               </div>
             </li>

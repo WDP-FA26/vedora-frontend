@@ -4,7 +4,10 @@ import { useEffect, useImperativeHandle, useRef, useState, type DragEvent, type 
 import { z } from "zod"
 import {
   ArrowRightLeftIcon,
+  BookmarkIcon,
   BookOpenIcon,
+  CheckIcon,
+  ClockIcon,
   EllipsisIcon,
   MessageCircleIcon,
   PlusIcon,
@@ -13,7 +16,8 @@ import {
   TriangleAlertIcon,
 } from "lucide-react"
 
-import { tagView, type RecipeTag } from "@/features/recipes/tags"
+import { RECIPE_TAGS, tagView, type RecipeTag } from "@/features/recipes/tags"
+import { useFavoriteRecipes } from "@/features/recipes/hooks/use-recipe-favorite"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
 import {
@@ -33,6 +37,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select"
 import { Spinner } from "@/components/ui/spinner"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
   Combobox,
   ComboboxContent,
@@ -54,12 +59,14 @@ import {
   NutritionCompanionBar,
   type NutritionCompanionBarHandle,
 } from "@/features/meal-plan/components/nutrition-companion-bar"
+import { TodayFocusStrip } from "@/features/meal-plan/components/today-focus-strip"
 import {
   DAY_SHORT,
   displayDays,
   type RecipeRef,
 } from "@/features/meal-plan/components/timetable"
-import type { NutritionProfile } from "@/features/dietary/dietary"
+import type { DietaryMemory, NutritionProfile } from "@/features/dietary/dietary"
+import type { MealLogWeek } from "@/features/meal-plan/meal-log"
 import {
   computeDayNutrition,
   DAY_LABELS,
@@ -109,6 +116,7 @@ export type CalendarBoardHandle = {
   ) => void
   closeDish: () => void
   showBodyMetrics: () => void
+  showDietary: () => void
   hideBodyMetrics: () => void
   scrollBodyMetrics: (direction: ScreenScrollDirection) => void
   scrollMobileBoard: (direction: ScreenScrollDirection) => void
@@ -132,7 +140,19 @@ type CalendarBoardProps = {
   onSuggestSlot?: (slot: SlotRef) => void
   onRetry?: () => void
   nutrition?: NutritionProfile
+  mealLog?: MealLogWeek
+  dietary?: DietaryMemory
   onNutritionSaved?: (next: NutritionProfile) => Promise<void> | void
+  onDietarySaved?: (next: DietaryMemory) => Promise<void> | void
+  onToggleEaten?: (
+    day: Weekday,
+    date: string,
+    section: MealSection,
+    recipeId: string,
+    existingEntryId?: string
+  ) => Promise<void>
+  eatingBusyKey?: string | null
+  onLogEatingOut?: () => void
   onAskAssistant?: (prompt: string) => void
   /** Buttons at the right of the toolbar above the grid. */
   action?: ReactNode
@@ -175,7 +195,13 @@ export function CalendarBoard({
   onSuggestSlot,
   onRetry,
   nutrition,
+  mealLog,
+  dietary,
   onNutritionSaved,
+  onDietarySaved,
+  onToggleEaten,
+  eatingBusyKey = null,
+  onLogEatingOut,
   onAskAssistant,
   action,
   leading,
@@ -223,6 +249,9 @@ export function CalendarBoard({
     showBodyMetrics() {
       nutritionBar.current?.showBodyMetrics()
     },
+    showDietary() {
+      nutritionBar.current?.showDietary()
+    },
     hideBodyMetrics() {
       nutritionBar.current?.hideBodyMetrics()
     },
@@ -268,6 +297,17 @@ export function CalendarBoard({
 
   const view = displayDays(plan, null)
   const warnings = plan ? dishWarnings(plan.problems) : new Map<string, string[]>()
+  const eatenEntryBySlotRecipe = new Map<string, string>()
+  const loggableByDay = new Map<Weekday, { loggable: boolean; date: string }>()
+  for (const logDay of mealLog?.days ?? []) {
+    loggableByDay.set(logDay.day, { loggable: logDay.loggable, date: logDay.date })
+    for (const entry of logDay.entries) {
+      if (entry.recipeId) {
+        eatenEntryBySlotRecipe.set(`${logDay.day}:${entry.section}:${entry.recipeId}`, entry.id)
+      }
+    }
+  }
+  const dayDateByDay = new Map((plan?.days ?? []).map((item) => [item.day, item.date]))
   const dayNutritionByDay = new Map(
     (plan?.days ?? []).map((dayItem) => [
       dayItem.day,
@@ -373,11 +413,33 @@ export function CalendarBoard({
       <NutritionCompanionBar
         plan={plan}
         nutrition={nutrition}
+        mealLog={mealLog}
+        dietary={dietary}
         onNutritionSaved={onNutritionSaved ?? (() => undefined)}
+        onDietarySaved={onDietarySaved}
         onAskAssistant={onAskAssistant}
         trailing={action}
         handle={nutritionBar}
       />
+      {today && onToggleEaten && (
+        <TodayFocusStrip
+          plan={plan}
+          today={today}
+          mealLog={mealLog}
+          dailyCalorieTarget={nutrition?.dailyCalorieTarget ?? null}
+          eatenEntryBySlotRecipe={eatenEntryBySlotRecipe}
+          eatingBusyKey={eatingBusyKey}
+          onOpenDish={(day, section, recipe) => {
+            setOpened({ recipeId: recipe.id, title: recipe.title, day, section, detail: recipe })
+            setSheetOpen(true)
+          }}
+          onToggleEaten={(day, date, section, recipeId, existingEntryId) =>
+            void onToggleEaten(day, date, section, recipeId, existingEntryId)
+          }
+          onSwapSection={(day, section) => onSuggestSlot?.({ day, section })}
+          onLogEatingOut={() => onLogEatingOut?.()}
+        />
+      )}
       {saving && (
         <span
           role="status"
@@ -521,6 +583,11 @@ export function CalendarBoard({
                   <div className="flex flex-col gap-1.5">
                     {recipes.map((recipe) => {
                       const detail = recipe.detail
+                      const slotKey = `${selectedDay}:${section}:${recipe.id}`
+                      const existingEntryId = eatenEntryBySlotRecipe.get(slotKey)
+                      const logMeta = loggableByDay.get(selectedDay)
+                      const dateForDay = logMeta?.date ?? dayDateByDay.get(selectedDay)
+                      const canLog = Boolean(onToggleEaten && logMeta?.loggable && dateForDay)
                       return (
                         <CalendarChip
                           key={recipe.id}
@@ -530,6 +597,20 @@ export function CalendarBoard({
                           recipeId={recipe.id}
                           warnings={warnings.get(dishKey(selectedDay, recipe.id)) ?? []}
                           disabled={saving || !dayEditable(selectedDay)}
+                          eaten={existingEntryId !== undefined}
+                          eatingBusy={eatingBusyKey === slotKey}
+                          onToggleEaten={
+                            canLog && dateForDay && onToggleEaten
+                              ? () =>
+                                  void onToggleEaten(
+                                    selectedDay,
+                                    dateForDay,
+                                    section,
+                                    recipe.id,
+                                    existingEntryId
+                                  )
+                              : undefined
+                          }
                           onOpen={() => {
                             setOpened({
                               recipeId: recipe.id,
@@ -674,6 +755,11 @@ export function CalendarBoard({
                   >
                     {recipes.map((recipe) => {
                       const detail = recipe.detail
+                      const slotKey = `${day}:${section}:${recipe.id}`
+                      const existingEntryId = eatenEntryBySlotRecipe.get(slotKey)
+                      const logMeta = loggableByDay.get(day)
+                      const dateForDay = logMeta?.date ?? dayDateByDay.get(day)
+                      const canLog = Boolean(onToggleEaten && logMeta?.loggable && dateForDay)
                       return (
                         <CalendarChip
                           key={recipe.id}
@@ -683,6 +769,20 @@ export function CalendarBoard({
                           recipeId={recipe.id}
                           warnings={warnings.get(dishKey(day, recipe.id)) ?? []}
                           disabled={saving || !dayEditable(day)}
+                          eaten={existingEntryId !== undefined}
+                          eatingBusy={eatingBusyKey === slotKey}
+                          onToggleEaten={
+                            canLog && dateForDay && onToggleEaten
+                              ? () =>
+                                  void onToggleEaten(
+                                    day,
+                                    dateForDay,
+                                    section,
+                                    recipe.id,
+                                    existingEntryId
+                                  )
+                              : undefined
+                          }
                           onOpen={() => {
                             setOpened({ recipeId: recipe.id, title: recipe.title, day, section, detail })
                             setSheetOpen(true)
@@ -741,6 +841,27 @@ export function CalendarBoard({
         handle={recipeSheet}
         onClose={() => setSheetOpen(false)}
         onActiveRecipeChange={onActiveRecipeChange}
+        eaten={
+          opened
+            ? eatenEntryBySlotRecipe.has(`${opened.day}:${opened.section}:${opened.recipeId}`)
+            : false
+        }
+        eatingBusy={
+          opened
+            ? eatingBusyKey === `${opened.day}:${opened.section}:${opened.recipeId}`
+            : false
+        }
+        onToggleEaten={(() => {
+          if (!opened || !onToggleEaten) return undefined
+          const logMeta = loggableByDay.get(opened.day)
+          const dateForDay = logMeta?.date ?? dayDateByDay.get(opened.day)
+          if (!logMeta?.loggable || !dateForDay) return undefined
+          const existingId = eatenEntryBySlotRecipe.get(
+            `${opened.day}:${opened.section}:${opened.recipeId}`
+          )
+          return () =>
+            void onToggleEaten(opened.day, dateForDay, opened.section, opened.recipeId, existingId)
+        })()}
         onAsk={opened && onAsk ? () => {
           onAsk({ id: opened.recipeId, title: opened.title, tag: opened.detail?.tag ?? null }, opened.day, opened.section)
           setSheetOpen(false)
@@ -784,6 +905,9 @@ function CalendarChip({
   recipeId,
   warnings,
   disabled,
+  eaten = false,
+  eatingBusy = false,
+  onToggleEaten,
   onOpen,
   onMove,
   onRemove,
@@ -795,6 +919,9 @@ function CalendarChip({
   recipeId: string
   warnings: string[]
   disabled: boolean
+  eaten?: boolean
+  eatingBusy?: boolean
+  onToggleEaten?: () => void
   onOpen: () => void
   onMove: () => void
   onRemove: () => void
@@ -810,10 +937,31 @@ function CalendarChip({
         event.dataTransfer.effectAllowed = "move"
       }}
       className={cn(
-        "group flex min-w-0 items-center gap-0.5 rounded-lg border border-transparent bg-primary/10 py-0.5 pr-0.5 pl-1.5 text-xs",
+        "group flex min-w-0 items-center gap-0.5 rounded-lg border py-0.5 pr-0.5 pl-1.5 text-xs",
+        eaten
+          ? "border-emerald-500/35 bg-emerald-500/10"
+          : "border-transparent bg-primary/10",
         !disabled && "cursor-grab active:cursor-grabbing"
       )}
     >
+      {onToggleEaten && (
+        <button
+          type="button"
+          disabled={eatingBusy}
+          aria-pressed={eaten}
+          aria-label={eaten ? `Bỏ đánh dấu đã ăn ${title}` : `Đánh dấu đã ăn ${title}`}
+          title={eaten ? "Đã ăn (bấm để bỏ)" : "Đánh dấu đã ăn"}
+          onClick={onToggleEaten}
+          className={cn(
+            "flex size-4 shrink-0 items-center justify-center rounded-full border transition-colors",
+            eaten
+              ? "border-emerald-600 bg-emerald-600 text-white"
+              : "border-primary/40 bg-background/80 text-transparent hover:border-primary hover:text-primary/60"
+          )}
+        >
+          <CheckIcon aria-hidden className="size-2.5" />
+        </button>
+      )}
       <button
         type="button"
         onClick={onOpen}
@@ -838,6 +986,11 @@ function CalendarChip({
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
           <DropdownMenuItem onClick={onOpen}><BookOpenIcon aria-hidden /> Xem công thức</DropdownMenuItem>
+          {onToggleEaten && (
+            <DropdownMenuItem onClick={onToggleEaten}>
+              <CheckIcon aria-hidden /> {eaten ? "Bỏ đánh dấu đã ăn" : "Đánh dấu đã ăn"}
+            </DropdownMenuItem>
+          )}
           {onAsk && (
             <DropdownMenuItem onClick={onAsk}><MessageCircleIcon aria-hidden /> Hỏi trợ lý</DropdownMenuItem>
           )}
@@ -866,15 +1019,19 @@ function AddRecipeDialog({
   onPick: (recipeId: string) => void
 }) {
   const { accessToken } = useAuth()
+  const [sourceTab, setSourceTab] = useState<"all" | "saved">("all")
   const [query, setQuery] = useState("")
+  const [quickOnly, setQuickOnly] = useState(false)
+  const [tagFilter, setTagFilter] = useState<RecipeTag | null>(null)
   const [results, setResults] = useState<RecipeOption[]>([])
   const [searching, setSearching] = useState(false)
   const [failed, setFailed] = useState(false)
   const open = slot !== null
+  const favorites = useFavoriteRecipes(1)
 
   // Searches as the user types; an older answer never overwrites a newer one.
   useEffect(() => {
-    if (!open || !accessToken) return
+    if (!open || !accessToken || sourceTab !== "all") return
     let stale = false
     const delay = query === "" ? 0 : SEARCH_DEBOUNCE_MS
     const timer = setTimeout(async () => {
@@ -893,12 +1050,15 @@ function AddRecipeDialog({
       stale = true
       clearTimeout(timer)
     }
-  }, [open, accessToken, query])
+  }, [open, accessToken, query, sourceTab])
 
   function close() {
     setQuery("")
     setResults([])
     setFailed(false)
+    setQuickOnly(false)
+    setTagFilter(null)
+    setSourceTab("all")
     onClose()
   }
 
@@ -908,47 +1068,148 @@ function AddRecipeDialog({
     return "Không có món phù hợp."
   }
 
+  const filteredResults = results.filter((recipe) => {
+    if (quickOnly && (recipe.totalMinutes === null || recipe.totalMinutes > 30)) return false
+    return true
+  })
+
+  const savedItems = (favorites.data?.items ?? []).filter((recipe) => {
+    const minutes =
+      recipe.prepMinutes === null && recipe.cookMinutes === null
+        ? null
+        : (recipe.prepMinutes ?? 0) + (recipe.cookMinutes ?? 0)
+    if (quickOnly && (minutes === null || minutes > 30)) return false
+    if (tagFilter !== null && recipe.tag !== tagFilter) return false
+    return true
+  })
+
   return (
     <Dialog open={open} onOpenChange={(next) => !next && close()}>
-      <DialogContent className="max-h-[85dvh]">
+      <DialogContent className="max-h-[85dvh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Thêm món</DialogTitle>
           <DialogDescription>{slot ? slotLabel(slot) : ""}. Chỉ hiện món phù hợp với hồ sơ ăn uống của bạn.</DialogDescription>
         </DialogHeader>
-        <Combobox
-          items={results}
-          value={null}
-          inputValue={query}
-          onInputValueChange={setQuery}
-          onValueChange={(recipe: RecipeOption | null) => {
-            if (!recipe) return
-            onPick(recipe.id)
-            close()
-          }}
-          itemToStringLabel={(recipe: RecipeOption) => recipe.title}
-          isItemEqualToValue={(a: RecipeOption, b: RecipeOption) => a.id === b.id}
-          filter={null}
-        >
-          <ComboboxInput
-            maxLength={100}
-            placeholder="Gõ tên món hoặc nguyên liệu, ví dụ: đậu hũ"
-            aria-label="Tìm công thức"
-            showTrigger={false}
-          />
-          <ComboboxContent>
-            <ComboboxEmpty>{emptyText()}</ComboboxEmpty>
-            <ComboboxList>
-              {(recipe: RecipeOption) => (
-                <ComboboxItem key={recipe.id} value={recipe}>
-                  <span className="min-w-0 flex-1 truncate font-medium">{recipe.title}</span>
-                  {recipe.totalMinutes !== null && (
-                    <span className="shrink-0 text-xs text-muted-foreground">{recipe.totalMinutes} phút</span>
+
+        <Tabs value={sourceTab} onValueChange={(next) => setSourceTab(next as "all" | "saved")}>
+          <TabsList className="grid w-full grid-cols-2">
+            <TabsTrigger value="all">Tất cả công thức</TabsTrigger>
+            <TabsTrigger value="saved">
+              <BookmarkIcon aria-hidden /> Đã lưu
+            </TabsTrigger>
+          </TabsList>
+
+          <div className="mt-3 flex flex-wrap items-center gap-1.5">
+            <Button
+              type="button"
+              size="xs"
+              variant={quickOnly ? "default" : "outline"}
+              aria-pressed={quickOnly}
+              onClick={() => setQuickOnly((prev) => !prev)}
+            >
+              <ClockIcon aria-hidden /> ≤ 30 phút
+            </Button>
+            {sourceTab === "saved" &&
+              RECIPE_TAGS.slice(0, 5).map((tag) => {
+                const active = tagFilter === tag
+                return (
+                  <Button
+                    key={tag}
+                    type="button"
+                    size="xs"
+                    variant={active ? "default" : "outline"}
+                    aria-pressed={active}
+                    onClick={() => setTagFilter(active ? null : tag)}
+                  >
+                    {tagView(tag).label}
+                  </Button>
+                )
+              })}
+          </div>
+
+          <TabsContent value="all" className="mt-3">
+            <Combobox
+              items={filteredResults}
+              value={null}
+              inputValue={query}
+              onInputValueChange={setQuery}
+              onValueChange={(recipe: RecipeOption | null) => {
+                if (!recipe) return
+                onPick(recipe.id)
+                close()
+              }}
+              itemToStringLabel={(recipe: RecipeOption) => recipe.title}
+              isItemEqualToValue={(a: RecipeOption, b: RecipeOption) => a.id === b.id}
+              filter={null}
+            >
+              <ComboboxInput
+                maxLength={100}
+                placeholder="Gõ tên món hoặc nguyên liệu, ví dụ: đậu hũ"
+                aria-label="Tìm công thức"
+                showTrigger={false}
+              />
+              <ComboboxContent>
+                <ComboboxEmpty>{emptyText()}</ComboboxEmpty>
+                <ComboboxList>
+                  {(recipe: RecipeOption) => (
+                    <ComboboxItem key={recipe.id} value={recipe}>
+                      <span className="min-w-0 flex-1 truncate font-medium">{recipe.title}</span>
+                      <span className="flex shrink-0 items-center gap-2 text-xs text-muted-foreground tabular-nums">
+                        {recipe.totalMinutes !== null && <span>{recipe.totalMinutes} phút</span>}
+                      </span>
+                    </ComboboxItem>
                   )}
-                </ComboboxItem>
-              )}
-            </ComboboxList>
-          </ComboboxContent>
-        </Combobox>
+                </ComboboxList>
+              </ComboboxContent>
+            </Combobox>
+          </TabsContent>
+
+          <TabsContent value="saved" className="mt-3">
+            <div className="space-y-2">
+            <p className="text-xs text-muted-foreground">
+              Danh sách công thức bạn đã lưu (hệ thống vẫn kiểm tra dị ứng khi lưu vào lịch).
+            </p>
+            {favorites.isLoading && !favorites.data ? (
+              <p className="flex items-center gap-2 py-4 text-sm text-muted-foreground">
+                <Spinner aria-hidden /> Đang tải công thức đã lưu…
+              </p>
+            ) : savedItems.length === 0 ? (
+              <p className="py-4 text-center text-sm text-muted-foreground">
+                Chưa có công thức đã lưu nào phù hợp với bộ lọc.
+              </p>
+            ) : (
+              <ul className="max-h-64 divide-y divide-border overflow-y-auto rounded-xl border border-border">
+                {savedItems.map((recipe) => {
+                  const minutes =
+                    recipe.prepMinutes === null && recipe.cookMinutes === null
+                      ? null
+                      : (recipe.prepMinutes ?? 0) + (recipe.cookMinutes ?? 0)
+                  return (
+                    <li key={recipe.id}>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          onPick(recipe.id)
+                          close()
+                        }}
+                        className="flex w-full items-center justify-between gap-2 px-3 py-2.5 text-left text-sm hover:bg-accent/60"
+                      >
+                        <span className="min-w-0 flex-1 truncate font-medium">{recipe.title}</span>
+                        <span className="flex shrink-0 items-center gap-2 text-xs text-muted-foreground tabular-nums">
+                          {typeof recipe.caloriesPerServing === "number" && (
+                            <span>~{recipe.caloriesPerServing} kcal</span>
+                          )}
+                          {minutes !== null && <span>{minutes} phút</span>}
+                        </span>
+                      </button>
+                    </li>
+                  )
+                })}
+              </ul>
+            )}
+            </div>
+          </TabsContent>
+        </Tabs>
       </DialogContent>
     </Dialog>
   )

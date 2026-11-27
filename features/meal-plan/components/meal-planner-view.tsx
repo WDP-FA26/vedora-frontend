@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
+import { useSWRConfig } from "swr"
 import { useAuthedSWR } from "@/features/auth/hooks/use-authed-swr"
 import Link from "next/link"
 import { ArrowLeftIcon, AudioLinesIcon, CalendarRangeIcon, PanelLeftCloseIcon, SparklesIcon } from "lucide-react"
@@ -12,6 +13,7 @@ import { Input } from "@/components/ui/input"
 import { Spinner } from "@/components/ui/spinner"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Textarea } from "@/components/ui/textarea"
+import { toast } from "@/components/ui/toast"
 import { useAuth } from "@/features/auth/hooks/use-auth"
 import { isAccessTokenFresh } from "@/features/auth/lib/tokens"
 import {
@@ -34,16 +36,27 @@ import {
 import { CalendarBoard, type CalendarBoardHandle } from "@/features/meal-plan/components/calendar-board"
 import { MealLogButton, type MealLogHandle } from "@/features/meal-plan/components/meal-log-button"
 import { PlannerChat, type PlannerChatHandle } from "@/features/meal-plan/components/planner-chat"
+import { QuickGenerate } from "@/features/meal-plan/components/quick-generate"
 import { RecipeSheet, type OpenedDish, type RecipeSheetHandle } from "@/features/meal-plan/components/recipe-sheet"
-import { ShoppingListButton } from "@/features/meal-plan/components/shopping-list-button"
+import { ShoppingListButton, type ShoppingListHandle } from "@/features/meal-plan/components/shopping-list-button"
 import { VoicePanel } from "@/features/meal-plan/components/voice-panel"
 import { VoiceScreenGlow } from "@/features/meal-plan/components/voice-screen-glow"
 import { WeekNav } from "@/features/meal-plan/components/week-nav"
 import { useMealPlannerChat } from "@/features/meal-plan/hooks/use-meal-planner-chat"
 import {
+  createMealLogEntry,
+  deleteMealLogEntry,
+  fetchMealLog,
+  isMealLogKey,
+  mealLogKey,
+} from "@/features/meal-plan/meal-log"
+import {
   DAY_LABELS,
+  editableDaysOf,
   fetchMealPlan,
+  generateMealDays,
   inputsForChanges,
+  isMealPlanKey,
   mealPlanKey,
   planAfterChanges,
   problemSchema,
@@ -51,6 +64,7 @@ import {
   saveMealDays,
   SECTION_LABELS,
   shiftWeek,
+  type GenerateInput,
   type MealPlan,
   type MealSection,
   type SlotChange,
@@ -97,6 +111,7 @@ function calendarErrorMessage(error: unknown) {
  */
 export function MealPlannerView() {
   const { user, accessToken } = useAuth()
+  const { mutate: swrMutate } = useSWRConfig()
   const router = useRouter()
   const searchParams = useSearchParams()
   const requestedWeek = searchParams.get(WEEK_PARAM)
@@ -105,12 +120,15 @@ export function MealPlannerView() {
   const canLoadDietary = user !== null && user.accountType === "PERSONAL"
   const plan = useAuthedSWR(canLoadDietary ? mealPlanKey(weekParam) : null, fetchMealPlan)
   const weekStart = plan.data?.weekStart
+  const weekLog = useAuthedSWR(canLoadDietary && weekStart ? mealLogKey(weekStart) : null, fetchMealLog)
   const chat = useMealPlannerChat(weekStart)
   const plannerChat = useRef<PlannerChatHandle>(null)
   const [tab, setTab] = useState<Tab>("chat")
   const [assistantOpen, setAssistantOpen] = useState(true)
+  const [eatingBusyKey, setEatingBusyKey] = useState<string | null>(null)
   const calendar = useRef<CalendarBoardHandle>(null)
   const mealLog = useRef<MealLogHandle>(null)
+  const shoppingList = useRef<ShoppingListHandle>(null)
   const voiceRecipeSheet = useRef<RecipeSheetHandle>(null)
   const calendarScrollRef = useRef<HTMLDivElement>(null)
   /** A day the voice agent showed in another week; the calendar picks it when that week mounts. */
@@ -177,6 +195,7 @@ export function MealPlannerView() {
     if (!weekStart) return null
     const board = calendar.current?.screen()
     const diary = mealLog.current?.screen()
+    const shop = shoppingList.current?.screen()
     const screen: VoiceScreen = { weekStart, day: board?.day, panel: "none" }
     if (voiceDishOpen && voiceDish) {
       return {
@@ -197,6 +216,9 @@ export function MealPlannerView() {
         recipeStep: board.recipe.step ?? undefined,
         scrollState: board.recipe.scrollState,
       }
+    }
+    if (shop?.open) {
+      return { ...screen, panel: "shoppingList", scrollState: shop.scrollState }
     }
     if (diary?.open) {
       return {
@@ -225,6 +247,7 @@ export function MealPlannerView() {
     }
     if (closes("eatingLog")) mealLog.current?.close()
     if (closes("bodyMetrics")) calendar.current?.hideBodyMetrics()
+    if (closes("shoppingList")) shoppingList.current?.close()
   }
 
   /**
@@ -255,6 +278,13 @@ export function MealPlannerView() {
       setTab("calendar")
       calendar.current?.showBodyMetrics()
       if (scroll) calendar.current?.scrollBodyMetrics(scroll)
+      return
+    }
+    if (focus.kind === "shoppingList") {
+      closeVoicePanels("all", "shoppingList")
+      setTab("calendar")
+      shoppingList.current?.open()
+      if (scroll) shoppingList.current?.scroll(scroll)
       return
     }
     if (focus.kind === "planDay") {
@@ -292,6 +322,7 @@ export function MealPlannerView() {
       return
     }
     calendar.current?.closeDish()
+    setTab("calendar")
     setVoiceDish({ recipeId: focus.recipeId, title: focus.title, voice })
     setVoiceDishOpen(true)
   }
@@ -312,10 +343,157 @@ export function MealPlannerView() {
         populateCache: true,
         revalidate: false,
       })
+      void swrMutate(isMealPlanKey)
     } catch (error) {
       if (error instanceof ApiError && error.status === 401) router.refresh()
       if (error instanceof ApiError && error.code === "MEAL_DAY_LOCKED") void plan.mutate()
       throw new Error(calendarErrorMessage(error))
+    }
+  }
+
+  async function handleQuickGenerate(request: GenerateInput): Promise<string | null> {
+    const current = plan.data
+    if (!accessToken || !current) return "Thực đơn chưa sẵn sàng."
+    try {
+      const generated = await generateMealDays(accessToken, {
+        ...request,
+        weekStart: current.weekStart,
+      })
+      if (generated.days.length === 0) {
+        return "Không tìm được món phù hợp cho các ô bạn chọn."
+      }
+      const previousChanges: SlotChange[] = []
+      const changes: SlotChange[] = []
+      for (const dayItem of generated.days) {
+        const existingDay = current.days.find((item) => item.day === dayItem.day)
+        for (const sec of dayItem.sections) {
+          const prevRecipes =
+            existingDay?.sections.find((item) => item.section === sec.section)?.recipes ?? []
+          previousChanges.push({
+            day: dayItem.day,
+            section: sec.section,
+            recipeIds: prevRecipes.map((recipe) => recipe.id),
+          })
+          changes.push({
+            day: dayItem.day,
+            section: sec.section,
+            recipeIds: sec.recipes.map((recipe) => recipe.id),
+          })
+        }
+      }
+      const snapshotWeekStart = current.weekStart
+      const snapshotPlan = current
+      await plan.mutate(
+        saveMealDays(accessToken, snapshotWeekStart, inputsForChanges(current, changes)),
+        {
+          populateCache: true,
+          revalidate: false,
+        }
+      )
+      void swrMutate(isMealPlanKey)
+      toast.add({
+        title: `Đã lên món nhanh cho ${generated.days.length} ngày`,
+        actionProps: {
+          children: "Hoàn tác",
+          onClick: () => {
+            void plan
+              .mutate(
+                saveMealDays(
+                  accessToken,
+                  snapshotWeekStart,
+                  inputsForChanges(snapshotPlan, previousChanges)
+                ),
+                { populateCache: true, revalidate: false }
+              )
+              .then(() => {
+                void swrMutate(isMealPlanKey)
+                toast.add({ title: "Đã hoàn tác thực đơn trước đó" })
+              })
+          },
+        },
+      })
+      return null
+    } catch (caught) {
+      if (caught instanceof ApiError && caught.status === 401) router.refresh()
+      return calendarErrorMessage(caught)
+    }
+  }
+
+  async function toggleEaten(
+    day: Weekday,
+    date: string,
+    section: MealSection,
+    recipeId: string,
+    existingEntryId?: string
+  ) {
+    if (!accessToken) return
+    const key = `${day}:${section}:${recipeId}`
+    setEatingBusyKey(key)
+    const currentLog = weekLog.data
+    const optimisticLog = currentLog
+      ? {
+          ...currentLog,
+          days: currentLog.days.map((logDay) => {
+            if (logDay.day !== day) return logDay
+            if (existingEntryId) {
+              return {
+                ...logDay,
+                entries: logDay.entries.filter((entry) => entry.id !== existingEntryId),
+              }
+            }
+            const plannedDish = plan.data?.days
+              .find((item) => item.day === day)
+              ?.sections.find((sec) => sec.section === section)
+              ?.recipes.find((recipe) => recipe.id === recipeId)
+            return {
+              ...logDay,
+              entries: [
+                ...logDay.entries,
+                {
+                  id: `optimistic-${key}`,
+                  date,
+                  section,
+                  source: "PLAN" as const,
+                  recipeId,
+                  name: plannedDish?.title ?? "",
+                  servings: 1,
+                  caloriesPerServing: plannedDish?.caloriesPerServing ?? null,
+                  calories: plannedDish?.caloriesPerServing ?? null,
+                  calorieSource: plannedDish?.caloriesPerServing != null ? ("RECIPE" as const) : null,
+                  calorieNote: null,
+                  calorieReferences: [],
+                  createdAt: new Date().toISOString(),
+                },
+              ],
+            }
+          }),
+        }
+      : undefined
+    try {
+      await weekLog.mutate(
+        async () => {
+          if (existingEntryId) {
+            await deleteMealLogEntry(accessToken, existingEntryId)
+          } else {
+            await createMealLogEntry(accessToken, { date, section, recipeId })
+          }
+          if (!weekStart) return currentLog
+          return fetchMealLog([mealLogKey(weekStart), accessToken])
+        },
+        {
+          optimisticData: optimisticLog,
+          rollbackOnError: true,
+          revalidate: false,
+        }
+      )
+      void swrMutate(isMealLogKey)
+    } catch (caught) {
+      if (caught instanceof ApiError && caught.status === 401) router.refresh()
+      toast.add({
+        title: caught instanceof ApiError ? caught.message : "Chưa cập nhật được nhật ký ăn uống.",
+      })
+    } finally {
+      setEatingBusyKey(null)
     }
   }
 
@@ -510,6 +688,11 @@ export function MealPlannerView() {
                 onClose={() => setVoiceOpen(false)}
                 getScreen={voiceScreen}
                 openRecipe={openRecipe}
+                showFloatingBar={tab !== "chat" || voiceDishOpen}
+                onExpandMobile={() => {
+                  closeVoicePanels("all")
+                  setTab("chat")
+                }}
                 leading={<span className="hidden lg:block">{backButton("icon")}</span>}
                 trailing={hideAssistantButton}
               />
@@ -526,6 +709,25 @@ export function MealPlannerView() {
                 trailing={hideAssistantButton}
                 onOpenWeek={showWeek}
                 onStartVoice={startVoice}
+                onEditDietary={() => {
+                  setTab("calendar")
+                  calendar.current?.showDietary()
+                }}
+                onOpenMealLog={(date) => {
+                  setTab("calendar")
+                  mealLog.current?.openDay(date ?? null)
+                }}
+                onOpenBodyMetrics={() => {
+                  setTab("calendar")
+                  calendar.current?.showBodyMetrics()
+                }}
+                onLogRestaurantDish={(dish) => {
+                  setTab("calendar")
+                  mealLog.current?.openCustomDish({
+                    name: dish.name,
+                    details: `Tại ${dish.restaurant.name}`,
+                  })
+                }}
                 voiceDisabled={!weekStart || voiceOpen}
               />
             )}
@@ -542,15 +744,23 @@ export function MealPlannerView() {
                 onAsk={askAboutRecipe}
                 onSuggestSlot={suggestForSlot}
                 nutrition={nutrition.data}
+                mealLog={weekLog.data}
+                dietary={restrictions.data}
                 handle={calendar}
                 onActiveRecipeChange={setCalendarRecipe}
                 initialDay={voiceDay !== null && voiceDay.weekStart === weekStart ? voiceDay.day : undefined}
                 onNutritionSaved={async (updated) => {
                   await nutrition.mutate(updated, { revalidate: false })
                 }}
+                onDietarySaved={async (updated) => {
+                  await restrictions.mutate(updated, { revalidate: false })
+                }}
+                onToggleEaten={toggleEaten}
+                eatingBusyKey={eatingBusyKey}
+                onLogEatingOut={() => mealLog.current?.openCustomDish()}
                 onAskAssistant={askAssistant}
                 action={
-                  <div className="flex w-full min-w-0 items-center gap-2">
+                  <div className="flex min-w-0 flex-wrap items-center gap-1.5">
                     <WeekNav
                       plan={plan.data}
                       loading={plan.isLoading}
@@ -559,7 +769,32 @@ export function MealPlannerView() {
                       onToday={() => plan.data && showWeek(plan.data.currentWeekStart)}
                     />
                     {plan.data && (
-                      <ShoppingListButton weekStart={plan.data.weekStart} plannedDays={plannedDays(plan.data)} />
+                      <QuickGenerate
+                        plan={plan.data}
+                        disabled={chat.busy}
+                        onGenerate={handleQuickGenerate}
+                      />
+                    )}
+                    {plan.data && (
+                      <ShoppingListButton
+                        weekStart={plan.data.weekStart}
+                        plannedDays={plannedDays(plan.data)}
+                        editableDays={editableDaysOf(plan.data)}
+                        handle={shoppingList}
+                        onOpenRecipe={(recipeId, title) => {
+                          const plannedDay = plan.data?.days.find((day) =>
+                            day.sections.some(({ recipes }) =>
+                              recipes.some((recipe) => recipe.id === recipeId)
+                            )
+                          )
+                          if (plannedDay) {
+                            calendar.current?.openDish(plannedDay.day, recipeId, null)
+                            return
+                          }
+                          setVoiceDish({ recipeId, title })
+                          setVoiceDishOpen(true)
+                        }}
+                      />
                     )}
                     {plan.data && (
                       <MealLogButton plan={plan.data} onAskAssistant={askAssistant} handle={mealLog} />

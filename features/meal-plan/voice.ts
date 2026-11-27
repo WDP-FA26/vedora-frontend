@@ -225,13 +225,13 @@ export function scrollContainer(element: HTMLElement | null, direction: ScreenSc
 }
 
 /** Panels the voice agent can close; `all` is whatever is open. */
-export type VoiceScreenPanel = "recipe" | "eatingLog" | "bodyMetrics" | "all"
+export type VoiceScreenPanel = "recipe" | "eatingLog" | "bodyMetrics" | "shoppingList" | "all"
 
 /** What the planner page shows while the user speaks, sent with each turn (`screen`). */
 export type VoiceScreen = {
   weekStart: string
   day?: Weekday
-  panel: "none" | "recipe" | "eatingLog" | "bodyMetrics"
+  panel: "none" | "recipe" | "eatingLog" | "bodyMetrics" | "shoppingList"
   recipeId?: string
   recipeSection?: RecipeSection
   recipeStep?: number
@@ -244,6 +244,7 @@ export type VoiceFocus =
   | { kind: "recipe"; recipeId: string; title: string; section: RecipeSection | null; step?: number | null }
   | { kind: "eatingLog"; date: string | null }
   | { kind: "bodyMetrics" }
+  | { kind: "shoppingList" }
   /** `day: null` shows the week without picking a day. */
   | { kind: "planDay"; weekStart: string; day: Weekday | null }
 
@@ -284,12 +285,13 @@ const voiceFocusSchema = z.discriminatedUnion("kind", [
   }),
   z.object({ kind: z.literal("eatingLog"), date: z.string().nullable() }),
   z.object({ kind: z.literal("bodyMetrics") }),
+  z.object({ kind: z.literal("shoppingList") }),
   z.object({ kind: z.literal("planDay"), weekStart: z.string(), day: z.enum(WEEKDAYS).nullable() }),
 ])
 
 const voiceScreenDataSchema = z.object({
   focus: voiceFocusSchema.nullable(),
-  close: z.enum(["recipe", "eatingLog", "bodyMetrics", "all"]).nullable(),
+  close: z.enum(["recipe", "eatingLog", "bodyMetrics", "shoppingList", "all"]).nullable(),
   scroll: z.enum(SCREEN_SCROLL_DIRECTIONS).nullable().optional(),
 })
 

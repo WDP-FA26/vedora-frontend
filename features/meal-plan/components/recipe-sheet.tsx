@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useImperativeHandle, useRef, type Ref } from "react"
-import { ArrowRightLeftIcon, FlameIcon, MessageCircleIcon, Trash2Icon } from "lucide-react"
+import { ArrowRightLeftIcon, CheckIcon, FlameIcon, MessageCircleIcon, Trash2Icon } from "lucide-react"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -86,12 +86,27 @@ type Props = {
   onAsk?: () => void
   onMove?: () => void
   onRemove?: () => void
+  eaten?: boolean
+  eatingBusy?: boolean
+  onToggleEaten?: () => void
   onActiveRecipeChange?: (recipe: VoiceOpenRecipe | null) => void
   handle?: Ref<RecipeSheetHandle>
 }
 
 /** A large side sheet with the photo, ingredients and steps of one dish. */
-export function RecipeSheet({ open, dish, onClose, onAsk, onMove, onRemove, onActiveRecipeChange, handle }: Props) {
+export function RecipeSheet({
+  open,
+  dish,
+  onClose,
+  onAsk,
+  onMove,
+  onRemove,
+  eaten = false,
+  eatingBusy = false,
+  onToggleEaten,
+  onActiveRecipeChange,
+  handle,
+}: Props) {
   const { recipe: full, error } = usePublicRecipe(open && dish ? dish.recipeId : null)
   const top = useRef<HTMLDivElement>(null)
   const ingredients = useRef<HTMLElement>(null)
@@ -276,8 +291,19 @@ export function RecipeSheet({ open, dish, onClose, onAsk, onMove, onRemove, onAc
               )}
             </div>
 
-            {(onAsk || onMove || onRemove) && (
+            {(onToggleEaten || onAsk || onMove || onRemove) && (
               <SheetFooter>
+                {onToggleEaten && (
+                  <Button
+                    variant={eaten ? "secondary" : "default"}
+                    disabled={eatingBusy}
+                    aria-pressed={eaten}
+                    onClick={onToggleEaten}
+                  >
+                    <CheckIcon aria-hidden />
+                    {eaten ? "Đã ăn ✓" : "Đánh dấu đã ăn"}
+                  </Button>
+                )}
                 {onAsk && (
                   <Button variant="outline" onClick={onAsk}><MessageCircleIcon aria-hidden /> Hỏi trợ lý</Button>
                 )}

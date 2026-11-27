@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useRef, useState, type ReactNode } from "react"
+import { createPortal } from "react-dom"
 import {
   ActivityIcon,
   BookOpenIcon,
@@ -10,6 +11,7 @@ import {
   NotebookPenIcon,
   PhoneOffIcon,
   RotateCcwIcon,
+  ShoppingBasketIcon,
   SlidersHorizontalIcon,
   type LucideIcon,
 } from "lucide-react"
@@ -52,6 +54,7 @@ const STATE_TEXT: Record<VoiceOrbState, { label: string; hint: string }> = {
 const FEATURES: { icon: LucideIcon; text: string }[] = [
   { icon: CalendarRangeIcon, text: "Lên và đổi món trong thực đơn tuần" },
   { icon: BookOpenIcon, text: "Mở công thức, đọc nguyên liệu và từng bước" },
+  { icon: ShoppingBasketIcon, text: "Mở và đọc danh sách đi chợ" },
   { icon: NotebookPenIcon, text: "Ghi món đã ăn vào nhật ký" },
   { icon: ActivityIcon, text: "Cập nhật cân nặng, xem BMI" },
 ]
@@ -257,6 +260,8 @@ export function VoicePanel({
   onClose,
   getScreen,
   openRecipe,
+  showFloatingBar = false,
+  onExpandMobile,
   leading,
   trailing,
 }: {
@@ -268,6 +273,9 @@ export function VoicePanel({
   onClose: () => void
   getScreen: () => VoiceScreen | null
   openRecipe?: VoiceOpenRecipe | null
+  /** Shows a compact floating bar above sheets on mobile while hands are busy. */
+  showFloatingBar?: boolean
+  onExpandMobile?: () => void
   leading?: ReactNode
   trailing?: ReactNode
 }) {
@@ -369,6 +377,52 @@ export function VoicePanel({
           <PhoneOffIcon aria-hidden /> Kết thúc
         </Button>
       </footer>
+      {showFloatingBar &&
+        typeof document !== "undefined" &&
+        createPortal(
+          <div
+            role="region"
+            aria-label="Điều khiển giọng nói"
+            className="fixed inset-x-3 bottom-[max(0.75rem,env(safe-area-inset-bottom))] z-[60] mx-auto flex max-w-sm items-center justify-between gap-2 rounded-full border border-border bg-card/95 px-3 py-2 shadow-lg backdrop-blur-md lg:hidden"
+          >
+            <button
+              type="button"
+              onClick={onExpandMobile}
+              className="flex min-w-0 items-center gap-2 text-left text-xs font-semibold text-foreground"
+            >
+              <span
+                className="size-2.5 shrink-0 rounded-full bg-primary animate-pulse motion-reduce:animate-none"
+                aria-hidden
+              />
+              <span className="truncate">{text.label}</span>
+            </button>
+            <div className="flex shrink-0 items-center gap-1.5">
+              <Button
+                type="button"
+                variant="outline"
+                size="icon-sm"
+                shape="pill"
+                disabled={!live}
+                aria-pressed={voice.muted}
+                aria-label={voice.muted ? "Bật micro" : "Tắt micro"}
+                onClick={() => void voice.toggleMute()}
+              >
+                {voice.muted ? <MicOffIcon aria-hidden /> : <MicIcon aria-hidden />}
+              </Button>
+              <Button
+                type="button"
+                variant="destructive"
+                size="pill-sm"
+                shape="pill"
+                onClick={() => void voice.end()}
+              >
+                <PhoneOffIcon aria-hidden />
+                Kết thúc
+              </Button>
+            </div>
+          </div>,
+          document.body
+        )}
     </div>
   )
 }

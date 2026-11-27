@@ -86,8 +86,8 @@ export function PetMenuGroup() {
 
 const DRAG_THRESHOLD = 4
 
-const GREETING = "Xin chào! Mình là Trợ lý Vedora 🌱"
-const REMINDER = "Hỏi mình về dinh dưỡng nhé!"
+const GREETING = "Xin chào! Hỏi nhanh dinh dưỡng cùng mình nhé 🌱"
+const REMINDER = "Cần hỏi nhanh dinh dưỡng hay lên thực đơn?"
 const MESSAGE_VISIBLE_MS = 25_000
 const MESSAGE_INTERVAL_MS = 3 * 60_000
 

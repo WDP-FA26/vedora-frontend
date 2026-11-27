@@ -15,7 +15,6 @@ import {
   FieldLegend,
 } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import { Spinner } from "@/components/ui/spinner";
 import {
   Sheet,
@@ -26,7 +25,6 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import {
-  DAY_LABELS,
   editableDaysOf,
   MAX_GENERATE_QUERY_LENGTH,
   MEAL_SECTIONS,
@@ -71,38 +69,21 @@ function requestFor(
   return request;
 }
 
-const MAX_INSTRUCTION_LENGTH = 500;
-
-function assistantPrompt(request: GenerateInput, instruction: string) {
-  const lines = [
-    `Yêu cầu của tôi: ${instruction}`,
-    "Yêu cầu trên là điều quan trọng nhất: nếu nó nhắc ngày, bữa hay món cụ thể thì làm đúng như vậy, kể cả thay món đã có ở ô đó. Phần còn lại dùng các lựa chọn mặc định dưới đây.",
-    `Ngày mặc định: ${request.days.map((day) => DAY_LABELS[day]).join(", ")}.`,
-    `Các bữa mặc định: ${request.sections.map((section) => SECTION_LABELS[section].toLowerCase()).join(", ")}.`,
-    request.onlyEmpty ? "Mặc định chỉ điền các ô đang trống, giữ nguyên món đã có." : "Mặc định có thể thay món ở các ô này.",
-  ]
-  if (request.maxMinutes !== undefined) lines.push(`Mỗi bữa nấu tối đa ${request.maxMinutes} phút.`)
-  if (request.query) lines.push(`Ưu tiên: ${request.query}.`)
-  lines.push("Hãy cho tôi xem đề xuất trước khi lưu.")
-  return lines.join("\n")
-}
-
 /**
- * A floating button that opens a short form. `onGenerate` runs the algorithm and
- * resolves to an error message, or null when its proposal card is in the chat.
+ * Opens a short form that runs the non-AI meal-plan algorithm (0 AI quota)
+ * and saves the picked dishes directly into the chosen slots.
  */
 export function QuickGenerate({
   plan,
   disabled,
+  variant = "toolbar",
   onGenerate,
-  onAskAssistant,
 }: {
   /** The week on screen; nothing can be generated until it has loaded. */
-  plan: MealPlan | undefined;
-  disabled: boolean;
-  onGenerate: (request: GenerateInput) => Promise<string | null>;
-  /** Sends a written request to the assistant, which can use the same algorithm as a tool. */
-  onAskAssistant: (prompt: string) => void;
+  plan: MealPlan | undefined
+  disabled: boolean
+  variant?: "toolbar" | "fab"
+  onGenerate: (request: GenerateInput) => Promise<string | null>
 }) {
   const [open, setOpen] = useState(false);
   const [scope, setScope] = useState<Scope>("EMPTY");
@@ -113,7 +94,6 @@ export function QuickGenerate({
   ]);
   const [maxMinutes, setMaxMinutes] = useState<number | null>(null);
   const [query, setQuery] = useState("");
-  const [instruction, setInstruction] = useState("");
   const [error, setError] = useState("");
   const [pending, setPending] = useState(false);
   // "Hôm nay" only makes sense in the week that holds today.
@@ -141,12 +121,6 @@ export function QuickGenerate({
       setError("Các ngày của tuần này đã qua nên không thể lên thực đơn.");
       return;
     }
-    const wish = instruction.trim();
-    if (wish) {
-      onAskAssistant(assistantPrompt(request, wish));
-      setOpen(false);
-      return;
-    }
     setPending(true);
     setError("");
     const failure = await onGenerate(request);
@@ -160,19 +134,33 @@ export function QuickGenerate({
 
   return (
     <>
-      <Button
-        type="button"
-        variant="raised"
-        size="icon-fab"
-        shape="pill"
-        disabled={disabled || !plan?.editable}
-        aria-label="Lên món nhanh"
-        title="Lên món nhanh"
-        className="fixed right-5 bottom-5 z-30"
-        onClick={() => setOpen(true)}
-      >
-        <SparklesIcon aria-hidden />
-      </Button>
+      {variant === "fab" ? (
+        <Button
+          type="button"
+          variant="raised"
+          size="icon-fab"
+          shape="pill"
+          disabled={disabled || !plan?.editable}
+          aria-label="Lên món nhanh"
+          title="Lên món nhanh"
+          className="fixed right-5 bottom-5 z-30"
+          onClick={() => setOpen(true)}
+        >
+          <SparklesIcon aria-hidden />
+        </Button>
+      ) : (
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          disabled={disabled || !plan?.editable}
+          title="Tự động điền món theo hồ sơ ăn uống, không tốn lượt AI"
+          onClick={() => setOpen(true)}
+        >
+          <SparklesIcon aria-hidden />
+          Lên nhanh
+        </Button>
+      )}
 
       <Sheet open={open} onOpenChange={setOpen}>
         <SheetContent side="right" className="sm:max-w-md">
@@ -184,8 +172,8 @@ export function QuickGenerate({
             <SheetHeader>
               <SheetTitle>Lên món nhanh</SheetTitle>
               <SheetDescription>
-                Chọn món tự động theo hồ sơ ăn uống của bạn. Kết quả hiện thành
-                thẻ đề xuất trong khung trợ lý, chưa có gì được lưu.
+                Chọn món tự động theo hồ sơ ăn uống (không tốn lượt AI) và lưu
+                ngay vào các ô bạn chọn.
               </SheetDescription>
             </SheetHeader>
 
@@ -286,24 +274,6 @@ export function QuickGenerate({
                   </FieldDescription>
                 </Field>
 
-                <Field>
-                  <FieldLabel htmlFor="quick-instruction">
-                    Yêu cầu riêng cho trợ lý
-                  </FieldLabel>
-                  <Textarea
-                    id="quick-instruction"
-                    value={instruction}
-                    onChange={(event) => setInstruction(event.target.value)}
-                    maxLength={MAX_INSTRUCTION_LENGTH}
-                    rows={3}
-                    placeholder="Ví dụ: bữa tối nhẹ, cuối tuần nấu cầu kỳ hơn, tránh món chiên"
-                  />
-                  <FieldDescription>
-                    Để trống thì chọn ngay bằng thuật toán. Có nội dung thì trợ
-                    lý đọc yêu cầu, chọn món rồi chỉnh theo ý bạn.
-                  </FieldDescription>
-                </Field>
-
                 {error && <FieldError>{error}</FieldError>}
               </FieldGroup>
             </div>
@@ -315,7 +285,7 @@ export function QuickGenerate({
                 ) : (
                   <SparklesIcon aria-hidden />
                 )}{" "}
-                {instruction.trim() ? "Nhờ trợ lý" : "Chọn món"}
+                Chọn &amp; lưu ngay
               </Button>
             </SheetFooter>
           </form>

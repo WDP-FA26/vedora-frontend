@@ -23,7 +23,8 @@ import {
   type ChatThreadSummary,
   type PlanChange,
 } from "@/features/meal-plan/meal-plan"
-import { MY_DIETARY_KEY } from "@/features/dietary/dietary"
+import { MY_DIETARY_KEY, MY_NUTRITION_KEY } from "@/features/dietary/dietary"
+import { isMealLogKey } from "@/features/meal-plan/meal-log"
 import { ApiError } from "@/features/shared/lib/api-client"
 
 const THREAD_LIST_URL = `${MEAL_PLANNER_CHAT_THREADS_KEY}?limit=50`
@@ -271,6 +272,76 @@ export function messageProfileNoteUpdates(message: UIMessage): ProfileNoteUpdate
   return updates
 }
 
+const LOG_MEAL_TOOL_TYPE = "tool-logMeal"
+const logMealOutputSchema = z.object({
+  entry: z.object({
+    date: z.string(),
+    section: z.enum(["BREAKFAST", "LUNCH", "DINNER", "OTHER"]),
+    name: z.string(),
+    calories: z.number().nullable().optional(),
+  }),
+})
+
+export interface LoggedMealUpdate {
+  id: string
+  date: string
+  section: "BREAKFAST" | "LUNCH" | "DINNER" | "OTHER"
+  name: string
+  calories: number | null
+}
+
+export function messageLoggedMeals(message: UIMessage): LoggedMealUpdate[] {
+  const items: LoggedMealUpdate[] = []
+  for (const part of message.parts) {
+    if (!isToolUIPart(part) || part.state !== "output-available") continue
+    if (part.type !== LOG_MEAL_TOOL_TYPE) continue
+    const parsed = logMealOutputSchema.safeParse(part.output)
+    if (!parsed.success) continue
+    items.push({
+      id: part.toolCallId,
+      date: parsed.data.entry.date,
+      section: parsed.data.entry.section,
+      name: parsed.data.entry.name,
+      calories: parsed.data.entry.calories ?? null,
+    })
+  }
+  return items
+}
+
+const BODY_METRICS_TOOL_TYPE = "tool-updateBodyMetrics"
+const bodyMetricsOutputSchema = z.object({
+  heightCm: z.number().nullable().optional(),
+  weightKg: z.number().nullable().optional(),
+  bmi: z.number().nullable().optional(),
+  dailyCalorieTarget: z.number().nullable().optional(),
+})
+
+export interface BodyMetricsUpdate {
+  id: string
+  heightCm: number | null
+  weightKg: number | null
+  bmi: number | null
+  dailyCalorieTarget: number | null
+}
+
+export function messageBodyMetricUpdates(message: UIMessage): BodyMetricsUpdate[] {
+  const items: BodyMetricsUpdate[] = []
+  for (const part of message.parts) {
+    if (!isToolUIPart(part) || part.state !== "output-available") continue
+    if (part.type !== BODY_METRICS_TOOL_TYPE) continue
+    const parsed = bodyMetricsOutputSchema.safeParse(part.output)
+    if (!parsed.success) continue
+    items.push({
+      id: part.toolCallId,
+      heightCm: parsed.data.heightCm ?? null,
+      weightKg: parsed.data.weightKg ?? null,
+      bmi: parsed.data.bmi ?? null,
+      dailyCalorieTarget: parsed.data.dailyCalorieTarget ?? null,
+    })
+  }
+  return items
+}
+
 function isUIMessagePart(part: Record<string, unknown>): part is PlannerMessage["parts"][number] {
   if (typeof part.type !== "string") return false
   if (part.type === "text" || part.type === "reasoning") return typeof part.text === "string"
@@ -427,11 +498,32 @@ export function useMealPlannerChat(weekStart: string | undefined) {
 
   // Every change the planner saves shows on the calendar as soon as its tool finishes.
   let savedChanges = 0
-  for (const message of messages) savedChanges += messagePlanChanges(message).length
+  let undoCount = 0
+  let logMealCount = 0
+  let bodyMetricsCount = 0
+  for (const message of messages) {
+    savedChanges += messagePlanChanges(message).length
+    for (const part of message.parts) {
+      if (!isToolUIPart(part) || part.state !== "output-available") continue
+      if (part.type === "tool-undoLastChange") undoCount += 1
+      else if (part.type === "tool-logMeal") logMealCount += 1
+      else if (part.type === "tool-updateBodyMetrics") bodyMetricsCount += 1
+    }
+  }
   useEffect(() => {
-    if (savedChanges === 0) return
+    if (savedChanges === 0 && undoCount === 0) return
     void mutate(isMealPlanKey)
-  }, [savedChanges, mutate])
+  }, [savedChanges, undoCount, mutate])
+
+  useEffect(() => {
+    if (logMealCount === 0) return
+    void mutate(isMealLogKey)
+  }, [logMealCount, mutate])
+
+  useEffect(() => {
+    if (bodyMetricsCount === 0) return
+    void mutate((key) => Array.isArray(key) && key[0] === MY_NUTRITION_KEY)
+  }, [bodyMetricsCount, mutate])
 
   // The planner can change the "Dị ứng" and "Sở thích" lines, which the dietary profile shows.
   let profileNoteUpdates = 0

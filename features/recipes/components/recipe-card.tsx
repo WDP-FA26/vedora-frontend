@@ -1,7 +1,9 @@
 "use client"
 
 import { useState } from "react"
-import { BookmarkIcon, ClockIcon, FlameIcon, UsersIcon } from "lucide-react"
+import Link from "next/link"
+import { useSWRConfig } from "swr"
+import { BookmarkIcon, CalendarPlusIcon, ClockIcon, FlameIcon, UsersIcon } from "lucide-react"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -11,12 +13,36 @@ import {
   DialogDescription,
   DialogTitle,
 } from "@/components/ui/dialog"
+import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select"
 import { Skeleton } from "@/components/ui/skeleton"
+import { Spinner } from "@/components/ui/spinner"
+import { toast } from "@/components/ui/toast"
+import { useAuth } from "@/features/auth/hooks/use-auth"
+import { useAuthedSWR } from "@/features/auth/hooks/use-authed-swr"
 import { NUTRITION_PILLAR_META } from "@/features/dietary/dietary"
+import {
+  DAY_LABELS,
+  editableDaysOf,
+  fetchMealPlan,
+  inputsForChanges,
+  isMealPlanKey,
+  MAX_DISHES_PER_SECTION,
+  MEAL_PLANNER_PATH,
+  MEAL_SECTIONS,
+  mealPlanKey,
+  recipesAt,
+  saveMealDays,
+  SECTION_LABELS,
+  todayOf,
+  WEEKDAYS,
+  type MealSection,
+  type Weekday,
+} from "@/features/meal-plan/meal-plan"
 import { RecipeRating } from "@/features/recipes/components/recipe-rating"
 import { usePublicRecipe } from "@/features/recipes/hooks/use-recipe-catalog"
 import { useRecipeFavorite } from "@/features/recipes/hooks/use-recipe-favorite"
 import type { PublicRecipe, PublicRecipeDetail } from "@/features/recipes/schemas"
+import { ApiError } from "@/features/shared/lib/api-client"
 import { cn } from "@/lib/utils"
 
 function totalMinutes(recipe: Pick<PublicRecipe, "prepMinutes" | "cookMinutes">) {
@@ -145,7 +171,10 @@ export function RecipeDialog({ id, onClose }: { id: string | null; onClose: () =
                   </span>
                 )}
               </p>
-              <FavoriteButton recipe={recipe} withLabel />
+              <div className="flex flex-wrap items-center gap-2">
+                <AddToMealPlanButton recipeId={recipe.id} recipeTitle={recipe.title} />
+                <FavoriteButton recipe={recipe} withLabel />
+              </div>
             </div>
             {recipe.nutritionPillars && recipe.nutritionPillars.length > 0 && (
               <div className="flex flex-wrap gap-1.5" aria-label="Nhóm dưỡng chất chay">
@@ -195,6 +224,155 @@ export function RecipeDialog({ id, onClose }: { id: string | null; onClose: () =
         )}
       </DialogContent>
     </Dialog>
+  )
+}
+
+function AddToMealPlanButton({
+  recipeId,
+  recipeTitle,
+}: {
+  recipeId: string
+  recipeTitle: string
+}) {
+  const { user, accessToken } = useAuth()
+  const { mutate: swrMutate } = useSWRConfig()
+  const [open, setOpen] = useState(false)
+  const [pickedDay, setPickedDay] = useState<Weekday | null>(null)
+  const [section, setSection] = useState<MealSection>("LUNCH")
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const canPlan = user !== null && user.accountType === "PERSONAL"
+  const plan = useAuthedSWR(open && canPlan ? mealPlanKey() : null, fetchMealPlan)
+
+  if (!canPlan) return null
+
+  const editableDays = plan.data ? editableDaysOf(plan.data) : []
+  const defaultDay = plan.data ? (todayOf(plan.data) ?? editableDays[0] ?? "MON") : "MON"
+  const activeDay = pickedDay && editableDays.includes(pickedDay) ? pickedDay : defaultDay
+
+  async function save() {
+    if (!accessToken || !plan.data || saving) return
+    const existing = recipesAt(plan.data, { day: activeDay, section }).map((item) => item.id)
+    if (existing.includes(recipeId)) {
+      setError("Món này đã có trong bữa đã chọn.")
+      return
+    }
+    if (existing.length >= MAX_DISHES_PER_SECTION) {
+      setError(`Mỗi bữa tối đa ${MAX_DISHES_PER_SECTION} món.`)
+      return
+    }
+    setSaving(true)
+    setError(null)
+    try {
+      const daysInput = inputsForChanges(plan.data, [
+        { day: activeDay, section, recipeIds: [...existing, recipeId] },
+      ])
+      await saveMealDays(accessToken, plan.data.weekStart, daysInput)
+      void swrMutate(isMealPlanKey)
+      setOpen(false)
+      toast.add({
+        title: `Đã thêm "${recipeTitle}"`,
+        description: `${DAY_LABELS[activeDay]} · Bữa ${SECTION_LABELS[section].toLowerCase()}`,
+      })
+    } catch (caught) {
+      setError(caught instanceof ApiError ? caught.message : "Chưa thêm được vào thực đơn.")
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div className="relative">
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        shape="pill"
+        onClick={() => {
+          setError(null)
+          setOpen((prev) => !prev)
+        }}
+      >
+        <CalendarPlusIcon aria-hidden />
+        Thêm vào thực đơn
+      </Button>
+
+      {open && (
+        <div className="mt-2 space-y-2.5 rounded-xl border border-border bg-card p-3 shadow-sm">
+          {plan.isLoading && !plan.data ? (
+            <p className="flex items-center gap-2 text-xs text-muted-foreground">
+              <Spinner aria-hidden /> Đang tải lịch tuần này…
+            </p>
+          ) : editableDays.length === 0 ? (
+            <p className="text-xs text-muted-foreground">
+              Tuần này đã qua hết.{" "}
+              <Link href={MEAL_PLANNER_PATH} className="font-semibold text-primary hover:underline">
+                Mở Lên thực đơn
+              </Link>
+            </p>
+          ) : (
+            <>
+              <div className="grid grid-cols-2 gap-2">
+                <label className="text-xs font-medium">
+                  Ngày
+                  <NativeSelect
+                    className="mt-1 w-full"
+                    value={activeDay}
+                    onChange={(event) => {
+                      const next = WEEKDAYS.find((item) => item === event.target.value)
+                      if (next) setPickedDay(next)
+                      setError(null)
+                    }}
+                  >
+                    {editableDays.map((day) => (
+                      <NativeSelectOption key={day} value={day}>
+                        {DAY_LABELS[day]}
+                      </NativeSelectOption>
+                    ))}
+                  </NativeSelect>
+                </label>
+                <label className="text-xs font-medium">
+                  Bữa
+                  <NativeSelect
+                    className="mt-1 w-full"
+                    value={section}
+                    onChange={(event) => {
+                      const next = MEAL_SECTIONS.find((item) => item === event.target.value)
+                      if (next) setSection(next)
+                      setError(null)
+                    }}
+                  >
+                    {MEAL_SECTIONS.map((item) => (
+                      <NativeSelectOption key={item} value={item}>
+                        {SECTION_LABELS[item]}
+                      </NativeSelectOption>
+                    ))}
+                  </NativeSelect>
+                </label>
+              </div>
+              {error && (
+                <p role="alert" className="text-xs text-destructive">
+                  {error}
+                </p>
+              )}
+              <div className="flex items-center justify-between gap-2">
+                <Button type="button" size="xs" disabled={saving} onClick={() => void save()}>
+                  {saving && <Spinner aria-hidden />}
+                  Lưu vào lịch
+                </Button>
+                <Link
+                  href={MEAL_PLANNER_PATH}
+                  className="text-xs font-semibold text-primary underline-offset-4 hover:underline"
+                >
+                  Xem lịch tuần →
+                </Link>
+              </div>
+            </>
+          )}
+        </div>
+      )}
+    </div>
   )
 }
 
