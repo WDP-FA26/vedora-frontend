@@ -1,6 +1,3 @@
-const UTTERANCE_PAUSE_MS = 2000
-export const TRANSCRIPT_SETTLE_MS = 350
-const SENTENCE_END = /[.?!…]["')\]]*\s*$/
 const END_AFTER_SPEECH_MS = 600
 export const END_NO_SPEECH_LIMIT_MS = 6000
 export const END_LIMIT_MS = 15000
@@ -106,20 +103,10 @@ declare global {
 
 export type TranscriptFragment = { text: string; startMs: number; endMs: number }
 
-function lastIndexStartedBy(fragments: TranscriptFragment[], offsetMs: number) {
-  let index = fragments.length > 0 ? 0 : -1
-  for (const [i, fragment] of fragments.entries()) {
-    if (fragment.startMs <= offsetMs) index = i
-  }
-  return index
-}
-
 type UtteranceWatcher = { onFragment: () => void; cancel: () => void }
 
 export class UtteranceAssembler {
-  private fragments: TranscriptFragment[] = []
-  private consumedUntil = -1
-  private lastArrival = 0
+  private pending: TranscriptFragment[] = []
   private watchers = new Set<UtteranceWatcher>()
 
   clearWatchers() {
@@ -128,100 +115,71 @@ export class UtteranceAssembler {
 
   reset() {
     this.clearWatchers()
-    this.fragments = []
-    this.consumedUntil = -1
+    this.pending = []
   }
 
   addFragment(fragment: TranscriptFragment) {
-    this.fragments.push(fragment)
-    this.lastArrival = Date.now()
+    this.pending.push(fragment)
     for (const watcher of [...this.watchers]) watcher.onFragment()
   }
 
-  lastFragmentAt() {
-    return this.lastArrival
-  }
-
-  takeUtterance(offsetMs: number | undefined) {
-    const fresh = this.fragments.filter((fragment) => fragment.endMs > this.consumedUntil)
-    const anchor = offsetMs === undefined ? fresh.length - 1 : lastIndexStartedBy(fresh, offsetMs)
-    if (anchor < 0) return ""
-    let first = anchor
-    while (first > 0 && fresh[first].startMs - fresh[first - 1].endMs < UTTERANCE_PAUSE_MS) first -= 1
-    let last = anchor
-    while (last < fresh.length - 1 && fresh[last + 1].startMs - fresh[last].endMs < UTTERANCE_PAUSE_MS) last += 1
-    const taken = fresh.slice(first, last + 1)
-    this.consumedUntil = taken[taken.length - 1].endMs
+  takeUtterance() {
+    const taken = this.pending.toSorted((a, b) => a.startMs - b.startMs)
+    this.pending = []
     return taken.map((fragment) => fragment.text).join("").trim()
   }
 
-  utteranceReady(offsetMs: number | undefined, now: number) {
-    const last = this.fragments.at(-1)
-    if (!last) return false
-    if (offsetMs !== undefined && last.endMs < offsetMs) return false
-    if (SENTENCE_END.test(last.text)) return true
-    return now - this.lastArrival >= TRANSCRIPT_SETTLE_MS
+  hasUtterance() {
+    return this.pending.length > 0
   }
 
-  waitForUtterance(offsetMs: number | undefined, graceMs: number): Promise<boolean> {
-    if (this.utteranceReady(offsetMs, Date.now())) return Promise.resolve(true)
+  waitForUtterance(): Promise<boolean> {
+    if (this.hasUtterance()) return Promise.resolve(true)
 
     return new Promise<boolean>((resolve) => {
-      let settled = false
-      let settleTimer: ReturnType<typeof setTimeout> | undefined
-      const graceTimer = setTimeout(() => done(true), graceMs)
-
-      const done = (active: boolean) => {
-        if (settled) return
-        settled = true
-        clearTimeout(graceTimer)
-        clearTimeout(settleTimer)
-        this.watchers.delete(watcher)
-        resolve(active)
-      }
-
-      const schedule = () => {
-        clearTimeout(settleTimer)
-        settleTimer = undefined
-        const now = Date.now()
-        if (this.utteranceReady(offsetMs, now)) {
-          done(true)
-          return
-        }
-        const last = this.fragments.at(-1)
-        if (!last) return
-        if (offsetMs !== undefined && last.endMs < offsetMs) return
-        const waitMs = Math.max(0, TRANSCRIPT_SETTLE_MS - (now - this.lastArrival))
-        settleTimer = setTimeout(() => {
-          if (this.utteranceReady(offsetMs, Date.now())) done(true)
-        }, waitMs)
-      }
-
       const watcher: UtteranceWatcher = {
-        onFragment: schedule,
-        cancel: () => done(false),
+        onFragment: () => {
+          if (!this.hasUtterance()) return
+          this.watchers.delete(watcher)
+          resolve(true)
+        },
+        cancel: () => {
+          this.watchers.delete(watcher)
+          resolve(false)
+        },
       }
       this.watchers.add(watcher)
-      schedule()
     })
   }
 }
 
-type InFlight = { delegationId: string; message: string; controller: AbortController; startedAt: number }
+type InFlight = { delegationId: string; message: string; revision: boolean; saved: string[]; controller: AbortController }
 
 export class TurnQueue {
   private queue: Promise<void> = Promise.resolve()
   private generation = 0
+  private delegationSeq = 0
   private inFlight: InFlight | null = null
 
   nextCall() {
     this.generation += 1
+    this.delegationSeq += 1
   }
 
-  enqueue(task: () => Promise<void>) {
+  claimDelegation() {
+    this.delegationSeq += 1
+    return this.delegationSeq
+  }
+
+  isLatestDelegation(seq: number) {
+    return this.delegationSeq === seq
+  }
+
+  enqueue(task: () => Promise<void>, delegationSeq?: number) {
     const generation = this.generation
     const next = this.queue.then(() => {
       if (this.generation !== generation) return
+      if (delegationSeq !== undefined && this.delegationSeq !== delegationSeq) return
       return task()
     })
     this.queue = next.catch((error: unknown) => {
@@ -233,20 +191,20 @@ export class TurnQueue {
     return this.queue
   }
 
-  begin(delegationId: string, message: string) {
+  begin(delegationId: string, message: string, revision = false) {
     const controller = new AbortController()
-    this.inFlight = { delegationId, message, controller, startedAt: Date.now() }
+    this.inFlight = { delegationId, message, revision, saved: [], controller }
     return controller
   }
 
-  running(): { delegationId: string; message: string } | null {
+  running(): { delegationId: string; message: string; revision: boolean; saved: readonly string[] } | null {
     if (!this.inFlight) return null
-    return { delegationId: this.inFlight.delegationId, message: this.inFlight.message }
+    const { delegationId, message, revision, saved } = this.inFlight
+    return { delegationId, message, revision, saved }
   }
 
-  runningFor(delegationId: string) {
-    if (this.inFlight?.delegationId !== delegationId) return 0
-    return Date.now() - this.inFlight.startedAt
+  recordSaved(delegationId: string, change: string) {
+    if (this.inFlight?.delegationId === delegationId) this.inFlight.saved.push(change)
   }
 
   finish(delegationId: string) {
@@ -263,6 +221,7 @@ export class TurnQueue {
 
   stop() {
     this.generation += 1
+    this.delegationSeq += 1
     this.cancel()
   }
 }

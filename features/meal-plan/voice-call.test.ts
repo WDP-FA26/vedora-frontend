@@ -5,7 +5,6 @@ import {
   END_NO_SPEECH_LIMIT_MS,
   FAREWELL_CANCEL_GRACE_MS,
   FarewellTracker,
-  TRANSCRIPT_SETTLE_MS,
   TurnQueue,
   UtteranceAssembler,
   VoiceCallLedger,
@@ -17,116 +16,60 @@ function words(assembler: UtteranceAssembler, fragments: [text: string, startMs:
 }
 
 describe("UtteranceAssembler.takeUtterance", () => {
-  it("joins the words around the delegation point, trailing words included", () => {
+  it("hands over everything said since the last delegation, ordered by audio time", () => {
     const assembler = new UtteranceAssembler()
     words(assembler, [
-      ["trưa nay", 0, 600],
-      [" mình ăn", 700, 1200],
-      [" phở chay", 1300, 2000],
+      ["ừm", 0, 300],
+      [" phở chay", 5300, 6000],
+      [" lên thực đơn", 5000, 5300],
     ])
-    expect(assembler.takeUtterance(800)).toBe("trưa nay mình ăn phở chay")
+    expect(assembler.takeUtterance()).toBe("ừm lên thực đơn phở chay")
   })
 
-  it("leaves words after a long pause for the next delegation", () => {
+  it("keeps a late fragment for the next delegation instead of dropping it", () => {
     const assembler = new UtteranceAssembler()
-    words(assembler, [
-      ["xin chào", 0, 800],
-      ["đổi bữa tối", 5000, 6000],
-    ])
-    expect(assembler.takeUtterance(100)).toBe("xin chào")
-    expect(assembler.takeUtterance(5200)).toBe("đổi bữa tối")
+    words(assembler, [["đổi bữa tối", 5000, 6000]])
+    expect(assembler.takeUtterance()).toBe("đổi bữa tối")
+    words(assembler, [[" nhé", 6000, 6200]])
+    expect(assembler.takeUtterance()).toBe("nhé")
   })
 
   it("does not hand out words twice, and gives nothing without words", () => {
     const assembler = new UtteranceAssembler()
-    expect(assembler.takeUtterance(undefined)).toBe("")
+    expect(assembler.takeUtterance()).toBe("")
     words(assembler, [["ừ", 0, 300]])
-    expect(assembler.takeUtterance(undefined)).toBe("ừ")
-    expect(assembler.takeUtterance(undefined)).toBe("")
-  })
-})
-
-describe("UtteranceAssembler.utteranceReady", () => {
-  beforeEach(() => {
-    vi.useFakeTimers()
-    vi.setSystemTime(10_000)
-  })
-  afterEach(() => {
-    vi.useRealTimers()
-  })
-
-  it("waits while the transcript has not reached the delegation point", () => {
-    const assembler = new UtteranceAssembler()
-    expect(assembler.utteranceReady(500, Date.now() + 5000)).toBe(false)
-    words(assembler, [["thêm đậu hũ.", 0, 400]])
-    expect(assembler.utteranceReady(500, Date.now() + 5000)).toBe(false)
-  })
-
-  it("takes a finished sentence at once", () => {
-    const assembler = new UtteranceAssembler()
-    words(assembler, [["thêm đậu hũ vào tối thứ bảy.", 0, 1200]])
-    expect(assembler.utteranceReady(1000, Date.now())).toBe(true)
-    words(assembler, [[" Được không?", 1300, 1800]])
-    expect(assembler.utteranceReady(1000, Date.now())).toBe(true)
-  })
-
-  it("waits for a short pause when the sentence is not finished", () => {
-    const assembler = new UtteranceAssembler()
-    words(assembler, [["thêm đậu hũ vào tối thứ", 0, 1200]])
-    expect(assembler.utteranceReady(1000, Date.now() + TRANSCRIPT_SETTLE_MS - 1)).toBe(false)
-    expect(assembler.utteranceReady(1000, Date.now() + TRANSCRIPT_SETTLE_MS)).toBe(true)
-  })
-
-  it("needs some words even without a delegation point", () => {
-    const assembler = new UtteranceAssembler()
-    expect(assembler.utteranceReady(undefined, Date.now() + 5000)).toBe(false)
-    words(assembler, [["ừ", 0, 200]])
-    expect(assembler.utteranceReady(undefined, Date.now() + TRANSCRIPT_SETTLE_MS)).toBe(true)
+    expect(assembler.takeUtterance()).toBe("ừ")
+    expect(assembler.takeUtterance()).toBe("")
   })
 })
 
 describe("UtteranceAssembler.waitForUtterance", () => {
-  beforeEach(() => {
-    vi.useFakeTimers()
-    vi.setSystemTime(10_000)
-  })
-  afterEach(() => {
-    vi.useRealTimers()
+  it("resolves at once when unconsumed words are already there", async () => {
+    const assembler = new UtteranceAssembler()
+    words(assembler, [["lên thực đơn", 0, 600], [" nhé", 600, 800]])
+    await expect(assembler.waitForUtterance()).resolves.toBe(true)
   })
 
-  it("resolves immediately when an arriving fragment finishes a sentence", async () => {
+  it("waits for the next fragment when everything was consumed", async () => {
     const assembler = new UtteranceAssembler()
+    words(assembler, [["ừ", 0, 200]])
+    assembler.takeUtterance()
     let settled: boolean | undefined
-    void assembler.waitForUtterance(900, 3000).then((active) => {
+    void assembler.waitForUtterance().then((active) => {
       settled = active
     })
 
     await Promise.resolve()
     expect(settled).toBeUndefined()
 
-    assembler.addFragment({ text: "thêm phở.", startMs: 0, endMs: 1000 })
+    assembler.addFragment({ text: "thêm phở", startMs: 3000, endMs: 3400 })
     await Promise.resolve()
-    expect(settled).toBe(true)
-  })
-
-  it("waits once for TRANSCRIPT_SETTLE_MS when the sentence has no end punctuation", async () => {
-    const assembler = new UtteranceAssembler()
-    let settled: boolean | undefined
-    void assembler.waitForUtterance(500, 3000).then((active) => {
-      settled = active
-    })
-
-    assembler.addFragment({ text: "thêm phở", startMs: 0, endMs: 600 })
-    await vi.advanceTimersByTimeAsync(TRANSCRIPT_SETTLE_MS - 1)
-    expect(settled).toBeUndefined()
-
-    await vi.advanceTimersByTimeAsync(1)
     expect(settled).toBe(true)
   })
 
   it("resolves false cleanly when endCall stops a pending wait", async () => {
     const ledger = new VoiceCallLedger()
-    const waiting = ledger.utterances.waitForUtterance(500, 3000)
+    const waiting = ledger.utterances.waitForUtterance()
     ledger.endCall()
     await expect(waiting).resolves.toBe(false)
   })
@@ -180,6 +123,31 @@ describe("TurnQueue", () => {
     ledger.endCall()
     expect(controller.signal.aborted).toBe(true)
     expect(ledger.turns.running()).toBeNull()
+  })
+
+  it("skips a queued delegation once a newer delegation claims priority", async () => {
+    const turns = new TurnQueue()
+    const ran: string[] = []
+    let release = () => {}
+
+    const first = turns.claimDelegation()
+    turns.enqueue(() => new Promise<void>((resolve) => (release = resolve)), first)
+
+    const second = turns.claimDelegation()
+    turns.enqueue(async () => {
+      ran.push("second")
+    }, second)
+
+    const third = turns.claimDelegation()
+    expect(turns.isLatestDelegation(second)).toBe(false)
+    expect(turns.isLatestDelegation(third)).toBe(true)
+    turns.enqueue(async () => {
+      ran.push("third")
+    }, third)
+
+    release()
+    await turns.idle()
+    expect(ran).toEqual(["third"])
   })
 })
 

@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import type { PlannerStateEvent } from "@/features/meal-plan/planner-state-protocol"
 import {
   appendableText,
+  plainSpokenText,
   readScrollState,
   streamVoiceTurn,
   VOICE_QUOTA_STATUS,
@@ -14,11 +15,15 @@ import {
   type VoiceScreenCommand,
   type VoiceTurnEvent,
 } from "@/features/meal-plan/voice"
-import { FarewellTracker, TurnQueue } from "@/features/meal-plan/voice-call"
+import { FarewellTracker, TurnQueue, VoiceCallLedger } from "@/features/meal-plan/voice-call"
 import {
-  PROGRESS_AFTER_MS,
-  PROGRESS_SPEAK_DELAY_MS,
+  handleDelegation,
+  OUTDATED_RESULT_NOTE,
+  reviseTurn,
   runVoiceTurn,
+  SUPERSEDED_NOTE,
+  supersededNote,
+  type QueueTurn,
 } from "@/features/meal-plan/voice-turn-runner"
 import { ApiError } from "@/features/shared/lib/api-client"
 
@@ -223,6 +228,8 @@ describe("runVoiceTurn", () => {
       append: async (id, ch, text) => {
         appended.push([id, ch, text])
       },
+      hasNewSpeech: () => false,
+      onRevise: vi.fn(),
       onScreen: (s) => screens.push(s),
       onState: (s) => states.push(s),
       onAbortInvalidate: vi.fn(),
@@ -254,7 +261,7 @@ describe("runVoiceTurn", () => {
     expect(endedThread).toBe("thread_1")
   })
 
-  it("speaks progress commentary on long turns and invalidates all on abort", async () => {
+  it("passes progress as thinking only and invalidates all on abort", async () => {
     const turns = new TurnQueue()
     const farewell = new FarewellTracker()
     const appended: [string, "thinking" | "commentary", string][] = []
@@ -273,6 +280,8 @@ describe("runVoiceTurn", () => {
       append: async (id, ch, text) => {
         appended.push([id, ch, text])
       },
+      hasNewSpeech: () => false,
+      onRevise: vi.fn(),
       onScreen: vi.fn(),
       onState: vi.fn(),
       onAbortInvalidate,
@@ -281,7 +290,7 @@ describe("runVoiceTurn", () => {
       onTurnEnd: vi.fn(),
       streamTurn: async function* (_token, _req, signal) {
         yield { type: "started" }
-        await new Promise((resolve) => setTimeout(resolve, PROGRESS_AFTER_MS))
+        await new Promise((resolve) => setTimeout(resolve, 10_000))
         yield { type: "progress", text: "Đã lưu thay đổi thực đơn cho Thứ Hai, đang làm tiếp." }
         await new Promise<void>((resolve, reject) => {
           release = resolve
@@ -290,15 +299,192 @@ describe("runVoiceTurn", () => {
       },
     })
 
-    await vi.advanceTimersByTimeAsync(PROGRESS_AFTER_MS + PROGRESS_SPEAK_DELAY_MS + 10)
-    expect(appended).toEqual([
-      ["del_2", "thinking", "Đã lưu thay đổi thực đơn cho Thứ Hai, đang làm tiếp."],
-      ["del_2", "commentary", "Đã lưu thay đổi thực đơn cho Thứ Hai, đang làm tiếp."],
-    ])
+    await vi.advanceTimersByTimeAsync(30_000)
+    expect(appended).toEqual([["del_2", "thinking", "Đã lưu thay đổi thực đơn cho Thứ Hai, đang làm tiếp."]])
 
     turns.cancel()
     release?.()
     await running
     expect(onAbortInvalidate).toHaveBeenCalledTimes(1)
+  })
+
+  it("does not deliver commentary when aborted right before ready", async () => {
+    const turns = new TurnQueue()
+    const farewell = new FarewellTracker()
+    const appended: [string, "thinking" | "commentary", string][] = []
+
+    await runVoiceTurn({
+      delegationId: "del_3",
+      message: "gợi ý cả tuần",
+      accessToken: "tok",
+      weekStart: "2026-11-23",
+      threadId: "thread_1",
+      screen: undefined,
+      turns,
+      farewell,
+      append: async (id, ch, text) => {
+        appended.push([id, ch, text])
+      },
+      hasNewSpeech: () => false,
+      onRevise: vi.fn(),
+      onScreen: vi.fn(),
+      onState: vi.fn(),
+      onAbortInvalidate: vi.fn(),
+      onPendingChange: vi.fn(),
+      onEnding: vi.fn(),
+      onTurnEnd: vi.fn(),
+      streamTurn: async function* () {
+        yield { type: "started" }
+        yield { type: "text", delta: "Thực đơn cũ" }
+        turns.cancel()
+        yield { type: "ready" }
+      },
+    })
+
+    expect(appended).toEqual([])
+  })
+})
+
+describe("updated requests while a turn runs", () => {
+  type Appended = [string | null, "thinking" | "commentary", string]
+
+  function turnOptions(overrides: Partial<Parameters<typeof runVoiceTurn>[0]>) {
+    return {
+      delegationId: "del_1",
+      message: "lên thực đơn cả tuần",
+      accessToken: "tok",
+      weekStart: "2026-11-23",
+      threadId: "thread_1",
+      screen: undefined,
+      turns: new TurnQueue(),
+      farewell: new FarewellTracker(),
+      append: async () => {},
+      hasNewSpeech: () => false,
+      onRevise: vi.fn(),
+      onScreen: vi.fn(),
+      onState: vi.fn(),
+      onAbortInvalidate: vi.fn(),
+      onPendingChange: vi.fn(),
+      onEnding: vi.fn(),
+      onTurnEnd: vi.fn(),
+      ...overrides,
+    }
+  }
+
+  it("keeps a result out of commentary and revises when the user spoke after delegating", async () => {
+    const appended: Appended[] = []
+    const onRevise = vi.fn()
+    const onEnding = vi.fn()
+    const farewell = new FarewellTracker()
+
+    await runVoiceTurn(
+      turnOptions({
+        farewell,
+        append: async (id, ch, text) => {
+          appended.push([id, ch, text])
+        },
+        hasNewSpeech: () => true,
+        onRevise,
+        onEnding,
+        streamTurn: async function* () {
+          yield { type: "end-call" }
+          yield { type: "text", delta: "Kết quả cũ" }
+          yield { type: "ready" }
+        },
+      })
+    )
+
+    expect(appended).toEqual([["del_1", "thinking", `${OUTDATED_RESULT_NOTE} Kết quả cũ`]])
+    expect(onRevise).toHaveBeenCalledTimes(1)
+    expect(onEnding).not.toHaveBeenCalled()
+    expect(farewell.phase).toBe("idle")
+  })
+
+  it("starts a revision with everything said since the delegation", async () => {
+    const ledger = new VoiceCallLedger()
+    const queued: Parameters<QueueTurn>[0][] = []
+    const queueTurn: QueueTurn = async (turn) => {
+      queued.push(turn)
+    }
+
+    ledger.utterances.addFragment({ text: "chỉ bữa sáng thôi", startMs: 0, endMs: 900 })
+    reviseTurn("del_1", { ledger, queueTurn })
+    await ledger.turns.idle()
+
+    expect(queued).toEqual([{ delegationId: "del_1", message: "chỉ bữa sáng thôi", revision: true }])
+  })
+
+  it("lets a later delegation take the words instead of a queued revision", async () => {
+    const ledger = new VoiceCallLedger()
+    const queued: Parameters<QueueTurn>[0][] = []
+    const queueTurn: QueueTurn = async (turn) => {
+      queued.push(turn)
+    }
+
+    ledger.utterances.addFragment({ text: "đổi bữa tối", startMs: 0, endMs: 900 })
+    reviseTurn("del_1", { ledger, queueTurn })
+    await handleDelegation("del_2", { ledger, append: async () => {}, queueTurn })
+    await ledger.turns.idle()
+
+    expect(queued).toEqual([{ delegationId: "del_2", message: "đổi bữa tối", revision: false }])
+  })
+
+  it("carries the words of a cancelled revision into the delegation that replaces it", async () => {
+    const ledger = new VoiceCallLedger()
+    const appended: Appended[] = []
+    const queued: Parameters<QueueTurn>[0][] = []
+    ledger.turns.begin("del_1", "chỉ bữa sáng thôi", true)
+
+    await handleDelegation("del_2", {
+      ledger,
+      append: async (id, ch, text) => {
+        appended.push([id, ch, text])
+      },
+      queueTurn: async (turn) => {
+        queued.push(turn)
+      },
+    })
+    await ledger.turns.idle()
+
+    expect(appended).toEqual([["del_1", "thinking", SUPERSEDED_NOTE]])
+    expect(queued).toEqual([{ delegationId: "del_2", message: "chỉ bữa sáng thôi", revision: false }])
+  })
+})
+
+describe("supersededNote", () => {
+  it("tells the model what was saved before a cancelled turn stopped", async () => {
+    const ledger = new VoiceCallLedger()
+    const appended: [string | null, "thinking" | "commentary", string][] = []
+    ledger.turns.begin("del_1", "lên thực đơn cả tuần")
+    ledger.turns.recordSaved("del_1", "Đã lưu thay đổi thực đơn cho Thứ Hai, đang làm tiếp.")
+    ledger.utterances.addFragment({ text: "thôi dừng lại", startMs: 0, endMs: 600 })
+
+    await handleDelegation("del_2", {
+      ledger,
+      append: async (id, ch, text) => {
+        appended.push([id, ch, text])
+      },
+      queueTurn: async () => {},
+    })
+
+    expect(appended).toEqual([
+      ["del_1", "thinking", supersededNote(["Đã lưu thay đổi thực đơn cho Thứ Hai, đang làm tiếp."])],
+    ])
+    expect(appended[0][2]).toContain("Đã lưu thay đổi thực đơn cho Thứ Hai")
+  })
+
+  it("stays neutral when no saved change was reported", () => {
+    expect(supersededNote([])).toBe(SUPERSEDED_NOTE)
+  })
+})
+
+describe("plainSpokenText", () => {
+  it("drops display formatting but keeps every word and number", () => {
+    const markdown = "## Tuần sau\n\n- **Calo:** khoảng 1.730 kcal\n2. Giữ `nguyên` thực đơn\n* _ít dầu_"
+    expect(plainSpokenText(markdown)).toBe("Tuần sau Calo: khoảng 1.730 kcal Giữ nguyên thực đơn _ít dầu_")
+  })
+
+  it("leaves plain sentences unchanged", () => {
+    expect(plainSpokenText("Mình đã đổi bữa tối. Bạn xem nhé.")).toBe("Mình đã đổi bữa tối. Bạn xem nhé.")
   })
 })

@@ -1,16 +1,14 @@
 import type { PlannerStateEvent } from "@/features/meal-plan/planner-state-protocol"
 import {
+  plainSpokenText,
   streamVoiceTurn,
   type VoiceScreen,
   type VoiceScreenCommand,
   type VoiceTurnEvent,
   type VoiceTurnRequest,
 } from "@/features/meal-plan/voice"
-import type { FarewellTracker, TurnQueue } from "@/features/meal-plan/voice-call"
+import type { FarewellTracker, TurnQueue, VoiceCallLedger } from "@/features/meal-plan/voice-call"
 import { ApiError } from "@/features/shared/lib/api-client"
-
-export const PROGRESS_AFTER_MS = 6000
-export const PROGRESS_SPEAK_DELAY_MS = 2000
 
 export function voiceTurnFailureText(error: unknown) {
   if (error instanceof ApiError && error.code === "AI_QUOTA_EXCEEDED") {
@@ -22,6 +20,45 @@ export function voiceTurnFailureText(error: unknown) {
   return "Yêu cầu này chưa xử lý xong vì hệ thống gặp lỗi; một phần có thể đã được lưu và đang hiện trên màn hình."
 }
 
+export const SUPERSEDED_NOTE =
+  "This task was stopped because the user spoke again; anything already saved remains saved."
+
+export function supersededNote(saved: readonly string[]) {
+  if (saved.length === 0) return SUPERSEDED_NOTE
+  return `This task was stopped because the user spoke again, but these changes were already saved before it stopped: ${saved.join(" ")} In your next reply, briefly tell the user what was already saved and ask whether to keep it or undo it.`
+}
+export const OUTDATED_RESULT_NOTE =
+  "The user spoke again before this result was delivered, so it may no longer match what they want; their latest words are being handled as an updated request. Do not read this result out on its own:"
+
+type Append = (delegationId: string, channel: "thinking" | "commentary", content: string) => Promise<void>
+
+export type QueueTurn = (turn: { delegationId: string; message: string; revision: boolean }) => Promise<void>
+
+type DelegationDeps = { ledger: VoiceCallLedger; append: Append; queueTurn: QueueTurn }
+
+export async function handleDelegation(delegationId: string, { ledger, append, queueTurn }: DelegationDeps) {
+  const seq = ledger.turns.claimDelegation()
+  const running = ledger.turns.running()
+  let carried = ""
+  if (running) {
+    ledger.turns.cancel()
+    void append(running.delegationId, "thinking", supersededNote(running.saved))
+    if (running.revision) carried = running.message
+  }
+  if (!carried && !(await ledger.utterances.waitForUtterance())) return
+  if (!ledger.turns.isLatestDelegation(seq)) return
+  const message = [carried, ledger.utterances.takeUtterance()].filter(Boolean).join(" ")
+  ledger.turns.enqueue(() => queueTurn({ delegationId, message, revision: false }), seq)
+}
+
+export function reviseTurn(delegationId: string, { ledger, queueTurn }: Omit<DelegationDeps, "append">) {
+  const seq = ledger.turns.claimDelegation()
+  ledger.turns.enqueue(async () => {
+    const message = ledger.utterances.takeUtterance()
+    if (message) await queueTurn({ delegationId, message, revision: true })
+  }, seq)
+}
+
 function isAbort(error: unknown) {
   return error instanceof DOMException && error.name === "AbortError"
 }
@@ -29,13 +66,16 @@ function isAbort(error: unknown) {
 export type RunVoiceTurnOptions = {
   delegationId: string
   message: string
+  revision?: boolean
   accessToken: string | null | undefined
   weekStart: string | undefined
   threadId: string
   screen: VoiceScreen | undefined
   turns: TurnQueue
   farewell: FarewellTracker
-  append: (delegationId: string, channel: "thinking" | "commentary", content: string) => Promise<void>
+  append: Append
+  hasNewSpeech: () => boolean
+  onRevise: () => void
   onScreen: (screen: VoiceScreenCommand) => void
   onState: (state: PlannerStateEvent) => void
   onAbortInvalidate: () => void
@@ -48,6 +88,7 @@ export type RunVoiceTurnOptions = {
 export async function runVoiceTurn({
   delegationId,
   message,
+  revision = false,
   accessToken,
   weekStart,
   threadId,
@@ -55,6 +96,8 @@ export async function runVoiceTurn({
   turns,
   farewell,
   append,
+  hasNewSpeech,
+  onRevise,
   onScreen,
   onState,
   onAbortInvalidate,
@@ -72,20 +115,23 @@ export async function runVoiceTurn({
     return
   }
 
-  const controller = turns.begin(delegationId, message)
+  const controller = turns.begin(delegationId, message, revision)
   let reply = ""
   let summary: string | null = null
   let ended = false
   let saved = false
   let replied = false
-  let spokenProgress: ReturnType<typeof setTimeout> | undefined
 
   const deliverReply = () => {
-    if (replied) return Promise.resolve()
+    if (replied || controller.signal.aborted) return Promise.resolve()
     replied = true
-    clearTimeout(spokenProgress)
+    const spoken = plainSpokenText(reply) || summary || "Đã xong."
+    if (hasNewSpeech()) {
+      const noted = append(delegationId, "thinking", `${OUTDATED_RESULT_NOTE} ${spoken}`)
+      onRevise()
+      return noted
+    }
     if (ended) farewell.sent()
-    const spoken = reply.trim() || summary || "Đã xong."
     const sent = append(delegationId, "commentary", spoken)
     if (ended) onEnding()
     return sent
@@ -109,13 +155,8 @@ export async function runVoiceTurn({
         continue
       }
       if (event.type === "progress") {
+        turns.recordSaved(delegationId, event.text)
         void append(delegationId, "thinking", event.text)
-        clearTimeout(spokenProgress)
-        spokenProgress = setTimeout(() => {
-          if (turns.runningFor(delegationId) > PROGRESS_AFTER_MS) {
-            void append(delegationId, "commentary", event.text)
-          }
-        }, PROGRESS_SPEAK_DELAY_MS)
         continue
       }
       if (event.type === "summary") {
@@ -141,7 +182,6 @@ export async function runVoiceTurn({
     if (controller.signal.aborted || isAbort(cause)) onAbortInvalidate()
     else await append(delegationId, "commentary", voiceTurnFailureText(cause))
   } finally {
-    clearTimeout(spokenProgress)
     turns.finish(delegationId)
     onPendingChange(-1)
     if (saved) onTurnEnd(threadId)

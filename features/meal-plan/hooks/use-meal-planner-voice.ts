@@ -33,11 +33,10 @@ import {
   applyPlannerState,
   invalidateAllPlannerState,
 } from "@/features/meal-plan/planner-state-protocol"
-import { runVoiceTurn } from "@/features/meal-plan/voice-turn-runner"
+import { handleDelegation, reviseTurn, runVoiceTurn } from "@/features/meal-plan/voice-turn-runner"
 
 const model = gateway.experimental_realtime(VOICE_MODEL_ID)
 
-const TRANSCRIPT_GRACE_MS = 3000
 const SPEAKING_HOLD_MS = 250
 const END_CHECK_MS = 200
 const MAX_PLAYBACK_BUFFER_SECONDS = 60
@@ -251,6 +250,7 @@ export function useMealPlannerVoice({
   })
 
   const sendRealtimeEvent = realtime.sendEvent
+  const stopPlayback = realtime.stopPlayback
   const mutedRef = useRef(false)
   useEffect(() => {
     mutedRef.current = realtime.session?.isInputMuted ?? false
@@ -282,6 +282,9 @@ export function useMealPlannerVoice({
       if (event.speaker === "user") {
         ledger.utterances.addFragment({ text: event.delta, startMs: event.startMs, endMs: event.endMs })
         setHeard(true)
+        if (playingRef.current && event.delta.trim().length > 0) {
+          stopPlayback()
+        }
         if (farewell.shouldCancel(event.delta)) keepTalking()
       } else {
         farewell.spoke(event.startMs, event.endMs)
@@ -290,42 +293,31 @@ export function useMealPlannerVoice({
     }
     if (event.type === "delegation-created") {
       if (farewell.phase !== "idle") keepTalking()
-      void delegate(event.delegationId, event.offsetMs)
+      void handleDelegation(event.delegationId, { ledger, append, queueTurn })
     }
   }
 
-  async function delegate(delegationId: string, offsetMs: number | undefined) {
-    if (!(await ledger.utterances.waitForUtterance(offsetMs, TRANSCRIPT_GRACE_MS))) return
-    const message = ledger.utterances.takeUtterance(offsetMs)
-    if (ledger.turns.running() && message) {
-      const superseded = ledger.turns.cancel()
-      if (superseded) {
-        void append(
-          superseded,
-          "thinking",
-          "This task was stopped because the user spoke again; anything already saved remains saved."
-        )
-      }
-    }
-    ledger.turns.enqueue(() =>
-      runVoiceTurn({
-        delegationId,
-        message,
-        accessToken,
-        weekStart,
-        threadId,
-        screen: getScreen() ?? undefined,
-        turns: ledger.turns,
-        farewell,
-        append,
-        onScreen,
-        onState: (state) => applyPlannerState(mutate, state),
-        onAbortInvalidate: invalidateAll,
-        onPendingChange: (delta) => setPending((count) => count + delta),
-        onEnding: () => setEnding(true),
-        onTurnEnd,
-      })
-    )
+  function queueTurn({ delegationId, message, revision }: { delegationId: string; message: string; revision: boolean }) {
+    return runVoiceTurn({
+      delegationId,
+      message,
+      revision,
+      accessToken,
+      weekStart,
+      threadId,
+      screen: getScreen() ?? undefined,
+      turns: ledger.turns,
+      farewell,
+      append,
+      hasNewSpeech: () => ledger.utterances.hasUtterance(),
+      onRevise: () => reviseTurn(delegationId, { ledger, queueTurn }),
+      onScreen,
+      onState: (state) => applyPlannerState(mutate, state),
+      onAbortInvalidate: invalidateAll,
+      onPendingChange: (delta) => setPending((count) => count + delta),
+      onEnding: () => setEnding(true),
+      onTurnEnd,
+    })
   }
 
   const connectRealtime = realtime.connect
