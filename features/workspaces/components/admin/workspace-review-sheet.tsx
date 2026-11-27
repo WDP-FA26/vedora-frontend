@@ -5,9 +5,17 @@ import Link from "next/link"
 import { Controller, useForm, useWatch } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
-import { CheckIcon, ExternalLinkIcon, TriangleAlertIcon, XIcon } from "lucide-react"
+import {
+  CheckIcon,
+  ExternalLinkIcon,
+  LandmarkIcon,
+  RotateCcwIcon,
+  TriangleAlertIcon,
+  XIcon,
+} from "lucide-react"
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import {
@@ -40,6 +48,7 @@ import { RestaurantLocationMap } from "@/features/workspaces/components/map"
 import {
   useAdminWorkspace,
   useReviewWorkspace,
+  useTaxCodeLookup,
 } from "@/features/workspaces/hooks/use-admin-workspaces"
 import { MAPBOX_TOKEN } from "@/features/workspaces/lib/mapbox"
 import {
@@ -134,6 +143,74 @@ export function WorkspaceReviewSheet({
         )}
       </SheetContent>
     </Sheet>
+  )
+}
+
+/** The tax department says this when the taxpayer is active. */
+const ACTIVE_TAX_STATUS = "đang hoạt động"
+
+/**
+ * What the tax department's public data says about a company tax code, beside
+ * what the applicant typed. It informs the "tax code matches" checklist item;
+ * it never decides on its own.
+ */
+function TaxCodeRecord({ workspaceId }: { workspaceId: string }) {
+  const { lookup, error, loading, retry } = useTaxCodeLookup(workspaceId)
+
+  if (loading && !lookup) {
+    return (
+      <p className="flex items-center gap-2 text-sm text-muted-foreground">
+        <Spinner aria-hidden /> Đang tra dữ liệu Cục Thuế…
+      </p>
+    )
+  }
+  if (error || !lookup || lookup.status === "UNAVAILABLE") {
+    return (
+      <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+        <span>Chưa tra được dữ liệu Cục Thuế (nguồn bận hoặc hết lượt).</span>
+        <Button variant="outline" size="xs" shape="pill" onClick={retry} disabled={loading}>
+          <RotateCcwIcon aria-hidden data-icon="inline-start" />
+          Thử lại
+        </Button>
+      </div>
+    )
+  }
+  if (lookup.status === "NOT_APPLICABLE") return null
+  if (lookup.status === "NOT_FOUND") {
+    return (
+      <Alert variant="destructive">
+        <TriangleAlertIcon aria-hidden />
+        <AlertTitle>Cục Thuế không có mã số thuế này</AlertTitle>
+        <AlertDescription>
+          Đối chiếu với ảnh giấy đăng ký kinh doanh. Nếu mã trong đơn sai, từ chối với lý do
+          &quot;{REJECT_REASON_LABELS.TAX_CODE_MISMATCH}&quot;.
+        </AlertDescription>
+      </Alert>
+    )
+  }
+
+  const active = lookup.taxStatus?.toLowerCase().includes(ACTIVE_TAX_STATUS) ?? false
+  return (
+    <div className="flex flex-col gap-1.5 rounded-xl border border-border p-3 text-sm">
+      <p className="flex items-center gap-2 text-xs text-muted-foreground">
+        <LandmarkIcon aria-hidden className="size-3.5" />
+        Dữ liệu Cục Thuế
+        {lookup.sourceUpdatedAt && <> · cập nhật {formatPostDateLong(lookup.sourceUpdatedAt)}</>}
+      </p>
+      <p className="font-medium">{lookup.officialName}</p>
+      {lookup.address && <p className="text-muted-foreground">{lookup.address}</p>}
+      <div className="flex flex-wrap gap-1.5">
+        {lookup.taxStatus && (
+          <Badge variant={active ? "secondary" : "destructive"}>{lookup.taxStatus}</Badge>
+        )}
+        {lookup.nameMatches === true && (
+          <Badge variant="secondary">Khớp tên pháp lý trong đơn</Badge>
+        )}
+        {lookup.nameMatches === false && (
+          <Badge variant="destructive">Khác tên pháp lý trong đơn</Badge>
+        )}
+      </div>
+    </div>
   )
 }
 
@@ -368,6 +445,7 @@ function ReviewBody({
                   )}
                 </span>
               </Detail>
+              {LOOKUP_TAX_CODE.test(legal.taxCode) && <TaxCodeRecord workspaceId={workspace.id} />}
               {legal.legalName && (
                 <Detail
                   label={LEGAL_ENTITY_VIEWS[legal.entityType].legalNameLabel ?? "Tên pháp lý"}

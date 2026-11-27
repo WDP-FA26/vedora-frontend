@@ -3,6 +3,7 @@ import {
   adminWorkspaceDetailSchema,
   adminWorkspacePageSchema,
   adminWorkspaceSchema,
+  taxCodeLookupSchema,
   menuImageUploadSchema,
   restaurantMenuItemSchema,
   restaurantMenuListSchema,
@@ -131,6 +132,10 @@ export async function fetchAllAdminWorkspaces([url, token]: readonly [string, st
 
 export function fetchAdminWorkspace([url, token]: readonly [string, string]) {
   return sendJson(adminWorkspaceDetailSchema, url, token)
+}
+
+export function fetchTaxCodeLookup([url, token]: readonly [string, string]) {
+  return sendJson(taxCodeLookupSchema, url, token)
 }
 
 export type WorkspaceReviewInput =
