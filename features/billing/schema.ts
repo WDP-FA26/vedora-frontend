@@ -1,3 +1,5 @@
+import { APP_TIME_ZONE } from "@/features/shared/lib/date-time"
+
 import { z } from "zod"
 
 export const planCodeSchema = z.enum(["PLUS", "PRO"])
@@ -83,7 +85,7 @@ export const money = (amount: string) =>
   }).format(Number(amount))
 export const dateTime = (value: string) =>
   new Intl.DateTimeFormat("vi-VN", {
-    timeZone: "Asia/Bangkok",
+    timeZone: APP_TIME_ZONE,
     dateStyle: "medium",
     timeStyle: "short",
   }).format(new Date(value))

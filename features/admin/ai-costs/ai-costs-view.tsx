@@ -1,5 +1,7 @@
 "use client";
 
+import { APP_TIME_ZONE } from "@/features/shared/lib/date-time";
+
 import { useState, type FormEvent } from "react";
 import { DownloadIcon, RefreshCwIcon } from "lucide-react";
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from "recharts";
@@ -323,7 +325,7 @@ function Calls({
                         <td className="p-2">
                           <p>
                             {new Date(call.startedAt).toLocaleString("vi-VN", {
-                              timeZone: "Asia/Bangkok",
+                              timeZone: APP_TIME_ZONE,
                             })}
                           </p>
                           <code className="text-xs">

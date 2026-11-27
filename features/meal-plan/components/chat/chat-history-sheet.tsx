@@ -1,5 +1,7 @@
 "use client"
 
+import { APP_TIME_ZONE } from "@/features/shared/lib/date-time"
+
 import { MessageSquarePlusIcon, Trash2Icon } from "lucide-react"
 
 import { Badge } from "@/components/ui/badge"
@@ -19,6 +21,7 @@ function formatThreadTime(iso: string) {
   const date = new Date(iso)
   if (Number.isNaN(date.getTime())) return ""
   return date.toLocaleString("vi-VN", {
+    timeZone: APP_TIME_ZONE,
     day: "2-digit",
     month: "2-digit",
     hour: "2-digit",

@@ -1,5 +1,7 @@
 "use client"
 
+import { APP_TIME_ZONE } from "@/features/shared/lib/date-time"
+
 import Link from "next/link"
 
 import { useEffect, useRef, useState } from "react"
@@ -230,7 +232,7 @@ export function WritingAgentPanel({
           >
             <Badge
               variant="secondary"
-              title={`Ảnh minh hoạ: còn ${Math.max(0, quota.images.limit - quota.images.used)}/${quota.images.limit}; đặt lại ${new Date(quota.images.resetsAt).toLocaleString("vi-VN", { timeZone: "Asia/Bangkok" })}`}
+              title={`Ảnh minh hoạ: còn ${Math.max(0, quota.images.limit - quota.images.used)}/${quota.images.limit}; đặt lại ${new Date(quota.images.resetsAt).toLocaleString("vi-VN", { timeZone: APP_TIME_ZONE })}`}
             >
               Còn {remaining} lượt
             </Badge>

@@ -1,3 +1,5 @@
+import { vietnamDateKey } from "@/features/shared/lib/date-time"
+
 import { z } from "zod"
 
 const count = z.number().int().nonnegative()
@@ -25,7 +27,7 @@ export type Dashboard = z.infer<typeof dashboardSchema>
 export type DashboardRange = Pick<Dashboard["range"], "from" | "to">
 
 export function defaultDashboardRange(now = new Date()): DashboardRange {
-  const to = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Bangkok", year: "numeric", month: "2-digit", day: "2-digit" }).format(now)
+  const to = vietnamDateKey(now)
   const from = new Date(Date.parse(`${to}T00:00:00Z`) - 29 * 86_400_000).toISOString().slice(0, 10)
   return { from, to }
 }

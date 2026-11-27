@@ -1,3 +1,5 @@
+import { APP_TIME_ZONE } from "./date-time"
+
 const compact = new Intl.NumberFormat("vi", {
   notation: "compact",
   maximumFractionDigits: 1,
@@ -10,13 +12,13 @@ export function formatCount(value: number) {
 const shortDate = new Intl.DateTimeFormat("vi", {
   month: "short",
   day: "numeric",
-  timeZone: "UTC",
+  timeZone: APP_TIME_ZONE,
 })
 
 const fullDate = new Intl.DateTimeFormat("vi", {
   dateStyle: "long",
   timeStyle: "short",
-  timeZone: "UTC",
+  timeZone: APP_TIME_ZONE,
 })
 
 export function formatPostDate(iso: string) {

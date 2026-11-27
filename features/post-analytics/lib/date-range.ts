@@ -1,19 +1,11 @@
+import { APP_TIME_ZONE, vietnamDateKey } from "@/features/shared/lib/date-time"
+
 import type { DateRange } from "../post-analytics-cache"
 
 const DAY_MS = 86_400_000
-const TIME_ZONE = "Asia/Bangkok"
-
-function bangkokToday(now: Date): string {
-  return new Intl.DateTimeFormat("en-CA", {
-    timeZone: TIME_ZONE,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).format(now)
-}
 
 export function lastDays(days: number, now = new Date()): DateRange {
-  const to = bangkokToday(now)
+  const to = vietnamDateKey(now)
   const from = new Date(Date.parse(`${to}T00:00:00Z`) - (days - 1) * DAY_MS)
     .toISOString()
     .slice(0, 10)
@@ -29,7 +21,7 @@ export function longDate(day: string): string {
 }
 
 const publishedFormat = new Intl.DateTimeFormat("vi-VN", {
-  timeZone: TIME_ZONE,
+  timeZone: APP_TIME_ZONE,
   day: "2-digit",
   month: "2-digit",
   year: "numeric",

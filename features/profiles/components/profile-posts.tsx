@@ -1,5 +1,7 @@
 "use client"
 
+import { APP_TIME_ZONE } from "@/features/shared/lib/date-time"
+
 import Link from "next/link"
 import { useState } from "react"
 import { BookOpenTextIcon, ClapperboardIcon, EllipsisIcon, PenLineIcon, Repeat2Icon, SproutIcon } from "lucide-react"
@@ -141,7 +143,7 @@ function MyVideoCard({ post }: { post: ApiPost }) {
   const video = post.media.find((media) => media.type === "VIDEO")
   const title = post.body?.split("\n").find((line) => line.trim())?.trim() || "Video hướng dẫn"
   const date = post.publishedAt ?? post.createdAt
-  const formattedDate = new Intl.DateTimeFormat("vi-VN", { day: "2-digit", month: "2-digit", year: "numeric" }).format(new Date(date))
+  const formattedDate = new Intl.DateTimeFormat("vi-VN", { timeZone: APP_TIME_ZONE, day: "2-digit", month: "2-digit", year: "numeric" }).format(new Date(date))
   const status = videoStatusLabel(post.status)
   const locked = Boolean(post.appeal?.activeTicket) || post.status === "REMOVED"
 
