@@ -39,6 +39,13 @@ import { supportTicketPath } from "@/features/support/support-cache"
 
 type GeneralCategory = Exclude<SupportTicketCategory, "CONTENT_APPEAL">
 
+export type SupportTicketPrefill = {
+  category: GeneralCategory
+  subject: string
+  referenceCode: string
+  message: string
+}
+
 const CATEGORY_HINTS: Record<GeneralCategory, string> = {
   PAYMENT_ISSUE: "Giao dịch chuyển khoản, kích hoạt gói hoặc hóa đơn.",
   VERIFICATION: "Hồ sơ xác minh chuyên gia, bằng cấp hoặc trạng thái duyệt.",
@@ -53,18 +60,26 @@ const REFERENCE_PLACEHOLDERS: Partial<Record<GeneralCategory, string>> = {
 export function CreateSupportTicketDialog({
   open,
   onOpenChange,
+  initialValues,
+  description,
+  onCreated,
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
+  initialValues?: SupportTicketPrefill
+  description?: string
+  onCreated?: (ticketId: string) => void
 }) {
   const router = useRouter()
   const createTicket = useCreateSupportTicket()
   const uploadImages = useUploadSupportImages()
   const [images, setImages] = useState<PickedImage[]>([])
-  const [category, setCategory] = useState<GeneralCategory>("PAYMENT_ISSUE")
-  const [subject, setSubject] = useState("")
-  const [referenceCode, setReferenceCode] = useState("")
-  const [message, setMessage] = useState("")
+  const [category, setCategory] = useState<GeneralCategory>(
+    initialValues?.category ?? "PAYMENT_ISSUE"
+  )
+  const [subject, setSubject] = useState(initialValues?.subject ?? "")
+  const [referenceCode, setReferenceCode] = useState(initialValues?.referenceCode ?? "")
+  const [message, setMessage] = useState(initialValues?.message ?? "")
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -102,8 +117,11 @@ export function CreateSupportTicketDialog({
       setMessage("")
       releasePickedImages(images)
       setImages([])
-      onOpenChange(false)
-      router.push(supportTicketPath(created.id))
+      if (onCreated) onCreated(created.id)
+      else {
+        onOpenChange(false)
+        router.push(supportTicketPath(created.id))
+      }
     } catch (err) {
       setError(supportErrorMessage(err, "Không thể tạo hồ sơ hỗ trợ. Vui lòng thử lại."))
     } finally {
@@ -112,8 +130,13 @@ export function CreateSupportTicketDialog({
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg">
+    <Dialog
+      open={open}
+      onOpenChange={(next) => {
+        if (!submitting) onOpenChange(next)
+      }}
+    >
+      <DialogContent className="max-h-[calc(100dvh-2rem)] overflow-y-auto sm:max-w-lg">
         <form onSubmit={(event) => void handleSubmit(event)} className="flex flex-col gap-4">
           <DialogHeader>
             <DialogTitle>
@@ -123,8 +146,8 @@ export function CreateSupportTicketDialog({
               </span>
             </DialogTitle>
             <DialogDescription>
-              Chọn danh mục phù hợp và mô tả chi tiết vấn đề. Để kháng cáo bài viết hoặc blog bị từ
-              chối/gỡ bỏ, hãy mở trực tiếp bài viết đó và chọn Gửi kháng cáo.
+              {description ??
+                "Chọn danh mục phù hợp và mô tả chi tiết vấn đề. Để kháng cáo bài viết hoặc blog bị từ chối/gỡ bỏ, hãy mở trực tiếp bài viết đó và chọn Gửi kháng cáo."}
             </DialogDescription>
           </DialogHeader>
 

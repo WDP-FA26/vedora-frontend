@@ -27,6 +27,7 @@ import { Spinner } from "@/components/ui/spinner"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { RelativeTime } from "@/features/shared/components/relative-time"
 import { CreateSupportTicketDialog } from "@/features/support/components/create-support-ticket-dialog"
+import { PaymentSupportDialog } from "@/features/support/components/payment-support-dialog"
 import { TicketStatusBadge } from "@/features/support/components/ticket-status-badge"
 import { useMySupportTickets } from "@/features/support/hooks/use-support"
 import {
@@ -69,7 +70,7 @@ function isCategoryFilter(value: string): value is CategoryFilter {
   return value === "ALL" || SUPPORT_TICKET_CATEGORIES.some((category) => category === value)
 }
 
-export function MySupportView() {
+export function MySupportView({ paymentId }: { paymentId?: string } = {}) {
   const [status, setStatus] = useState<StatusTab>("ALL")
   const [category, setCategory] = useState<CategoryFilter>("ALL")
   const [pageNumber, setPageNumber] = useState(1)
@@ -189,6 +190,7 @@ export function MySupportView() {
       )}
 
       <CreateSupportTicketDialog open={createOpen} onOpenChange={setCreateOpen} />
+      {paymentId && <PaymentSupportDialog key={paymentId} paymentId={paymentId} />}
     </section>
   )
 }
@@ -239,8 +241,8 @@ function TicketList({
           </EmptyMedia>
           <EmptyTitle>Chưa có yêu cầu hỗ trợ</EmptyTitle>
           <EmptyDescription>
-            Gặp vấn đề về thanh toán, xác minh hay tài khoản? Gửi yêu cầu để đội ngũ Vedora hỗ
-            trợ. Muốn kháng cáo bài bị từ chối hoặc gỡ, hãy mở bài đó và chọn Gửi kháng cáo.
+            Gặp vấn đề về thanh toán, xác minh hay tài khoản? Gửi yêu cầu để đội ngũ Vedora hỗ trợ.
+            Muốn kháng cáo bài bị từ chối hoặc gỡ, hãy mở bài đó và chọn Gửi kháng cáo.
           </EmptyDescription>
         </EmptyHeader>
         <EmptyContent>
