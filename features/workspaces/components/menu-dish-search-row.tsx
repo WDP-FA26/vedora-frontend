@@ -9,7 +9,6 @@ import { formatPriceVnd, formatRatingScore } from "@/features/workspaces/lib/for
 import { googleMapsDirectionsUrl } from "@/features/workspaces/lib/mapbox"
 import type { RestaurantMenuSearchItem } from "@/features/workspaces/schemas"
 
-/** One restaurant dish search hit row on `/home/search`. */
 export function MenuDishSearchRow({ item }: { item: RestaurantMenuSearchItem }) {
   const menuHref = `${profilePath(item.restaurant.pageUserId)}?tab=menu`
   const reviewsHref = `${profilePath(item.restaurant.pageUserId)}?tab=reviews`

@@ -37,10 +37,8 @@ import { Button } from "@/components/ui/button"
 import { Popover, PopoverContent, PopoverHeader, PopoverTitle, PopoverTrigger } from "@/components/ui/popover"
 import { problemSchema, problemText } from "@/features/meal-plan/meal-plan"
 
-// Mirror the inputs and outputs of vedora-api's agent tools.
 const queryInputSchema = z.object({ query: z.string().optional() })
 const knowledgeHitSchema = z.object({ title: z.string(), page: z.number(), text: z.string() })
-// The tool answers `{ status: "ok", hits }`, or `{ status: "unavailable" }` when the search failed.
 const knowledgeSearchSchema = z.discriminatedUnion("status", [
   z.object({ status: z.literal("ok"), hits: z.array(knowledgeHitSchema) }),
   z.object({ status: z.literal("unavailable") }),
@@ -105,7 +103,6 @@ function toolStep(part: ToolUIPart | DynamicToolUIPart): Step {
   if (name === "searchKnowledge") {
     const result = done ? knowledgeSearchOf(part.output) : undefined
     const hits = result?.status === "ok" ? result.hits : []
-    // A search that could not run is not the same as one that found nothing.
     const unavailable = failed || result?.status === "unavailable"
     let title = `Đang tra cứu tài liệu${quoted(query)}`
     if (unavailable) title = `Không tra cứu được${quoted(query)}`
@@ -264,7 +261,6 @@ function toolStep(part: ToolUIPart | DynamicToolUIPart): Step {
     }
   }
 
-  // It waits for the user's answer on the consent card, so it never shows as running.
   if (name === "requestWebSearch") {
     const decision = done ? webSearchDecisionSchema.safeParse(part.output).data : undefined
     let title = "Xin phép tìm trên web"
@@ -320,7 +316,6 @@ function toolStep(part: ToolUIPart | DynamicToolUIPart): Step {
   }
 }
 
-/** The tool calls of an assistant message, in the order they happened. */
 function traceSteps(message: UIMessage): Step[] {
   return message.parts.flatMap((part) => (isToolUIPart(part) ? [toolStep(part)] : []))
 }
@@ -350,10 +345,6 @@ function CollapsibleStep({ step }: { step: Step }) {
   )
 }
 
-/**
- * The assistant's tool calls above its reply. `pending` adds a
- * thinking row while the agent works between steps.
- */
 export function AgentTrace({ message, pending = false }: { message: UIMessage; pending?: boolean }) {
   const steps = traceSteps(message)
   const idle = pending && !steps.some(({ status }) => status === "running")
@@ -379,7 +370,6 @@ export function AgentTrace({ message, pending = false }: { message: UIMessage; p
   )
 }
 
-/** The documents the knowledge searches returned, grouped by file. */
 function documentSources(message: UIMessage) {
   const pages = new Map<string, Set<number>>()
   for (const part of message.parts) {
@@ -403,7 +393,6 @@ function hostname(url: string): string {
   return new URL(url).hostname.replace(/^www\./, "")
 }
 
-/** The web pages a web search cited, once each, in the order they came. */
 function webSources(message: UIMessage) {
   const byUrl = new Map<string, { url: string; title: string }>()
   for (const part of message.parts) {
@@ -414,11 +403,6 @@ function webSources(message: UIMessage) {
   return [...byUrl.values()]
 }
 
-/**
- * Everything a reply drew on: Vedora's documents and, when the user allowed
- * it, web pages. A small "Nguồn" button under the reply opens the list on
- * hover, focus or tap, so it also works on touch screens.
- */
 export function MessageSources({ message }: { message: UIMessage }) {
   const documents = documentSources(message)
   const pages = webSources(message)

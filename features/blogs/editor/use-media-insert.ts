@@ -31,11 +31,6 @@ function failureMessage(error: unknown) {
   return "Không tải tệp lên được. Thử lại nhé."
 }
 
-/**
- * Uploads images (RustFS) and videos (Cloudinary), one at a time, and drops
- * each into the document where the caret was. Also takes files that are pasted
- * or dropped on the editor. Must be used inside the `LexicalComposer`.
- */
 export function useMediaInsert() {
   const [editor] = useLexicalComposerContext()
   const { accessToken } = useAuth()
@@ -65,7 +60,6 @@ export function useMediaInsert() {
     setProgress(null)
   }
 
-  // The commands are registered once; they call the latest `insertFiles`.
   const latest = useRef(insertFiles)
   useEffect(() => {
     latest.current = insertFiles

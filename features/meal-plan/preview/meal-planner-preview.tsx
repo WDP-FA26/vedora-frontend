@@ -130,7 +130,6 @@ function dateLabel(iso: string) {
   return `${WEEKDAY_SHORT[date.getDay()]}, ${formatPreviewDate(iso)}`
 }
 
-/** Entirely local UI sandbox. Never imports the auth context or meal-plan API service. */
 export function MealPlannerPreview() {
   const [scenario, setScenario] = useState<Scenario>("empty")
   const [tab, setTab] = useState<PreviewTab>("chat")

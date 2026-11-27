@@ -7,11 +7,6 @@ import Map, { NavigationControl, type MapProps, type MapRef } from "react-map-gl
 
 import { MAP_STYLE, MAP_STYLE_DARK, MAPBOX_TOKEN } from "@/features/workspaces/lib/mapbox"
 
-/**
- * A Mapbox map in the current light/dark theme. Only import this through
- * `next/dynamic` with `ssr: false`: mapbox-gl touches `window` on import.
- * Callers check `MAPBOX_TOKEN` first; without one nothing renders.
- */
 export function BaseMap({
   children,
   ref,

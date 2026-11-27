@@ -25,7 +25,6 @@ function compactList(values: string[]) {
   return values.length > 3 ? `${visible} và ${values.length - 3} mục khác` : visible
 }
 
-/** The owner's saved dietary profile, summarised on their own profile page. */
 export function DietaryOverviewCard() {
   const { data } = useAuthedSWR(MY_DIETARY_KEY, fetchMyDietary)
   const { data: nutrition } = useAuthedSWR(MY_NUTRITION_KEY, fetchMyNutrition)

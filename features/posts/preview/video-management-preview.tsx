@@ -64,7 +64,6 @@ const INITIAL_VIDEOS: PreviewVideo[] = [
   { id: 5, title: "Canh rau mùa mưa", description: "Câu chuyện món: Bữa cơm gia đình.", status: "hidden", date: "05/10/2026", reason: "Video cần được kiểm tra lại trước khi hiển thị." },
 ]
 
-/** A separate visual sandbox. It never imports auth, the uploader, or post APIs. */
 export function VideoManagementPreview() {
   const [videos, setVideos] = useState(INITIAL_VIDEOS)
   const [filter, setFilter] = useState<PreviewStatus | "all">("all")

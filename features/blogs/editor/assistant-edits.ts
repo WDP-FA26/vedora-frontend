@@ -28,23 +28,13 @@ import {
 } from "@/features/blogs/editor/suggestions"
 import { BLOG_TRANSFORMERS } from "@/features/blogs/editor/transformers"
 
-/**
- * The writing assistant's editor tools, applied as suggestions the author
- * accepts or discards (see `suggestions.tsx`). Each `$` function runs inside
- * `editor.update` and returns the reason it could not apply, or `null`.
- * The agent quotes the draft as Markdown, so quoted passages are matched
- * against the editor's text with the Markdown syntax removed.
- */
-
 export type EditError = "NO_SELECTION" | "NOT_FOUND" | "AMBIGUOUS" | "STALE"
 export type InsertPosition = "cursor" | "end" | "after"
 
 type Point = { key: string; offset: number; type: "text" | "element" }
 
-/** Where the author was when they sent the message. */
 export type Captured = {
   selection: { anchor: Point; focus: Point; text: string } | null
-  /** The top-level block holding the caret. */
   caretBlock: string | null
 }
 
@@ -60,7 +50,6 @@ export function $captureSelection(): Captured {
   return { selection: { anchor: point(selection.anchor), focus: point(selection.focus), text }, caretBlock }
 }
 
-/** The captured selection again, if the text it covered is still there unchanged. */
 function $restore(captured: NonNullable<Captured["selection"]>): RangeSelection | null {
   for (const { key, offset } of [captured.anchor, captured.focus]) {
     const node = $getNodeByKey(key)
@@ -85,7 +74,6 @@ function $insideSuggestion(node: LexicalNode) {
   return false
 }
 
-/** New blocks from Markdown, without media: images go through `insertImage`. */
 function $blocksFrom(markdown: string) {
   const text = markdown.replace(/!\[[^\]]*\]\([^)]*\)/g, "").replace(/\n{3,}/g, "\n\n")
   return $generateNodesFromMarkdownString(text, BLOG_TRANSFORMERS).filter(
@@ -103,15 +91,9 @@ function $insertBlocksAfter(anchor: LexicalNode | null, nodes: LexicalNode[]) {
     previous.insertAfter(node)
     previous = node
   }
-  // a blank line the author left for the assistant
   if ($isParagraphNode(anchor) && anchor.isEmpty()) anchor.remove()
 }
 
-/**
- * Strikes out the text in `selection` and proposes `markdown` in its place:
- * inline when one paragraph replaces part of one block, otherwise as new
- * blocks after the last block touched.
- */
 function $suggestReplacement(selection: RangeSelection, markdown: string, group: string): EditError | null {
   if (selection.getNodes().some($insideSuggestion)) return "STALE"
   const [start, end] = selection.isBackward()
@@ -129,7 +111,6 @@ function $suggestReplacement(selection: RangeSelection, markdown: string, group:
   })
   if (inline.length === 0) return "NO_SELECTION"
 
-  // wrap each run of neighbouring nodes in one mark
   let last: ElementNode | null = null
   for (const node of inline) {
     if (last && node.getPreviousSibling()?.is(last)) {
@@ -162,7 +143,6 @@ export function $applyReplaceSelection(captured: Captured, markdown: string, gro
   return selection ? $suggestReplacement(selection, markdown, group) : "STALE"
 }
 
-/** Markdown as the editor shows it: no emphasis marks, link targets or block markers. */
 export function plainText(markdown: string) {
   return markdown
     .replace(/!\[([^\]]*)\]\([^)]*\)/g, "")
@@ -172,7 +152,6 @@ export function plainText(markdown: string) {
     .replace(/^\s{0,3}(#{1,6}\s+|>\s?|[-*+]\s+|\d+[.)]\s+)/gm, "")
 }
 
-/** Paragraphs, headings, quotes and list items, in document order. */
 function $textBlocks(): ElementNode[] {
   const blocks: ElementNode[] = []
   function visit(node: LexicalNode) {
@@ -193,17 +172,9 @@ function $isProposed(node: LexicalNode) {
   return false
 }
 
-/** A text node's place in a line: `start` characters in. */
 type Segment = { node: TextNode; start: number }
-/** One line of the draft as the agent sees it, and the nodes behind it. */
 type Line = { block: ElementNode; text: string; segments: Segment[] }
 
-/**
- * The post as the agent's `<draft>` shows it, one entry per non-empty line:
- * soft line breaks start a new line, empty paragraphs are left out (the
- * Markdown export drops them) and so is text only proposed so far (the export
- * discards pending suggestions).
- */
 function $draftLines(): Line[] {
   const lines: Line[] = []
   for (const block of $textBlocks()) {
@@ -229,7 +200,6 @@ function $draftLines(): Line[] {
 
 type Passage = { first: Line; start: number; last: Line; end: number }
 
-/** The one place `quote` appears in the draft, possibly across lines and blocks. */
 function $findPassage(quote: string): Passage | EditError {
   const quoted = plainText(quote)
     .split(/\n+/)
@@ -268,7 +238,6 @@ function $findPassage(quote: string): Passage | EditError {
   return found.length === 1 ? found[0] : "AMBIGUOUS"
 }
 
-/** A text point `offset` characters into `line`. */
 function pointIn(line: Line, offset: number, edge: "start" | "end"): Point | null {
   for (const { node, start } of line.segments) {
     const size = node.getTextContentSize()
@@ -295,7 +264,6 @@ export function $applyReplaceText(find: string, replace: string, group: string):
   return selection ? $suggestReplacement(selection, replace, group) : "NOT_FOUND"
 }
 
-/** The top-level block new content goes after; `null` for the end of the post. */
 function $insertionAnchor(position: InsertPosition, after: string | undefined, captured: Captured) {
   if (position === "end") return null
   if (position === "cursor") {
@@ -323,10 +291,6 @@ export function $applyInsertMarkdown(
   return null
 }
 
-/**
- * Media can't carry a suggestion mark, so the author approves an image in the
- * chat first. With `replaces`, the image takes that one's place.
- */
 export function $applyInsertImage(
   url: string,
   alt: string,

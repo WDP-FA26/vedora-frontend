@@ -11,16 +11,10 @@ import {
 import { recipeTagSchema } from "@/features/recipes/tags"
 import { send, sendJson } from "@/features/shared/lib/api-client"
 
-// Mirrors vedora-api's `/meal-plan` routes: the signed-in user's weekly timetable.
-
 export const MEAL_PLANNER_PATH = "/meal-planner"
 
 const MEAL_PLAN_URL = `${API_URL}/meal-plan`
 
-/**
- * The SWR key is `[url, accessToken]`. A week is its Monday as `YYYY-MM-DD`;
- * without one the API answers for the current week, so the key has no query.
- */
 export function mealPlanKey(weekStart?: string) {
   return weekStart ? `${MEAL_PLAN_URL}?weekStart=${weekStart}` : MEAL_PLAN_URL
 }
@@ -43,7 +37,6 @@ export const DAY_LABELS: Record<Weekday, string> = {
   SUN: "Chủ nhật",
 }
 
-/** "Khác" holds everything outside the three meals: snacks, drinks, desserts. */
 export const SECTION_LABELS: Record<MealSection, string> = {
   BREAKFAST: "Sáng",
   LUNCH: "Trưa",
@@ -79,31 +72,22 @@ export const problemSchema = z.object({
   code: z.enum(["UNKNOWN_RECIPE", "AVOIDED_INGREDIENT", "DAY_CONFLICT"]),
   day: daySchema,
   recipes: z.array(z.string()),
-  /** The dishes involved, for flagging them on the plan. */
   recipeIds: z.array(z.string()),
   ingredients: z.array(z.string()),
   reason: z.string().nullable(),
 })
 
 const mealPlanSchema = z.object({
-  /** Monday of this week. */
   weekStart: z.string(),
-  /** Monday of the week that holds today. */
   currentWeekStart: z.string(),
-  /** Today in the app time zone, `YYYY-MM-DD`. */
   today: z.string(),
-  /** Earliest week worth browsing back to. */
   minWeekStart: z.string(),
-  /** Last week a plan may be made for. */
   maxWeekStart: z.string(),
-  /** False once the whole week is over. */
   editable: z.boolean(),
   days: z.array(
     z.object({
       day: daySchema,
-      /** Calendar date of this day, `YYYY-MM-DD`. */
       date: z.string(),
-      /** False for a day before today: it can only be read. */
       editable: z.boolean(),
       sections: z.array(
         z.object({ section: sectionSchema, recipes: z.array(mealRecipeSchema) })
@@ -121,9 +105,7 @@ const recipeRefSchema = z.object({
   nutritionPillars: z.array(nutritionPillarSchema).optional(),
 })
 
-/** Output of the planner's `proposeMealPlan` tool: checked, not saved. */
 export const proposalSchema = z.object({
-  /** The week the proposal is for. Missing on proposals saved before plans were weekly. */
   weekStart: z.string().optional(),
   ok: z.boolean(),
   days: z.array(
@@ -140,12 +122,6 @@ export const proposalSchema = z.object({
   ),
 })
 
-/**
- * What a planner tool (`fillSlots`, `editPlan`, `autoBalancePlan`,
- * `verifyMealPlanAllergies`) changed in the saved plan: each changed day with
- * all four sections, before (`previous`) and after (`recipes`). `applied` is
- * false when nothing was saved; outputs from the old draft flow have no `applied`.
- */
 export const planChangeSchema = z.object({
   weekStart: z.string(),
   applied: z.boolean(),
@@ -164,11 +140,6 @@ export const planChangeSchema = z.object({
   problems: z.array(problemSchema).default([]),
 })
 
-/**
- * `GET /meal-plan/shopping-list`: the saved plan's ingredients, summed per
- * ingredient and unit. Quantities are decimal text; each time a recipe is on
- * the plan it adds its full quantities, not scaled per person.
- */
 export const shoppingListSchema = z.object({
   weekStart: z.string(),
   days: z.array(daySchema),
@@ -178,7 +149,6 @@ export const shoppingListSchema = z.object({
       ingredientId: z.string(),
       name: z.string(),
       unit: z.string().nullable(),
-      /** Only the known part when `hasUnknownQuantity`; null if no source has one. */
       knownQuantity: z.string().nullable(),
       hasUnknownQuantity: z.boolean(),
       contributions: z.array(
@@ -204,7 +174,6 @@ export type PlanChange = z.infer<typeof planChangeSchema>
 export type PlannedDay = MealPlan["days"][number]
 export type ShoppingList = z.infer<typeof shoppingListSchema>
 export type ShoppingItem = ShoppingList["items"][number]
-/** The complete new content of one day, as `PUT /meal-plan/days` takes it. */
 export type MealDayInput = {
   day: Weekday
   breakfast: string[]
@@ -237,7 +206,6 @@ export function problemText({ code, recipes, ingredients, reason }: MealPlanProb
   return "Có món không còn tồn tại."
 }
 
-/** Key of a dish on one day of the plan, as used by `dishWarnings`. */
 export function dishKey(day: Weekday, recipeId: string) {
   return `${day}:${recipeId}`
 }
@@ -249,7 +217,6 @@ function dishWarningText({ code, ingredients, reason }: MealPlanProblem) {
   return `Có ${ingredients.join(", ")}, thứ bạn không ăn`
 }
 
-/** What is wrong with each dish, so it can be marked where it sits on the plan. */
 export function dishWarnings(problems: MealPlanProblem[]) {
   const warnings = new Map<string, string[]>()
   for (const problem of problems) {
@@ -267,7 +234,6 @@ export function dishWarnings(problems: MealPlanProblem[]) {
 export const MAX_DISHES_PER_SECTION = 5
 
 export type SlotRef = { day: Weekday; section: MealSection }
-/** The full new recipe list of one meal slot. */
 export type SlotChange = SlotRef & { recipeIds: string[] }
 
 export function recipesAt(plan: MealPlan, { day, section }: SlotRef): MealRecipe[] {
@@ -275,7 +241,6 @@ export function recipesAt(plan: MealPlan, { day, section }: SlotRef): MealRecipe
   return planned?.sections.find((item) => item.section === section)?.recipes ?? []
 }
 
-/** PUT replaces a whole day, so every section of an edited day is sent. */
 export function inputsForChanges(plan: MealPlan, changes: SlotChange[]): MealDayInput[] {
   const days = WEEKDAYS.filter((day) => changes.some((change) => change.day === day))
   return days.map((day) => {
@@ -294,10 +259,6 @@ export function inputsForChanges(plan: MealPlan, changes: SlotChange[]): MealDay
   })
 }
 
-/**
- * The plan as it will look after `changes`, for an optimistic update. Returns
- * null when a recipe id is not in the plan yet (e.g. a freshly added dish).
- */
 export function planAfterChanges(plan: MealPlan, changes: SlotChange[]): MealPlan | null {
   const known = new Map<string, MealRecipe>()
   for (const day of plan.days) {
@@ -342,7 +303,6 @@ const recipeSearchSchema = z.object({
 
 export type RecipeOption = z.infer<typeof recipeSearchSchema>["items"][number]
 
-/** Recipes this user can eat (avoided ingredients are already left out). */
 export function searchRecipeOptions(token: string, query: string) {
   const params = new URLSearchParams({ suitableForMe: "true", limit: "20" })
   const text = query.trim()
@@ -354,20 +314,15 @@ export function fetchMealPlan([url, token]: readonly [string, string]) {
   return sendJson(mealPlanSchema, url, token)
 }
 
-/** Mirrors `GenerateMealDaysDto`: the algorithm picks one dish per chosen slot. */
 export type GenerateRequest = {
-  /** Monday of the week to fill. */
   weekStart: string
   days: Weekday[]
   sections: MealSection[]
-  /** Keep every slot that already has a dish. */
   onlyEmpty: boolean
   maxMinutes?: number
-  /** A dish or ingredient to prefer; never a hard filter. */
   query?: string
 }
 
-/** What the form asks for; the week it applies to is added when it is sent. */
 export type GenerateInput = Omit<GenerateRequest, "weekStart">
 
 export const MAX_GENERATE_QUERY_LENGTH = 100
@@ -376,7 +331,6 @@ const generatedSchema = proposalSchema
   .omit({ ok: true })
   .extend({ problems: z.array(problemSchema) })
 
-/** `POST /meal-plan/generate`: a checked preview, nothing saved. `days` is empty when no dish fits. */
 export async function generateMealDays(token: string, request: GenerateRequest) {
   const preview = await sendJson(generatedSchema, `${MEAL_PLAN_URL}/generate`, token, {
     method: "POST",
@@ -392,7 +346,6 @@ export function saveMealDays(token: string, weekStart: string, days: MealDayInpu
   })
 }
 
-/** The list of one week for `days`, in week order; all seven days is the API default, so no `days` query. */
 export function shoppingListKey(weekStart: string, days: readonly Weekday[]) {
   const picked = WEEKDAYS.filter((day) => days.includes(day))
   const params = new URLSearchParams({ weekStart })
@@ -404,7 +357,6 @@ export function fetchShoppingList([url, token]: readonly [string, string]) {
   return sendJson(shoppingListSchema, url, token)
 }
 
-/** "100.25" → "100,25", "2.00" → "2": Vietnamese decimals without trailing zeros. */
 export function formatQuantity(quantity: string) {
   const [whole, fraction = ""] = quantity.split(".")
   const trimmed = fraction.replace(/0+$/, "")
@@ -492,15 +444,12 @@ export function updateChatThread(
 }
 
 export const chatRewindSchema = z.object({
-  /** The removed user message, to put back in the input. */
   text: z.string(),
   weeks: z.array(
     z.object({
       weekStart: z.string(),
       restored: z.array(daySchema),
-      /** Days that have passed since, so they kept the assistant's dishes. */
       skipped: z.array(daySchema),
-      /** Dishes left out because they were deleted or are now avoided. */
       droppedDishes: z.number().int().nonnegative(),
     })
   ),
@@ -508,10 +457,6 @@ export const chatRewindSchema = z.object({
 
 export type ChatRewind = z.infer<typeof chatRewindSchema>
 
-/**
- * `POST /meal-plan/chat/threads/:id/rewind`: puts back the dishes the assistant
- * changed from that user message on, and removes it and every later message.
- */
 export function rewindChatThread(token: string, threadId: string, messageId: string) {
   return sendJson(chatRewindSchema, `${MEAL_PLANNER_CHAT_THREADS_KEY}/${threadId}/rewind`, token, {
     method: "POST",
@@ -519,7 +464,6 @@ export function rewindChatThread(token: string, threadId: string, messageId: str
   })
 }
 
-/** Every cached week of the plan: `mutate` it after the assistant or a rewind changed the plan. */
 export function isMealPlanKey(key: unknown): boolean {
   if (!Array.isArray(key)) return false
   const url: unknown = key[0]
@@ -533,18 +477,15 @@ export async function deleteChatThread(token: string, threadId: string) {
   })
 }
 
-/** `2026-11-16` → `16/11`. */
 export function formatDayMonth(date: string) {
   const [, month, day] = date.split("-")
   return `${Number(day)}/${Number(month)}`
 }
 
-/** Day of the month of a `YYYY-MM-DD` date. */
 export function dayOfMonth(date: string) {
   return Number(date.split("-")[2])
 }
 
-/** `16/11 – 22/11/2026` for a week's seven days. */
 export function weekRangeLabel(plan: MealPlan) {
   const first = plan.days[0]
   const last = plan.days[plan.days.length - 1]
@@ -552,7 +493,6 @@ export function weekRangeLabel(plan: MealPlan) {
   return `${formatDayMonth(first.date)} – ${formatDayMonth(last.date)}/${last.date.split("-")[0]}`
 }
 
-/** `16/11 – 22/11` for the week starting `weekStart`. */
 export function weekStartRangeLabel(weekStart: string) {
   return `${formatDayMonth(weekStart)} – ${formatDayMonth(shiftDays(weekStart, 6))}`
 }
@@ -562,14 +502,12 @@ function shiftDays(date: string, days: number) {
   return new Date(Date.UTC(year, month - 1, day + days)).toISOString().slice(0, 10)
 }
 
-/** Monday of the week `weeks` after (or before, when negative) the week starting `weekStart`. */
 export function shiftWeek(weekStart: string, weeks: number) {
   const [year, month, day] = weekStart.split("-").map(Number)
   const shifted = new Date(Date.UTC(year, month - 1, day + weeks * 7))
   return shifted.toISOString().slice(0, 10)
 }
 
-/** The weekday of `plan` that is today, or undefined when today is not in this week. */
 export function todayOf(plan: MealPlan): Weekday | undefined {
   return plan.days.find(({ date }) => date === plan.today)?.day
 }
@@ -599,11 +537,6 @@ export type DayNutritionSummary = {
 
 const MAIN_SECTIONS: readonly MealSection[] = ["BREAKFAST", "LUNCH", "DINNER"]
 
-/**
- * Summarizes one day's approximate energy and plant-based nutrition pillars.
- * Avoids alert fatigue: never flags low calories or missing protein on partial days
- * where the user left main meals blank (e.g., eating breakfast/lunch outside).
- */
 export function computeDayNutrition(
   plannedDay: PlannedDay,
   dailyCalorieTarget: number | null | undefined,

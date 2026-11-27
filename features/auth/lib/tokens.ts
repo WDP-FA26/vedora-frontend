@@ -1,12 +1,8 @@
 import type { AuthTokens } from "@/features/auth/types"
 
-// Shared by the proxy, route handlers and Server Actions. Keep it free of
-// `server-only` / `next/headers` so the proxy bundle can import it.
-
 export const ACCESS_TOKEN_COOKIE = "vedora_at"
 export const REFRESH_TOKEN_COOKIE = "vedora_rt"
 
-/** Refresh this long before the access token actually expires. */
 const EXPIRY_LEEWAY_MS = 30_000
 
 type CookieOptions = {
@@ -17,7 +13,6 @@ type CookieOptions = {
   maxAge: number
 }
 
-/** Minimal shape shared by `cookies()` and `NextResponse.cookies`. */
 type CookieWriter = {
   set(name: string, value: string, options: CookieOptions): unknown
   delete(name: string): unknown
@@ -51,10 +46,6 @@ export function clearTokenCookies(store: CookieWriter) {
   store.delete(REFRESH_TOKEN_COOKIE)
 }
 
-/**
- * Reads `exp` without verifying the signature. That is enough to decide when
- * to rotate; the API still verifies every token it receives.
- */
 export function isAccessTokenFresh(token: string | undefined): boolean {
   if (!token) return false
   try {

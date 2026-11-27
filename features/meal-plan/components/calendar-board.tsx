@@ -98,16 +98,10 @@ const PAST_DAY_MESSAGE = "Ngày đã qua nên không thể thay đổi."
 
 type Dragged = SlotRef & { recipeId: string }
 
-/** A dish opened from the grid always has its slot. */
 type PlannedDish = OpenedDish & { day: Weekday; section: MealSection }
 
-/** What the voice agent can open on the calendar. */
 export type CalendarBoardHandle = {
   showDay: (day: Weekday) => void
-  /**
-   * Shows the day and opens the dish's recipe sheet the way the voice agent does (no photo,
-   * scrolled to `scroll`, `step`, or `section`); just the day when the dish is not on it.
-   */
   openDish: (
     day: Weekday,
     recipeId: string,
@@ -121,7 +115,6 @@ export type CalendarBoardHandle = {
   hideBodyMetrics: () => void
   scrollBodyMetrics: (direction: ScreenScrollDirection) => void
   scrollMobileBoard: (direction: ScreenScrollDirection) => void
-  /** The selected day, the open recipe sheet and the BMI panel, for the voice agent's view of the page. */
   screen: () => {
     day: Weekday
     recipe: {
@@ -143,10 +136,8 @@ export type CalendarBoardHandle = {
 type CalendarBoardProps = {
   plan: MealPlan | undefined
   failed: boolean
-  /** Applies the new content of one or more meal slots; rejects with a user-facing message. */
   onChange: (changes: SlotChange[]) => Promise<void>
   onAsk?: (recipe: RecipeRef, day: Weekday, section: MealSection) => void
-  /** Asks the assistant for dishes for an empty or partly filled slot. */
   onSuggestSlot?: (slot: SlotRef) => void
   onRetry?: () => void
   nutrition?: NutritionProfile
@@ -164,13 +155,9 @@ type CalendarBoardProps = {
   eatingBusyKey?: string | null
   onLogEatingOut?: () => void
   onAskAssistant?: (prompt: string) => void
-  /** Buttons at the right of the toolbar above the grid. */
   action?: ReactNode
-  /** Controls in the top-left corner cell (shown when the assistant is hidden). */
   leading?: ReactNode
-  /** The day selected when the board mounts; the voice agent uses it after switching weeks. */
   initialDay?: Weekday
-  /** Lets the voice agent show a day, open or close a dish or the BMI panel. */
   handle?: Ref<CalendarBoardHandle>
   onActiveRecipeChange?: (recipe: VoiceOpenRecipe | null) => void
 }
@@ -196,7 +183,6 @@ function slotLabel({ day, section }: SlotRef) {
   return `${DAY_LABELS[day]}, bữa ${SECTION_LABELS[section].toLowerCase()}`
 }
 
-/** A week-at-a-glance grid: one column per weekday, one row per meal. */
 export function CalendarBoard({
   plan,
   failed,
@@ -219,7 +205,6 @@ export function CalendarBoard({
   handle,
   onActiveRecipeChange,
 }: CalendarBoardProps) {
-  // Today, the dates and which days may change all come from the server's answer.
   const today = plan ? todayOf(plan) : undefined
   const weekDates = plan ? plan.days.map(({ date }) => dayOfMonth(date)) : []
   const [pickedDay, setPickedDay] = useState<Weekday | null>(initialDay ?? null)
@@ -314,7 +299,6 @@ export function CalendarBoard({
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  /** A day before today can only be read. */
   const dayEditable = (day: Weekday) => (plan ? isDayEditable(plan, day) : false)
 
   const view = displayDays(plan, null)
@@ -1051,7 +1035,6 @@ function AddRecipeDialog({
   const open = slot !== null
   const favorites = useFavoriteRecipes(1)
 
-  // Searches as the user types; an older answer never overwrites a newer one.
   useEffect(() => {
     if (!open || !accessToken || sourceTab !== "all") return
     let stale = false
@@ -1244,7 +1227,6 @@ function MoveDialog({
   onMove,
 }: {
   moving: (Dragged & { title: string }) | null
-  /** Days that may still change: a dish cannot be moved onto a day that has passed. */
   days: Weekday[]
   onClose: () => void
   onMove: (to: SlotRef) => void

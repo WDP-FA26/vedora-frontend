@@ -14,30 +14,18 @@ type SuggestionKind = "delete" | "insert"
 
 export type SuggestionDecision = "accept" | "discard"
 
-/**
- * The author accepting or discarding a proposal, from the post or the chat.
- * `SuggestionHoverPlugin` applies it; the writing assistant listens first, to
- * tell the agent what the author decided.
- */
 export const RESOLVE_SUGGESTION_COMMAND = createCommand<{ group: string; decision: SuggestionDecision }>(
   "RESOLVE_SUGGESTION_COMMAND"
 )
 
 type SerializedSuggestionNode = Spread<{ kind: SuggestionKind; group: string }, SerializedElementNode>
 
-// Like an IDE diff: the text keeps its colour on a solid block, struck through
-// when removed. `box-decoration-clone` keeps the block unbroken across wrapped lines.
 const STYLES: Record<SuggestionKind, string> = {
   delete:
     "box-decoration-clone bg-red-500/45 text-foreground line-through decoration-foreground/70 decoration-1",
   insert: "ml-1 box-decoration-clone bg-green-500/40 text-foreground",
 }
 
-/**
- * Text the writing assistant proposes. `delete` wraps text it would remove
- * (red, struck through), `insert` wraps text it would add (green). All marks
- * of one proposal share a `group`, which is accepted or discarded as a unit.
- */
 export class SuggestionNode extends ElementNode {
   __kind: SuggestionKind
   __group: string
@@ -109,12 +97,10 @@ export function $isSuggestionNode(node: LexicalNode | null | undefined): node is
   return node instanceof SuggestionNode
 }
 
-/** Groups that still have marks in the document. */
 export function $pendingGroups(): Set<string> {
   return new Set($nodesOfType(SuggestionNode).map((node) => node.getGroup()))
 }
 
-/** Removes `node`, then the blocks it leaves empty (a proposed list item, heading…). */
 function $removeWithEmptyParents(node: LexicalNode) {
   let current: LexicalNode | null = node
   while (current && !$isRootNode(current)) {
@@ -130,7 +116,6 @@ function $unwrap(node: SuggestionNode) {
   node.remove()
 }
 
-/** Accepting keeps what was proposed (drops the struck text); discarding keeps the original. */
 export function $resolveSuggestion(group: string, decision: SuggestionDecision) {
   for (const node of $nodesOfType(SuggestionNode)) {
     if (node.getGroup() !== group) continue
@@ -140,7 +125,6 @@ export function $resolveSuggestion(group: string, decision: SuggestionDecision) 
   }
 }
 
-/** Marks every inline run in `nodes` (new blocks) as proposed text of `group`. */
 export function $markAsInsertion(nodes: LexicalNode[], group: string) {
   function visit(node: LexicalNode) {
     if (!$isElementNode(node) || node.isInline()) return

@@ -2,7 +2,6 @@ import type { ApiNotification } from "@/features/notifications/schemas"
 import { PENDING_REVIEW_MESSAGE, rejectionMessage } from "@/features/posts/lib/moderation-labels"
 import { REPORT_REASONS, REPORT_REASON_LABELS, type ReportReason } from "@/features/posts/schemas"
 
-/** What a member did, worded for "<name> <text>". */
 const MEMBER_TEXT = {
   LIKE: "đã thích bài viết của bạn",
   COMMENT_REPLY: "đã trả lời bình luận của bạn",
@@ -23,12 +22,10 @@ function reportReasonLabel(reason: string | null | undefined) {
     : null
 }
 
-/** The removed post's title or opening words, quoted after "Bài viết". */
 function quoted(note: string | null | undefined) {
   return note ? ` “${note}”` : ""
 }
 
-/** Who a notification is from, and what it says. */
 export function describeNotification(notification: ApiNotification) {
   const { type, actor } = notification
   if (actor && type in MEMBER_TEXT) {

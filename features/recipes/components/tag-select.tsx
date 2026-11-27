@@ -26,7 +26,6 @@ const ITEMS = [
   })),
 ]
 
-/** `value` is a tag, or "" for none. */
 export function TagSelect({
   value,
   onChange,

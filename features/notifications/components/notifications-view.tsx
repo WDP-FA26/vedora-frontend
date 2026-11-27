@@ -60,7 +60,6 @@ const ICONS = {
   SUPPORT_TICKET_REMINDER: ClockIcon,
 } as const
 
-/** Only moderation and support results carry an admin's note; removals carry the post excerpt instead. */
 const ADMIN_NOTE_TYPES = new Set<ApiNotification["type"]>([
   "POST_PENDING_REVIEW",
   "POST_APPROVED",
@@ -73,7 +72,6 @@ const ADMIN_NOTE_TYPES = new Set<ApiNotification["type"]>([
   "SUPPORT_TICKET_REMINDER",
 ])
 
-/** Notes the scheduler writes; they are shown without the "from an admin" label. */
 const SYSTEM_NOTE_TYPES = new Set<ApiNotification["type"]>([
   "SUPPORT_TICKET_REMINDER",
   "SUPPORT_TICKET_EXPIRED",
@@ -96,7 +94,6 @@ function hrefFor(notification: ApiNotification) {
   ) {
     return supportTicketPath(ticketId)
   }
-  // A blocked blog is fixed in the editor; everything else opens the post.
   if (postId && type === "POST_REJECTED" && postType === "BLOG") return editBlogPath(postId)
   if (postId && notification.commentId && (type === "COMMENT" || type === "COMMENT_REPLY")) {
     return `/posts/${postId}?comment=${encodeURIComponent(notification.commentId)}#comments`

@@ -53,7 +53,6 @@ const FAILURE_MESSAGES: Record<NonNullable<AdminMediaDetail["failureReason"]>, s
   UPLOAD_TIMED_OUT: "Tải lên quá thời gian.",
 }
 
-/** A post in full: its text, videos and their transcripts, with delete. */
 export function PostSheet({
   postId,
   onClose,
@@ -328,7 +327,6 @@ export function PostRemovalNotice({ post }: { post: AdminPostDetail }) {
   )
 }
 
-/** One video with its transcript; clicking a cue seeks the player. */
 export function PostVideo({
   media,
   label,

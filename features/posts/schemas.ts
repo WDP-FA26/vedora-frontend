@@ -2,33 +2,21 @@ import { z } from "zod"
 
 import { postAppealSummarySchema } from "@/features/support/summary-schema"
 
-// Mirrors vedora-api's `/media` and `/posts` responses and `CreatePostDto`.
-// Responses are parsed with these, so the types below are checked at runtime.
-
-/** Mirrors the API's `MAX_VIDEO_DURATION_SEC` default. */
 export const MAX_VIDEO_DURATION_SEC = 180
-/** Mirrors the API's `MAX_POST_BODY_WORDS` and `MAX_POST_BODY_LENGTH`. */
 export const MAX_POST_WORDS = 250
 export const MAX_POST_LENGTH = 2000
-/** Mirrors the API's `MAX_SEARCH_QUERY_LENGTH`. */
 export const MAX_SEARCH_QUERY_LENGTH = 200
 
-/** Runs of non-whitespace, counted the same way as the API's `countWords`. */
 export function countWords(text: string) {
   return text.split(/\s+/).filter(Boolean).length
 }
-/** Mirrors the API's `MAX_POST_MEDIA`. */
 export const MAX_POST_MEDIA = 4
-/** Mirrors the API's `MAX_COMMENT_BODY_LENGTH`. */
 export const MAX_COMMENT_LENGTH = 1000
 
 export const captionTrackSchema = z.object({
   languageCode: z.string(),
-  /** The language's own name, e.g. "Tiếng Việt". */
   name: z.string(),
-  /** The spoken language, as opposed to its translation. */
   isOriginal: z.boolean(),
-  /** Public WebVTT file on Cloudinary. */
   url: z.url(),
 })
 
@@ -39,41 +27,30 @@ export const apiMediaSchema = z.object({
   failureReason: z
     .enum(["TOO_LONG", "ENCODING_FAILED", "UPLOAD_ERRORED", "UPLOAD_TIMED_OUT"])
     .nullable(),
-  /** Cloudinary public ID, for `CldVideoPlayer`. */
   publicId: z.string(),
-  /** Adaptive HLS stream; set once READY. */
   playbackUrl: z.url().nullable(),
-  /** First frame as JPEG; set once READY. */
   posterUrl: z.url().nullable(),
   durationSec: z.number().nullable(),
   aspectRatio: z.string().nullable(),
-  /** Spoken language first; empty until the post is published and transcribed. */
   captions: z.array(captionTrackSchema),
 })
 
-/** The short form of a blog that lists carry; the article itself comes from `GET /blogs/:id`. */
 export const blogSummarySchema = z.object({
   title: z.string(),
   coverImageUrl: z.string().nullable(),
-  /** Plain source text, up to 280 characters: show it as text, never as Markdown. */
   excerpt: z.string(),
   recipes: z.array(z.object({ id: z.string(), title: z.string(), imageUrl: z.string().nullable() })),
 })
 
-/** One part of rejected content that broke the policy, and why. */
 export const moderationFindingSchema = z.object({
-  /** Where the part is; comments leave it out. */
   field: z.enum(["body", "title", "content", "transcript", "frame", "image"]).optional(),
-  /** The offending words; for frames and images, text read in the picture or null. */
   quote: z.string().nullable(),
   reason: z.string(),
   reasonText: z.string().nullable().optional(),
-  /** Frames: the second of the video. */
   seconds: z.number().nullable().optional(),
 })
 export type ModerationFinding = z.infer<typeof moderationFindingSchema>
 
-/** `details` of a 422 `CONTENT_REJECTED` on a comment. */
 export const contentRejectedDetailsSchema = z.object({
   category: z.string().nullable().optional(),
   reasonText: z.string().nullable().optional(),
@@ -83,7 +60,6 @@ export const contentRejectedDetailsSchema = z.object({
 export const apiPostSchema = z.object({
   id: z.string(),
   type: z.enum(["POST", "BLOG"]),
-  /** `DRAFT` belongs to its author and is never included in the public feed. */
   status: z.enum([
     "DRAFT",
     "PROCESSING",
@@ -93,15 +69,10 @@ export const apiPostSchema = z.object({
     "REJECTED",
     "REMOVED",
   ]),
-  /** Why a `REJECTED` post was blocked by content moderation. */
   moderationVerdict: z.string().nullable().optional(),
-  /** `moderationVerdict` worded for the author, from the current policy. */
   moderationReason: z.string().nullable().optional(),
-  /** The parts of a `REJECTED` post that broke the policy; empty otherwise. */
   moderationFindings: z.array(moderationFindingSchema).optional(),
-  /** Why an admin soft-deleted this post, shown only to the author. */
   removalReason: z.string().nullable().optional(),
-  /** Appeal eligibility and active/latest ticket summary; author-only. */
   appeal: postAppealSummarySchema.nullable().optional(),
   body: z.string().nullable(),
   publishedAt: z.string().nullable(),
@@ -110,23 +81,17 @@ export const apiPostSchema = z.object({
     id: z.string(),
     username: z.string(),
     fullName: z.string(),
-    /** Absent on API versions from before profiles. */
     avatarUrl: z.string().nullable().optional(),
-    /** Verified professional (badge only). Absent on API versions from before it. */
     isProfessional: z.boolean().default(false),
   }),
   media: z.array(apiMediaSchema),
   commentCount: z.number(),
   likeCount: z.number(),
-  /** Always false for guests. */
   isLiked: z.boolean(),
   repostCount: z.number(),
   isReposted: z.boolean(),
-  /** Private to the viewer; always false for guests. */
   isBookmarked: z.boolean(),
-  /** Saved in batches by the API, so a few seconds behind. */
   viewCount: z.number(),
-  /** `null` on short posts. Absent on API versions from before blogs. */
   blog: blogSummarySchema.nullable().optional(),
 })
 
@@ -135,11 +100,9 @@ export const postPageSchema = z.object({
   nextCursor: z.string().nullable(),
 })
 
-/** A signed direct upload to Cloudinary; the signature expires after an hour. */
 export const signedUploadSchema = z.object({
   url: z.url(),
   fields: z.record(z.string(), z.string()),
-  /** Larger files go in chunks of this many bytes. */
   chunkSize: z.number(),
 })
 
@@ -148,10 +111,6 @@ export const videoUploadSchema = z.object({
   upload: signedUploadSchema,
 })
 
-/**
- * `isSystem` marks Vedora AI, the built-in account that comments automatic
- * summaries. It has no profile page, so never link to one.
- */
 export const apiCommentAuthorSchema = apiPostSchema.shape.author.extend({
   isSystem: z.boolean().default(false),
 })
@@ -174,7 +133,6 @@ export const commentPageSchema = z.object({
   nextCursor: z.string().nullable(),
 })
 
-/** Mirrors `CommentBodyDto`, which trims the body before checking it. */
 export const commentFormSchema = z.object({
   body: z
     .string()
@@ -204,7 +162,6 @@ export const REPORT_REASONS = [
   "NOT_PLANT_BASED",
   "OTHER",
 ] as const
-/** Mirrors the API's `MAX_REPORT_DETAILS_LENGTH`. */
 export const MAX_REPORT_DETAILS_LENGTH = 500
 
 export const REPORT_REASON_LABELS: Record<ReportReason, string> = {
@@ -236,7 +193,6 @@ export const postFormSchema = z
       .string()
       .max(MAX_POST_LENGTH, `Tối đa ${MAX_POST_LENGTH} ký tự`)
       .refine((body) => countWords(body) <= MAX_POST_WORDS, `Tối đa ${MAX_POST_WORDS} từ`),
-    /** Finished uploads, in display order. */
     mediaIds: z.array(z.string()).max(MAX_POST_MEDIA),
   })
   .refine((values) => values.body.trim() !== "" || values.mediaIds.length > 0, {

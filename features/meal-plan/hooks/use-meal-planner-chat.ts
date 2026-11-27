@@ -32,7 +32,6 @@ import { ApiError } from "@/features/shared/lib/api-client"
 
 const THREAD_LIST_URL = `${MEAL_PLANNER_CHAT_THREADS_KEY}?limit=50`
 
-/** The planner's tools that write the saved plan; each output is a `PlanChange`. */
 const PLAN_CHANGE_TOOL_TYPES = [
   "tool-fillSlots",
   "tool-autoBalancePlan",
@@ -41,7 +40,6 @@ const PLAN_CHANGE_TOOL_TYPES = [
 ]
 
 export interface PlanChangeEntry extends PlanChange {
-  /** The tool call that made the first change of this week in the message. */
   id: string
 }
 
@@ -49,7 +47,6 @@ function sameIds(left: readonly { id: string }[], right: readonly { id: string }
   return left.length === right.length && left.every(({ id }, index) => id === right[index].id)
 }
 
-/** Lays `later` over `earlier`: each day keeps its dishes from before `earlier`. */
 function mergeChange(earlier: PlanChangeEntry, later: PlanChange): PlanChangeEntry {
   const days = [...earlier.days]
   for (const laterDay of later.days) {
@@ -65,16 +62,10 @@ function mergeChange(earlier: PlanChangeEntry, later: PlanChange): PlanChangeEnt
     })
     days[index] = { ...laterDay, sections }
   }
-  // Dishes left out earlier stay listed; same-day clashes are only current after the later change.
   const leftOut = earlier.problems.filter(({ code }) => code !== "DAY_CONFLICT")
   return { ...earlier, days, problems: [...leftOut, ...later.problems] }
 }
 
-/**
- * What the assistant saved to the plan in this message, one entry per week,
- * each day from before the message to after it. Days the message changed and
- * then put back as they were are left out.
- */
 export function messagePlanChanges(message: UIMessage): PlanChangeEntry[] {
   const byWeek = new Map<string, PlanChangeEntry>()
   for (const part of message.parts) {
@@ -96,8 +87,6 @@ export function messagePlanChanges(message: UIMessage): PlanChangeEntry[] {
   return changes
 }
 
-// Mirror vedora-api's `askUser` tool: it has no output on the server. The app
-// records the pick as the tool output and sends it as the next user message.
 const ASK_USER_TYPE = "tool-askUser"
 const askUserInputSchema = z.object({
   question: z.string(),
@@ -111,11 +100,9 @@ export interface UserQuestion {
   question: string
   options: string[]
   multiple: boolean
-  /** Undefined until the user answers on the card. */
   answer: string | undefined
 }
 
-/** The assistant's questions to the user in this message, in order. */
 export function messageQuestions(message: UIMessage): UserQuestion[] {
   const questions: UserQuestion[] = []
   for (const part of message.parts) {
@@ -134,8 +121,6 @@ export function messageQuestions(message: UIMessage): UserQuestion[] {
   return questions
 }
 
-// Mirror vedora-api's `requestWebSearch` tool: it asks for consent and has no
-// output until the user answers on the card.
 const WEB_SEARCH_REQUEST_TYPE = "tool-requestWebSearch"
 const webSearchInputSchema = z.object({ reason: z.string() })
 const webSearchDecisionSchema = z.object({ approved: z.boolean() })
@@ -188,11 +173,9 @@ export function messageRestaurantDishes(message: UIMessage): PlannerRestaurantDi
 export interface WebSearchRequest {
   toolCallId: string
   reason: string
-  /** Undefined until the user answers. */
   approved: boolean | undefined
 }
 
-/** The assistant's requests to search the web in this message, in order. */
 export function messageWebSearchRequests(message: UIMessage): WebSearchRequest[] {
   const requests: WebSearchRequest[] = []
   for (const part of message.parts) {
@@ -209,11 +192,6 @@ export function messageWebSearchRequests(message: UIMessage): WebSearchRequest[]
   return requests
 }
 
-/**
- * Whether web search is enabled in this conversation: enabled by default so
- * the assistant can look up out-of-catalog dishes freely; an explicit decline
- * turns it off until approved again.
- */
 export function webSearchAllowed(messages: readonly UIMessage[]): boolean {
   let allowed = true
   for (const message of messages) {
@@ -227,7 +205,6 @@ export function webSearchAllowed(messages: readonly UIMessage[]): boolean {
 const WEB_SEARCH_APPROVED_TEXT = "Đồng ý, bạn cứ tìm trên web."
 const WEB_SEARCH_DECLINED_TEXT = "Không cần tìm trên web."
 
-/** vedora-api marks its fixed refusals with `{ refused: true }`. */
 type PlannerMessage = UIMessage<{ refused?: boolean }>
 
 const WELCOME: PlannerMessage = {
@@ -242,7 +219,6 @@ const WELCOME: PlannerMessage = {
 }
 
 export function messageText(message: UIMessage) {
-  // the planner may speak before and after using a tool: keep those apart
   return message.parts
     .flatMap((part) => (part.type === "text" && part.text ? [part.text] : []))
     .join("\n\n")
@@ -257,13 +233,10 @@ const memoryUpdateSchema = z.object({
 
 export interface ProfileNoteUpdate {
   id: string
-  /** Which memory section: "Dị ứng" or "Sở thích". */
   section: "allergies" | "preferences"
-  /** The section's lines after the change. */
   lines: string[]
 }
 
-/** The memory sections the planner changed in this message, in order. */
 export function messageProfileNoteUpdates(message: UIMessage): ProfileNoteUpdate[] {
   const updates: ProfileNoteUpdate[] = []
   for (const part of message.parts) {
@@ -454,12 +427,6 @@ function errorMessage(error: Error) {
   return "Mình chưa trả lời được. Thử lại nhé."
 }
 
-/**
- * The conversation with vedora-api's `POST /meal-plan/chat` and persisted threads.
- * `weekStart` is the week on screen (Monday, `YYYY-MM-DD`), the planner's default week:
- * undefined while it is still loading, and then nothing can be sent. The planner
- * saves its changes to the plan as it goes; `rewind` takes them back.
- */
 export function useMealPlannerChat(weekStart: string | undefined) {
   const router = useRouter()
   const { mutate } = useSWRConfig()
@@ -611,11 +578,6 @@ export function useMealPlannerChat(weekStart: string | undefined) {
     })
   }
 
-  /**
-   * Goes back to just before the user message `messageId`: the API puts back the
-   * dishes the planner changed from there on and drops those messages. Resolves
-   * what was restored, or null when it failed (see `historyError`).
-   */
   async function rewind(messageId: string): Promise<ChatRewind | null> {
     const token = latestRef.current.accessToken
     const current = latestRef.current.messages
@@ -634,8 +596,6 @@ export function useMealPlannerChat(weekStart: string | undefined) {
         router.refresh()
         return null
       }
-      // Never saved on the server (the turn failed before it was recorded), so
-      // nothing in the plan came from it.
       if (err instanceof ApiError && err.status === 404) {
         setMessages(current.slice(0, index))
         return { text: messageText(current[index]), weeks: [] }
@@ -650,7 +610,6 @@ export function useMealPlannerChat(weekStart: string | undefined) {
   const webSearch = webSearchAllowed(messages)
   const lastMessage = messages.at(-1)
   const lastRequest = lastMessage?.role === "assistant" ? messageWebSearchRequests(lastMessage).at(-1) : undefined
-  // Only the newest message can still be answered; an older one the user typed past stays unanswered.
   const openWebSearchRequest =
     !busy && lastRequest !== undefined && lastRequest.approved === undefined ? lastRequest : null
   const lastQuestion = lastMessage?.role === "assistant" ? messageQuestions(lastMessage).at(-1) : undefined
@@ -666,8 +625,6 @@ export function useMealPlannerChat(weekStart: string | undefined) {
   const threadList: ChatThreadSummary[] = threads.data?.items ?? []
   const activeThread = threadList.find((item) => item.id === threadId) ?? null
 
-  // A reply typed while the assistant's question is open answers that question,
-  // so its tool call gets an output; the API drops calls that never get one.
   function sendTyped(text: string) {
     if (openQuestion) {
       void answerQuestion(openQuestion.toolCallId, text)
@@ -687,27 +644,20 @@ export function useMealPlannerChat(weekStart: string | undefined) {
     historyError,
     messages,
     busy,
-    /** Nothing readable is streaming yet: the planner is thinking or using a tool. */
     waiting: busy && !replying,
-    /** The assistant message whose trace shows the waiting, once the reply has started. */
     pendingId: busy && !replying && last?.role === "assistant" ? last.id : null,
     streamingId: replying ? last.id : null,
     error: error ? errorMessage(error) : null,
     send: sendTyped,
-    /** Stops the running turn and reconciles planner state in case a tool already committed. */
     stop: () => {
       void stop()
       invalidateAllPlannerState(mutate)
     },
-    /** The user allowed web search in this conversation. */
     webSearchAllowed: webSearch,
-    /** The assistant's request to search the web, waiting for the user's answer. */
     openWebSearchRequest,
     answerWebSearch: (toolCallId: string, approved: boolean) => void answerWebSearch(toolCallId, approved),
-    /** The assistant's question at the end of the conversation, waiting for the user's pick. */
     openQuestion,
     answerQuestion: (toolCallId: string, answer: string) => void answerQuestion(toolCallId, answer),
-    /** The user message being rewound to. */
     rewindingId,
     rewind,
     selectThread,

@@ -7,7 +7,6 @@ import { formatRatingScore } from "@/features/workspaces/lib/format"
 import { googleMapsDirectionsUrl, MAPBOX_TOKEN } from "@/features/workspaces/lib/mapbox"
 import type { RestaurantProfile } from "@/features/profiles/schemas"
 
-/** Address, rating summary, contact and a small map on a restaurant page's profile. */
 export function RestaurantCard({
   restaurant,
   onOpenReviews,

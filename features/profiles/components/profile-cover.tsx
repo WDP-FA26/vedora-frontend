@@ -22,7 +22,6 @@ export function ProfileCover({
   )
 }
 
-/** Brand mascots on the right, clear of the avatar that overlaps the bottom-left. */
 function DefaultCoverArt() {
   return (
     <div aria-hidden className="pointer-events-none absolute inset-0 overflow-hidden">

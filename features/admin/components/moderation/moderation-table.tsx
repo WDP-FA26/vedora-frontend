@@ -46,11 +46,6 @@ const VIEWS: DataTableView[] = [
 
 const getRowId = (row: QueueRow) => row.id
 
-/**
- * One list for everything a person has to look at: posts the automated check
- * was unsure about, posts users reported, and posts it blocked. Each row shows
- * the chance that the post breaks the policy.
- */
 export function ModerationTable() {
   const params = useSearchParams()
   const defaultView = VIEWS.find((view) => view.id === params.get("view"))?.id ?? "held"

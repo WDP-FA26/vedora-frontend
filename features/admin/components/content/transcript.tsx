@@ -8,7 +8,6 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { useTranscript } from "@/features/admin/hooks/use-admin-posts"
 import type { CaptionStatus, CaptionTrack } from "@/features/admin/schemas"
 
-/** Shown when a video has no caption track to read. */
 const STATUS_MESSAGES: Record<CaptionStatus, string> = {
   NONE: "Chưa có bản ghi lời. Video được ghi lời sau khi bài được đăng.",
   TRANSCRIBING: "Đang ghi lời và dịch video…",
@@ -22,7 +21,6 @@ function formatTimestamp(seconds: number) {
   return `${Math.floor(whole / 60)}:${String(whole % 60).padStart(2, "0")}`
 }
 
-/** What is said in a video, in the spoken language and its translation. */
 export function Transcript({
   captionStatus,
   tracks,
@@ -31,7 +29,6 @@ export function Transcript({
 }: {
   captionStatus: CaptionStatus
   tracks: CaptionTrack[]
-  /** The player's position in seconds, to mark the line being spoken. */
   time: number
   onSeek: (seconds: number) => void
 }) {

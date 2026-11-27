@@ -21,7 +21,6 @@ import { useMyWorkspaces } from "@/features/workspaces/hooks/use-workspaces"
 import { MEMBER_ROLE_LABELS, type Workspace } from "@/features/workspaces/schemas"
 import { NEW_WORKSPACE_PATH, workspacePath } from "@/features/workspaces/workspaces-cache"
 
-/** The restaurant pages you own or manage. */
 export function WorkspacesView() {
   const { workspaces, error, isLoading } = useMyWorkspaces()
 

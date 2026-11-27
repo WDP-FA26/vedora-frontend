@@ -12,7 +12,6 @@ import { useProcessingPost } from "@/features/posts/hooks/use-feed-posts"
 import { MediaPlaceholder } from "@/features/shared/components/media-placeholder"
 import type { Author } from "@/features/shared/types"
 
-/** Actual video attachments, or their server-reported processing state. */
 export function PostMedia({ post }: { post: MediaPost }) {
   if (post.status === "processing") return <ProcessingMedia post={post} />
 
@@ -45,7 +44,6 @@ function PostVideo({
   video: CloudinaryVideo
   author: Author
   label: string
-  /** In a multi-item grid, fit within the cell without cropping the video. */
   fill: boolean
 }) {
   const [loadFailed, setLoadFailed] = useState(false)

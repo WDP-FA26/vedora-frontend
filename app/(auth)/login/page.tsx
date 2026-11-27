@@ -22,7 +22,6 @@ export default async function LoginPage({ searchParams }: PageProps<"/login">) {
   const params = await searchParams
   const { next, error, reset } = params
   const googleError = typeof error === "string" ? GOOGLE_ERRORS[error as GoogleError] : undefined
-  // Set when a session or Google sign-in ended because the account is suspended.
   const block = parseAccountBlock(params[ACCOUNT_BLOCK_PARAM])
 
   return (

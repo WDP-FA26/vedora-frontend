@@ -52,7 +52,6 @@ test.describe("verification request (member)", () => {
   })
 
   test("submits the statement with the uploaded proof ids", async ({ page }) => {
-    // The proof goes straight to storage (presigned PUT), then the request is posted.
     await page.route("http://localhost:9000/**", (route) =>
       route.fulfill({ status: 200, headers: { "access-control-allow-origin": "*", etag: '"abc"' }, body: "" })
     )

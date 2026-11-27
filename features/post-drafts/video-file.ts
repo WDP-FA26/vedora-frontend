@@ -1,4 +1,3 @@
-/** Metadata is a client-side hint. The API independently enforces duration after upload. */
 export function videoDuration(file: File): Promise<number | null> {
   return new Promise((resolve) => {
     const video = document.createElement("video")

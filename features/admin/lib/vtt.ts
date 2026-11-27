@@ -1,5 +1,4 @@
 export type TranscriptCue = {
-  /** Seconds from the start of the video. */
   start: number
   end: number
   text: string
@@ -14,7 +13,6 @@ function toSeconds(timestamp: string) {
     .reduce((total, part) => total * 60 + Number(part), 0)
 }
 
-/** Reads the cues of a WebVTT file, dropping its header, notes and inline tags. */
 export function parseVtt(vtt: string): TranscriptCue[] {
   const cues: TranscriptCue[] = []
   for (const block of vtt.replace(/\r/g, "").split(/\n{2,}/)) {

@@ -1,4 +1,3 @@
-/** In-memory UI fixtures. These IDs are never sent to a server. */
 export type PreviewMealKey = "breakfast" | "lunch" | "dinner"
 
 export type PreviewMeal = {

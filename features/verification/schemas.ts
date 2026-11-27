@@ -2,9 +2,6 @@ import { z } from "zod"
 
 import { presignedUploadSchema } from "@/features/shared/lib/storage-upload"
 
-// Mirrors vedora-api's `/verification` DTOs. Responses are parsed with these,
-// so the types below are checked at runtime.
-
 export const VERIFICATION_STATUSES = ["PENDING", "APPROVED", "REJECTED"] as const
 
 export const MAX_PROOFS = 6
@@ -14,7 +11,6 @@ export const MIN_STATEMENT_LENGTH = 20
 export const MAX_STATEMENT_LENGTH = 2000
 export const MAX_REVIEW_NOTE_LENGTH = 500
 
-/** Tooltip of the verified badge. */
 export const PROFESSIONAL_LABEL = "Chuyên gia đã xác minh"
 
 const verificationRequestSchema = z.object({

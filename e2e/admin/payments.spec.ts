@@ -58,7 +58,6 @@ test.describe("admin payments", () => {
 
   test("rejects a range longer than 90 days", async ({ page }) => {
     await page.goto("/admin/payments")
-    // Let React hydrate first: an early submit would reload the page natively.
     await page.waitForLoadState("networkidle")
     await page.getByLabel("Từ ngày").fill("2026-01-01")
     await page.getByLabel("Đến ngày").fill("2026-12-31")

@@ -2,7 +2,6 @@ import type { MetadataRoute } from "next"
 
 import { absoluteUrl } from "@/lib/site"
 
-/** Posts, profiles and the landing page are public; the app behind sign-in is not worth crawling. */
 export default function robots(): MetadataRoute.Robots {
   return {
     rules: {

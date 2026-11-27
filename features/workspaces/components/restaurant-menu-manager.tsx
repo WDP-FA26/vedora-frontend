@@ -83,7 +83,6 @@ function defaultFormValues(item: RestaurantMenuItem | null): MenuItemFormInput {
   }
 }
 
-/** Owner/manager menu CRUD section inside `/home/pages/[id]`. */
 export function RestaurantMenuManager({ workspace }: { workspace: WorkspaceDetail }) {
   const menu = useWorkspaceMenu(workspace.id, workspace.pageUserId)
   const [dialogOpen, setDialogOpen] = useState(false)

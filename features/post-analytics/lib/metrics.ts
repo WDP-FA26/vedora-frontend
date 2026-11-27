@@ -8,10 +8,6 @@ import {
   type LucideIcon,
 } from "lucide-react"
 
-/**
- * The period metrics, in the order the page shows them. Saves lead: they say
- * a dish was worth cooking again, which matters more here than reach.
- */
 export const SUMMARY_METRICS = [
   "saves",
   "comments",
@@ -26,7 +22,6 @@ export const DEFAULT_METRIC: SummaryMetric = "saves"
 
 type MetricMeta = {
   label: string
-  /** One plain-language line on what is counted. */
   description: string
   icon: LucideIcon
 }
@@ -68,7 +63,6 @@ export const numberFormat = new Intl.NumberFormat("vi-VN")
 
 const compactFormat = new Intl.NumberFormat("vi-VN", { notation: "compact", maximumFractionDigits: 1 })
 
-/** Exact below 10.000, then "93,9 N" / "3,6 Tr" so large counts fit a tab or an axis. */
 export function formatCompact(value: number): string {
   if (Math.abs(value) < 10_000) return numberFormat.format(value)
   return compactFormat.format(value)

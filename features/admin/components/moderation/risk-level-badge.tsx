@@ -2,7 +2,6 @@ import { cn } from "cn"
 
 import { Badge } from "@/components/ui/badge"
 
-/** The admin name of a risk level: 0 none, 1 low, 2 medium, 3 high. */
 function riskLevelLabel(level: number) {
   switch (level) {
     case 0:
@@ -24,7 +23,6 @@ function toneOf(level: number) {
   return "secondary"
 }
 
-/** A quiet badge for a risk level; "—" for unrated and legacy posts. */
 export function RiskLevelBadge({ level, className }: { level: number | null; className?: string }) {
   if (level === null) {
     return (

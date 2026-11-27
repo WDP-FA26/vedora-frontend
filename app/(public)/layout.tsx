@@ -11,10 +11,6 @@ import { MobileBottomNav } from "@/features/shared/components/mobile-nav"
 import { RightRail } from "@/features/shared/components/right-rail"
 import { Wordmark } from "@/features/shared/components/wordmark"
 
-/**
- * Profiles and posts are public. Signed-in visitors get the same shell as `/home`;
- * guests get the page alone under a bar that leads to sign-in.
- */
 export default async function PublicLayout({ children }: { children: React.ReactNode }) {
   const [user, accessToken] = await Promise.all([getAuth(), getAccessToken()])
 

@@ -25,11 +25,9 @@ import { VerifiedBadge } from "@/features/shared/components/verified-badge"
 import { ApiError } from "@/features/shared/lib/api-client"
 import { formatPostDateLong } from "@/features/shared/lib/format"
 
-/** A post on its own page, in full: the page a shared link opens. */
 export function PostDetail({ id }: { id: string }) {
   const router = useRouter()
   const { post, error, isLoading } = usePost(id)
-  // A blog's own title is the page's h1; this bar only names the page.
   const TitleTag = post?.blog ? "p" : "h1"
 
   return (
@@ -40,7 +38,6 @@ export function PostDetail({ id }: { id: string }) {
           size="icon"
           shape="pill"
           aria-label="Quay lại"
-          // A shared link opens with no history to go back to.
           onClick={() => (window.history.length > 1 ? router.back() : router.push("/home"))}
         >
           <ArrowLeftIcon aria-hidden />
@@ -50,11 +47,9 @@ export function PostDetail({ id }: { id: string }) {
         </TitleTag>
       </header>
 
-      {/* Data first: SWR still reports loading while it holds the server's copy. */}
       {post ? (
         <>
           <PostArticle post={post} />
-          {/* The API takes comments on published posts only. */}
           {post.status === "PUBLISHED" && (
             <PostComments
               postId={post.id}
@@ -131,10 +126,6 @@ function PostArticle({ post: apiPost }: { post: ApiPost }) {
   )
 }
 
-/**
- * A blog's title and full article. Lists carry only its summary, so the
- * Markdown loads from `GET /blogs/:id`, rendered without raw HTML.
- */
 function BlogArticle({ id, title }: { id: string; title: string }) {
   const { accessToken } = useAuth()
   const { data, error, isLoading } = useSWR([blogKey(id), accessToken] as const, fetchBlog)

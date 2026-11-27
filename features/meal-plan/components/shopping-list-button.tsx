@@ -82,7 +82,6 @@ function savePeopleCount(count: PeopleCount) {
   try {
     window.localStorage.setItem(PEOPLE_STORAGE_KEY, String(count))
   } catch {
-    // Ignore storage quota or private-mode restrictions.
   }
 }
 
@@ -112,11 +111,9 @@ function saveCheckedKeys(weekStart: string, keys: readonly string[]) {
     }
     window.localStorage.setItem(checkedStorageKey(weekStart), JSON.stringify(keys))
   } catch {
-    // Ignore storage quota or private-mode restrictions.
   }
 }
 
-/** Scales one recipe contribution from its base yield (`servings`) to `people` eaters. */
 function scaledContributionQuantity(
   quantity: string | null,
   servings: number,
@@ -135,7 +132,6 @@ function formatScaledNumber(value: number | null, unit: string | null): string |
   return [formatQuantity(String(rounded)), unit].filter(Boolean).join(" ")
 }
 
-/** Sums per-person scaled quantities across all contributions for `people` eaters. */
 function itemAmount(item: ShoppingItem, people: PeopleCount) {
   let sum = 0
   let knownCount = 0
@@ -211,11 +207,6 @@ export type ShoppingListHandle = {
   }
 }
 
-/**
- * Header button of one saved week: the ingredients to buy for the chosen days,
- * in a side sheet. Supports scaling by multiplier, checking off bought items,
- * and Voice screen control.
- */
 export function ShoppingListButton({
   weekStart,
   hasUnsavedChanges = false,
@@ -224,16 +215,11 @@ export function ShoppingListButton({
   onOpenRecipe,
   handle,
 }: {
-  /** Monday of the week to shop for. Days before today are left out by the API. */
   weekStart: string
   hasUnsavedChanges?: boolean
-  /** Days of the saved plan with at least one dish; unknown while it loads. */
   plannedDays?: readonly Weekday[]
-  /** Days from today onward; days before today are past and skipped by the API. */
   editableDays?: readonly Weekday[]
-  /** Opens a dish in the planner's RecipeSheet when provided. */
   onOpenRecipe?: (recipeId: string, title: string) => void
-  /** Lets the voice agent open, close, and scroll the shopping list. */
   handle?: Ref<ShoppingListHandle>
 }) {
   const [open, setOpen] = useState(false)
@@ -279,7 +265,6 @@ export function ShoppingListButton({
   const wholeWeek = days.length === WEEKDAYS.length
   const allSelectedPast =
     editableDays !== undefined && days.every((day) => !editableDays.includes(day))
-  // Nothing to fetch when every picked day is either past or known to be empty.
   const nothingPlanned =
     !allSelectedPast &&
     plannedDays !== undefined &&
@@ -376,7 +361,6 @@ export function ShoppingListButton({
     saveCheckedKeys(weekStart, [])
   }
 
-  /** One day at a time, like tabs; tapping the picked day again goes back to the whole week. */
   function pickDay(next: string[]) {
     const day = WEEKDAYS.find((weekday) => next.includes(weekday))
     setDays(day ? [day] : [...WEEKDAYS])
@@ -593,13 +577,11 @@ export function ShoppingListButton({
   )
 }
 
-/** "Thứ Ba, bữa trưa"; the "Khác" section is snacks and drinks, not a meal. */
 function mealLabel(day: Weekday, section: ShoppingItem["contributions"][number]["section"]) {
   const meal = section === "OTHER" ? "món khác" : `bữa ${SECTION_LABELS[section].toLowerCase()}`
   return `${DAY_LABELS[day]}, ${meal}`
 }
 
-/** One ingredient, checkable and expandable into the dishes, days and meals it comes from. */
 function ShoppingRow({
   item,
   people,

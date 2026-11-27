@@ -34,7 +34,6 @@ export function isAllowedBlogMediaUrl(url: string): boolean {
   return isSystemBlogImageUrl(url) || isSystemBlogVideoUrl(url)
 }
 
-/** A reason to show the author, not a bug: the file can't go in a blog. */
 export class MediaRejectedError extends Error {}
 
 
@@ -44,7 +43,6 @@ export function mediaKindOf(file: File): MediaKind | null {
   return null
 }
 
-/** Sends an image to RustFS; resolves to its public URL. */
 export async function uploadBlogImage(token: string, file: File, signal?: AbortSignal) {
   if (file.size > MAX_BLOG_IMAGE_MB * 1024 * 1024) {
     throw new MediaRejectedError(`Ảnh tối đa ${MAX_BLOG_IMAGE_MB} MB.`)
@@ -54,7 +52,6 @@ export async function uploadBlogImage(token: string, file: File, signal?: AbortS
   return url
 }
 
-/** Sends a video straight to Cloudinary (chunked when large); resolves to its public MP4 URL. */
 export async function uploadBlogVideo(
   token: string,
   file: File,

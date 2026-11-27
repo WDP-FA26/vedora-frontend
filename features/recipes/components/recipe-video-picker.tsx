@@ -16,7 +16,6 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { useAdminPosts } from "@/features/admin/hooks/use-admin-posts"
 import type { AdminPost, CaptionStatus } from "@/features/admin/schemas"
 
-/** Enough rows to find a recent video; searching narrows the rest. */
 const MAX_SHOWN = 40
 
 export type PickedVideo = { postId: string; mediaId: string }
@@ -24,7 +23,6 @@ export type PickedVideo = { postId: string; mediaId: string }
 type VideoRow = {
   post: AdminPost
   media: AdminPost["media"][number]
-  /** 1-based position among the post's videos. */
   position: number
   videoCount: number
 }
@@ -37,7 +35,6 @@ const CAPTION_LABELS: Record<CaptionStatus, string> = {
   FAILED: "Lỗi phụ đề",
 }
 
-/** Ready videos of posts that are not removed, newest post first. */
 function videoRows(posts: readonly AdminPost[]): VideoRow[] {
   const rows: VideoRow[] = []
   for (const post of posts) {
@@ -67,7 +64,6 @@ function formatDuration(seconds: number | null) {
   return `${minutes}:${String(whole % 60).padStart(2, "0")}`
 }
 
-/** Lists the videos posted on Vedora so the admin can pick one for AI to read. */
 export function RecipeVideoPicker({
   open,
   onClose,

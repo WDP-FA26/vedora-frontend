@@ -42,7 +42,6 @@ import { supportTicketPath } from "@/features/support/support-cache"
 type StatusTab = SupportTicketStatus | "ALL"
 type CategoryFilter = SupportTicketCategory | "ALL"
 
-/** The API filters by one status at a time, so each tab maps to exactly one status. */
 const STATUS_TABS: readonly { value: StatusTab; label: string }[] = [
   { value: "ALL", label: "Tất cả" },
   { value: "WAITING_USER", label: "Chờ bạn" },
@@ -265,7 +264,6 @@ function TicketList({
 
 function TicketRow({ ticket }: { ticket: SupportTicketListItem }) {
   const Icon = CATEGORY_ICONS[ticket.category]
-  // The admin asked something and the ticket expires if the author stays silent.
   const needsReply = ticket.status === "WAITING_USER"
 
   return (

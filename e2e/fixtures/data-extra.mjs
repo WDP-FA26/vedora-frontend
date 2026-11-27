@@ -1,7 +1,3 @@
-// Fixtures for messaging, meal planning, dietary, billing, recipes,
-// verification, knowledge and the remaining admin screens. Shapes mirror the
-// zod schemas in features/*/schemas.ts (or schema.ts).
-
 import { posts, users } from "./data.mjs"
 
 const iso = (minutesAgo) => new Date(Date.now() - minutesAgo * 60_000).toISOString()
@@ -13,13 +9,10 @@ const author = (user) => ({
   avatarUrl: user.avatarUrl ?? null,
 })
 
-/** The 1x1 PNG that stands in for every image a spec lets through. */
 export const PIXEL_PNG = Buffer.from(
   "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==",
   "base64"
 )
-
-// --- messaging -------------------------------------------------------------
 
 const peer = (user, isProfessional = false) => ({
   id: user.id,
@@ -73,8 +66,6 @@ export const messages = [
   },
 ]
 
-// --- meal plan and dietary -------------------------------------------------
-
 const recipe = (id, title) => ({
   id,
   title,
@@ -86,7 +77,6 @@ const recipe = (id, title) => ({
   steps: ["Chiên đậu hũ.", "Rim với cà chua."],
 })
 
-// A Wednesday: Monday and Tuesday of the week have passed and are read-only.
 export const MOCK_WEEK = "2026-11-16"
 export const MOCK_NEXT_WEEK = "2026-11-23"
 const MOCK_TODAY = "2026-11-18"
@@ -96,7 +86,6 @@ const addDays = (date, days) => {
   return new Date(Date.UTC(year, month - 1, day + days)).toISOString().slice(0, 10)
 }
 
-/** What `GET /meal-plan` says about a week, apart from its dishes. */
 export const weekFields = (weekStart = MOCK_WEEK) => ({
   weekStart,
   currentWeekStart: MOCK_WEEK,
@@ -117,7 +106,6 @@ export const WEEKDAY_CODES = ["MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"]
 
 export const emptyMealPlan = { ...weekFields(), days: WEEKDAY_CODES.map((code, index) => emptyDay(code, index)), problems: [] }
 
-/** The empty plan of another week, as the API answers for a week nobody planned. */
 export const emptyMealPlanOf = (weekStart) => ({
   ...weekFields(weekStart),
   days: WEEKDAY_CODES.map((code, index) => emptyDay(code, index, weekStart)),
@@ -126,7 +114,6 @@ export const emptyMealPlanOf = (weekStart) => ({
 
 export const filledMealPlan = {
   ...weekFields(),
-  // Every day is filled, so whichever weekday the planner selects shows meals.
   days: WEEKDAY_CODES.map((code, index) => ({
     ...emptyDay(code, index),
     day: code,
@@ -170,8 +157,6 @@ export const shoppingList = {
     },
   ],
 }
-
-// --- billing ---------------------------------------------------------------
 
 export const PAYMENT_IDS = {
   pending: "11111111-1111-4111-8111-111111111111",
@@ -251,8 +236,6 @@ export const billingOverview = {
   recentPayments: [payment("SUCCEEDED", PAYMENT_IDS.succeeded)],
 }
 
-// --- recipes ---------------------------------------------------------------
-
 export const RECIPE_ID = "e0000000-0000-4000-8000-000000000001"
 
 export const recipeSummary = {
@@ -305,8 +288,6 @@ export const rules = [
   },
 ]
 
-// --- verification ----------------------------------------------------------
-
 export const PROOF_URL = "http://localhost:9000/vedora/proofs/proof-1.png"
 
 export const verificationRequest = (status, extra = {}) => ({
@@ -330,8 +311,6 @@ export const adminVerificationRequests = [
     user: { ...author(users.member), email: users.member.email },
   },
 ]
-
-// --- knowledge -------------------------------------------------------------
 
 export const KNOWLEDGE_ID = "k0000000-0000-4000-8000-000000000001"
 
@@ -360,8 +339,6 @@ export const knowledgePages = [
   { page: 1, text: "Trang một: đạm thực vật.", flags: [], edited: false },
   { page: 2, text: "Trang hai: vi chất.", flags: ["TEXT_LAYER_ADDED"], edited: false },
 ]
-
-// --- admin: posts, reports, moderation ------------------------------------
 
 export const adminPost = (id, status, by, body, extra = {}) => ({
   id,
@@ -447,8 +424,6 @@ export const moderationSettings = {
   updatedById: users.admin.id,
   isDefault: false,
 }
-
-// --- admin: dashboard, AI cost, payments ----------------------------------
 
 export const dashboard = (from, to) => ({
   generatedAt: new Date().toISOString(),

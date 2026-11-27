@@ -5,8 +5,6 @@ import base from "./playwright.config"
 const root = process.cwd()
 const servers = Array.isArray(base.webServer) ? base.webServer : []
 
-// Run just the messaging flows with the existing mock API and public fixture env.
-// Use installed CLIs directly so this check does not depend on a global pnpm.
 export default defineConfig({
   ...base,
   testDir: "./e2e/messages",

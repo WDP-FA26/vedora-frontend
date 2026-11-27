@@ -24,7 +24,6 @@ import type { Ingredient } from "@/features/recipes/schemas"
 const helper = createColumnHelper<DataTableFeatures, Ingredient>()
 
 const columns = helper.columns([
-  // Aliases are part of the value so the search box finds them.
   helper.accessor((row) => [row.name, ...row.aliases].join(" "), {
     id: "name",
     header: ({ column }) => <DataTableColumnHeader column={column} title="Nguyên liệu" />,
@@ -84,7 +83,6 @@ const columns = helper.columns([
 
 const getId = (row: Ingredient) => row.id
 
-/** The ingredient catalog that recipes and incompatibility rules point at. */
 export function IngredientsTable() {
   const { ingredients, error, isLoading } = useIngredients()
   const [editing, setEditing] = useState<Ingredient | "new" | null>(null)

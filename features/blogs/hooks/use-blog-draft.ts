@@ -18,9 +18,6 @@ const MAX_COVER_URL_LENGTH = 2048
 
 export type SaveState = "idle" | "saving" | "saved" | "error"
 
-/**
- * The first uploaded or AI-generated image of the post as its cover.
- */
 function coverOf(markdown: string) {
   for (const [, url] of markdown.matchAll(/^!\[[^\]]*\]\((https?:\/\/[^\s)]+)\)\s*$/gm)) {
     if (isSystemBlogImageUrl(url) && !isVideoUrl(url) && url.length <= MAX_COVER_URL_LENGTH) {
@@ -42,13 +39,6 @@ function failureMessage(error: unknown) {
   return "Không lưu được. Thử lại nhé."
 }
 
-/**
- * The blog being written: the first save creates it as a draft, later ones
- * update it. Edits are saved a moment after the author stops typing, once
- * there is a title. The document is only turned into Markdown when saving, so
- * typing costs nothing here. Saves never overlap, and one that finishes while
- * the author kept typing leaves the draft marked as unsaved.
- */
 export function useBlogDraft(initial: ApiBlog | null) {
   const { accessToken } = useAuth()
   const router = useRouter()
@@ -68,16 +58,12 @@ export function useBlogDraft(initial: ApiBlog | null) {
 
   const locked = Boolean(initial?.appeal?.activeTicket) || status === "REMOVED"
 
-  /** Something changed: mark the draft unsaved and restart the autosave countdown. */
   function touch() {
     if (locked) return
     revision.current += 1
     setDirty(true)
     setSaveState((state) => (state === "saved" || state === "error" ? "idle" : state))
     if (timer.current) clearTimeout(timer.current)
-    // Saving a public blog sends it back through moderation and hides it until
-    // the verdict, so its changes are only saved when the author asks for it.
-    // Never autosave while an appeal ticket is open or after admin removal.
     const autosave = statusRef.current === "DRAFT" || statusRef.current === "REJECTED"
     timer.current = titleRef.current.trim() && autosave
       ? setTimeout(() => void latestSave.current(), AUTOSAVE_DELAY_MS)
@@ -90,13 +76,11 @@ export function useBlogDraft(initial: ApiBlog | null) {
     touch()
   }
 
-  /** The editor's latest state; it is exported to Markdown when the draft is saved. */
   function setDocument(state: EditorState) {
     editorState.current = state
     touch()
   }
 
-  /** Saves the draft; resolves to whether the API has it now. */
   async function save(extra: BlogInput = {}): Promise<boolean> {
     if (locked) {
       setSaveState("error")
@@ -136,8 +120,6 @@ export function useBlogDraft(initial: ApiBlog | null) {
       const blog = await request
       if (!id.current) {
         id.current = blog.id
-        // Same page, now addressable. Not `/blogs/[id]/edit`: a refresh would
-        // render that route and remount the editor, losing the assistant chat.
         window.history.replaceState(null, "", newBlogDraftPath(blog.id))
       }
       statusRef.current = blog.status
@@ -192,12 +174,9 @@ export function useBlogDraft(initial: ApiBlog | null) {
     status,
     saveState,
     error,
-    /** Saves, then makes the blog public. */
     publish: () => save({ status: "PUBLISHED" }),
-    /** Takes a public blog back to a draft. */
     unpublish: () => save({ status: "DRAFT" }),
     save: () => save(),
-    /** The blog's id once the first save created it. */
     blogId: () => id.current,
   }
 }

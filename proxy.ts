@@ -27,7 +27,6 @@ export async function proxy(request: NextRequest) {
   const refresh = await refreshSession(request)
   const signedIn = Boolean(request.cookies.get(ACCESS_TOKEN_COOKIE)?.value)
 
-  // Forwarding `request.headers` passes the updated cookies on to this render.
   const block = refresh?.kind === "rejected" ? refresh.block : null
   const response =
     redirectFor(request, signedIn, block) ??
@@ -50,11 +49,9 @@ async function refreshSession(request: NextRequest) {
   } else if (result.kind === "rejected") {
     request.cookies.delete([ACCESS_TOKEN_COOKIE, REFRESH_TOKEN_COOKIE])
   }
-  // "failed" (network/5xx) keeps the cookies so the next request retries.
   return result
 }
 
-/** `block` is set when the refresh just failed because of the account, e.g. a suspension. */
 function redirectFor(request: NextRequest, signedIn: boolean, block: AccountBlock | null) {
   if (request.method !== "GET" && request.method !== "HEAD") return
 

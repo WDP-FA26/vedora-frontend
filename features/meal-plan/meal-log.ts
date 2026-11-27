@@ -4,9 +4,6 @@ import { API_URL } from "@/features/auth/lib/api"
 import { MEAL_SECTIONS, WEEKDAYS } from "@/features/meal-plan/meal-plan"
 import { send, sendJson } from "@/features/shared/lib/api-client"
 
-// Mirrors vedora-api's `/meal-plan/log` routes: what the user actually ate.
-// Contract: vedora-api/docs/docs-for-FE/meal-log.md
-
 const MEAL_LOG_URL = `${API_URL}/meal-plan/log`
 
 export const MEAL_LOG_MAX_NAME_LENGTH = 120
@@ -15,7 +12,6 @@ export const MEAL_LOG_MIN_SERVINGS = 0.25
 export const MEAL_LOG_MAX_SERVINGS = 20
 export const MEAL_LOG_MAX_CALORIES = 5000
 
-/** SWR key `[url, accessToken]`, one per week. */
 export function mealLogKey(weekStart: string) {
   return `${MEAL_LOG_URL}?weekStart=${weekStart}`
 }
@@ -81,7 +77,6 @@ export type MealLogDay = MealLogWeek["days"][number]
 export type CalorieReference = z.infer<typeof referenceSchema>
 export type CalorieEstimate = z.infer<typeof estimateSchema>
 
-/** Calories the user typed or accepted from the AI lookup. */
 export type CalorieInput = {
   caloriesPerServing: number
   calorieSource: "USER" | "WEB_ESTIMATE"
@@ -139,7 +134,6 @@ export function estimateCalories(
   })
 }
 
-/** "450 kcal", or "~450 kcal" for an AI estimate. */
 export function caloriesLabel(entry: Pick<MealLogEntry, "calories" | "calorieSource">) {
   if (entry.calories === null) return "Chưa có kcal"
   const amount = entry.calories.toLocaleString("vi-VN")
@@ -147,7 +141,6 @@ export function caloriesLabel(entry: Pick<MealLogEntry, "calories" | "calorieSou
   return `${amount} kcal`
 }
 
-/** "1", "1,5" */
 export function servingsLabel(servings: number) {
   return servings.toLocaleString("vi-VN", { maximumFractionDigits: 2 })
 }

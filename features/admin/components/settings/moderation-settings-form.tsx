@@ -24,7 +24,6 @@ import { useModerationSettings, useModerationSettingsActions } from "@/features/
 import type { ModerationChoice, ModerationPolicyDraft, ModerationSettings } from "@/features/admin/schemas"
 import { ApiError } from "@/features/shared/lib/api-client"
 
-/** Where an admin tunes what the automatic content check looks for. */
 export function ModerationSettingsPage() {
   const { settings, error, isLoading } = useModerationSettings()
 
@@ -51,7 +50,6 @@ export function ModerationSettingsPage() {
       </div>
     )
   }
-  // A new version (after saving or resetting) starts a fresh draft.
   return <SettingsView key={settings.version} settings={settings} />
 }
 
@@ -69,7 +67,6 @@ function failureMessage(error: unknown) {
 function SettingsView({ settings }: { settings: ModerationSettings }) {
   const actions = useModerationSettingsActions()
   const saved = policyOf(settings)
-  // Everything on the page edits this one draft; nothing is stored until "Lưu thay đổi".
   const [draft, setDraft] = useState<ModerationPolicyDraft>(saved)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -78,7 +75,6 @@ function SettingsView({ settings }: { settings: ModerationSettings }) {
   const dirty = isDirty(draft, saved)
   const problems = draftProblems(draft)
 
-  // Leaving with unsaved changes would lose them silently.
   useEffect(() => {
     if (!dirty) return
     const warn = (event: BeforeUnloadEvent) => event.preventDefault()

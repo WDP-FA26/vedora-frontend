@@ -84,7 +84,6 @@ const STEPS = [
   },
 ] as const
 
-/** What "Tiếp tục" checks on each step before moving on; the last step checks everything on submit. */
 const STEP_FIELDS: readonly (readonly FieldName[])[] = [
   [
     "name",
@@ -143,7 +142,6 @@ const EMPTY_VALUES: DefaultValues<WorkspaceFormInput> = {
   proofs: [],
 }
 
-/** A rejected application's answers, ready to fix; documents are always sent again. */
 function defaultsFrom(workspace: Workspace | null): DefaultValues<WorkspaceFormInput> {
   if (!workspace) return EMPTY_VALUES
   const { legal } = workspace
@@ -166,17 +164,12 @@ function defaultsFrom(workspace: Workspace | null): DefaultValues<WorkspaceFormI
   }
 }
 
-/**
- * A draft saved before official codes holds a province such as `ha-noi` and a
- * typed ward; drop both so the person picks them again from the lists.
- */
 function withKnownProvince(draft: object): object {
   const province: unknown = Reflect.get(draft, "provinceCode")
   if (typeof province === "string" && isVnProvinceCode(province)) return draft
   return { ...draft, provinceCode: undefined, wardCode: "" }
 }
 
-/** Unsent answers survive a reload; files and the commitments are never kept. */
 function useDraft(form: FormApi, enabled: boolean) {
   const { user } = useAuth()
   const key = user ? `vedora:workspace-application:${user.id}` : null
@@ -208,11 +201,6 @@ function useDraft(form: FormApi, enabled: boolean) {
   }
 }
 
-/**
- * The restaurant page application in three steps, after merchant onboarding
- * flows: the restaurant, its legal details, then documents and commitments.
- * With `rejected`, it sends a rejected application back for review.
- */
 export function WorkspaceForm({
   rejected,
   onSubmitted,
@@ -398,7 +386,6 @@ function TextField({
   )
 }
 
-/** The select's value; one that matches no option shows the placeholder, not the first option. */
 function optionValue(value: unknown, options: readonly { value: string }[]): string {
   if (typeof value !== "string") return ""
   return options.some((option) => option.value === value) ? value : ""
@@ -433,7 +420,6 @@ function SelectField<T extends string>({
             value={optionValue(field.value, options)}
             onChange={(event) => {
               field.onChange(event.target.value || undefined)
-              // A pick is final; check it now rather than when focus leaves.
               field.onBlur()
             }}
             onBlur={field.onBlur}
@@ -457,7 +443,6 @@ function SelectField<T extends string>({
   )
 }
 
-/** A rejected application's province, if it is one the dropdown offers. */
 function knownProvince(code: string | null): VnProvinceCode | undefined {
   if (code === null || !isVnProvinceCode(code)) return undefined
   return code
@@ -465,7 +450,6 @@ function knownProvince(code: string | null): VnProvinceCode | undefined {
 
 type WardList = Record<VnProvinceCode, readonly (readonly [string, string])[]>
 
-/** The 3,321 wards are a separate chunk, fetched once the form needs them. */
 function useWards() {
   const [wards, setWards] = useState<WardList | null>(null)
   const [failed, setFailed] = useState(false)
@@ -485,7 +469,6 @@ function useWards() {
   return { wards, failed }
 }
 
-/** Lists the wards of the chosen province; a new province clears the old ward. */
 function WardField({ form }: { form: FormApi }) {
   const { control } = form
   const province = useWatch({ control, name: "provinceCode" })
@@ -494,12 +477,10 @@ function WardField({ form }: { form: FormApi }) {
 
   useEffect(() => {
     if (previous.current === province) return
-    // Only a change the person makes; restoring a draft keeps its ward.
     if (previous.current !== undefined) form.setValue("wardCode", "")
     previous.current = province
   }, [form, province])
 
-  // Guarded at run time too: the value can come from an old saved draft.
   const options = province && isVnProvinceCode(province) && wards ? wards[province] : []
   let placeholder = "Chọn phường, xã"
   if (!province) placeholder = "Chọn tỉnh trước"
@@ -869,7 +850,6 @@ function CommitmentField({
   name: "confirmsAccuracy" | "consentsToReview"
   label: string
 }) {
-  // A new step should not open on a wall of errors; they show once tried or on submit.
   const submitted = useFormState({ control, name }).isSubmitted
   return (
     <Controller

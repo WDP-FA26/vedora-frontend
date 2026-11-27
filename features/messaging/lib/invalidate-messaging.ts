@@ -9,7 +9,6 @@ import {
   messagePageKey,
 } from "../messaging-cache"
 
-/** Clear deleted history, including cached older pages and other open tabs' data. */
 export async function forgetMessageRequest(
   mutate: ScopedMutator,
   token: string,
@@ -42,7 +41,6 @@ export async function forgetMessageRequest(
   ])
 }
 
-/** A changed activity/relationship can invalidate inbox cursors: start from page one. */
 export async function invalidateMessaging(
   mutate: ScopedMutator,
   token: string,

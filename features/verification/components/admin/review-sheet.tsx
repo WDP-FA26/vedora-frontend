@@ -44,7 +44,6 @@ function reviewErrorMessage(error: unknown) {
     : "Không lưu được quyết định. Thử lại nhé."
 }
 
-/** A request's statement and proof images, with approve and reject for pending ones. */
 export function ReviewSheet({
   requestId,
   onClose,
@@ -58,7 +57,6 @@ export function ReviewSheet({
     <Sheet open={requestId !== null} onOpenChange={(open) => !open && onClose()}>
       <SheetContent className="data-[side=right]:w-full data-[side=right]:sm:max-w-lg">
         {request ? (
-          // Keyed so the reject form starts empty for each request.
           <ReviewBody key={request.id} request={request} onReviewed={onClose} />
         ) : (
           <>

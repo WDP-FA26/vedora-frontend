@@ -17,7 +17,6 @@ import { Button } from "@/components/ui/button"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { Textarea } from "@/components/ui/textarea"
 
-/** What most admins never touch: the model's general prompt, and going back to the built-in policy. */
 export function AdvancedSettings({
   instructions,
   canReset,
@@ -26,7 +25,6 @@ export function AdvancedSettings({
   onReset,
 }: {
   instructions: string
-  /** False while the built-in policy is already in force. */
   canReset: boolean
   busy: boolean
   onChange: (instructions: string) => void

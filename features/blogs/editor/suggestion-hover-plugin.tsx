@@ -17,17 +17,10 @@ type Hover = { group: string; left: number; top: number }
 const HIDE_DELAY_MS = 180
 const CHIP_OFFSET_PX = 30
 
-/**
- * Hover over a proposed change to get its "Chấp nhận" / "Bỏ" chips, placed
- * above where the change starts. They stay while the pointer is on the change
- * or on the chips, and go away shortly after it leaves both. Also applies
- * every `RESOLVE_SUGGESTION_COMMAND`, whichever button sent it.
- */
 export function SuggestionHoverPlugin() {
   const [editor] = useLexicalComposerContext()
   const [hover, setHover] = useState<Hover | null>(null)
   const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
-  /** The group whose chips are showing, so repeated `mouseover`s cost nothing. */
   const shown = useRef<string | null>(null)
 
   function hide() {
@@ -62,10 +55,8 @@ export function SuggestionHoverPlugin() {
       if (!mark) return
       cancelHide()
       const group = mark.dataset.suggestionGroup!
-      // Moving across the parts of one change keeps the chips where they are.
       if (shown.current === group) return
       shown.current = group
-      // The first mark of the group, so the chips don't jump between its parts.
       const root = event.currentTarget as HTMLElement
       const first = root.querySelector<HTMLElement>(`[data-suggestion-group="${CSS.escape(group)}"]`) ?? mark
       const rect = first.getBoundingClientRect()

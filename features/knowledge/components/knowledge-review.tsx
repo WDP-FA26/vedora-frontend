@@ -66,15 +66,9 @@ function hasFlags(page: KnowledgePage) {
   return page.flags.length > 0
 }
 
-/**
- * Review the OCR text of an uploaded PDF next to the original. Nothing is
- * indexed until "Duyệt"; "Từ chối" keeps the file, "Xoá" removes it.
- */
 export function KnowledgeReview({ id }: { id: string }) {
   const { data: document, error: loadError } = useKnowledgeDocumentDetail(id)
   const hasFile = document !== undefined && document.status !== "WAITING_UPLOAD"
-  // Pages exist only once extraction is done; asking earlier would cache an
-  // empty list that is never refreshed.
   const hasPages = document !== undefined && !EXTRACTING.has(document.status)
   const { data: pages } = useKnowledgePages(id, !hasPages)
   const { data: file } = useKnowledgeFileUrl(id, !hasFile)
@@ -122,7 +116,6 @@ function ReviewBody({
   const actions = useKnowledgeReviewActions(document.id)
   const deleteDocument = useDeleteKnowledgeDocument()
   const [pageNumber, setPageNumber] = useState(1)
-  // Unsaved text by page number.
   const [drafts, setDrafts] = useState<ReadonlyMap<number, string>>(new Map())
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)

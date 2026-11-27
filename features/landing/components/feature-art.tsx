@@ -4,11 +4,6 @@ import { cn } from "@/lib/utils"
 
 export type FeatureArtName = "video" | "blog" | "verified" | "garden"
 
-/**
- * Small looping line illustrations for the platform cards. Plain CSS
- * animations, so they cost nothing on the main thread and hold still under
- * reduced motion (each animation is `motion-safe:` only).
- */
 export function FeatureArt({
   name,
   className,
@@ -33,7 +28,6 @@ export function FeatureArt({
 const muted = "stroke-muted-foreground/35"
 
 const art: Record<FeatureArtName, ReactNode> = {
-  // A pot simmering on a phone screen while the clip plays through.
   video: (
     <>
       <rect x="52" y="6" width="56" height="88" rx="11" strokeWidth="2" className={muted} />
@@ -65,7 +59,6 @@ const art: Record<FeatureArtName, ReactNode> = {
     </>
   ),
 
-  // An article writing itself under a swaying leaf.
   blog: (
     <>
       <rect x="40" y="8" width="80" height="84" rx="9" strokeWidth="2" className={muted} />
@@ -93,7 +86,6 @@ const art: Record<FeatureArtName, ReactNode> = {
     </>
   ),
 
-  // A chef whose badge checks in.
   verified: (
     <>
       <circle cx="78" cy="52" r="32" className="fill-primary/10" />
@@ -130,7 +122,6 @@ const art: Record<FeatureArtName, ReactNode> = {
     </>
   ),
 
-  // Rows sway in the sun while a harvest hops over to the plate.
   garden: (
     <>
       <g className="origin-center transform-fill motion-safe:animate-[spin_14s_linear_infinite]">

@@ -31,11 +31,6 @@ function currentMealSection(): MealSection {
   return "OTHER"
 }
 
-/**
- * Compact collapsible command bar for today's meals: highlights the active meal
- * by time of day, shows live logged vs. target calories, and gives 1-tap actions
- * to view a recipe, mark it eaten, swap it, or log an eating-out dish.
- */
 export function TodayFocusStrip({
   plan,
   today,

@@ -15,7 +15,6 @@ import {
   UNREAD_COUNT_KEY,
 } from "@/features/notifications/notifications-cache"
 
-/** Unread badge count; the live stream keeps it current. */
 export function useUnreadCount() {
   const { data } = useAuthedSWR(UNREAD_COUNT_KEY, fetchUnreadCount)
   return data ?? 0
@@ -26,7 +25,6 @@ export function useNotifications() {
   const { mutate } = useSWRConfig()
   const { data, error, isLoading } = useAuthedSWR(NOTIFICATIONS_PAGE_KEY, fetchNotificationPage)
 
-  /** Marks `id` (or everything) read, then refetches the list and the badge. */
   async function markRead(id?: string) {
     if (!accessToken) return
     await (id ? markNotificationRead(accessToken, id) : markAllNotificationsRead(accessToken))

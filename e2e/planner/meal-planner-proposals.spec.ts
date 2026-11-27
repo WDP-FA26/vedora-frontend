@@ -6,7 +6,6 @@ import { test, expect } from "../helpers/test"
 const THREAD_ID = "6f1c2b8e-1d2a-4c3b-9e8f-0a1b2c3d4e5f"
 const NOW = "2026-11-18T08:00:00.000Z"
 
-/** A `tool-editDraft` output the planner made for `weekStart`: one new dinner on `day`. */
 function draftPart(toolCallId: string, weekStart: string, day: string, title: string) {
   return {
     type: "tool-editDraft",
@@ -27,7 +26,6 @@ function draftPart(toolCallId: string, weekStart: string, day: string, title: st
   }
 }
 
-/** A saved conversation with one card for this week and one for next week. */
 const thread = {
   id: THREAD_ID,
   title: "Thực đơn hai tuần",

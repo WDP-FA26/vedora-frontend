@@ -20,13 +20,11 @@ const TABS = [
   { id: "rules", label: "Kỵ nhau", icon: BanIcon, Panel: RulesTable },
 ] as const satisfies readonly { id: RecipeCatalogTab; [key: string]: unknown }[]
 
-/** Recipes and everything they are built from, one tab each. */
 export function RecipeCatalog({ initialTab }: { initialTab: RecipeCatalogTab }) {
   const [tab, setTab] = useState(initialTab)
 
   function select(next: RecipeCatalogTab) {
     setTab(next)
-    // Keeps the tab across reloads without a server round trip.
     window.history.replaceState(null, "", next === "recipes" ? "?" : `?tab=${next}`)
   }
 

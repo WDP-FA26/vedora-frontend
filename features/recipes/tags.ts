@@ -13,8 +13,6 @@ import {
 } from "lucide-react"
 import { z } from "zod"
 
-// Mirrors vedora-api's `RecipeTag`. A recipe without a tag shows `DEFAULT_TAG_VIEW`.
-
 export const RECIPE_TAGS = [
   "SOUP",
   "SALAD",

@@ -1,11 +1,8 @@
 "use client"
 
-// From chatcn, chat, voice and agent UI for shadcn: https://chatcn.dev
-
 import * as React from "react"
 import { cn } from "@/lib/utils"
 
-/** chatcn theme variables and utilities this file uses, light and dark. */
 const CHATCN_CSS = ":root{--chatcn-bg:oklch(1 0 0);--chatcn-border:var(--chatcn-gray-400);--chatcn-fg:var(--chatcn-gray-1000);--chatcn-fg-faint:var(--chatcn-gray-700);--chatcn-fg-muted:var(--chatcn-gray-900);--chatcn-fg-subtle:var(--chatcn-gray-800);--chatcn-fill:var(--chatcn-gray-100);--chatcn-fill-active:var(--chatcn-gray-300);--chatcn-gray-100:oklch(0.970 0 0);--chatcn-gray-1000:oklch(0.145 0 0);--chatcn-gray-300:oklch(0.930 0 0);--chatcn-gray-400:oklch(0.910 0 0);--chatcn-gray-700:oklch(0.700 0 0);--chatcn-gray-800:oklch(0.525 0 0);--chatcn-gray-900:oklch(0.440 0 0);--chatcn-radius-md:8px}.dark{--chatcn-bg:oklch(0.145 0 0);--chatcn-border:var(--chatcn-gray-400);--chatcn-fg:var(--chatcn-gray-1000);--chatcn-fg-faint:var(--chatcn-gray-700);--chatcn-fg-muted:var(--chatcn-gray-900);--chatcn-fg-subtle:var(--chatcn-gray-800);--chatcn-fill:var(--chatcn-gray-100);--chatcn-fill-active:var(--chatcn-gray-300);--chatcn-gray-100:oklch(0.195 0 0);--chatcn-gray-1000:oklch(0.970 0 0);--chatcn-gray-300:oklch(0.255 0 0);--chatcn-gray-400:oklch(0.285 0 0);--chatcn-gray-700:oklch(0.500 0 0);--chatcn-gray-800:oklch(0.620 0 0);--chatcn-gray-900:oklch(0.720 0 0)}"
 if (typeof document !== "undefined" && !document.getElementById("chatcn-voice-orb")) {
   const style = document.createElement("style")
@@ -13,10 +10,6 @@ if (typeof document !== "undefined" && !document.getElementById("chatcn-voice-or
   style.textContent = CHATCN_CSS
   document.head.appendChild(style)
 }
-
-/* -------------------------------------------------------------------------------------------------
- * Types
- * -----------------------------------------------------------------------------------------------*/
 
 export type VoiceOrbState =
   | "idle"
@@ -39,58 +32,26 @@ export const voiceOrbStateLabels: Record<VoiceOrbState, string> = {
   error: "Disconnected",
 }
 
-/* -------------------------------------------------------------------------------------------------
- * Level and band sources
- *
- * Voice components take audio levels as plain values or as getters. A number re-renders the
- * component on every change, which is fine at 20 updates a second. A getter is read once per
- * animation frame and never re-renders anything, which is what a 60 fps meter wants.
- * -----------------------------------------------------------------------------------------------*/
-
-/** A level from 0 to 1, or a function that returns the current one. */
 type ChatcnLevel = number | (() => number)
 
 export type VoiceOrbSize = "sm" | "md" | "lg" | "xl"
 
 export interface VoiceOrbProps extends Omit<React.ComponentProps<"div">, "children"> {
   state?: VoiceOrbState
-  /**
-   * Audio level from 0 to 1: the user's input while listening, the agent's output while speaking.
-   * Pass a getter (`() => number`) to animate at 60 fps without re-rendering.
-   */
   level?: ChatcnLevel
-  /** Input level, when you meter both sides. Used while listening. Falls back to `level`. */
   inputLevel?: ChatcnLevel
-  /** Output level, when you meter both sides. Used while speaking. Falls back to `level`. */
   outputLevel?: ChatcnLevel
-  /**
-   * Drive listening and speaking with a built-in speech simulator wherever no level is passed.
-   * For demos, empty states and design reviews without a microphone. Default `false`.
-   */
   simulate?: boolean
-  /** 40, 72, 144 or 224 px, or any number of px. Default `lg`. */
   size?: VoiceOrbSize | number
-  /**
-   * `canvas` draws the moving sphere. `svg` is the lightweight fallback: the same forms, still,
-   * with the level scaling the whole orb. `auto` picks canvas and falls back where 2D canvas is
-   * missing. Default `auto`.
-   */
   renderer?: "auto" | "canvas" | "svg"
-  /** Force reduced motion on or off. Defaults to the user's setting. */
   reducedMotion?: boolean
-  /** Accessible name. Defaults to the state, for example "Voice: listening". */
   label?: string
 }
 
 const SIZES: Record<VoiceOrbSize, number> = { sm: 40, md: 72, lg: 144, xl: 224 }
 
-/* -------------------------------------------------------------------------------------------------
- * Reduced motion
- * -----------------------------------------------------------------------------------------------*/
-
 const REDUCED = "(prefers-reduced-motion: reduce)"
 
-/** True when the user asked for reduced motion. Updates live when the setting changes. */
 function useChatcnPrefersReducedMotion() {
   const [reduced, setReduced] = React.useState(false)
   React.useEffect(() => {
@@ -105,31 +66,16 @@ function useChatcnPrefersReducedMotion() {
 }
 
 interface ChatcnSpeechLevel {
-  /** Current smoothed level from 0 to 1. Call it every frame. */
   getLevel: () => number
-  /** `count` band levels from 0 to 1, lowest first, with two moving formant humps. */
   getBands: (count: number) => Float32Array
   setSpeaking: (speaking: boolean) => void
   isSpeaking: () => boolean
 }
 
-/* -------------------------------------------------------------------------------------------------
- * Simulated speech levels
- *
- * Demos, tests and design reviews need a voice without a microphone. A random walk reads as
- * noise; speech has syllables (about four a second), short gaps between words and a slower phrase
- * contour. This generator models those three layers so a meter driven by it looks like someone
- * talking.
- * -----------------------------------------------------------------------------------------------*/
-
 interface ChatcnSpeechLevelOptions {
-  /** Changes the rhythm, so two voices never move in lockstep. Default 1. */
   seed?: number
-  /** Syllables per second. Default 4.2. */
   syllableRate?: number
-  /** Peak level from 0 to 1. Default 0.8. */
   loudness?: number
-  /** Level while silent, so a live meter never looks dead. Default 0.02. */
   floor?: number
 }
 
@@ -137,7 +83,6 @@ const fract = (x: number) => x - Math.floor(x)
 
 const hash = (n: number, seed: number) => fract(Math.sin(n * 12.9898 + seed * 78.233) * 43758.5453)
 
-/** A speech-like level source you start and stop. Framework free; see `useChatcnSimulatedLevel`. */
 export function createChatcnSpeechLevel(options: ChatcnSpeechLevelOptions = {}): ChatcnSpeechLevel {
   const { seed = 1, syllableRate = 4.2, loudness = 0.8, floor = 0.02 } = options
   let speaking = false
@@ -151,7 +96,6 @@ export function createChatcnSpeechLevel(options: ChatcnSpeechLevelOptions = {}):
     const k = Math.floor(phase)
     const u = phase - k
     let amp = 0.45 + 0.55 * hash(k, seed)
-    // Roughly one slot in six is the gap between words.
     if (hash(k * 1.7 + 3, seed) < 0.17) amp *= 0.08
     const shape = u < 0.22 ? (u / 0.22) ** 0.7 : (1 - (u - 0.22) / 0.78) ** 1.5
     const contour = 0.78 + 0.22 * Math.sin(t * 0.55 + seed * 2)
@@ -164,7 +108,6 @@ export function createChatcnSpeechLevel(options: ChatcnSpeechLevelOptions = {}):
     const dt = last ? Math.min(0.1, (now - last) / 1000) : 1 / 60
     last = now
     const t = now / 1000
-    // Syllable length jitters by up to 40 percent, so the rhythm never ticks like a clock.
     const k = Math.floor(phase)
     phase += dt * syllableRate * (0.8 + 0.4 * hash(k * 3.1, seed))
     syllable = k
@@ -178,7 +121,6 @@ export function createChatcnSpeechLevel(options: ChatcnSpeechLevelOptions = {}):
     const level = getLevel()
     const out = new Float32Array(Math.max(0, count))
     const t = performance.now() / 1000
-    // Formants move per syllable: vowels change where the energy sits.
     const f1 = 0.16 + 0.1 * hash(syllable * 2.3, seed)
     const f2 = 0.42 + 0.18 * hash(syllable * 5.9 + 1, seed)
     for (let i = 0; i < count; i++) {
@@ -203,65 +145,28 @@ export function createChatcnSpeechLevel(options: ChatcnSpeechLevelOptions = {}):
 
 const clamp01 = (value: number) => (Number.isFinite(value) ? Math.min(1, Math.max(0, value)) : 0)
 
-/** Reads a level source. Undefined reads as silence. */
 function readLevel(level: ChatcnLevel | undefined): number {
   if (level === undefined) return 0
   return clamp01(typeof level === "function" ? level() : level)
 }
 
-/* -------------------------------------------------------------------------------------------------
- * Form
- *
- * The orb is a sphere drawn as fine contour lines, tilted toward the viewer. Lines facing you are
- * darker and heavier, lines turning away are lighter, and the far side shows through faintly, so
- * the form reads as volume without a single gradient. Every state is a set of form parameters;
- * the canvas eases the current form toward the target every frame, so any state can follow any
- * other and the sphere morphs instead of cutting.
- *
- * - idle: calm, breathing slowly, the surface barely drifting.
- * - connecting: each line traced only in part, the traces chasing around the sphere.
- * - listening: waves travel inward to the front of the sphere and swell with the user's voice.
- * - thinking: smaller, turning on its axis, a band of light sweeping down it. Masks latency.
- * - speaking: waves travel outward from the front and the sphere swells with the agent's voice.
- * - interrupted: pressed flat, the waves stopped, the moment the user cuts in.
- * - muted: dotted lines, faint and still.
- * - error: the sphere split in two.
- *
- * The direction of the waves says who is talking, so the orb reads with the sound off.
- * -----------------------------------------------------------------------------------------------*/
-
 interface OrbForm {
-  /** Radius multiplier. */
   scale: number
-  /** Flowing surface displacement. */
   flow: number
-  /** How fast the surface flows. */
   stir: number
-  /** Height of the waves running across the front. */
   wave: number
-  /** Wave speed. Positive travels outward from the front, negative inward. */
   travel: number
-  /** Turn speed around the vertical axis, in radians per second. */
   turn: number
-  /** Breathing amplitude. */
   breathe: number
-  /** Line opacity. */
   ink: number
-  /** Opacity of the far side, seen through the front. */
   back: number
-  /** Share of each line drawn, 1 whole. Below 1 the traces chase around the sphere. */
   trace: number
-  /** 0 solid lines, 1 dotted. */
   dots: number
-  /** 0 whole, 1 split in two. */
   split: number
-  /** 0 round, 1 flattened. */
   squash: number
-  /** A band of light sweeping down the lines, the orb's version of the Thinking shimmer. */
   shimmer: number
 }
 
-/** Level-driven additions. Listening draws waves inward; speaking sends them out and swells. */
 function withLevel(form: OrbForm, state: VoiceOrbState, level: number): OrbForm {
   if (state === "listening") {
     return {
@@ -317,16 +222,13 @@ const FORMS: Record<VoiceOrbState, OrbForm> = {
   error: f({ scale: 0.86, ink: 0.55, back: 0.06, split: 1 }),
 }
 
-/** Mid level for still frames, so listening and speaking still differ in shape. */
 const STILL_LEVEL = 0.4
 
-/** A state's form as a still frame: no breathing, and a longer trace so connecting reads. */
 function stillForm(state: VoiceOrbState): OrbForm {
   const form = withLevel(FORMS[state], state, STILL_LEVEL)
   return { ...form, breathe: 0, trace: form.trace < 1 ? 0.55 : 1 }
 }
 
-/** Lines and samples per line for an orb of `px` CSS pixels. */
 function density(px: number) {
   return {
     lines: Math.round(Math.min(22, Math.max(5, px / 10))),
@@ -334,44 +236,32 @@ function density(px: number) {
   }
 }
 
-/** Phases that advance with time. Kept apart from the form so speed changes never jump. */
 interface OrbPhase {
   flow: number
   wave: number
   turn: number
   breath: number
   trace: number
-  /** Shimmer position, 0 above the sphere to 1 below it. */
   sweep: number
 }
-
-/* -------------------------------------------------------------------------------------------------
- * Geometry, shared by the canvas and the SVG renderers
- * -----------------------------------------------------------------------------------------------*/
 
 type Point = [number, number]
 
 interface Strokes {
-  /** Front polylines by depth band (nearest last), then by shimmer step: `band * GLOWS + step`. */
   front: Point[][][]
-  /** Far side polylines. */
   back: Point[][]
 }
 
-/** Depth bands for the front lines. Each band strokes once, so a frame is a handful of strokes. */
 const BANDS = 5
 
-/** Shimmer steps per depth band. Lines move between them a step at a time as the light passes. */
 const GLOWS = 4
 
-/** View tilt: the top of the sphere leans toward the viewer, so the upper lines open into rings. */
 const TILT = 0.36
 
 const COS_T = Math.cos(TILT)
 
 const SIN_T = Math.sin(TILT)
 
-/** Contour lines of the sphere at radius `r` around (cx, cy), sorted into depth bands. */
 function sphere(
   form: OrbForm,
   phase: OrbPhase,
@@ -394,10 +284,7 @@ function sphere(
     const lat = -Math.PI / 2 + (Math.PI * (i + 1)) / (lines + 1)
     const cl = Math.cos(lat)
     const sl = Math.sin(lat)
-    // Each line's trace starts a little later than the one above, so traces spiral.
     const start = phase.trace + i * 0.06
-    // How lit this line is by the shimmer band, in steps. Full light everywhere without shimmer.
-    // Lines count from the bottom, so the light runs from the top of the sphere down.
     const off = (1 - (i + 0.5) / lines - (phase.sweep * 1.3 - 0.15)) / 0.18
     const near = Math.exp(-off * off)
     const lit = 1 - form.shimmer * (1 - near)
@@ -414,10 +301,8 @@ function sphere(
       const ux = cl * Math.cos(a)
       const uy = sl
       const uz = cl * Math.sin(a)
-      // The flow field turns with the sphere; the lines themselves are symmetric.
       const fx = ux * ct - uz * st
       const fz = ux * st + uz * ct
-      // Tilt toward the viewer: view space y and depth.
       const vy = uy * COS_T - uz * SIN_T
       const vz = uy * SIN_T + uz * COS_T
 
@@ -425,20 +310,16 @@ function sphere(
         0.5 * Math.sin(2.3 * fx + 1.4 * uy + phase.flow) +
         0.3 * Math.sin(3.1 * uy - 1.9 * fz - phase.flow * 1.27 + 1.1) +
         0.2 * Math.sin(4.3 * fz + 2.6 * fx + phase.flow * 0.71 + 2.4)
-      // Waves run out from (or in to) the point of the sphere nearest the viewer.
       const front01 = Math.max(vz, 0)
       const dist = Math.acos(Math.min(1, Math.max(-1, vz)))
       const wave = Math.sin(dist * 8 - phase.wave) * front01
 
-      // Small rings near the poles move less, so they never crumple into polygons.
       const give = 0.3 + 0.7 * cl
       const rr = radius * (1 + give * (form.flow * flow + form.wave * wave))
-      // Waves also lift the lines on screen, so they read even where the surface faces you.
       const lift = form.wave * wave * radius * 0.7 * give
       const point: Point = [cx + ux * rr * sx, cy - (vy * rr + lift) * sy]
 
       let on = true
-      // Near whole, draw whole: the last sliver of a trace would show as a pinhole gap.
       if (form.trace < 0.985) {
         const u = (((j / samples - start) % 1) + 1) % 1
         on = u < form.trace
@@ -475,10 +356,8 @@ const STILL_PHASE: OrbPhase = {
   sweep: 0.4,
 }
 
-/** Base line weight in CSS pixels for an orb of `px`. */
 const lineWeight = (px: number) => Math.min(1.6, Math.max(0.9, px / 130))
 
-/** Moves `current` toward `target` with an exponential approach: critically damped, no bounce. */
 function approach(current: number, target: number, rate: number, dt: number) {
   return current + (target - current) * (1 - Math.exp(-rate * dt))
 }
@@ -492,16 +371,11 @@ function polylineData(points: Point[]) {
   return d
 }
 
-/** Opacity and weight of a front band: the nearer, the darker and heavier, then the shimmer. */
 function bandStyle(index: number) {
   const z = (Math.floor(index / GLOWS) + 0.5) / BANDS
   const lit = (index % GLOWS) / (GLOWS - 1)
   return { alpha: (0.28 + 0.72 * z ** 0.8) * (0.45 + 0.55 * lit), weight: 0.7 + 0.55 * z }
 }
-
-/* -------------------------------------------------------------------------------------------------
- * SVG renderer: the fallback, and the form reference
- * -----------------------------------------------------------------------------------------------*/
 
 function OrbSvg({
   state,
@@ -514,7 +388,6 @@ function OrbSvg({
   levelFor: () => number
   reducedMotion: boolean
 }) {
-  // A plain id: useId's punctuation is not valid inside url(#...).
   const id = `orb${React.useId().replace(/[^a-zA-Z0-9]/g, "")}`
   const scaleRef = React.useRef<SVGGElement>(null)
   const form = stillForm(state)
@@ -522,12 +395,10 @@ function OrbSvg({
   const R = 45
   const { lines, samples } = density(px)
   const strokes = sphere(form, STILL_PHASE, C, C, R, lines, samples)
-  // Stroke widths in viewBox units, so lines keep their CSS pixel weight at any size.
   const unit = 100 / px
   const weight = lineWeight(px) * unit
   const live = !reducedMotion && (state === "listening" || state === "speaking")
 
-  // Level drives a scale on the whole sphere, written straight to the DOM at about 30 fps.
   const levelRef = React.useRef(levelFor)
   levelRef.current = levelFor
   React.useEffect(() => {
@@ -569,7 +440,6 @@ function OrbSvg({
         const style = bandStyle(band)
         return (
           <path
-            // Bands are fixed positions from near to far.
             key={band}
             d={bandLines.map(polylineData).join("")}
             strokeOpacity={style.alpha * form.ink}
@@ -617,13 +487,7 @@ function OrbSvg({
   )
 }
 
-/* -------------------------------------------------------------------------------------------------
- * Theme colors for canvas
- * -----------------------------------------------------------------------------------------------*/
-
-/** Resolved theme colors as CSS strings the canvas understands. Alpha goes through `globalAlpha`. */
 interface ChatcnVoiceColors {
-  /** The canvas `color`, so `text-*` classes tint the drawing. Defaults to the foreground. */
   fg: string
   muted: string
   subtle: string
@@ -633,39 +497,27 @@ interface ChatcnVoiceColors {
   bg: string
 }
 
-/* -------------------------------------------------------------------------------------------------
- * useChatcnVoiceCanvas
- * -----------------------------------------------------------------------------------------------*/
-
 interface ChatcnVoiceFrame {
   ctx: CanvasRenderingContext2D
-  /** CSS pixels. The context is already scaled for the device pixel ratio. */
   width: number
   height: number
   dpr: number
-  /** Seconds of animated time. Only advances while frames run, so nothing jumps on resume. */
   t: number
-  /** Seconds since the previous frame, capped at 50 ms. */
   dt: number
   colors: ChatcnVoiceColors
   reducedMotion: boolean
 }
 
-/** Draws one frame. Return true to keep animating, false to sleep until `invalidate()`. */
 type ChatcnVoiceDraw = (frame: ChatcnVoiceFrame) => boolean
 
 interface UseChatcnVoiceCanvasOptions {
-  /** Force reduced motion on or off. Defaults to the user's setting. */
   reducedMotion?: boolean
 }
 
 interface ChatcnVoiceCanvas {
-  /** Attach to a `<canvas>`. Its CSS size is observed; the backing store follows it. */
   ref: (element: HTMLCanvasElement | null) => void
-  /** Ask for a frame. Call after props change; the loop sleeps when the drawing settles. */
   invalidate: () => void
   reducedMotion: boolean
-  /** False until the canvas has a 2D context. Render a fallback while false. */
   supported: boolean
 }
 
@@ -684,12 +536,6 @@ function readColors(element: Element): ChatcnVoiceColors {
   }
 }
 
-/**
- * A sleeping requestAnimationFrame loop for voice visuals. Handles device pixel ratio, resizes,
- * theme changes (colors are re-read from CSS, so dark mode and `text-*` classes just work), and
- * pauses while the canvas is off screen or the tab is hidden. The draw function decides when to
- * sleep, so a settled orb or a silent meter costs nothing.
- */
 function useChatcnVoiceCanvas(
   draw: ChatcnVoiceDraw,
   options: UseChatcnVoiceCanvasOptions = {},
@@ -817,7 +663,6 @@ function useChatcnVoiceCanvas(
       document.addEventListener("visibilitychange", onVisibility)
       st.cleanup.push(() => document.removeEventListener("visibilitychange", onVisibility))
 
-      // Theme switches toggle a class or attribute on <html>; the system theme fires a query.
       const mo = new MutationObserver(refreshColors)
       mo.observe(document.documentElement, {
         attributes: true,
@@ -833,7 +678,6 @@ function useChatcnVoiceCanvas(
     [invalidate],
   )
 
-  // Reduced motion changes the drawing, so draw again.
   React.useEffect(() => {
     void reducedMotion
     invalidate()
@@ -853,7 +697,6 @@ function useChatcnVoiceCanvas(
 
 const KEYS = Object.keys(FORMS.idle) as (keyof OrbForm)[]
 
-/** Breathing period per state, in seconds. */
 const BREATH: Partial<Record<VoiceOrbState, number>> = { idle: 4.6, listening: 3.4, thinking: 1.8 }
 
 function tracePolyline(ctx: CanvasRenderingContext2D, points: Point[]) {
@@ -864,10 +707,6 @@ function tracePolyline(ctx: CanvasRenderingContext2D, points: Point[]) {
     ctx.lineTo(p[0], p[1])
   }
 }
-
-/* -------------------------------------------------------------------------------------------------
- * Canvas renderer
- * -----------------------------------------------------------------------------------------------*/
 
 function OrbCanvas({
   state,
@@ -898,7 +737,6 @@ function OrbCanvas({
       const current = stateRef.current
       const raw = current === "listening" || current === "speaking" ? levelRef.current() : 0
 
-      // Reduced motion: the target form at fixed phases. Nothing moves; each state is a still.
       let form: OrbForm
       let phase: OrbPhase
       if (reduced) {
@@ -908,11 +746,9 @@ function OrbCanvas({
         st.phase = { ...STILL_PHASE }
         st.level = 0
       } else {
-        // Fast attack, slower release: syllables swell and settle, never flicker.
         st.level = approach(st.level, raw, raw > st.level ? 16 : 5, dt)
         const target = withLevel(FORMS[current], current, st.level)
         for (const key of KEYS) {
-          // Splits and squashes land quickly; everything else glides.
           const rate = key === "split" || key === "squash" ? 11 : key === "trace" ? 4 : 6
           st.form[key] = st.first ? target[key] : approach(st.form[key], target[key], rate, dt)
         }
@@ -923,7 +759,6 @@ function OrbCanvas({
         st.phase.turn += dt * form.turn
         st.phase.breath += (dt * Math.PI * 2) / (BREATH[current] ?? 3.6)
         st.phase.trace += dt * 0.42
-        // One sweep every 1.8 s, the same pace as the Thinking label's shimmer.
         st.phase.sweep = (st.phase.sweep + dt / 1.8) % 1
         phase = st.phase
       }
@@ -966,7 +801,6 @@ function OrbCanvas({
         const gap = form.split * r * 0.12
         for (const half of [-1, 1]) {
           ctx.save()
-          // Move first, then clip in the moved space, so each half keeps a clean cut edge.
           ctx.translate(0, (gap / 2) * half)
           ctx.beginPath()
           ctx.rect(0, half < 0 ? 0 : cy, width, half < 0 ? cy : height - cy)
@@ -979,7 +813,6 @@ function OrbCanvas({
       }
 
       if (reduced) return false
-      // Sleep once the form has settled and nothing moves.
       const target = withLevel(FORMS[current], current, st.level)
       const settled = KEYS.every((key) => Math.abs(st.form[key] - target[key]) < 0.0015)
       const moving =
@@ -1004,21 +837,10 @@ function OrbCanvas({
   }, [canvas.supported, onUnsupported])
 
   return (
-    // The wrapper is role="img", so the canvas is already presentational.
     <canvas ref={canvas.ref} data-slot="voice-orb-canvas" className="absolute inset-0 size-full" />
   )
 }
 
-/* -------------------------------------------------------------------------------------------------
- * VoiceOrb
- * -----------------------------------------------------------------------------------------------*/
-
-/**
- * The voice presence. A monochrome sphere of fine contour lines whose form and motion carry the
- * whole state machine: no color, no glow. Feed it a level (a number, or a getter for 60 fps) and
- * a state; it morphs between states on its own. Canvas by default, an SVG fallback with the same
- * forms, and a still form per state under reduced motion.
- */
 export function VoiceOrb({
   state = "idle",
   level,
@@ -1039,7 +861,6 @@ export function VoiceOrb({
   const [canvasFailed, setCanvasFailed] = React.useState(false)
   const useSvg = renderer === "svg" || (renderer === "auto" && canvasFailed)
 
-  // Two simulated voices, made on first use, so a plain orb costs nothing extra.
   const sims = React.useRef<{ user: ChatcnSpeechLevel; agent: ChatcnSpeechLevel } | null>(null)
   if (simulate && !sims.current) {
     sims.current = {

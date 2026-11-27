@@ -157,7 +157,6 @@ export const supportTicketListItemSchema = z.object({
   lastMessageByRole: z.enum(["USER", "ADMIN"]),
   messageCount: z.number().int().nonnegative(),
   waitingUserSince: z.string().nullable(),
-  /** When a WAITING_USER ticket expires if the author stays silent. */
   autoCloseAt: z.string().nullable(),
   resolvedAt: z.string().nullable(),
   resolutionNote: z.string().nullable(),
@@ -209,7 +208,6 @@ const ticketPostPreviewSchema = z.object({
 export const supportTicketDetailSchema = supportTicketListItemSchema.extend({
   messages: z.array(supportMessageSchema),
   post: ticketPostPreviewSchema.nullable(),
-  /** A finished non-appeal ticket reopens when the author replies before this time. */
   reopenableUntil: z.string().nullable(),
 })
 

@@ -46,29 +46,18 @@ const SAVE_LABEL: Record<SaveState, string> = {
 
 const subscribeNever = () => () => {}
 
-/** True for no content at all, or a single blank paragraph. Reads only the top level. */
 function $isDocumentEmpty() {
   const root = $getRoot()
   const first = root.getFirstChild()
   return first === null || (root.getChildrenSize() === 1 && $isParagraphNode(first) && first.isEmpty())
 }
 
-/**
- * Full-page blog drafting in the style of a page editor: an icon, a big
- * title, then the text, with a `/` menu for blocks and media. The blog is
- * stored as Markdown, but authors never see it. The writing assistant takes
- * the right 30% of the screen. `initial` is the saved blog when
- * editing, `null` for a new one.
- */
 export function BlogEditor({ initial }: { initial: ApiBlog | null }) {
   const draft = useBlogDraft(initial)
   const [empty, setEmpty] = useState(!initial?.content.trim())
   const [appealDialogOpen, setAppealDialogOpen] = useState(false)
-  // Lexical renders its content area differently on the server (no editor
-  // state, no selection), so the editor only exists in the browser.
   const mounted = useSyncExternalStore(subscribeNever, () => true, () => false)
 
-  // A public blog being checked again after an edit is still a public blog.
   const published = draft.status === "PUBLISHED" || draft.status === "PROCESSING" || draft.status === "PENDING_REVIEW"
   const appeal = initial?.appeal ?? null
   const locked = Boolean(appeal?.activeTicket) || draft.status === "REMOVED"
@@ -258,11 +247,6 @@ export function BlogEditor({ initial }: { initial: ApiBlog | null }) {
   )
 }
 
-/**
- * The big title. Long titles wrap and the field grows to fit them; it stays a
- * single line of text, so Enter moves on to the start of the text, as in a page
- * editor, and pasted line breaks become spaces.
- */
 function TitleField({
   value,
   onChange,

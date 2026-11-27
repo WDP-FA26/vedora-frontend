@@ -5,7 +5,6 @@ import { commentReportPageSchema, commentReportSchema, type AdminCommentReport }
 export const COMMENT_REPORTS_KEY = `${API_URL}/admin/comment-reports`
 const PAGE_LIMIT = 50
 
-/** Like the post moderation queue, filtering/search/sorting need every API page. */
 export async function fetchAllCommentReports([url, token]: readonly [string, string]) {
   const reports = new Map<string, AdminCommentReport>()
   for (let page = 1; ; page++) {

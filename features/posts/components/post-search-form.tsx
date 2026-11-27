@@ -9,7 +9,6 @@ import {
 import type { SearchTab } from "@/features/posts/posts-cache"
 import { MAX_SEARCH_QUERY_LENGTH } from "@/features/posts/schemas"
 
-/** Submits to the search page as `?q=`, with client-side navigation. */
 export function PostSearchForm({
   defaultValue,
   autoFocus,
@@ -27,7 +26,6 @@ export function PostSearchForm({
           <SearchIcon aria-hidden />
         </InputGroupAddon>
         <InputGroupInput
-          // A new query from the rail replaces the text on the search page.
           key={defaultValue}
           type="search"
           name="q"

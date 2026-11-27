@@ -31,7 +31,6 @@ import {
   workspaceMenuKey,
 } from "@/features/workspaces/workspaces-cache"
 
-/** The API's `MAX_PAGE_LIMIT`. */
 const PAGE_LIMIT = 50
 
 export type WorkspaceApplication = Omit<WorkspaceFormValues, "proofs"> & {
@@ -63,7 +62,6 @@ function applicationBody({ location, otherPlatformUrls, legal, ...rest }: Worksp
     longitude: location.longitude,
     latitude: location.latitude,
     otherPlatformUrls: otherPlatformUrls.map(({ url }) => url),
-    // An individual has no company or household name.
     legal: {
       ...legal,
       legalName: legal.entityType === "INDIVIDUAL" ? null : legal.legalName,
@@ -113,10 +111,6 @@ export async function removeWorkspaceMember(token: string, id: string, userId: s
   })
 }
 
-/**
- * Every application, newest first. The admin table sorts, filters and
- * paginates in the browser, so it needs the whole list.
- */
 export async function fetchAllAdminWorkspaces([url, token]: readonly [string, string]) {
   const workspaces: AdminWorkspace[] = []
   for (let page = 1; ; page++) {

@@ -1,9 +1,3 @@
-// Mirrors vedora-api's src/workspaces/citizen-id.ts.
-
-/**
- * Birth-registration province codes of a 12-digit citizen ID (CCCD), per Thông tư
- * 59/2021/TT-BCA: the 63 provinces from before the 2025 merger.
- */
 const BIRTH_PROVINCE_CODES: ReadonlySet<string> = new Set([
   "001", "002", "004", "006", "008", "010", "011", "012", "014", "015",
   "017", "019", "020", "022", "024", "025", "026", "027", "030", "031",
@@ -16,17 +10,12 @@ const BIRTH_PROVINCE_CODES: ReadonlySet<string> = new Set([
 
 const CITIZEN_ID = /^\d{12}$/
 
-/** 0/1 = male/female born 1900–1999, 2/3 = born 2000–2099; later digits are future centuries. */
 function birthCentury(sexAndCentury: string): number | null {
   if (sexAndCentury === "0" || sexAndCentury === "1") return 1900
   if (sexAndCentury === "2" || sexAndCentury === "3") return 2000
   return null
 }
 
-/**
- * True when `value` is 12 digits with a real province code and a birth year that is not in
- * the future. It only rules out invented numbers; it cannot tell whose number it is.
- */
 export function isWellFormedCitizenId(value: string, today = new Date()): boolean {
   if (!CITIZEN_ID.test(value)) return false
   if (!BIRTH_PROVINCE_CODES.has(value.slice(0, 3))) return false

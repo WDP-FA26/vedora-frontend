@@ -70,12 +70,6 @@ function failureMessage(error: unknown) {
   return "Không lưu được chỉnh sửa. Thử lại nhé."
 }
 
-/**
- * Edits the text and videos of the author's own post. Changed content is
- * checked again like a new post, so the dialog says so before saving. The form
- * only exists while the dialog is open: closing it drops videos that were
- * uploaded here but never saved.
- */
 export function EditPostDialog({
   postId,
   open,
@@ -101,7 +95,6 @@ export function EditPostDialog({
             Nội dung đã sửa sẽ được kiểm duyệt lại như bài mới. Thêm hoặc thay video có thể mất vài phút.
           </DialogDescription>
         </DialogHeader>
-        {/* Mounted only while open, so closing drops videos that were never saved. */}
         {open && (
           <EditPostForm
             postId={postId}
@@ -127,7 +120,6 @@ function EditPostForm({
   onClose: () => void
 }) {
   const { accessToken } = useAuth()
-  // The feed card does not carry the videos' ids, so read the post itself.
   const { data: post, error: loadError, isValidating } = useSWR(
     accessToken ? ([postKey(postId), accessToken] as const) : null,
     fetchPost,
@@ -137,7 +129,6 @@ function EditPostForm({
   if (loadError) {
     return <p role="alert" className="text-sm text-destructive">Không tải được bài viết. Đóng rồi thử lại nhé.</p>
   }
-  // A cached copy may be out of date; edit the fresh one.
   if (!post || isValidating) {
     return (
       <div className="flex justify-center py-8">
@@ -194,7 +185,6 @@ function EditPostFields({
     setError(null)
     try {
       const saved = await updatePost(accessToken, post.id, { body: trimmed, mediaIds: finalIds })
-      // The new videos belong to the post now; closing must not discard them.
       release()
       onClose()
       toast.add(resultToast(saved))

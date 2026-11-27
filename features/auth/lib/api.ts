@@ -2,9 +2,6 @@ import { accountBlockOf, type AccountBlock } from "@/features/auth/lib/account-b
 import type { AuthTokens } from "@/features/auth/types"
 import { PUBLIC_ENV } from "@/lib/env"
 
-// Server-side calls to vedora-api (Server Actions, `getAuth`, the proxy).
-// Client Components call the API directly with the token from `useAuth()`.
-
 export const API_URL = PUBLIC_ENV.apiUrl
 
 export function apiFetch(path: string, init?: RequestInit) {
@@ -21,24 +18,9 @@ export function postJson(path: string, body: unknown) {
 
 export type RefreshResult =
   | { kind: "rotated"; tokens: AuthTokens }
-  /**
-   * The API rejected the token (expired, revoked or reused): sign out. `block`
-   * says when it was the account itself, such as a suspension.
-   */
   | { kind: "rejected"; block: AccountBlock | null }
-  /** Network or 5xx failure: keep the cookies and try again next request. */
   | { kind: "failed" }
 
-/**
- * The API revokes the whole token family when a refresh token is used twice.
- * A page load fires several requests at once (document, RSC prefetches, SWR),
- * all carrying the same expired cookies, so concurrent rotations of one token
- * share a single API call. Results are kept briefly for requests that arrive
- * just after it settles, before the browser has stored the new cookies.
- *
- * This lives in module memory, so it covers one server process. With several
- * instances, add a short reuse grace period on the API side as well.
- */
 const inflight = new Map<string, Promise<RefreshResult>>()
 const SHARE_RESULT_MS = 10_000
 
@@ -60,7 +42,6 @@ export function rotateRefreshToken(refreshToken: string): Promise<RefreshResult>
 
   inflight.set(refreshToken, promise)
   promise.then((result) => {
-    // Failures are retried on the next request instead of being cached.
     const ttl = result.kind === "failed" ? 0 : SHARE_RESULT_MS
     setTimeout(() => inflight.delete(refreshToken), ttl)
   })

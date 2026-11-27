@@ -10,7 +10,6 @@ import type { ProfileSearchItem } from "@/features/profiles/schemas"
 import { VerifiedBadge } from "@/features/shared/components/verified-badge"
 import { PROFESSIONAL_LABEL } from "@/features/verification/schemas"
 
-/** Profile search row with link to the user's profile and an inline Follow toggle. */
 export function ProfileSearchRow({
   profile,
   redirectTo,

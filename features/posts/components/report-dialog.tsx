@@ -41,7 +41,6 @@ import {
 } from "@/features/posts/schemas"
 import { ApiError } from "@/features/shared/lib/api-client"
 
-/** Sends a post or comment to the admins' moderation queue with a reason. */
 export function ReportDialog({
   postId,
   commentId,
@@ -97,7 +96,6 @@ export function ReportDialog({
       }
       setSent(true)
     } catch (error) {
-      // Already in the queue, which is what the reporter wanted.
       if (error instanceof ApiError && error.code === "ALREADY_REPORTED") {
         setSent(true)
         return

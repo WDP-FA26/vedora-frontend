@@ -27,7 +27,6 @@ type FieldConfig = {
   input: React.ComponentProps<"input">
 }
 
-// Side by side, family name first as Vietnamese names are written.
 const nameFields: FieldConfig[] = [
   { name: "lastName", label: "Họ", input: { autoComplete: "family-name", autoFocus: true } },
   { name: "firstName", label: "Tên", input: { autoComplete: "given-name" } },
@@ -71,7 +70,6 @@ export function RegisterForm({ next }: { next?: string }) {
 
   async function onSubmit(values: RegisterValues) {
     await mutate(() => true, undefined, { revalidate: false })
-    // Resolves only on failure; on success the action redirects.
     const serverErrors = await register(values, next)
     for (const [name, message] of Object.entries(serverErrors)) {
       form.setError(name as keyof typeof serverErrors, { message }, { shouldFocus: true })

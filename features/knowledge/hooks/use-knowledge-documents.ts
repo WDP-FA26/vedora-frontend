@@ -17,7 +17,6 @@ const isPending = (document: KnowledgeDocument) =>
   document.status === "PROCESSING" ||
   document.status === "INDEXING"
 
-// TanStack Table rebuilds its row models whenever `data` changes identity.
 const NO_DOCUMENTS: KnowledgeDocument[] = []
 
 export function useKnowledgeDocuments() {

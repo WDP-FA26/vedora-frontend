@@ -17,14 +17,12 @@ test.describe("profile (guest)", () => {
       "href",
       "/profile/u-chef/following"
     )
-    // The chef's two posts from the fixtures.
     await expect(profile.getByRole("article", { name: "Bài viết của Lê Bếp Chay" })).toHaveCount(2)
   })
 
   test("the follow button sends guests to login and returns them here", async ({ page }) => {
     await page.goto("/profile/u-chef")
     await expect(page.getByRole("heading", { name: "Lê Bếp Chay" })).toBeVisible()
-    // Rendered as a link styled like a button, so its role is not "link".
     await page.locator("a", { hasText: /^Theo dõi$/ }).click()
     await expect(page).toHaveURL(/\/login\?next=%2Fprofile%2Fu-chef/)
   })

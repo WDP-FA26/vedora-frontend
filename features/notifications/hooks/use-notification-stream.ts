@@ -18,15 +18,9 @@ import {
   type NotificationPage,
 } from "@/features/notifications/schemas"
 
-/**
- * Ids of the notifications this tab already handled. A tab can briefly hold
- * two streams (a reconnect overlapping the old one, a remounted layout), and
- * each delivers the same notification, so it is toasted and counted once.
- */
 const handledIds = new Set<string>()
 const MAX_HANDLED_IDS = 200
 
-/** True the first time an id is seen in this tab. */
 function firstDelivery(id: string): boolean {
   if (handledIds.has(id)) return false
   handledIds.add(id)
@@ -37,16 +31,8 @@ function firstDelivery(id: string): boolean {
   return true
 }
 
-/** Thrown from `onopen`/`onerror` to stop `fetchEventSource` from retrying. */
 class FatalStreamError extends Error {}
 
-/**
- * Keeps one SSE connection to `/notifications/sse` open while the user is
- * signed in and puts each pushed notification into the SWR caches. The
- * connection follows the access token: a refreshed token reopens it. The
- * library pauses it while the tab is hidden and reconnects on return, so the
- * count is refetched on every open to cover what was missed.
- */
 export function useNotificationStream() {
   const { accessToken } = useAuth()
   const { mutate } = useSWRConfig()
@@ -67,10 +53,7 @@ export function useNotificationStream() {
           void mutate(pageKey)
           return
         }
-        // Expired while the page sat open: re-render the layout so the proxy
-        // rotates the pair; the new token reopens the stream.
         if (response.status === 401) router.refresh()
-        // Server errors are transient: throw a retryable error so the library reconnects.
         if (response.status >= 500) throw new Error(`GET /notifications/sse failed (${response.status})`)
         throw new FatalStreamError(`GET /notifications/sse failed (${response.status})`)
       },
@@ -80,7 +63,6 @@ export function useNotificationStream() {
         if (!parsed.success) return
         const incoming = parsed.data
         if (!firstDelivery(incoming.id)) return
-        // The list on /home/notifications already shows it arriving.
         if (window.location.pathname !== "/home/notifications") {
           const { from, text } = describeNotification(incoming)
           toast.add({
@@ -100,7 +82,6 @@ export function useNotificationStream() {
         void mutate(countKey, (count?: number) => (count ?? 0) + 1, { revalidate: false })
       },
       onerror(error) {
-        // Fatal errors stop the stream; anything else retries with backoff.
         if (error instanceof FatalStreamError) throw error
       },
     }).catch(() => {})

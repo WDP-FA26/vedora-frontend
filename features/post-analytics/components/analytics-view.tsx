@@ -14,7 +14,6 @@ import type { AnalyticsSummary } from "../schemas"
 import { AnalyticsPosts } from "./analytics-posts"
 import { TrendChart, TrendTable } from "./trend-chart"
 
-/** A calm, sign-only comparison: no colors or arrows that reward or scold. */
 function changeText(current: number, previous: number): string {
   const difference = current - previous
   if (difference === 0) return "Bằng kỳ trước"
@@ -231,13 +230,11 @@ function SummarySection({ days }: { days: RangePreset }) {
   )
 }
 
-/** "Thống kê": the signed-in author's own post analytics. Only they can see it. */
 export function AnalyticsView({ initialDays }: { initialDays: RangePreset }) {
   const [days, setDays] = useState(initialDays)
 
   function changeDays(next: RangePreset) {
     setDays(next)
-    // Keeps the range across reloads without a server round trip.
     window.history.replaceState(null, "", `?days=${next}`)
   }
 

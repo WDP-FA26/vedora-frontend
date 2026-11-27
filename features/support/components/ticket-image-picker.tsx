@@ -14,18 +14,12 @@ function isAllowedType(type: string): boolean {
   return SUPPORT_ATTACHMENT_TYPES.some((allowed) => allowed === type)
 }
 
-/** A chosen image and its local object-URL preview. */
 export type PickedImage = { file: File; preview: string }
 
-/** Frees the previews once the images are sent or discarded. */
 export function releasePickedImages(images: readonly PickedImage[]) {
   for (const image of images) URL.revokeObjectURL(image.preview)
 }
 
-/**
- * Compact image attach control for ticket forms: an "Đính kèm ảnh" button and
- * a row of removable thumbnails. Rejects files over the size or count limit.
- */
 export function TicketImagePicker({
   images,
   onChange,

@@ -94,7 +94,6 @@ const EMPTY_CHECKLIST: ReviewChecklist = {
   phoneConfirmed: false,
 }
 
-/** A company or household tax code can be looked up; a citizen ID is personal data and is not sent out. */
 const LOOKUP_TAX_CODE = /^\d{10}(-\d{3})?$/
 
 function reviewErrorMessage(error: unknown) {
@@ -108,7 +107,6 @@ function reviewErrorMessage(error: unknown) {
   return "Không lưu được quyết định. Thử lại nhé."
 }
 
-/** An application's details, legal info, documents and warnings, with approve and reject for pending ones. */
 export function WorkspaceReviewSheet({
   workspaceId,
   onClose,
@@ -122,7 +120,6 @@ export function WorkspaceReviewSheet({
     <Sheet open={workspaceId !== null} onOpenChange={(open) => !open && onClose()}>
       <SheetContent className="data-[side=right]:w-full data-[side=right]:sm:max-w-xl">
         {workspace ? (
-          // Keyed so the checklist and reject form start empty for each application.
           <ReviewBody key={workspace.id} workspace={workspace} onReviewed={onClose} />
         ) : (
           <>
@@ -146,14 +143,8 @@ export function WorkspaceReviewSheet({
   )
 }
 
-/** The tax department says this when the taxpayer is active. */
 const ACTIVE_TAX_STATUS = "đang hoạt động"
 
-/**
- * What the tax department's public data says about a company tax code, beside
- * what the applicant typed. It informs the "tax code matches" checklist item;
- * it never decides on its own.
- */
 function TaxCodeRecord({ workspaceId }: { workspaceId: string }) {
   const { lookup, error, loading, retry } = useTaxCodeLookup(workspaceId)
 
@@ -242,7 +233,6 @@ function Section({
   )
 }
 
-/** Documents in the order of the application form, whatever order they were uploaded in. */
 function proofsInFormOrder(proofs: AdminWorkspaceDetail["proofs"]) {
   return [...proofs].sort((a, b) => PROOF_KINDS.indexOf(a.kind) - PROOF_KINDS.indexOf(b.kind))
 }
@@ -274,7 +264,6 @@ function ReviewBody({
   const { isSubmitting, errors } = form.formState
   const busy = approving || isSubmitting
   const { owner, legal } = workspace
-  // Applications from before the 3-step form have nothing to check off.
   const needsChecklist = legal !== null
   const checklistDone = REVIEW_CHECKLIST_ITEMS.every((item) => checklist[item])
 
@@ -519,7 +508,6 @@ function ReviewBody({
             </p>
           )}
           {rejecting ? (
-            // Keyed apart so React never turns the "Từ chối" button into the submit one.
             <div key="reject" className="flex justify-end gap-2">
               <Button variant="outline" disabled={busy} onClick={() => setRejecting(false)}>
                 Quay lại

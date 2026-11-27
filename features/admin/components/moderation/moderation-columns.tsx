@@ -14,7 +14,6 @@ import { useCategoryLabel } from "@/features/admin/hooks/use-category-label"
 import { REPORT_REASON_LABELS } from "@/features/posts/schemas"
 import { formatPostDateLong } from "@/features/shared/lib/format"
 
-/** What a row can do; provided by the page so the columns can stay static. */
 export const QueueActionsContext = createContext<{
   open: (postId: string) => void
   decide: (postId: string, decision: "APPROVE" | "REJECT") => void
@@ -85,7 +84,6 @@ function Actions({ row }: { row: QueueRow }) {
   )
 }
 
-/** The excerpt opens the post too, since "Xem" can sit past the edge of a wide table. */
 function ExcerptCell({ row }: { row: QueueRow }) {
   const { open } = use(QueueActionsContext)
   return (
@@ -114,7 +112,6 @@ export const queueColumns = helper.columns([
     enableHiding: false,
     meta: { label: "Bài viết" },
   }),
-  // Unrated rows read as undefined so `sortUndefined` keeps them last in both directions.
   helper.accessor((row) => row.riskLevel ?? undefined, {
     id: "riskLevel",
     header: ({ column }) => <DataTableColumnHeader column={column} title="Mức rủi ro" />,

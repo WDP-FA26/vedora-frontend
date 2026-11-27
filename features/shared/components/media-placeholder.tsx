@@ -16,10 +16,6 @@ export const toneClasses: Record<PlaceholderTone, string> = {
   beet: "bg-[oklch(0.9_0.04_350)] text-[oklch(0.42_0.09_350)] dark:bg-[oklch(0.3_0.045_350)] dark:text-[oklch(0.86_0.06_350)]",
 }
 
-/**
- * Stand-in for real photography until uploads exist. Carries the alt text
- * so the layout and accessibility tree match the final image.
- */
 export function MediaPlaceholder({
   tone,
   label,

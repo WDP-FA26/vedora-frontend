@@ -80,7 +80,6 @@ export function useConversations(box: Inbox) {
   const { setSize, mutate: revalidate } = result
   useEffect(() => {
     let active = true
-    // Reuse cache keys; activity must not create a new cache generation per event.
     void setSize(1)
       .then(() => (active ? revalidate() : undefined))
       .catch(() => undefined)
@@ -152,7 +151,6 @@ export function useMessageHistory(
         .then(() => revalidate())
         .catch(() => undefined)
   }, [deletedThroughSequence, resetHistorySize, revalidate])
-  // A resumed stream has no replay guarantee. Reconcile every loaded history page.
   useEffect(() => {
     if (connected) void revalidate().catch(() => undefined)
   }, [connected, revalidate])

@@ -1,11 +1,6 @@
 import { Children } from "react"
 import { cn } from "cn"
 
-/**
- * X's attachment layout. One item keeps its own shape; two sit side by side,
- * three put the first in a tall left column, four make a 2×2 grid, all in a
- * 16:9 frame so every cell crops to fill.
- */
 export function MediaGrid({
   children,
   className,

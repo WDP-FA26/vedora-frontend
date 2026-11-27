@@ -117,7 +117,6 @@ test.describe("edit blog", () => {
       "Cách ủ tương đậu nành tại nhà"
     )
     await expect(page.getByRole("textbox", { name: "Nội dung bài viết" })).toContainText("Đậu nành, muối, nước sạch.")
-    // A published blog is saved explicitly and can go back to draft.
     await expect(page.getByRole("button", { name: "Chuyển về nháp" })).toBeVisible()
   })
 

@@ -7,7 +7,6 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { PostVideo } from "@/features/admin/components/content/post-sheet"
 import { useAdminPost } from "@/features/admin/hooks/use-admin-posts"
 
-/** The post a recipe is written from: its text, videos and transcripts, beside the form. */
 export function RecipeSource({
   postId,
   onUnlink,

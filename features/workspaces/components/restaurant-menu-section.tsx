@@ -30,7 +30,6 @@ function groupByCategory(items: RestaurantMenuItem[]) {
   return Array.from(groups.entries())
 }
 
-/** Public menu tab on a restaurant fanpage profile. */
 export function RestaurantMenuSection({
   pageUserId,
   workspaceId,

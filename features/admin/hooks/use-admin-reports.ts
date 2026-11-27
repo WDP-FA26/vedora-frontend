@@ -8,7 +8,6 @@ import type { AdminReport } from "@/features/admin/schemas"
 import { useAuth } from "@/features/auth/hooks/use-auth"
 import { useAuthedSWR } from "@/features/auth/hooks/use-authed-swr"
 
-// TanStack Table rebuilds its row models whenever `data` changes identity.
 const NO_REPORTS: AdminReport[] = []
 
 export function useAdminReports() {
@@ -16,7 +15,6 @@ export function useAdminReports() {
   return { reports: data ?? NO_REPORTS, error, isLoading }
 }
 
-/** Closes a pending report and writes the result into the list. */
 export function useReviewReport() {
   const { accessToken } = useAuth()
   const { mutate } = useSWRConfig()
@@ -31,7 +29,6 @@ export function useReviewReport() {
         { revalidate: false }
       )
     } catch {
-      // Most likely another admin closed it first; show what the server has.
       await mutate([ADMIN_REPORTS_KEY, accessToken])
     }
   }

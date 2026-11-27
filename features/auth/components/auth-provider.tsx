@@ -9,13 +9,6 @@ import { PostDraftSession } from "@/features/post-drafts/provider"
 
 export const AccessTokenContext = createContext<string | undefined>(undefined)
 
-/**
- * Hands the server's session to Client Components: the access token (the
- * cookie itself stays httpOnly) and the user, seeded into `useAuth()`'s cache.
- * Layouts don't re-render on client navigation, so a token can outlive its
- * expiry here; `useAuth()` then calls `router.refresh()`, the proxy rotates
- * the pair, and the layout passes the fresh token down.
- */
 export function AuthProvider({
   accessToken,
   user,

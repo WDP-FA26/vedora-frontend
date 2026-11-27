@@ -24,10 +24,6 @@ import { ApiError } from "@/features/shared/lib/api-client"
 
 const FORM_ID = "ingredient-form"
 
-/**
- * Adds an ingredient, or edits `ingredient` when given. A new ingredient can
- * start from `suggestion`, the fields AI read from a caption.
- */
 export function IngredientDialog({
   open,
   ingredient,
@@ -131,7 +127,6 @@ function IngredientForm({
         id={FORM_ID}
         noValidate
         onSubmit={(event) => {
-          // The recipe editor opens this dialog inside its own form.
           event.stopPropagation()
           void form.handleSubmit(onSubmit)(event)
         }}

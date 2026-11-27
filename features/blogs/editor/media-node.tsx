@@ -24,18 +24,12 @@ import { Button } from "@/components/ui/button"
 
 export type MediaKind = "image" | "video"
 
-/**
- * Videos are written as image Markdown, `![caption](url)`, so any Markdown
- * renderer degrades to a link and the API stores plain text. A URL that points
- * at Cloudinary's video delivery, or at a video file, is a video.
- */
 export function isVideoUrl(url: string) {
   return /\/video\/upload\//.test(url) || /\.(mp4|webm|mov)(\?|#|$)/i.test(url)
 }
 
 type SerializedMediaNode = Spread<{ src: string; alt: string }, SerializedLexicalNode>
 
-/** An image or video on its own line. */
 export class MediaNode extends DecoratorNode<JSX.Element> {
   __src: string
   __alt: string
@@ -132,7 +126,6 @@ function MediaView({
   useEffect(
     () =>
       mergeRegister(
-        // Backspace/Delete with the media selected removes it.
         ...[KEY_BACKSPACE_COMMAND, KEY_DELETE_COMMAND].map((command) =>
           editor.registerCommand(
             command,

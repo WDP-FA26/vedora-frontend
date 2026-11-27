@@ -5,7 +5,6 @@ import { usePathname } from "next/navigation"
 
 import { cn } from "@/lib/utils"
 
-/** Pages that take the right rail's space for a panel of their own. */
 const WIDE_PATHS = ["/home/meal-planner", "/home/messages", "/home/restaurants"]
 
 export function MainColumns({ children, rail }: { children: ReactNode; rail: ReactNode }) {
@@ -22,12 +21,6 @@ export function MainColumns({ children, rail }: { children: ReactNode; rail: Rea
       >
         {children}
       </main>
-      {/*
-        Hidden, not unmounted, on wide pages. Remounting the rail on every visit
-        to them leaked the old one: Chromium keeps an unmounted <img srcset> (the
-        rail's sticker) alive through its media-query listener, and the rail's
-        whole DOM with it.
-      */}
       <div className={wide ? "hidden" : "contents"}>{rail}</div>
     </>
   )

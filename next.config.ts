@@ -1,49 +1,27 @@
 import type { NextConfig } from "next";
 
-// Validates the public environment when the server starts (see lib/env.ts).
 import { PUBLIC_ENV } from "./lib/env";
 
 const isDev = process.env.NODE_ENV === "development";
-// Vercel preview deployments inject the Vercel Toolbar (comments, feedback).
 const isPreview = process.env.VERCEL_ENV === "preview";
 const toolbar = (...sources: string[]) => (isPreview ? ` ${sources.join(" ")}` : "");
-// Client Components call vedora-api directly (see `useAuth()`).
 const apiOrigin = new URL(PUBLIC_ENV.apiUrl).origin;
-// Cloudinary: signed direct uploads (api.cloudinary.com); HLS streams, posters
-// and caption files (res.cloudinary.com).
 const cloudinaryUpload = "https://api.cloudinary.com";
 const cloudinaryCdn = "https://res.cloudinary.com";
-// CldVideoPlayer loads its pinned player build from unpkg. Its source map is
-// fetched through connect-src, so the same path is allowed there too.
 const cloudinaryPlayer = "https://unpkg.com/cloudinary-video-player@1.11.1/";
-// The player also loads its stylesheet from unpkg (style-src) and reports
-// playback analytics and resolves its source through this API (connect-src).
 const cloudinaryPlayerStyles = "https://unpkg.com/cloudinary-video-player@1.11.1/dist/cld-video-player.min.css";
 const cloudinaryAnalytics = "https://analytics-api-s.cloudinary.com";
 const storageOrigin = new URL(PUBLIC_ENV.storageUrl).origin;
-// Dish photos are hot-linked, not stored: only these free-licence hosts may serve them.
-// Keep in sync with DISH_IMAGE_HOSTS in features/recipes/schemas.ts.
 const dishImages = "https://upload.wikimedia.org https://images.unsplash.com https://images.pexels.com";
-// Mapbox GL: styles, tiles, sprites and fonts (api.mapbox.com, *.tiles.mapbox.com),
-// geocoding (api.mapbox.com) and the SDK's usage telemetry (events.mapbox.com).
-// The map renders in a blob: worker and draws tiles as blob:/data: images.
 const mapbox = "https://api.mapbox.com https://*.tiles.mapbox.com https://events.mapbox.com";
-// Meal planner voice agent: the browser streams audio to Vercel AI Gateway's realtime WebSocket.
 const aiGatewayRealtime = "wss://ai-gateway.vercel.sh";
-// Cloudflare Turnstile: the script and the challenge iframe of the guest chat.
 const turnstile = "https://challenges.cloudflare.com";
 
-/**
- * No nonces: they would force every route to render per request, and the
- * landing page is served statically from the CDN. 'unsafe-inline' scripts are
- * still needed for Next's inline bootstrap and the theme script.
- */
 const csp = [
   "default-src 'self'",
   `script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'${isDev ? " 'unsafe-eval'" : ""} ${cloudinaryPlayer} ${turnstile}${toolbar("https://vercel.live")}`,
   `style-src 'self' 'unsafe-inline' ${cloudinaryPlayerStyles}${toolbar("https://vercel.live")}`,
   `img-src 'self' blob: data: ${cloudinaryCdn} ${storageOrigin} https://vietqr.app ${dishImages}${toolbar("https://vercel.live", "https://vercel.com")}`,
-  // The Cloudinary player's icon font is inlined as a data: URI.
   `font-src 'self' data:${toolbar("https://vercel.live", "https://assets.vercel.com")}`,
   `connect-src 'self' ${apiOrigin} ${cloudinaryUpload} ${cloudinaryCdn} ${cloudinaryAnalytics} ${storageOrigin} ${cloudinaryPlayer} ${mapbox} ${aiGatewayRealtime}${toolbar("https://vercel.live", "wss://ws-us3.pusher.com")}`,
   `media-src 'self' blob: ${cloudinaryCdn}`,
@@ -66,7 +44,6 @@ const securityHeaders = [
   { key: "Cross-Origin-Opener-Policy", value: "same-origin" },
   {
     key: "Permissions-Policy",
-    // The meal planner's voice agent needs the microphone on this origin only.
     value: "camera=(), microphone=(self), geolocation=(self), payment=(), usb=(), browsing-topics=()",
   },
 ];

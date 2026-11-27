@@ -42,7 +42,6 @@ import { profilePath } from "@/features/profiles/profiles-cache"
 const ALLERGIES_ID = "dietary-allergies"
 const PREFERENCES_ID = "dietary-preferences"
 
-/** Where a user lists what they do not eat and their body profile. */
 export function DietaryView() {
   const { user, accessToken } = useAuth()
   const isPageSession = user?.accountType === "PAGE"

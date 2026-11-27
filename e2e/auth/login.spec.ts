@@ -22,7 +22,6 @@ test.describe("login", () => {
   })
 
   test("submit stays disabled until the security check passes, then enables", async ({ page }) => {
-    // The stubbed Turnstile widget reports a token shortly after mount.
     await expect(page.getByRole("button", { name: "Đăng nhập" })).toBeEnabled()
   })
 
@@ -46,7 +45,6 @@ test.describe("login", () => {
     await page.getByRole("button", { name: "Đăng nhập" }).click()
     await expect(page.getByText("Tên đăng nhập hoặc mật khẩu không đúng.")).toBeVisible()
     await expect(page).toHaveURL(/\/login$/)
-    // The password field is cleared after a failed attempt.
     await expect(page.getByLabel("Mật khẩu")).toHaveValue("")
   })
 

@@ -120,7 +120,6 @@ function PostsBody({ range, sort, page, onPage }: { range: DateRange; sort: Post
   )
 }
 
-/** The author's public posts with what happened on each in the range. */
 export function AnalyticsPosts({ range }: { range: DateRange }) {
   const [sort, setSort] = useState<PostSort>("recent")
   const [page, setPage] = useState(1)

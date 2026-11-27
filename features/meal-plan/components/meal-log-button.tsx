@@ -86,10 +86,6 @@ function dayLabel(day: MealLogDay) {
   return `${SHORT_DAY_LABELS[day.day]} ${formatDayMonth(day.date)}`
 }
 
-/**
- * Asks for a review first and names the days that may change: from today to
- * Sunday of the logged week, never another week.
- */
 function reviewPrompt(week: MealLogWeek) {
   const today = week.days.find((item) => item.date === week.today)
   const sunday = week.days[week.days.length - 1]
@@ -105,7 +101,6 @@ function kcal(value: number) {
   return `${value.toLocaleString("vi-VN")} kcal`
 }
 
-/** What went wrong, in words the user can act on. */
 function logErrorMessage(error: unknown) {
   if (!(error instanceof ApiError)) return "Không lưu được. Hãy thử lại."
   if (error.code === "MEAL_LOG_LOCKED") return "Chỉ ghi được hôm nay và 7 ngày trước đó."
@@ -117,7 +112,6 @@ function logErrorMessage(error: unknown) {
   return error.message
 }
 
-/** The meal of the current hour, as the default for a new dish. */
 function sectionForNow(): MealSection {
   const hour = new Date().getHours()
   if (hour < 10) return "BREAKFAST"
@@ -126,7 +120,6 @@ function sectionForNow(): MealSection {
   return "OTHER"
 }
 
-/** Integer kcal 0–5000 from a text field; null when blank or invalid. */
 function parseCalories(text: string): number | null {
   if (!text.trim()) return null
   const value = Number(text)
@@ -152,21 +145,14 @@ export type CustomDishPrefill = {
   date?: string
 }
 
-/** `openDay(null)` opens the diary on today. */
 export type MealLogHandle = {
   openDay: (date: string | null) => void
   openCustomDish: (prefill?: CustomDishPrefill) => void
   close: () => void
   scroll: (direction: ScreenScrollDirection) => void
-  /** Whether the diary is open and on which day, for the voice agent's view of the page. */
   screen: () => { open: boolean; date: string | null; scrollState?: VoiceScrollState }
 }
 
-/**
- * Header button of the week: what the user actually ate, beside the plan.
- * Ticking a planned dish, adding anything else (kcal typed or looked up by AI)
- * and the week's numbers, in a side sheet.
- */
 export function MealLogButton({
   plan,
   onAskAssistant,
@@ -174,7 +160,6 @@ export function MealLogButton({
 }: {
   plan: MealPlan
   onAskAssistant?: (prompt: string) => void
-  /** Lets the voice agent open and close the diary. */
   handle?: Ref<MealLogHandle>
 }) {
   const [open, setOpen] = useState(false)
@@ -297,11 +282,9 @@ function WeekSummary({
   week: MealLogWeek
   selectedDay: Weekday
   onPickDay: (day: Weekday) => void
-  /** Missing when there is no assistant to ask. */
   onReview?: (week: MealLogWeek) => void
 }) {
   const { summary, dailyCalorieTarget } = week
-  // A review needs one finished day with every dish counted, and a day left to change.
   const canReview = onReview !== undefined && summary.completeDays > 0 && summary.remainingDays > 0
   let scale = dailyCalorieTarget ?? 0
   for (const item of week.days) {
@@ -374,7 +357,6 @@ function dayAriaLabel(day: MealLogDay, today: string) {
   return parts.join(", ")
 }
 
-/** A quiet bar of what was eaten; no colours for over or under. */
 function DayBar({ day, scale }: { day: MealLogDay; scale: number }) {
   const height = scale > 0 ? Math.round((day.loggedCalories / scale) * 100) : 0
   return (
@@ -700,7 +682,6 @@ function AddDishForm({
   const parsedServings = parseServings(servings)
   const parsedCalories = parseCalories(calories)
   const caloriesInvalid = calories.trim() !== "" && parsedCalories === null
-  // The estimate counts as AI only while the user keeps its number.
   const usesEstimate =
     estimate !== null && estimate.caloriesPerServing !== null && parsedCalories === estimate.caloriesPerServing
 

@@ -1,8 +1,3 @@
-// Generated from https://provinces.open-api.vn/api/v2/?depth=2 on 2026-11-27:
-// Vietnam's 34 provinces and 3,321 wards, communes and special zones after the
-// merger of 1 July 2025. Codes are the official ones, zero-padded. Do not edit by hand.
-
-/** Province or centrally run city name by official code; mirrors vedora-api. */
 export const VN_PROVINCES = {
   "01": "Thành phố Hà Nội",
   "04": "Tỉnh Cao Bằng",

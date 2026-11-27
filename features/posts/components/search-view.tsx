@@ -47,7 +47,6 @@ function buildSearchRedirect(q: string, tab: SearchTab) {
   return `/home/search?${params}`
 }
 
-/** Searches people (Qdrant BM25), catalog recipes, restaurant dishes and posts, with Facebook/X-style tabs and inline Follow. */
 export function SearchView({ q, initialTab }: { q: string; initialTab: SearchTab }) {
   const [tab, setTab] = useState(initialTab)
   const postsSearch = usePostSearch(q)

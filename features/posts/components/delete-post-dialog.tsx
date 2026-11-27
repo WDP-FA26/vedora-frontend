@@ -19,10 +19,6 @@ import { useAuth } from "@/features/auth/hooks/use-auth"
 import { deletePost } from "@/features/posts/lib/posts-api"
 import { POSTS_KEY, postPath } from "@/features/posts/posts-cache"
 
-/**
- * Asks before deleting one of the author's own posts, then drops it from every
- * cached list. On the post's own page, goes back to the feed.
- */
 export function DeletePostDialog({
   postId,
   open,

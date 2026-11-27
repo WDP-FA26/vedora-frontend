@@ -36,7 +36,6 @@ import { Soundscape } from "@/features/landing/lib/soundscape"
 
 gsap.registerPlugin(useGSAP, ScrollTrigger)
 
-// three.js only runs in the browser, and the story reads fine before it loads.
 const ParticleScene = dynamic(
   () => import("./particle-scene").then((mod) => mod.ParticleScene),
   { ssr: false },
@@ -44,11 +43,8 @@ const ParticleScene = dynamic(
 
 export function Landing() {
   const root = useRef<HTMLDivElement>(null)
-  // 0–4: which shape the particle cloud shows, written by ScrollTrigger.
   const sceneProgress = useRef(0)
-  // The closing copy, which the final sprout is planted above.
   const closing = useRef<HTMLDivElement>(null)
-  // Created on first opt-in: browsers only allow audio after a user gesture.
   const sound = useRef<Soundscape | null>(null)
   const [soundOn, setSoundOn] = useState(false)
 
@@ -61,8 +57,6 @@ export function Landing() {
     setSoundOn(!soundOn)
   }
 
-  // Inertial scrolling, driven by GSAP's ticker so ScrollTrigger stays in sync.
-  // Touch devices keep their native scrolling, which already has momentum.
   useEffect(() => {
     const smooth = window.matchMedia(
       "(prefers-reduced-motion: no-preference) and (hover: hover) and (pointer: fine)",
@@ -98,14 +92,11 @@ export function Landing() {
             hover: boolean
           }
           const pin = motion && wide
-          // Phones get flat fades that play once; 3D flips, blur and
-          // replaying on scroll-back cost too much there and feel busy.
           const reveal = wide
             ? { y: 48, rotateX: -25, toggleActions: "play none none reverse" }
             : { y: 20, rotateX: 0, toggleActions: "play none none none" }
           const cleanups: Array<() => void> = []
 
-          // Hero entrance.
           if (motion) {
             gsap.from(q("[data-hero-title]"), {
               y: wide ? 40 : 24,
@@ -132,7 +123,6 @@ export function Landing() {
               ease: "sine.inOut",
             })
 
-            // Hero drifts up and out of focus as the story begins.
             gsap.to(q("[data-hero-inner]"), {
               yPercent: -18,
               opacity: 0,
@@ -147,8 +137,6 @@ export function Landing() {
             })
           }
 
-          // Triggers are created in document order so each one accounts for
-          // the pin spacing added above it.
           const stages = q<HTMLElement>("[data-stage]")
           const local = stages.map(() => 0)
           stages.forEach((section, i) => {
@@ -162,7 +150,6 @@ export function Landing() {
               },
             })
 
-            // Not every section has lines or reveals; skip empty targets.
             const reveals = section.querySelectorAll("[data-reveal]")
             const lines = section.querySelectorAll("[data-line]")
             if (motion && reveals.length) {
@@ -253,7 +240,6 @@ export function Landing() {
 
             if (section.id === "vedora" && pin) {
               const track = section.querySelector<HTMLElement>("[data-track]")!
-              // Slide until the track's end meets the end of its own box.
               const distance = () =>
                 Math.max(
                   0,
@@ -284,8 +270,6 @@ export function Landing() {
                       trigger: card,
                       containerAnimation: slide,
                       start: "left 100%",
-                      // Settle once fully in view, so the last card (which
-                      // never travels far left) still lands flat.
                       end: "right 100%",
                       scrub: true,
                     },
@@ -296,7 +280,6 @@ export function Landing() {
           })
 
           if (motion && hover) {
-            // Cards lean toward the cursor, with a sheen that follows it.
             q<HTMLElement>("[data-tilt]").forEach((card) => {
               const rotateX = gsap.quickTo(card, "rotationX", {
                 duration: 0.6,
@@ -327,7 +310,6 @@ export function Landing() {
               })
             })
 
-            // The closing button leans toward the cursor.
             q<HTMLElement>("[data-magnetic]").forEach((zone) => {
               const target = zone.firstElementChild as HTMLElement
               const x = gsap.quickTo(target, "x", {
@@ -445,7 +427,6 @@ export function Landing() {
       </header>
 
       <main>
-        {/* Hero */}
         <section
           data-hero
           aria-labelledby="hero-title"
@@ -483,7 +464,6 @@ export function Landing() {
           </div>
         </section>
 
-        {/* Chapter 01: body */}
         <section
           id="co-the"
           data-stage
@@ -540,7 +520,6 @@ export function Landing() {
           </div>
         </section>
 
-        {/* Chapter 02: planet */}
         <section
           id="hanh-tinh"
           data-stage
@@ -602,7 +581,6 @@ export function Landing() {
           </div>
         </section>
 
-        {/* Chapter 03: platform */}
         <section
           id="vedora"
           data-stage
@@ -629,8 +607,6 @@ export function Landing() {
             </div>
           </div>
 
-          {/* Cards are sized as a share of this container (cqw), so on
-              desktop the row always overflows it and has room to slide. */}
           <div className="@container mx-auto mt-10 w-full max-w-7xl md:mt-12">
             <div className="snap-x snap-mandatory scroll-px-4 overflow-x-auto overscroll-x-contain pb-4 [scrollbar-width:none] sm:scroll-px-8 md:motion-safe:overflow-visible">
               <ul
@@ -676,7 +652,6 @@ export function Landing() {
           </p>
         </section>
 
-        {/* Closing */}
         <section
           data-stage
           aria-labelledby="cta-title"

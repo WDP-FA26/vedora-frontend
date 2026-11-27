@@ -9,7 +9,6 @@ export const metadata: Metadata = {
 }
 
 export default async function ResetPasswordPage() {
-  // Only reachable right after asking for a code on /forgot-password.
   const email = await getPendingEmail("reset")
   if (!email) redirect("/forgot-password")
 

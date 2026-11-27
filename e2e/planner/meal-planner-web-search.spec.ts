@@ -20,7 +20,6 @@ const thread = {
   updatedAt: NOW,
 }
 
-/** A conversation whose last turn is the planner asking to search the web, still unanswered. */
 const threadDetail = {
   ...thread,
   proposalStatuses: {},
@@ -41,7 +40,6 @@ const threadDetail = {
 
 const ANSWER = "Theo một số trang bán hàng, gói 250g khoảng 45.000–80.000đ. Thông tin từ web có thể sai, bạn kiểm tra lại nhé."
 
-/** The UI message stream `POST /meal-plan/chat` sends after a web search: two cited pages and a reply. */
 function webAnswerStream() {
   const chunks = [
     { type: "start", messageId: "m-3" },
@@ -122,14 +120,12 @@ test.describe("meal planner web search", () => {
     await expect(page.getByText("Bạn đã cho phép tìm trên web")).toBeVisible()
     await expect(page.getByText("Được tìm trên web")).toBeVisible()
 
-    // The sources open on hover under the reply.
     await page.getByRole("button", { name: "Nguồn · 2" }).hover()
     const sources = page.getByRole("dialog", { name: "Nguồn trợ lý đã tham khảo" })
     await expect(sources.getByRole("region", { name: "Trên web" })).toContainText("có thể sai")
     const link = sources.getByRole("link", { name: "Tempeh đậu nành 250g" })
     await expect(link).toHaveAttribute("href", "https://example.com/tempeh")
     await expect(link).toHaveAttribute("target", "_blank")
-    // An untitled source falls back to its host name.
     await expect(sources.getByRole("link", { name: "shop.example.vn" })).toBeVisible()
   })
 

@@ -32,7 +32,6 @@ import {
 import { DataTablePagination } from "@/features/admin/components/data-table/data-table-pagination"
 import { DataTableViewOptions } from "@/features/admin/components/data-table/data-table-view-options"
 
-/** A saved filter shown as a tab above the table. */
 export type DataTableView = {
   id: string
   label: string
@@ -43,10 +42,6 @@ export type DataTableView = {
 const sameFilters = (a: ColumnFiltersState, b: ColumnFiltersState) =>
   JSON.stringify(a) === JSON.stringify(b)
 
-/**
- * shadcn's data table (TanStack Table) laid out edge to edge: view tabs and
- * tools in one bar, the rows, then pagination.
- */
 export function DataTable<TData extends RowData>({
   columns,
   data,
@@ -64,20 +59,12 @@ export function DataTable<TData extends RowData>({
   data: TData[]
   getRowId: (row: TData) => string
   views?: DataTableView[]
-  /** Id of the view applied on first render; none means unfiltered. */
   defaultView?: string
   searchPlaceholder?: string
-  /**
-   * Hands the search box to the page, for a search the API runs. Without it
-   * the box filters the loaded rows in the browser.
-   */
   search?: { value: string; onChange: (value: string) => void }
   emptyMessage?: ReactNode
-  /** Shown in the bar while rows are selected. */
   selectionActions?: (table: ReactTable<DataTableFeatures, TData>) => ReactNode
-  /** Page-level actions at the end of the bar. */
   actions?: ReactNode
-  /** Optional server pagination; existing tables keep their local pagination. */
   pagination?: {
     state: PaginationState
     onChange: OnChangeFn<PaginationState>

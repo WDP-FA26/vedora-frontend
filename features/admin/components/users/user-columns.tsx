@@ -52,8 +52,6 @@ export const userColumns = helper.columns([
         aria-label="Chọn tất cả trên trang"
       />
     ),
-    // Subscribed, as the row object is stable and React Compiler would
-    // otherwise not see its selection change.
     cell: ({ row }) => (
       <Subscribe
         source={row.table.atoms.rowSelection}
@@ -123,7 +121,6 @@ export const userColumns = helper.columns([
         {joinedDate.format(new Date(getValue()))}
       </span>
     ),
-    // ISO timestamps order correctly as text.
     sortFn: "text",
     enableGlobalFilter: false,
     meta: { label: "Ngày tham gia", className: "hidden xl:table-cell" },
@@ -150,7 +147,6 @@ export const userColumns = helper.columns([
       return (
         <div className="flex items-center gap-2">
           <Badge variant={variant}>{label}</Badge>
-          {/* The version role and status changes must send back. */}
           <span
             title="Phiên bản tài khoản"
             className="text-xs text-muted-foreground tabular-nums"

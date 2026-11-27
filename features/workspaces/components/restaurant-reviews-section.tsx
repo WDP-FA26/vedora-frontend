@@ -88,7 +88,6 @@ function breakdownCount(
   }
 }
 
-/** Google Maps-style star rating summary, breakdown bars, user review form, and sorted reviews. */
 export function RestaurantReviewsSection({
   pageUserId,
   workspaceId,

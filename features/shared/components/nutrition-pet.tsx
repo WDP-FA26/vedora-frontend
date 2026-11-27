@@ -35,7 +35,6 @@ type PetContextValue = PetPreference & {
 
 const PetContext = createContext<PetContextValue | null>(null)
 
-/** Seeded from cookies on the server, so the right pet renders on the first frame. */
 export function PetProvider({ initial, children }: { initial: PetPreference; children: ReactNode }) {
   const [pet, setPetState] = useState(initial.pet)
   const [offset, setOffsetState] = useState(initial.offset)
@@ -91,7 +90,6 @@ const REMINDER = "Cần hỏi nhanh dinh dưỡng hay lên thực đơn?"
 const MESSAGE_VISIBLE_MS = 25_000
 const MESSAGE_INTERVAL_MS = 3 * 60_000
 
-/** Greets on first load, then repeats the reminder every 3 minutes for 25s. */
 function usePetMessage() {
   const [message, setMessage] = useState<string | null>(null)
 
@@ -113,8 +111,6 @@ function usePetMessage() {
 }
 
 export function NutritionPet() {
-  // The page owns the conversation; closing the popover must not reset it or interrupt a reply.
-  // It stays in React memory and is discarded on a full page reload.
   const chat = useNutritionChat()
   const message = usePetMessage()
   const { pet, offset: savedOffset, setOffset } = usePet()
@@ -128,7 +124,6 @@ export function NutritionPet() {
     <Popover
       open={chatOpen}
       onOpenChange={(open, { reason }) => {
-        // a drag ends with a click on the pet; don't treat it as a toggle
         if (reason === "trigger-press" && suppressClick.current) return
         setChatOpen(open)
       }}
@@ -162,7 +157,6 @@ export function NutritionPet() {
           drag.current = null
           if (!state?.moved || !dragOffset) return
           suppressClick.current = true
-          // keep the pet fully on screen
           const rect = event.currentTarget.getBoundingClientRect()
           const nudgeX = Math.max(0, -rect.left) - Math.max(0, rect.right - window.innerWidth)
           const nudgeY = Math.max(0, -rect.top) - Math.max(0, rect.bottom - window.innerHeight)
@@ -234,19 +228,16 @@ const limb = { stroke: "oklch(0.3 0.03 60)", strokeWidth: 2.2, fill: "none", str
 function SaladPet() {
   return (
     <svg viewBox="0 0 64 72" className={PET_CLASS_NAME} aria-hidden>
-      {/* legs */}
       <g className="origin-[26px_56px] animate-pet-step">
         <path d="M26 56 L24 67 L20 68" {...limb} />
       </g>
       <g className="origin-[38px_56px] animate-pet-step [animation-delay:-0.4s]">
         <path d="M38 56 L40 67 L44 68" {...limb} />
       </g>
-      {/* arms */}
       <path d="M9 40 L3 46 L1 43" {...limb} />
       <g className="origin-[55px_40px] animate-pet-wave">
         <path d="M55 40 L61 32 L63 34 M61 32 L60 29" {...limb} />
       </g>
-      {/* greens piled above the bowl */}
       <circle cx="18" cy="30" r="8" fill="oklch(0.7 0.17 140)" />
       <circle cx="30" cy="24" r="9" fill="oklch(0.62 0.17 145)" />
       <circle cx="44" cy="28" r="8.5" fill="oklch(0.74 0.16 130)" />
@@ -254,7 +245,6 @@ function SaladPet() {
       <circle cx="40" cy="21" r="3" fill="oklch(0.65 0.2 28)" />
       <ellipse cx="50" cy="33" rx="4" ry="2.5" fill="oklch(0.88 0.15 95)" />
       <ellipse cx="13" cy="34" rx="3.5" ry="2" fill="oklch(0.6 0.12 330)" />
-      {/* bowl */}
       <path d="M7 34 H57 C57 48 47 58 32 58 C17 58 7 48 7 34Z" fill="oklch(0.93 0.03 80)" stroke="oklch(0.75 0.06 70)" strokeWidth="1.5" />
       <circle cx="17" cy="45" r="3" fill="oklch(0.78 0.12 20)" opacity="0.6" />
       <circle cx="47" cy="45" r="3" fill="oklch(0.78 0.12 20)" opacity="0.6" />

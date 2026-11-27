@@ -12,11 +12,9 @@ const FRAMES: Record<MealSection, string> = {
   OTHER: "bg-brand-cream/60",
 }
 
-// SVG shapes rotate and scale around their own centre, not the canvas origin.
 const SELF = "origin-center [transform-box:fill-box]"
 const RAYS = [0, 45, 90, 135, 180, 225, 270, 315]
 
-/** The dish photo when the recipe has one that loads, else a small animated picture of the meal. */
 export function MealArt({
   section,
   imageUrl,
@@ -26,17 +24,14 @@ export function MealArt({
 }: {
   section: MealSection
   imageUrl?: string | null
-  /** Render nothing, not the drawing, when there is no photo to show. */
   photoOnly?: boolean
   className?: string
-  /** Applied to the photo only, e.g. to show it whole instead of cropped to the frame. */
   photoClassName?: string
 }) {
   const [failedUrl, setFailedUrl] = useState<string | null>(null)
 
   if (imageUrl && imageUrl !== failedUrl) {
     return (
-      // Hot-linked from another site, so the Next image optimizer is not used.
       // eslint-disable-next-line @next/next/no-img-element
       <img
         src={imageUrl}

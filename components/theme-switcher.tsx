@@ -25,17 +25,12 @@ function isThemeChoice(value: unknown): value is ThemeSelection {
   return themes.some((option) => option.value === value)
 }
 
-/**
- * The stored choice is only known in the browser, so nothing is shown as
- * selected until hydration to avoid a server/client mismatch.
- */
 function useThemeChoice() {
   const { theme, setTheme } = useTheme()
   const hydrated = useHydrated()
   return { theme: hydrated ? theme : undefined, setTheme }
 }
 
-/** Segmented Light / Dark / System control. */
 export function ThemeSwitcher() {
   const { theme, setTheme } = useThemeChoice()
 
@@ -59,7 +54,6 @@ export function ThemeSwitcher() {
   )
 }
 
-/** Theme choice as radio items, for use inside a DropdownMenuContent. */
 export function ThemeMenuGroup() {
   const { theme, setTheme } = useThemeChoice()
 

@@ -86,7 +86,6 @@ function scaffold(template: GuideTemplate) {
   return template.headings.map((heading) => `${heading}:`).join("\n")
 }
 
-/** Blank template labels are never considered finished writing. */
 function filledDescription(value: string) {
   return value.split("\n").filter((line) => {
     const trimmed = line.trim()
@@ -262,7 +261,6 @@ export function VideoGuideComposer({
     setSubmitError(null)
     let postedPost: ApiPost | null = null
     try {
-      // The API accepts only type POST, body and media IDs. Guide structure is plain text.
       const post = await durable.publish()
       if (post.status === "FAILED") {
         setSubmitError("Hệ thống chưa xử lý được video. Nội dung vẫn được giữ để bạn thử lại.")

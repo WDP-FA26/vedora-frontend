@@ -1,10 +1,6 @@
 import Link from "next/link"
 import { cn } from "cn"
 
-/**
- * The Vedora logo (`public/logo.svg`). `mono` paints its silhouette in the
- * current text color, for colored backgrounds; dark mode always does.
- */
 export function Logo({ mono, className }: { mono?: boolean; className?: string }) {
   return (
     <span
@@ -20,7 +16,6 @@ export function Logo({ mono, className }: { mono?: boolean; className?: string }
   )
 }
 
-/** The round “V” mark (`public/logo-mark.svg`) on a primary disc. */
 export function LogoMark({ className }: { className?: string }) {
   return (
     <span
@@ -35,7 +30,6 @@ export function LogoMark({ className }: { className?: string }) {
   )
 }
 
-/** The logo, or just the round “V” mark (`public/logo-mark.svg`) when `compact`. */
 export function Wordmark({
   href = "/home",
   compact,

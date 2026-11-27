@@ -14,7 +14,6 @@ import { Spinner } from "@/components/ui/spinner"
 import { resendVerificationCode, verifyEmail, type ResendResult } from "@/features/auth/actions"
 import { verifyEmailSchema, type VerifyEmailValues } from "@/features/auth/schemas"
 
-// Mirror the API's limits, which are what actually enforce them.
 const RESEND_COOLDOWN_SECONDS = 120
 const MAX_RESENDS = 3
 
@@ -27,9 +26,7 @@ export function VerifyEmailForm({ next }: { next?: string }) {
   const { isSubmitting, errors } = form.formState
 
   async function onSubmit(values: VerifyEmailValues) {
-    // Drop any user cached from a previous session before signing in.
     await mutate(() => true, undefined, { revalidate: false })
-    // Resolves only on failure; on success the action redirects.
     const serverErrors = await verifyEmail(values, next)
     for (const [name, message] of Object.entries(serverErrors)) {
       form.setError(name as keyof typeof serverErrors, { message })
@@ -57,7 +54,6 @@ export function VerifyEmailForm({ next }: { next?: string }) {
                 autoFocus
                 disabled={isSubmitting}
                 aria-invalid={fieldState.invalid}
-                // Pasting or typing the last digit submits right away.
                 onComplete={() => submit()}
               >
                 <InputOTPGroup className="w-full">
@@ -99,11 +95,6 @@ export function VerifyEmailForm({ next }: { next?: string }) {
   )
 }
 
-/**
- * A code was sent just before this page opened, so the cooldown starts right
- * away. The count is per page visit; if earlier visits used up the resends,
- * the API answers 429 and the button goes away then.
- */
 export function ResendCode({ resend: requestCode }: { resend: () => Promise<ResendResult> }) {
   const [secondsLeft, setSecondsLeft] = useState(RESEND_COOLDOWN_SECONDS)
   const [resendsLeft, setResendsLeft] = useState(MAX_RESENDS)
@@ -162,7 +153,6 @@ export function ResendCode({ resend: requestCode }: { resend: () => Promise<Rese
   )
 }
 
-/** 95 → "1:35" */
 function formatCountdown(seconds: number) {
   return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`
 }

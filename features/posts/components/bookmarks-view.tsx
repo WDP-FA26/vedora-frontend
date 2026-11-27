@@ -26,13 +26,11 @@ import { SavedRecipes } from "@/features/recipes/components/saved-recipes"
 
 const TAB_LABELS: Record<BookmarkTab, string> = { posts: "Bài viết", recipes: "Công thức" }
 
-/** "Đã lưu": saved posts and saved recipes, one tab each, kept in `?tab=`. */
 export function BookmarksView({ initialTab }: { initialTab: BookmarkTab }) {
   const [tab, setTab] = useState(initialTab)
 
   function select(next: BookmarkTab) {
     setTab(next)
-    // Keeps the tab across reloads without a server round trip.
     window.history.replaceState(null, "", next === "posts" ? "?" : `?tab=${next}`)
   }
 
@@ -61,10 +59,6 @@ export function BookmarksView({ initialTab }: { initialTab: BookmarkTab }) {
   )
 }
 
-/**
- * The posts the signed-in user saved. A post unsaved here stays in place, so
- * a slip can be undone, and is gone the next time the page loads.
- */
 function SavedPosts() {
   const { data, error, isLoading } = useAuthedSWR(BOOKMARKS_KEY, fetchPostPage)
   const posts = data?.items ?? []

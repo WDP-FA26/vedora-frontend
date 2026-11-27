@@ -144,7 +144,6 @@ export function ProofPicker({
   disabled: boolean
   onChange: (proofs: Proof[]) => void
 }) {
-  // Kept out of the form: revalidating `proofs` on change would clear it.
   const [rejection, setRejection] = useState<string | null>(null)
   const remaining = MAX_PROOFS - proofs.length
   const { getRootProps, getInputProps, open, isDragActive } = useDropzone({
@@ -156,8 +155,6 @@ export function ProofPicker({
     onDrop: (accepted, rejected) => {
       const added = accepted.slice(0, remaining)
       if (added.length) {
-        // Created on pick and revoked on removal or submit, not in an effect,
-        // so Strict Mode can't revoke a preview that is still shown.
         onChange([
           ...proofs,
           ...added.map((file) => ({ file, preview: URL.createObjectURL(file) })),

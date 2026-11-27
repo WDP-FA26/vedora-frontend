@@ -12,7 +12,6 @@ import { useWorkspace } from "@/features/workspaces/hooks/use-workspaces"
 import { REJECT_REASON_LABELS } from "@/features/workspaces/onboarding"
 import { WORKSPACES_PATH, workspacePath } from "@/features/workspaces/workspaces-cache"
 
-/** Apply to open a restaurant page, or (with `resubmitId`) fix and resend a rejected one. */
 export function NewWorkspaceView({ resubmitId }: { resubmitId: string | null }) {
   const { user } = useAuth()
   const backHref = resubmitId ? workspacePath(resubmitId) : WORKSPACES_PATH

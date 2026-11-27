@@ -54,7 +54,6 @@ function formatQuantity(item: PublicRecipeDetail["ingredients"][number]) {
   return [item.quantity, item.unit].filter((part) => part !== null && part !== "").join(" ")
 }
 
-/** Saves or unsaves the recipe for the signed-in user; guests go to sign in. */
 function FavoriteButton({
   recipe,
   withLabel = false,
@@ -85,7 +84,6 @@ function FavoriteButton({
   )
 }
 
-/** `label` names the recipe's category, when the caller knows it. */
 export function RecipeCard({
   recipe,
   label,
@@ -137,7 +135,6 @@ export function RecipeCard({
           )}
         </span>
       </button>
-      {/* A sibling of the card button: buttons can't nest. */}
       <FavoriteButton recipe={recipe} className="absolute top-2 right-2" />
     </div>
   )
@@ -376,13 +373,11 @@ function AddToMealPlanButton({
   )
 }
 
-/** The dish photo, or a plain "No Image" panel when there is none or it fails to load. */
 function RecipeImage({ imageUrl, className }: { imageUrl: string | null; className?: string }) {
   const [failedUrl, setFailedUrl] = useState<string | null>(null)
 
   if (imageUrl && imageUrl !== failedUrl) {
     return (
-      // Hot-linked from another site, so the Next image optimizer is not used.
       // eslint-disable-next-line @next/next/no-img-element
       <img
         src={imageUrl}

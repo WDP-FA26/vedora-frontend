@@ -10,10 +10,8 @@ import {
   useGuestToken,
 } from "@/features/nutrition-chat/lib/guest-session"
 
-/** Mirrors `MAX_CHAT_MESSAGES` in vedora-api's NutritionChatDto. */
 const CONTEXT_MESSAGES = 5
 
-/** vedora-api marks its fixed refusals with `{ refused: true }`. */
 type ChatMessage = UIMessage<{ refused?: boolean }>
 
 const WELCOME: ChatMessage = {
@@ -31,7 +29,6 @@ export function messageText(message: UIMessage) {
   return message.parts.map((part) => (part.type === "text" ? part.text : "")).join("")
 }
 
-/** Why a guest cannot ask more today: their own quota, or the budget for all guests. */
 export type GuestLimit = "quota" | "closed"
 
 function guestLimit(error: Error): GuestLimit | null {
@@ -51,21 +48,18 @@ function errorMessage(error: Error) {
   if (APICallError.isInstance(error) && error.statusCode === 503) {
     return "Trợ lý Vedora đang tạm nghỉ. Bạn quay lại sau nhé."
   }
-  // mid-stream failures arrive as the API's `ChatErrorCode`
   if (error.message === "RATE_LIMITED") {
     return "Trợ lý đang quá tải. Bạn thử lại sau ít phút nhé."
   }
   return "Mình chưa trả lời được. Thử lại nhé."
 }
 
-// a refused request must not ride along as context for the next message
 function withoutRefusals(messages: ChatMessage[]) {
   return messages.filter(
     (message, index) => !message.metadata?.refused && !messages[index + 1]?.metadata?.refused
   )
 }
 
-// Sends plain { role, text } pairs, the shape NutritionChatDto accepts.
 const transport = new DefaultChatTransport<ChatMessage>({
   api: `${API_URL}/nutrition-chat`,
   prepareSendMessagesRequest: ({ messages, headers }) => ({
@@ -78,10 +72,6 @@ const transport = new DefaultChatTransport<ChatMessage>({
   }),
 })
 
-/**
- * The guest conversation with vedora-api's `POST /nutrition-chat`, which
- * streams the reply from OpenRouter. The greeting stays client-side.
- */
 export function useNutritionChat() {
   const guestToken = useGuestToken()
   const [limit, setLimit] = useState<GuestLimit | null>(null)
@@ -90,7 +80,6 @@ export function useNutritionChat() {
     transport,
     messages: [WELCOME],
     onError: (error) => {
-      // expired or rejected: the panel runs the Turnstile check again
       if (APICallError.isInstance(error) && error.statusCode === 401) clearGuestSession()
       setLimit(guestLimit(error))
     },
@@ -103,15 +92,10 @@ export function useNutritionChat() {
   return {
     messages,
     busy,
-    /** Waiting for the reply's first text (reasoning models think first). */
     thinking: busy && !replying,
-    /** The assistant message whose trace shows the thinking, once the reply has started. */
     pendingId: busy && !replying && last?.role === "assistant" ? last.id : null,
-    /** The assistant message still streaming in, if any. */
     streamingId: replying ? last.id : null,
-    /** Set once the guest has no messages left today; the panel offers sign-up instead. */
     limit,
-    /** False until the Turnstile check has produced a guest session. */
     ready: guestToken !== null,
     error: error && !limit ? errorMessage(error) : null,
     send: (text: string) =>

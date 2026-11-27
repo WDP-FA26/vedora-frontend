@@ -39,18 +39,15 @@ const UNREACHABLE = "Không kết nối được máy chủ. Vui lòng thử l�
 const INVALID = "Thông tin chưa hợp lệ. Vui lòng kiểm tra lại."
 const VERIFICATION_EXPIRED = "Phiên xác minh đã hết hạn. Vui lòng đăng nhập lại."
 const RESET_EXPIRED = "Phiên đặt lại mật khẩu đã hết hạn. Vui lòng yêu cầu mã mới."
-/** `details` of an EMAIL_NOT_VERIFIED response. */
 const emailDetailsSchema = z.object({ email: z.string() })
 
 const TOO_MANY_GUESSES =
   "Bạn đã nhập sai mã quá nhiều lần. Vui lòng thử lại sau 24 giờ hoặc đăng nhập bằng Google."
 
-/** Keeps `?next=` when moving between the auth pages. */
 function withNext(path: string, next?: string) {
   return next ? `${path}?next=${encodeURIComponent(next)}` : path
 }
 
-/** Remembers where the code went, then asks for it. */
 async function redirectToVerification(email: string, next?: string): Promise<never> {
   await setPendingEmail(email)
   redirect(withNext("/verify-email", next))
@@ -71,7 +68,6 @@ export async function login(
   const response = await postJson("/auth/login", parsed.data).catch(() => null)
   if (!response) return { root: UNREACHABLE }
   if (response.status === 403) {
-    // Right password, unverified email: the API has just sent a code.
     const failure = apiErrorSchema.safeParse(await response.json().catch(() => null))
     if (failure.success && failure.data.code === "CAPTCHA_FAILED") {
       return { turnstileToken: "Xác minh không hợp lệ hoặc đã hết hạn. Vui lòng xác minh lại." }
@@ -81,7 +77,6 @@ export async function login(
       if (verification.success) return redirectToVerification(verification.data.email, next)
     }
   }
-  // Right password, suspended account: say so instead of "wrong password".
   const block = await accountBlockOf(response)
   if (block) return { root: ACCOUNT_BLOCK_MESSAGES[block] }
   if (!response.ok) return { root: "Tên đăng nhập hoặc mật khẩu không đúng." }
@@ -106,7 +101,6 @@ export async function register(
   }).catch(() => null)
   if (!response) return { root: UNREACHABLE }
   if (response.status === 409) {
-    // The API names the taken column: "username already exists".
     const { message } = await response.json()
     if (message === "username already exists") {
       return { username: "Tên đăng nhập này đã có người dùng" }
@@ -118,7 +112,6 @@ export async function register(
   }
   if (!response.ok) return { root: INVALID }
 
-  // No tokens yet: the account is usable once the emailed code is entered.
   const { email: sentTo } = await response.json()
   return redirectToVerification(sentTo, next)
 }
@@ -151,17 +144,14 @@ export async function verifyEmail(
 
 export type ResendResult =
   | { ok: true }
-  /** `limitReached`: no more resends this hour, so hide the button. */
   | { ok: false; message: string; limitReached?: boolean }
 
-/** Asks for a new code (every 2 minutes, at most 3 resends an hour). */
 export async function resendVerificationCode(): Promise<ResendResult> {
   const email = await getPendingEmail()
   if (!email) return { ok: false, message: VERIFICATION_EXPIRED }
   return resendCode("/auth/verify-email/resend", email)
 }
 
-/** Asks for a new password reset code, with the same limits. */
 export async function resendPasswordResetCode(): Promise<ResendResult> {
   const email = await getPendingEmail("reset")
   if (!email) return { ok: false, message: RESET_EXPIRED }
@@ -183,10 +173,6 @@ async function resendCode(path: string, email: string): Promise<ResendResult> {
   return { ok: true }
 }
 
-/**
- * Emails a reset code, then asks for it. The API answers the same for unknown
- * emails, so this always moves on and never reveals whether one is registered.
- */
 export async function requestPasswordReset(
   values: ForgotPasswordValues
 ): Promise<FormErrors<ForgotPasswordValues>> {
@@ -225,7 +211,6 @@ export async function resetPassword(
   if (response.status === 429) return { root: TOO_MANY_GUESSES }
   if (!response.ok) return { root: UNREACHABLE }
 
-  // Every session was signed out, this browser's included: start fresh.
   clearTokenCookies(await cookies())
   await clearPendingEmail("reset")
   redirect("/login?reset=1")
@@ -235,7 +220,6 @@ export async function logout() {
   const cookieStore = await cookies()
   const refreshToken = cookieStore.get(REFRESH_TOKEN_COOKIE)?.value
   if (refreshToken) {
-    // Revoke the token family server-side; sign out locally even if this fails.
     await postJson("/auth/logout", { refreshToken }).catch(() => undefined)
   }
   clearTokenCookies(cookieStore)
@@ -250,12 +234,6 @@ const SWITCH_ERRORS: Record<string, string> = {
   ACCOUNT_SUSPENDED: "Tài khoản của bạn đang bị khóa.",
 }
 
-/**
- * Swaps this browser's session for one acting as `pageId`, or back to your
- * own account when it is `null`. The API revokes the current refresh token,
- * so the cookies are replaced in the same step; then the app reloads as the
- * new identity (every authenticated SWR key carries the access token).
- */
 export async function switchAccount(
   pageId: string | null,
   next: string

@@ -12,10 +12,6 @@ import {
 } from "media-chrome/react"
 import { cn } from "cn"
 
-/**
- * Plays a local file before it reaches Cloudinary: Media Chrome over a native
- * `<video>`, so any format the browser decodes works.
- */
 export function VideoPreview({
   src,
   label,
@@ -23,7 +19,6 @@ export function VideoPreview({
 }: {
   src: string
   label: string
-  /** In a multi-item grid, keep the full video in view. */
   fill?: boolean
 }) {
   return (

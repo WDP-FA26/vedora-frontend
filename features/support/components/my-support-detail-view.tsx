@@ -56,19 +56,15 @@ const TRIGGER_LABELS = {
   REMOVED: "Bị quản trị viên gỡ bỏ",
 } as const
 
-/** Mirrors the API's limits in `vedora-api/src/config/runtime-defaults.ts`. */
 const MAX_MESSAGES_PER_TICKET = 50
 const MAX_CONSECUTIVE_USER_MESSAGES = 3
 
 function contentHrefFor(appeal: SupportAppealData): string {
-  // A blocked blog is fixed in the editor; a post opens its page.
   if (appeal.postType === "BLOG") return editBlogPath(appeal.postId)
   return postPath(appeal.postId)
 }
 
-/** Why the author cannot reply right now, matching the API's 409 responses. */
 function replyBlockReason(ticket: SupportTicketDetail, reopening: boolean): string | null {
-  // Reopening also logs a "reopened" entry, so it needs room for two messages.
   const needed = reopening ? 2 : 1
   if (ticket.messageCount + needed > MAX_MESSAGES_PER_TICKET) {
     return "Hồ sơ đã đạt giới hạn số lượt trao đổi."
@@ -238,7 +234,6 @@ export function MySupportDetailView({ id }: { id: string }) {
           </div>
         )}
 
-        {/* Section 1: Formal CMT metadata table */}
         <section aria-labelledby="section-meta-title">
           <h2
             id="section-meta-title"
@@ -390,7 +385,6 @@ export function MySupportDetailView({ id }: { id: string }) {
           </table>
         </section>
 
-        {/* Section 2: Correspondence log */}
         <section aria-labelledby="section-thread-title">
           <div className="mb-2 flex items-baseline justify-between gap-2">
             <h2 id="section-thread-title" className="text-sm font-medium text-foreground">
@@ -403,7 +397,6 @@ export function MySupportDetailView({ id }: { id: string }) {
           <TicketThread messages={ticket.messages} viewerRole="USER" />
         </section>
 
-        {/* Section 3: Reply form or closed notice */}
         <section aria-labelledby="section-reply-title">
           <h2
             id="section-reply-title"

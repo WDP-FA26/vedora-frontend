@@ -49,7 +49,6 @@ const VIEWS: DataTableView[] = [
 
 const getRequestId = (request: AdminVerificationRequest) => request.id
 
-/** Professional verification requests, for admins to approve or reject. */
 export function VerificationRequestsTable() {
   const params = useSearchParams()
   const { requests, error, isLoading } = useVerificationRequests()

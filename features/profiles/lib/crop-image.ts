@@ -11,7 +11,6 @@ export async function cropImage(file: File, area: CropArea, maxWidth: number): P
   context.drawImage(bitmap, 0, 0, width, height)
   bitmap.close()
 
-  // Browsers that can't encode WebP fall back to PNG; name the file to match.
   const blob = await canvas.convertToBlob({ type: "image/webp", quality: 0.9 })
   const extension = blob.type.replace("image/", "")
   return new File([blob], `${file.name.replace(/\.[^.]*$/, "")}.${extension}`, {

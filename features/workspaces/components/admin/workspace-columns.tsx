@@ -10,7 +10,6 @@ import { formatPostDateLong } from "@/features/shared/lib/format"
 import { VerificationStatusBadge } from "@/features/verification/components/admin/request-columns"
 import type { AdminWorkspace } from "@/features/workspaces/schemas"
 
-/** Opens an application for review; provided by the page so the columns can stay static. */
 export const ReviewWorkspaceContext = createContext<(id: string) => void>(() => {})
 
 function ReviewButton({ workspace }: { workspace: AdminWorkspace }) {
@@ -75,7 +74,6 @@ export const workspaceColumns = helper.columns([
   helper.accessor("createdAt", {
     header: ({ column }) => <DataTableColumnHeader column={column} title="Gửi lúc" />,
     cell: ({ getValue }) => formatPostDateLong(getValue()),
-    // ISO timestamps order correctly as text.
     sortFn: "text",
     enableGlobalFilter: false,
     meta: { label: "Gửi lúc", className: "hidden md:table-cell" },

@@ -17,13 +17,10 @@ import {
 export type SelectOption = {
   id: string
   name: string
-  /** Extra text the search matches, e.g. an ingredient's other names. */
   keywords?: string
-  /** A second line under the name in the list. */
   detail?: string
 }
 
-/** Long catalogs render only the first matches; typing narrows them down. */
 const MAX_VISIBLE_OPTIONS = 50
 
 const fold = (text: string) =>
@@ -33,7 +30,6 @@ const fold = (text: string) =>
     .replace(/đ/gi, "d")
     .toLowerCase()
 
-/** Matches with or without Vietnamese tone marks: "dau hu" finds "Đậu hũ". */
 function matches(option: SelectOption, query: string) {
   return fold(`${option.name} ${option.keywords ?? ""}`).includes(fold(query.trim()))
 }
@@ -41,7 +37,6 @@ function matches(option: SelectOption, query: string) {
 const sameOption = (a: SelectOption, b: SelectOption) => a.id === b.id
 const optionLabel = (option: SelectOption) => option.name
 
-/** Searchable single choice; `value` is the chosen id, or "" for none. */
 export function NamedSelect({
   id,
   options,
@@ -82,7 +77,6 @@ export function NamedSelect({
   )
 }
 
-/** Searchable multiple choice shown as chips; `value` is the chosen ids. */
 export function NamedMultiSelect({
   id,
   options,

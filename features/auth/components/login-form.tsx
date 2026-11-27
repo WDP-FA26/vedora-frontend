@@ -33,16 +33,13 @@ export function LoginForm({ next }: { next?: string }) {
 
   async function onSubmit(values: LoginValues) {
     try {
-      // Drop any user cached from a previous session before switching accounts.
       await mutate(() => true, undefined, { revalidate: false })
-      // Resolves only on failure; on success the action redirects.
       const serverErrors = await login(values, next)
       for (const [name, message] of Object.entries(serverErrors)) {
         form.setError(name as keyof typeof serverErrors, { message })
       }
     } finally {
       form.resetField("password", { keepError: true })
-      // Siteverify consumes tokens even when the credentials are incorrect.
       form.setValue("turnstileToken", "")
       turnstile.current?.reset()
     }

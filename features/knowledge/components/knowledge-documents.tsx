@@ -75,10 +75,6 @@ const VIEWS: DataTableView[] = [
 
 const getDocumentId = (document: KnowledgeDocument) => document.id
 
-/**
- * Upload and manage the PDFs the nutrition assistant draws on. The whole page
- * is the drop target; "Tải lên" opens the file picker.
- */
 export function KnowledgeDocuments() {
   const params = useSearchParams()
   const defaultView = VIEWS.find((view) => view.id === params.get("view"))?.id ?? "all"
@@ -91,7 +87,6 @@ export function KnowledgeDocuments() {
     accept: KNOWLEDGE_ACCEPT,
     noClick: true,
     noKeyboard: true,
-    // Rejected files go through too, so vedora-api explains why.
     onDrop: (accepted, rejected) =>
       add([...accepted, ...rejected.map(({ file }) => file)]),
   })

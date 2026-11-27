@@ -45,7 +45,6 @@ type Scope = (typeof SCOPES)[number]["id"];
 
 const MINUTE_OPTIONS = [15, 30, 60] as const;
 
-/** Days a request may cover: today only when it is in this week, otherwise every day that has not passed. */
 function daysFor(scope: Scope, plan: MealPlan): Weekday[] {
   if (scope !== "TODAY") return editableDaysOf(plan);
   const today = todayOf(plan);
@@ -69,17 +68,12 @@ function requestFor(
   return request;
 }
 
-/**
- * Opens a short form that runs the non-AI meal-plan algorithm (0 AI quota)
- * and saves the picked dishes directly into the chosen slots.
- */
 export function QuickGenerate({
   plan,
   disabled,
   variant = "toolbar",
   onGenerate,
 }: {
-  /** The week on screen; nothing can be generated until it has loaded. */
   plan: MealPlan | undefined
   disabled: boolean
   variant?: "toolbar" | "fab"
@@ -96,7 +90,6 @@ export function QuickGenerate({
   const [query, setQuery] = useState("");
   const [error, setError] = useState("");
   const [pending, setPending] = useState(false);
-  // "Hôm nay" only makes sense in the week that holds today.
   const scopes = SCOPES.filter(({ id }) => id !== "TODAY" || (plan !== undefined && todayOf(plan) !== undefined));
   const activeScope: Scope = scopes.some(({ id }) => id === scope) ? scope : "EMPTY";
 

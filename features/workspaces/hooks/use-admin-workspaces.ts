@@ -18,7 +18,6 @@ import {
   adminWorkspaceKey,
 } from "@/features/workspaces/workspaces-cache"
 
-// TanStack Table rebuilds its row models whenever `data` changes identity.
 const NO_WORKSPACES: AdminWorkspace[] = []
 
 export function useAdminWorkspaces() {
@@ -26,7 +25,6 @@ export function useAdminWorkspaces() {
   return { workspaces: data ?? NO_WORKSPACES, error, isLoading }
 }
 
-/** One application with its proof images. The image URLs are signed and expire. */
 export function useAdminWorkspace(id: string | null) {
   const { data, error, isLoading } = useAuthedSWR(
     id ? adminWorkspaceKey(id) : null,
@@ -36,11 +34,6 @@ export function useAdminWorkspace(id: string | null) {
   return { workspace: data ?? null, error, isLoading }
 }
 
-/**
- * The tax department's record of an application's company tax code. The
- * source allows only a few lookups a minute, so it is fetched once per sheet
- * and only refreshed on request.
- */
 export function useTaxCodeLookup(id: string | null) {
   const { data, error, isLoading, isValidating, mutate } = useAuthedSWR(
     id ? adminTaxCodeKey(id) : null,
@@ -55,7 +48,6 @@ export function useTaxCodeLookup(id: string | null) {
   }
 }
 
-/** Approves or rejects an application and writes the result into the list. */
 export function useReviewWorkspace() {
   const { accessToken } = useAuth()
   const { mutate } = useSWRConfig()

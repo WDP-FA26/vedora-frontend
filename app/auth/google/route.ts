@@ -16,16 +16,12 @@ const STATE_COOKIE_PATH = "/auth/google"
 
 export async function GET(request: NextRequest) {
   const params = request.nextUrl.searchParams
-  // Google comes back to this same URL with `code` (or `error`).
   return params.has("code") || params.has("error") ? finish(request) : start(request)
 }
 
-/** Step 1: send the browser to Google's consent screen. */
 async function start(request: NextRequest) {
   const next = safeRedirectPath(request.nextUrl.searchParams.get("next"))
 
-  // vedora-api returns the consent URL plus the `state` and PKCE verifier to
-  // keep, or 503 when Google OAuth isn't configured.
   const response = await postJson("/auth/google/authorize", {}).catch(() => null)
   const authorization: GoogleAuthorization | null = response?.ok
     ? await response.json().catch(() => null)
@@ -46,7 +42,6 @@ async function start(request: NextRequest) {
   redirect.cookies.set(GOOGLE_STATE_COOKIE, JSON.stringify(value), {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
-    // Lax still sends it on Google's top-level redirect back here.
     sameSite: "lax",
     path: STATE_COOKIE_PATH,
     maxAge: GOOGLE_STATE_MAX_AGE,
@@ -54,7 +49,6 @@ async function start(request: NextRequest) {
   return redirect
 }
 
-/** Step 2: check `state`, trade the `code` for tokens and set the auth cookies. */
 async function finish(request: NextRequest) {
   const params = request.nextUrl.searchParams
   const saved = readState(request.cookies.get(GOOGLE_STATE_COOKIE)?.value)
@@ -69,13 +63,11 @@ async function finish(request: NextRequest) {
     return redirectTo(`/login?error=${error}${next}`)
   }
 
-  // The user closed the consent screen or denied access.
   if (params.get("error")) return fail("google_cancelled")
 
   const code = params.get("code")
   if (!code || !saved || params.get("state") !== saved.state) return fail("google_failed")
 
-  // vedora-api exchanges the code with Google, proving it with the verifier.
   const response = await postJson("/auth/google", {
     code,
     codeVerifier: saved.codeVerifier,

@@ -23,7 +23,6 @@ import { useAdminUsers } from "@/features/admin/hooks/use-admin-users"
 import { ACCOUNT_STATUSES, visibleUserEmail, type AdminUser } from "@/features/admin/schemas"
 import { ApiError } from "@/features/shared/lib/api-client"
 
-/** The API's limit on `q`. */
 const MAX_QUERY_LENGTH = 100
 const SEARCH_DELAY_MS = 300
 
@@ -45,13 +44,11 @@ const VIEWS: DataTableView[] = [
 
 const getUserId = (user: AdminUser) => user.id
 
-/** Every account on Vedora, for admins. The API searches and filters by status. */
 export function UsersTable() {
   const [search, setSearch] = useState("")
   const [q, setQ] = useState("")
   const [status, setStatus] = useState<AdminUser["status"] | "">("")
 
-  // One request once typing pauses, not one per keystroke.
   useEffect(() => {
     const timer = setTimeout(() => setQ(search.trim()), SEARCH_DELAY_MS)
     return () => clearTimeout(timer)

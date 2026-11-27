@@ -35,7 +35,6 @@ import {
 import type { Recipe } from "@/features/recipes/schemas"
 import { formatPostDateLong } from "@/features/shared/lib/format"
 
-/** Value of the `conflicts` column, which the "Có cảnh báo" view filters on. */
 const HAS_CONFLICT = "conflict"
 
 const VIEWS: DataTableView[] = [
@@ -48,7 +47,6 @@ const VIEWS: DataTableView[] = [
   },
 ]
 
-/** Names the first incompatible pair; the rest and the reasons open on click. */
 function Conflicts({ recipe }: { recipe: Recipe }) {
   const [first, ...rest] = recipe.conflicts
   if (!first) return <span className="text-muted-foreground">—</span>
@@ -155,7 +153,6 @@ const columns = helper.columns([
   helper.accessor("updatedAt", {
     header: ({ column }) => <DataTableColumnHeader column={column} title="Sửa lúc" />,
     cell: ({ getValue }) => formatPostDateLong(getValue()),
-    // ISO timestamps order correctly as text.
     sortFn: "text",
     enableGlobalFilter: false,
     meta: { label: "Sửa lúc", className: "hidden xl:table-cell" },
@@ -169,7 +166,6 @@ const columns = helper.columns([
 
 const getId = (row: Recipe) => row.id
 
-/** Every recipe; a row opens the editor. */
 export function RecipesTable() {
   const router = useRouter()
   const { recipes, error, isLoading } = useRecipes()

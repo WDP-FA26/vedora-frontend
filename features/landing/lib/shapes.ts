@@ -1,13 +1,7 @@
-/**
- * Point-cloud targets for the landing particle scene. Every shape returns the
- * same number of points so the shader can morph between them index by index.
- */
-
 type Vec3 = [number, number, number]
 type Rand = () => number
 type Sampler = (r: Rand) => Vec3
 
-/** Small seeded PRNG so the shapes are identical on every load. */
 function mulberry32(seed: number): Rand {
   let a = seed
   return () => {
@@ -58,15 +52,11 @@ function rotateZ([x, y, z]: Vec3, a: number): Vec3 {
   return [x * c - y * s, x * s + y * c, z]
 }
 
-/* Leaf ------------------------------------------------------------------- */
-
-/** Half-width along the midrib, widest a little below the middle. */
 function leafWidth(u: number) {
   const s = (u + 1) / 2
   return 0.46 * Math.pow(Math.sin(Math.PI * Math.pow(s, 0.8)), 0.9)
 }
 
-/** Leaf in local space: base at u = -1, tip at u = 1, lying along x. */
 function leafAt(u: number, v: number, r: Rand): Vec3 {
   const w = leafWidth(u)
   return [
@@ -101,8 +91,6 @@ export function leafShape(count: number) {
   ])
 }
 
-/* Heart ------------------------------------------------------------------ */
-
 function heartAt(t: number, s: number): [number, number] {
   const x = 16 * Math.pow(Math.sin(t), 3)
   const y =
@@ -126,8 +114,6 @@ export function heartShape(count: number) {
   ])
 }
 
-/* Globe ------------------------------------------------------------------ */
-
 function onSphere(r: Rand): Vec3 {
   const u = r() * 2 - 1
   const a = r() * Math.PI * 2
@@ -135,7 +121,6 @@ function onSphere(r: Rand): Vec3 {
   return [q * Math.cos(a), u, q * Math.sin(a)]
 }
 
-/** Cheap trig "noise" that reads as landmasses on the sphere. */
 function land([x, y, z]: Vec3) {
   return (
     Math.sin(3 * x + 1.3) * Math.sin(2.6 * y + 0.4) * Math.sin(3.1 * z + 2.1) +
@@ -148,7 +133,6 @@ export function globeShape(count: number) {
   return sample(count, 37, [
     [0.72, (r) => {
       let p = onSphere(r)
-      // Thin out the oceans so continents stand out.
       while (land(p) < 0.05 && r() < 0.72) p = onSphere(r)
       const lift = land(p) > 0.05 ? 1.03 : 1
       return [p[0] * radius * lift, p[1] * radius * lift, p[2] * radius * lift]
@@ -165,8 +149,6 @@ export function globeShape(count: number) {
     }],
   ])
 }
-
-/* Feed cards ------------------------------------------------------------- */
 
 const W = 1.05
 const H = 1.35
@@ -214,8 +196,6 @@ export function cardsShape(count: number) {
     }],
   ])
 }
-
-/* Sprout ----------------------------------------------------------------- */
 
 const stemTop: Vec3 = [0.15 * Math.sin(Math.PI * 1.2), 0.55, 0]
 

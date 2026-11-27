@@ -24,18 +24,12 @@ function errorMessage(error: unknown) {
   return "Không gửi được đánh giá. Vui lòng thử lại."
 }
 
-/**
- * A recipe's rating summary and, when signed in, the user's own 1–5 score.
- * The cache is keyed by account, and the UI only changes once the API answers:
- * a failed request leaves the previous score and summary in place.
- */
 export function useRecipeRating(recipeId: string) {
   const { user, accessToken, error: authError } = useAuth()
   const { mutate } = useSWRConfig()
   const router = useRouter()
   const pathname = usePathname()
 
-  // Guests (or a session whose user failed to load) read the public summary.
   const guest = !accessToken || Boolean(authError)
   const summaryKey = [ratingSummaryKey(recipeId), undefined] as const
   const mineKey =
@@ -49,7 +43,6 @@ export function useRecipeRating(recipeId: string) {
   const [pending, setPending] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [selfRating, setSelfRating] = useState(false)
-  // Guards double clicks that land before `pending` re-renders.
   const inFlight = useRef(false)
 
   async function rate(value: number | null) {
@@ -73,7 +66,6 @@ export function useRecipeRating(recipeId: string) {
       if (caught instanceof ApiError) {
         if (caught.code === "SELF_RATING_NOT_ALLOWED") setSelfRating(true)
         if (caught.status === 409) void mine.mutate()
-        // Lets the proxy rotate the token pair; the next try uses the new one.
         if (caught.status === 401) router.refresh()
       }
     } finally {
@@ -84,7 +76,6 @@ export function useRecipeRating(recipeId: string) {
 
   return {
     summary: data ?? null,
-    /** `undefined` for guests, `null` when the user has not rated. */
     myRating: data && "myRating" in data ? data.myRating : undefined,
     isLoading: !data && !current.error,
     loadError: data ? null : (current.error as unknown),
@@ -92,7 +83,6 @@ export function useRecipeRating(recipeId: string) {
     signedIn: !guest,
     pending,
     error,
-    /** Set once the API says this user created the recipe. */
     selfRating,
     rate: (value: number) => rate(value),
     clear: () => rate(null),

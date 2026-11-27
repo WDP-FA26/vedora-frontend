@@ -19,7 +19,6 @@ import { navItems } from "@/features/shared/data/nav-items"
 import { Wordmark } from "./wordmark"
 import { UnreadMessagesBadge } from "@/features/messaging/components/unread-messages-badge"
 
-/** Phone-only header row: account drawer, mark, search. */
 export function MobileTopBar() {
   const [open, setOpen] = useState(false)
   const { author } = useAuth()
@@ -89,7 +88,6 @@ export function MobileTopBar() {
   )
 }
 
-/** Phone-only bottom tab bar, with compose in the bar instead of over the feed. */
 export function MobileBottomNav() {
   const pathname = usePathname()
   const { user } = useAuth()

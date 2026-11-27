@@ -83,7 +83,6 @@ test.describe("register", () => {
     await page.getByRole("button", { name: "Tạo tài khoản" }).click()
     await expect(page).toHaveURL(/\/verify-email$/)
     await expect(page.getByRole("heading", { name: "Xác minh email" })).toBeVisible()
-    // The address is masked: first two letters only.
     await expect(page.getByText("va•••@example.com")).toBeVisible()
   })
 })

@@ -16,13 +16,11 @@ const DECISION_TEXT: Record<ModerationTestResult["decision"], string> = {
   reject: "Sẽ bị chặn",
 }
 
-/** Runs one text through the policy being edited, saved or not, and shows the model's call. */
 export function PolicyTest({
   disabled,
   labelOf,
   run,
 }: {
-  /** The draft has problems, so there is nothing valid to try. */
   disabled: boolean
   labelOf: (key: string) => string
   run: (text: string) => Promise<ModerationTestResult>

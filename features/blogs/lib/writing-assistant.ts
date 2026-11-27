@@ -5,12 +5,10 @@ import { API_URL } from "@/features/auth/lib/api"
 export const BLOG_ASSISTANT_CHAT_URL = `${API_URL}/blogs/ai/chat`
 export const BLOG_ASSISTANT_QUOTA_URL = `${API_URL}/blogs/ai/quota`
 
-/** Mirror `BlogAssistantChatDto` in vedora-api. */
 export const MAX_ASSISTANT_MESSAGES = 40
 export const MAX_ASSISTANT_MESSAGE_LENGTH = 4000
 export const MAX_SELECTION_LENGTH = 4000
 
-/** Tools the agent calls but the browser runs, on the author's say-so. */
 export const EDITOR_TOOLS = [
   "replaceSelection",
   "replaceText",
@@ -24,12 +22,10 @@ export function isEditorTool(name: string): name is EditorTool {
   return (EDITOR_TOOLS as readonly string[]).includes(name)
 }
 
-/** Editor tools that mark their change in the post. */
 export const SUGGESTION_TOOLS = ["replaceSelection", "replaceText", "insertMarkdown"] as const
 
 const position = z.enum(["cursor", "end", "after"])
 
-// Mirror the input schemas of vedora-api's editor tools.
 export const editorToolInputs = {
   replaceSelection: z.object({ markdown: z.string() }),
   replaceText: z.object({ find: z.string(), replace: z.string() }),
@@ -40,7 +36,6 @@ export const editorToolInputs = {
     alt: z.string(),
     position,
     after: z.string().optional(),
-    /** An image already in the post that this one takes the place of. */
     replaces: z.string().optional(),
   }),
 } satisfies Record<EditorTool, z.ZodType>
@@ -61,7 +56,6 @@ const usageSchema = z.object({
 export const quotaSchema = z.object({ messages: usageSchema, images: usageSchema })
 export type AssistantQuota = z.infer<typeof quotaSchema>
 
-/** What each suggestion card in the chat is about. */
 export const EDIT_LABELS: Record<EditorTool, string> = {
   replaceSelection: "Viết lại đoạn đã chọn",
   replaceText: "Sửa một đoạn trong bài",

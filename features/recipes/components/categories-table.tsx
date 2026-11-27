@@ -65,7 +65,6 @@ const helper = createColumnHelper<DataTableFeatures, RecipeCategory>();
 
 type MoveDirection = "up" | "down";
 
-/** Lets the static columns move a row; `ids` is the current order, first to last. */
 const MoveContext = createContext<{
   ids: readonly string[];
   moving: boolean;
@@ -101,7 +100,6 @@ function MoveButtons({ id, name }: { id: string; name: string }) {
   );
 }
 
-/** The order with `id` swapped with its neighbour, or null when it is already at that end. */
 function movedOrder(
   ids: readonly string[],
   id: string,
@@ -175,7 +173,6 @@ const columns = helper.columns([
 
 const getId = (row: RecipeCategory) => row.id;
 
-/** Dish categories the admin manages; each one maps onto a fixed meal-planner kind. */
 export function CategoriesTable() {
   const { categories, error, isLoading } = useRecipeCategories();
   const [editing, setEditing] = useState<RecipeCategory | "new" | null>(null);

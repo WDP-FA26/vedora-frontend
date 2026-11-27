@@ -14,12 +14,10 @@ import {
   type ReportReason,
 } from "@/features/posts/schemas"
 
-/** SWR fetcher for `[POSTS_KEY | authorPostsKey(id), accessToken]`. Guests may list posts. */
 export function fetchPostPage([url, token]: readonly [string, string | undefined]) {
   return sendJson(postPageSchema, url, token)
 }
 
-/** SWR fetcher for `[postKey(id), accessToken]`. Guests may read published posts. */
 export function fetchPost([url, token]: readonly [string, string | undefined]) {
   return sendJson(apiPostSchema, url, token)
 }
@@ -31,7 +29,6 @@ export function requestVideoUpload(token: string) {
   })
 }
 
-/** `keepalive` lets the request finish even if the page is closing. */
 export async function discardMedia(token: string, id: string) {
   await send(`${API_URL}/media/${id}`, token, { method: "DELETE", keepalive: true })
 }
@@ -43,12 +40,6 @@ export function createPost(token: string, input: { body?: string; mediaIds?: str
   })
 }
 
-/**
- * Edits the caller's own post. `mediaIds` is the final ordered list of videos:
- * ones already on the post to keep, plus newly uploaded ones. The API
- * moderates changed content again, so the returned post may be `PROCESSING`
- * until every new video is ready and the verdict is in.
- */
 export function updatePost(token: string, id: string, input: { body: string; mediaIds: string[] }) {
   return sendJson(apiPostSchema, postKey(id), token, {
     method: "PATCH",
@@ -56,7 +47,6 @@ export function updatePost(token: string, id: string, input: { body: string; med
   })
 }
 
-/** All three are idempotent: PUT sets the state, DELETE clears it. */
 export function setPostLike(token: string, id: string, liked: boolean) {
   return sendJson(postLikeSchema, `${postKey(id)}/like`, token, {
     method: liked ? "PUT" : "DELETE",
@@ -108,7 +98,6 @@ export function uploadPostReportEvidence(token: string, postId: string, file: Fi
   })
 }
 
-/** SWR fetcher for `[commentsKey(id), accessToken]` pages. Guests may read comments. */
 export function fetchCommentPage([url, token]: readonly [string, string | undefined]) {
   return sendJson(commentPageSchema, url, token)
 }

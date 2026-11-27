@@ -108,7 +108,6 @@ const columns = helper.columns([
 
 const getId = (row: IncompatibilityRule) => row.id
 
-/** "A should not be eaten with B", where each side is an ingredient or a group. */
 export function RulesTable() {
   const { rules, error, isLoading } = useIncompatibilityRules()
   const [editing, setEditing] = useState<IncompatibilityRule | "new" | null>(null)

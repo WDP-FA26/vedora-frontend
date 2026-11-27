@@ -1,11 +1,7 @@
-// Fixture data shared by the mock API server (Node) and the specs.
-// Shapes mirror the zod schemas in features/*/schemas.ts.
-
 export const API_PORT = Number(process.env.E2E_API_PORT ?? 4010)
 export const API_ORIGIN = `http://localhost:${API_PORT}`
 export const API_URL = `${API_ORIGIN}/api/v1`
 
-/** Password the mock API accepts for every seeded account. */
 export const VALID_PASSWORD = "Password123"
 
 const iso = (minutesAgo) => new Date(Date.now() - minutesAgo * 60_000).toISOString()
@@ -49,8 +45,6 @@ export const users = {
     username: "anhdaidien",
     fullName: "Phạm Ảnh Đại",
     email: "photo@example.com",
-    // On the storage origin (NEXT_PUBLIC_STORAGE_URL in playwright.config.ts),
-    // the only origin the CSP allows for avatars. Specs serve it with page.route.
     avatarUrl: "http://localhost:9000/vedora/avatars/u-photo.png",
     role: "USER",
     status: "ACTIVE",
@@ -59,7 +53,6 @@ export const users = {
   },
 }
 
-/** `PublicUser` as returned by `GET /auth/me`. */
 // eslint-disable-next-line @typescript-eslint/no-unused-vars -- dropped from the response
 export const publicUser = ({ status, ...user }) => user
 
@@ -210,10 +203,6 @@ export const adminUsers = [
   },
 ]
 
-// --- Tokens ---------------------------------------------------------------
-// The app only reads `exp` from the access token (proxy.ts); the mock API
-// reads `sub`. Signatures are not verified anywhere in the test setup.
-
 const b64url = (value) => Buffer.from(JSON.stringify(value)).toString("base64url")
 
 export function makeAccessToken(userId, { expiresInSec = 3600 } = {}) {
@@ -225,7 +214,6 @@ export function makeRefreshToken(userId) {
   return `refresh.${userId}.${Math.random().toString(36).slice(2)}`
 }
 
-/** `AuthTokens` as returned by `POST /auth/login | /auth/refresh`. */
 export function makeTokens(userId) {
   return {
     accessToken: makeAccessToken(userId),

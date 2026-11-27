@@ -16,7 +16,6 @@ import {
   type VideoUploadTarget,
 } from "@/features/posts/schemas"
 
-/** One attachment in the composer, in display order. */
 export type MediaUpload = {
   key: string
   previewUrl: string
@@ -24,28 +23,19 @@ export type MediaUpload = {
   durationSec: number | null
   status: "uploading" | "ready" | "failed"
   error?: string
-  /** 0–100 while uploading; set to 100 once Cloudinary has the whole file. */
   progress: number
-  /** Set once the upload finished and the attachment can be posted. */
   mediaId: string | null
 }
 
-/** Bookkeeping for one upload, with what's needed to cancel it. */
 type Entry = MediaUpload & {
   file: File
   token: string
-  /** Issued by the API before the file finished uploading. */
   pendingId: string | null
   task: UploadTask | null
   attempt: number
   cleanup: Promise<void> | null
 }
 
-/**
- * The file's length from its metadata, or `null` when the browser can't tell:
- * `duration` is NaN for undecodable files and +Infinity for streams such as
- * browser-recorded WebM. The API enforces the limit either way.
- */
 function readDuration(file: File): Promise<number | null> {
   return new Promise((resolve) => {
     const video = document.createElement("video")
@@ -62,20 +52,11 @@ function readDuration(file: File): Promise<number | null> {
   })
 }
 
-/**
- * Sends up to `MAX_POST_MEDIA` videos straight to Cloudinary: vedora-api signs
- * a direct upload per file, and large files go up in chunks.
- * `onChange` receives the finished media IDs, in order, for `POST /posts`,
- * and how many attachments the composer holds, finished or not.
- * Unmounting (closing the composer) cancels unposted uploads and discards
- * their media.
- */
 export function useMediaUploads({
   onChange,
   reserved = 0,
 }: {
   onChange: (mediaIds: string[], count: number) => void
-  /** Videos already on the post, which count toward the limit but are not uploaded here. */
   reserved?: number
 }) {
   const { accessToken } = useAuth()
@@ -83,7 +64,6 @@ export function useMediaUploads({
   const [uploads, setUploads] = useState<MediaUpload[]>([])
   const [error, setError] = useState<string | null>(null)
 
-  /** Publishes `entries` to React and the form after every change. */
   function sync() {
     setUploads(
       entries.current.map(({ key, previewUrl, fileName, durationSec, status, error, progress, mediaId }) => ({
@@ -112,7 +92,6 @@ export function useMediaUploads({
     const id = entry.mediaId ?? entry.pendingId
     if (discard && id) {
       discardMedia(entry.token, id).catch(() => {
-        // Unposted uploads are also deleted by the API after 24 hours.
       })
     }
   }
@@ -135,7 +114,6 @@ export function useMediaUploads({
     entry.pendingId = null
     if (pendingId) {
       entry.cleanup = discardMedia(entry.token, pendingId).catch(() => {
-        // The API also expires uploads that never became posts.
       })
     }
     setError(message)
@@ -157,7 +135,6 @@ export function useMediaUploads({
       return
     }
     const mediaId = target.media.id
-    // Removed while the URL was being issued; already cleaned up.
     if (!entries.current.includes(entry) || entry.attempt !== attempt || entry.status !== "uploading") {
       discardMedia(entry.token, mediaId).catch(() => {})
       return
@@ -194,7 +171,6 @@ export function useMediaUploads({
     )
   }
 
-  /** Adds files after the current attachments, up to the post's limit. */
   async function add(files: File[]) {
     if (!accessToken) return
     setError(null)
@@ -224,7 +200,6 @@ export function useMediaUploads({
         attempt: 1,
         cleanup: null,
       }
-      // Reserve the slot now so a second pick can't go over the limit.
       entries.current = [...entries.current, entry]
       sync()
 
@@ -242,7 +217,6 @@ export function useMediaUploads({
     }
   }
 
-  /** Retries the same file without clearing the draft or its local preview. */
   async function retry(key: string) {
     const entry = entries.current.find((other) => other.key === key)
     if (!entry || entry.status !== "failed") return
@@ -267,7 +241,6 @@ export function useMediaUploads({
     await upload(entry, attempt)
   }
 
-  /** Drops one attachment and deletes it on the API. */
   function remove(key: string) {
     const entry = entries.current.find((other) => other.key === key)
     if (!entry) return
@@ -276,7 +249,6 @@ export function useMediaUploads({
     sync()
   }
 
-  /** After the post was created: the media belongs to it now, keep it. */
   function release() {
     for (const entry of [...entries.current]) drop(entry, { discard: false })
     setError(null)

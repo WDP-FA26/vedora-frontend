@@ -40,17 +40,9 @@ import { usePublicRecipe } from "@/features/recipes/hooks/use-recipe-catalog"
 export type OpenedDish = {
   recipeId: string
   title: string
-  /** The slot the dish sits in; a dish opened from outside the plan (the voice agent) has none. */
   day?: Weekday
   section?: MealSection
-  /** What the saved plan already knows about the dish; shown while the full recipe loads. */
   detail?: MealRecipe
-  /**
-   * Set when the voice agent opened or scrolled the dish: the user is listening, maybe cooking,
-   * so the sheet leads with the ingredients and steps instead of the photo, and scrolls to
-   * `scroll` (relative), `step` (1-based), or `section` (the top when null). A new `requestedAt`
-   * scrolls again.
-   */
   voice?: {
     section: RecipeSection | null
     step?: number | null
@@ -93,7 +85,6 @@ type Props = {
   handle?: Ref<RecipeSheetHandle>
 }
 
-/** A large side sheet with the photo, ingredients and steps of one dish. */
 export function RecipeSheet({
   open,
   dish,
@@ -151,7 +142,6 @@ export function RecipeSheet({
     if (!open || !voice || !loaded) return
     const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches
     const behavior: ScrollBehavior = reduceMotion ? "auto" : "smooth"
-    // The sheet animates in; scroll once it has laid out.
     const frame = requestAnimationFrame(() => {
       if (voice.scroll) {
         scrollContainer(top.current?.parentElement ?? null, voice.scroll)

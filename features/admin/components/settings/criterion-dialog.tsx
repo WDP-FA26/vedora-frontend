@@ -16,10 +16,8 @@ import { Textarea } from "@/components/ui/textarea"
 import { criterionProblems, slugify, uniqueKey } from "@/features/admin/components/settings/policy-validation"
 import type { ModerationChoice } from "@/features/admin/schemas"
 
-/** What the dialog edits: a violation criterion, or the built-in "Không vi phạm" (description only). */
 export type CriterionTarget = ModerationChoice | "new" | "allow"
 
-/** Adds or edits one criterion: its name, what it covers, and the wording authors see. */
 export function CriterionDialog({
   target,
   allowDescription,
@@ -42,7 +40,6 @@ export function CriterionDialog({
   const [reasonText, setReasonText] = useState(initial?.reasonText ?? "")
   const [touched, setTouched] = useState(false)
 
-  // Unless set by hand, the wording authors see is the name in lowercase.
   const reason = reasonText.trim() || label.trim().toLowerCase()
   const problems = isAllow
     ? description.trim().length >= 10 && description.trim().length <= 800

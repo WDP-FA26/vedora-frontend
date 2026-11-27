@@ -48,7 +48,6 @@ function CropperCropArea({
   shape = "rect",
   ...props
 }: React.ComponentProps<typeof CropperPrimitive.CropArea> & {
-  /** `circle` previews how a round avatar will be shown. */
   shape?: "rect" | "circle"
 }) {
   return (

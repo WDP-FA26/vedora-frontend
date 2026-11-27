@@ -53,7 +53,6 @@ function loadErrorMessage(error: unknown) {
   return "Không tải được danh sách đơn. Thử tải lại trang nhé."
 }
 
-/** Restaurant page applications, for admins to approve or reject. */
 export function AdminWorkspacesTable() {
   const params = useSearchParams()
   const { workspaces, error, isLoading } = useAdminWorkspaces()

@@ -58,7 +58,6 @@ import { ApiError } from "@/features/shared/lib/api-client"
 const FORM_ID = "recipe-form"
 const EMPTY_INGREDIENT = { ingredientId: "", quantity: "", unit: "", note: "", draftName: "" }
 
-/** Writes a new recipe, optionally from the post `postId`, or edits `recipeId`. */
 export function RecipeEditor({
   recipeId,
   postId,
@@ -117,7 +116,6 @@ function toFormValues(recipe: RecipeDetail | null): RecipeFormValues {
   }
 }
 
-/** The form filled from an AI draft; the photo, and servings when AI found none, stay. */
 function fromDraft(draft: DraftRecipe, current: RecipeFormValues): RecipeFormValues {
   const ingredients = draft.ingredients.map((item) => ({
     ingredientId: item.match?.id ?? "",
@@ -159,9 +157,7 @@ function RecipeForm({
   const aiHandle = useRef<RecipeAiHandle>(null)
   const [postId, setPostId] = useState(initialPostId)
   const [addingIngredient, setAddingIngredient] = useState(false)
-  /** New-ingredient prefills from the last AI draft, by the name AI read. */
   const [suggestions, setSuggestions] = useState(new Map<string, IngredientSuggestion>())
-  /** The row whose AI suggestion is open in the ingredient dialog. */
   const [creatingFor, setCreatingFor] = useState<{
     index: number
     suggestion: IngredientSuggestion

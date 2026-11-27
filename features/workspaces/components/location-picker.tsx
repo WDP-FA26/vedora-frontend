@@ -51,10 +51,6 @@ function currentButtonLabel(locating: boolean, hasLocation: boolean): string {
   return "Lấy vị trí hiện tại"
 }
 
-/**
- * Restaurant location selector supporting four modes: map pinning, Mapbox
- * address suggestions, manual coordinates, and device geolocation.
- */
 export function LocationPicker({
   address,
   location,

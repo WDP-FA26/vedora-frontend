@@ -10,7 +10,6 @@ export const metadata: Metadata = {
 
 export default async function VerifyEmailPage({ searchParams }: PageProps<"/verify-email">) {
   const { next } = await searchParams
-  // Only reachable right after sign-up or an unverified login.
   const email = await getPendingEmail()
   if (!email) redirect("/login")
 

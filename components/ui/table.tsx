@@ -8,7 +8,6 @@ function Table({
   variant = "default",
   ...props
 }: React.ComponentProps<"table"> & {
-  /** `flush` runs edge to edge with roomier rows, for full-page data tables. */
   variant?: "default" | "flush"
 }) {
   return (

@@ -29,9 +29,7 @@ export function ResetPasswordForm() {
   const { isSubmitting, errors } = form.formState
 
   async function onSubmit(values: ResetPasswordValues) {
-    // Every session ends with the reset; drop anything cached from one.
     await mutate(() => true, undefined, { revalidate: false })
-    // Resolves only on failure; on success the action redirects.
     const serverErrors = await resetPassword(values)
     for (const [name, message] of Object.entries(serverErrors)) {
       form.setError(name as keyof typeof serverErrors, { message })
@@ -58,7 +56,6 @@ export function ResetPasswordForm() {
                 autoFocus
                 disabled={isSubmitting}
                 aria-invalid={fieldState.invalid}
-                // The new password comes next, so move on instead of submitting.
                 onComplete={() => form.setFocus("password")}
               >
                 <InputOTPGroup className="w-full">

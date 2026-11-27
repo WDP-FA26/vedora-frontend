@@ -5,7 +5,6 @@ const NUMBER_DECIMAL_VI = new Intl.NumberFormat("vi-VN", {
 
 const CURRENCY_VND = new Intl.NumberFormat("vi-VN")
 
-/** Human-friendly distance label from meters (`350 m` / `1,2 km`). */
 export function formatDistance(meters: number): string {
   const rounded = Math.max(0, Math.round(meters))
   if (rounded < 1000) return `${rounded} m`

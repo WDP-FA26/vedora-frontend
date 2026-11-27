@@ -17,9 +17,7 @@ import {
 } from "@tanstack/react-table"
 
 export type DataTableColumnMeta = {
-  /** Name in the column picker and the sort menu. */
   label?: string
-  /** Applied to the column's `th` and `td`, e.g. `hidden md:table-cell`. */
   className?: string
 }
 

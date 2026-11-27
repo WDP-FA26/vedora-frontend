@@ -19,12 +19,10 @@ const fullDate = new Intl.DateTimeFormat("vi", {
   timeZone: "UTC",
 })
 
-/** X-style timestamp ("Sep 22"). Absolute, so server and client agree. */
 export function formatPostDate(iso: string) {
   return shortDate.format(new Date(iso))
 }
 
-/** Full timestamp for the tooltip/title on the short date. */
 export function formatPostDateLong(iso: string) {
   return fullDate.format(new Date(iso))
 }

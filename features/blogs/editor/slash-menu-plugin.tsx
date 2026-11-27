@@ -31,7 +31,6 @@ import { Spinner } from "@/components/ui/spinner"
 import { useMediaInsert } from "@/features/blogs/editor/use-media-insert"
 import { BLOG_IMAGE_TYPES } from "@/features/blogs/schemas"
 
-/** What an option can reach besides the editor: the hidden file pickers. */
 type Pickers = { image: () => void; video: () => void }
 
 class SlashOption extends MenuOption {
@@ -79,7 +78,6 @@ const ALL_OPTIONS = [
   new SlashOption("Video", "Tải video lên", VideoIcon, ["video", "clip"], (_e, pick) => pick.video()),
 ]
 
-/** A hidden file input, opened from the menu with `ref.current.click()`. */
 function FilePicker({
   ref,
   accept,
@@ -106,11 +104,6 @@ function FilePicker({
   )
 }
 
-/**
- * The `/` menu: type `/` on an empty line (or after a space) to turn it into a
- * heading, list, quote or divider, or to add an image or video. Also owns the
- * media uploads, so pasted and dropped files land through the same path.
- */
 export function SlashMenuPlugin() {
   const [editor] = useLexicalComposerContext()
   const { progress, insertFiles } = useMediaInsert()
@@ -133,7 +126,6 @@ export function SlashMenuPlugin() {
         triggerFn={trigger}
         options={options}
         onSelectOption={(option, nodeToRemove, closeMenu) => {
-          // Drop the "/query" text first, then apply to the line it was on.
           editor.update(() => nodeToRemove?.remove(), { discrete: true })
           option.run(editor, {
             image: () => imageInput.current?.click(),

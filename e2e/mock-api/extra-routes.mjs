@@ -1,7 +1,3 @@
-// Routes for the areas beyond auth/posts/profiles/notifications: messaging,
-// meal plan, dietary, billing, recipes, verification, knowledge and the admin
-// screens. Returns true when it answered the request.
-
 import { pageOf, users } from "../fixtures/data.mjs"
 import {
   CONVERSATION_ID,
@@ -46,7 +42,6 @@ export async function handleExtra({ path, method, body, q, me, res, send, error 
   const fail = (...args) => (error(res, ...args), true)
   let m
 
-  // --- messaging ---------------------------------------------------------
   if (path === "/messaging/unread-count") return ok({ unreadCount: conversation.unreadCount })
   if (path === "/messaging/conversations") {
     return ok(pageOf(q.get("box") === "requests" ? [] : [conversation]))
@@ -114,7 +109,6 @@ export async function handleExtra({ path, method, body, q, me, res, send, error 
     })
   }
 
-  // --- meal plan and dietary ---------------------------------------------
   if (path === "/meal-plan" && method === "GET") return ok(emptyMealPlan)
   if (path === "/meal-plan/days" && method === "PUT") return ok(emptyMealPlan)
   if (path === "/meal-plan/shopping-list") return ok(shoppingList)
@@ -123,7 +117,6 @@ export async function handleExtra({ path, method, body, q, me, res, send, error 
     return ok(myDietary)
   }
 
-  // --- billing -----------------------------------------------------------
   if (path === "/billing/plans") return ok(billingCatalog)
   if (path === "/billing/me") return ok(billingOverview)
   if (path === "/billing/payment-intents" && method === "POST") {
@@ -136,7 +129,6 @@ export async function handleExtra({ path, method, body, q, me, res, send, error 
     return ok(payment(status.toUpperCase(), m[1]))
   }
 
-  // --- recipes (public) ---------------------------------------------------
   if (path === "/recipes/favorites") {
     return ok({ items: [], meta: { page: 1, totalItems: 0, totalPages: 1 } })
   }
@@ -153,7 +145,6 @@ export async function handleExtra({ path, method, body, q, me, res, send, error 
     return ok({ ...recipeDetail, isFavorite: false })
   }
 
-  // --- recipes (admin) ----------------------------------------------------
   if (path.startsWith("/admin/") && !requireAdmin(me)) {
     return fail(me ? 403 : 401, me ? "FORBIDDEN" : "UNAUTHORIZED", "Not allowed")
   }
@@ -169,7 +160,6 @@ export async function handleExtra({ path, method, body, q, me, res, send, error 
     return ok(recipeDetail)
   }
 
-  // --- verification -------------------------------------------------------
   if (path === "/verification/me") {
     return ok({ isProfessional: me?.id === users.chef.id, request: null })
   }
@@ -199,7 +189,6 @@ export async function handleExtra({ path, method, body, q, me, res, send, error 
     return ok({ ...found, proofs: [{ id: "pf-1", url: PROOF_URL }] })
   }
 
-  // --- knowledge ----------------------------------------------------------
   if (path === "/knowledge/documents" && method === "GET") return ok(knowledgeDocuments)
   if ((m = /^\/knowledge\/documents\/([^/]+)(?:\/(pages|file-url|approve|reject|reopen))?(?:\/(\d+))?$/.exec(path))) {
     const doc = knowledgeDocuments.find((item) => item.id === m[1])
@@ -218,7 +207,6 @@ export async function handleExtra({ path, method, body, q, me, res, send, error 
     return ok(doc)
   }
 
-  // --- admin: content, reports, settings ---------------------------------
   if (path === "/admin/posts") return ok(adminPage(adminPosts))
   if ((m = /^\/admin\/posts\/([^/]+)(\/moderation)?$/.exec(path))) {
     const found = adminPosts.find((item) => item.id === m[1])
@@ -244,7 +232,6 @@ export async function handleExtra({ path, method, body, q, me, res, send, error 
     return ok({ decision: "review", category: "spam", riskLevel: 2, summary: "Có dấu hiệu quảng cáo." })
   }
 
-  // --- admin: dashboard, AI cost, payments -------------------------------
   if (path === "/admin/dashboard/work-queue") return ok({
     generatedAt: new Date().toISOString(), refreshAfterSeconds: 30, previewLimit: 10,
     counts: { POST_REVIEW: 0, POST_REPORTS: 0, COMMENT_REPORTS: 0, VERIFICATION: 0, WORKSPACES: 0, SUPPORT: 0, KNOWLEDGE: 0 },

@@ -15,7 +15,6 @@ import {
   verificationRequestKey,
 } from "@/features/verification/verification-cache"
 
-// TanStack Table rebuilds its row models whenever `data` changes identity.
 const NO_REQUESTS: AdminVerificationRequest[] = []
 
 export function useVerificationRequests() {
@@ -23,7 +22,6 @@ export function useVerificationRequests() {
   return { requests: data ?? NO_REQUESTS, error, isLoading }
 }
 
-/** One request with its proof images. The image URLs are signed and expire. */
 export function useVerificationRequest(id: string | null) {
   const { data, error, isLoading } = useAuthedSWR(id ? verificationRequestKey(id) : null, fetchVerificationRequest,
     { dedupingInterval: 0 }
@@ -31,7 +29,6 @@ export function useVerificationRequest(id: string | null) {
   return { request: data ?? null, error, isLoading }
 }
 
-/** Approves or rejects a request and writes the result into the list. */
 export function useReviewVerificationRequest() {
   const { accessToken } = useAuth()
   const { mutate } = useSWRConfig()

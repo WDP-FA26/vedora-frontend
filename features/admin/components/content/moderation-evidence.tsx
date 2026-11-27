@@ -20,7 +20,6 @@ function formatSeconds(seconds: number) {
   return `${minutes}:${rest}`
 }
 
-/** The frame or image an item points at. */
 function EvidencePicture({ item }: { item: EvidenceItem }) {
   if (!item.imageUrl) return null
   return (
@@ -57,7 +56,6 @@ function EvidenceEntry({ item }: { item: EvidenceItem }) {
   )
 }
 
-/** Why there are no quotes to show, or null when the model explained itself. */
 function missingEvidenceMessage(evidence: Evidence | null) {
   if (!evidence) return "Chưa có phân tích chi tiết cho bài này. Hãy tự xem kỹ bài rồi quyết định."
   if (evidence.status === "FAILED") return "Không phân tích được bài này. Hãy tự xem kỹ bài rồi quyết định."
@@ -67,10 +65,6 @@ function missingEvidenceMessage(evidence: Evidence | null) {
   return null
 }
 
-/**
- * The model's explanation, written together with its verdict: a summary and
- * the parts of the post it says break the policy.
- */
 export function ModerationEvidence({ post }: { post: AdminPostDetail }) {
   const evidence = post.moderation?.evidence ?? null
   const flagged = post.status === "PENDING_REVIEW" || post.status === "REJECTED"

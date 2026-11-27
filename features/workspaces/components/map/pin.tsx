@@ -1,7 +1,6 @@
 import { MapPinIcon } from "lucide-react"
 import { cn } from "cn"
 
-/** The map marker for a restaurant: a forest-green pin. */
 export function Pin({ className }: { className?: string }) {
   return (
     <MapPinIcon

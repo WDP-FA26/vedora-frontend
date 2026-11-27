@@ -35,35 +35,21 @@ import {
 } from "@/features/meal-plan/planner-state-protocol"
 import { runVoiceTurn } from "@/features/meal-plan/voice-turn-runner"
 
-/** Created once: a new model object would replace the hook's session. */
 const model = gateway.experimental_realtime(VOICE_MODEL_ID)
 
-/** The longest wait for the last words of an utterance after GPT-Live delegates. */
 const TRANSCRIPT_GRACE_MS = 3000
-/**
- * How long the orb stays "speaking" after playback stops. A late audio chunk briefly empties
- * the queue mid-sentence; without this the orb would flip to listening and back.
- */
 const SPEAKING_HOLD_MS = 250
-/** How often the farewell's progress is checked while the call is ending. */
 const END_CHECK_MS = 200
-/** Audio the player may hold before it pauses; generous, since RAM is cheap and Gateway p99 is not. */
 const MAX_PLAYBACK_BUFFER_SECONDS = 60
 
-/** Latest billed duration snapshot from AI Gateway alongside the local time it arrived. */
 export type VoiceUsageAnchor = { seconds: number; at: number }
 
 function usageSnapshot(seconds: number): VoiceUsageAnchor {
   return { seconds, at: Date.now() }
 }
 
-/**
- * `value`, but it stays true for `holdMs` after `value` turns false, so a short drop does
- * not show. A drop longer than that is shown.
- */
 function useHeldTrue(value: boolean, holdMs: number) {
   const [held, setHeld] = useState(value)
-  // Adjusting state while rendering: React re-renders right away, before painting.
   if (value && !held) setHeld(true)
   useEffect(() => {
     if (value || !held) return
@@ -75,11 +61,6 @@ function useHeldTrue(value: boolean, holdMs: number) {
 
 type SendRealtimeEvent = ReturnType<typeof experimental_useRealtime>["sendEvent"]
 
-/**
- * Tells GPT-Live something. The SDK throws, even synchronously, once the session stops taking
- * events (the call is closing, ended or failed); there is no one left to tell then, and the
- * SDK reports transport failures through `onError` itself.
- */
 async function sendContext(
   sendEvent: SendRealtimeEvent,
   delegationId: string | null,
@@ -101,15 +82,12 @@ async function sendContext(
 function syncBrowserMicDsp(stream: MediaStream | null, aiDenoiseActive: boolean) {
   const track = stream?.getAudioTracks()[0]
   if (!track || typeof track.applyConstraints !== "function") return
-  // Disable browser NS & AGC while DeepFilterNet3 handles denoising + postGain;
-  // re-enable them when AI denoise is off or falls back.
   void track
     .applyConstraints({
       noiseSuppression: !aiDenoiseActive,
       autoGainControl: !aiDenoiseActive,
     })
     .catch(() => {
-      // Ignore browsers that reject dynamic constraint updates on an active track.
     })
 }
 
@@ -143,7 +121,6 @@ async function openVoiceCall({
     stream = await navigator.mediaDevices.getUserMedia({
       audio: {
         echoCancellation: true,
-        // Avoid amplifying or double-processing noise before DeepFilterNet3 (which provides postGain).
         noiseSuppression: !aiDenoise,
         autoGainControl: !aiDenoise,
       },
@@ -166,7 +143,6 @@ async function openVoiceCall({
       try {
         await sendEvent({ type: "input-audio-append", audio })
       } catch {
-        // Session closed or closing; transport errors are reported via `onError`.
       }
     },
     onLevel: (level) => ledger.mic.setInputLevel(level),
@@ -178,29 +154,16 @@ async function openVoiceCall({
 }
 
 type VoiceOptions = {
-  /** The week on screen, the planner's default week. */
   weekStart?: string
   today?: string
-  /** The chat thread on screen: voice turns are saved into it, so the chat shows them. */
   threadId: string
-  /** Called as each `data-screen` command arrives, to open, close, or scroll the planner UI. */
   onScreen: (screen: VoiceScreenCommand) => void
-  /** Called when a turn the API took up ends (answered, failed or cancelled), to reload the chat thread. */
   onTurnEnd: (threadId: string) => void
-  /** Called when the user ends the voice session. */
   onClose: () => void
-  /** What the page shows right now, sent with each turn so the agent can refer to it. */
   getScreen: () => VoiceScreen | null
   openRecipe?: VoiceOpenRecipe | null
 }
 
-/**
- * The meal planner's voice agent: GPT-Live through Vercel AI Gateway for the
- * conversation, and the planner agent on vedora-api for the work. GPT-Live
- * delegates; this hook streams the user's transcribed words to the API, mirrors
- * each `data-screen` / `data-refresh` event as it arrives, and hands the result
- * back to be spoken.
- */
 export function useMealPlannerVoice({
   weekStart,
   today,
@@ -213,21 +176,14 @@ export function useMealPlannerVoice({
 }: VoiceOptions) {
   const { accessToken, user } = useAuth()
   const { mutate } = useSWRConfig()
-  // Built once per mount: a new object would replace the session.
   const [sessionConfig] = useState(() => voiceSessionConfig(user?.fullName))
   const [sessionApi] = useState(() => ({ token: voiceSessionRoute(threadId) }))
   const [pending, setPending] = useState(0)
-  /** The agent asked to hang up: the call ends once its farewell has been spoken. */
   const [ending, setEnding] = useState(false)
   const [farewell] = useState(() => new FarewellTracker())
-  /** Whether the user has said anything this call; the suggestions show until then. */
   const [heard, setHeard] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [usageAnchor, setUsageAnchor] = useState<VoiceUsageAnchor | null>(null)
-  /**
-   * Whether this attempt has reached "connected". The SDK starts out "disconnected", so
-   * without this the call would count as ended before it began.
-   */
   const [wasConnected, setWasConnected] = useState(false)
   const [ledger] = useState(() => new VoiceCallLedger())
   const [capture] = useState(() => new VoiceAudioCapture())
@@ -243,7 +199,6 @@ export function useMealPlannerVoice({
   function handleAiDenoiseStatus(status: VoiceAiDenoiseStatus) {
     setAiDenoiseStatus(status)
     if (status === "overloaded" || status === "error") {
-      // Restore browser NS + AGC when DeepFilterNet3 falls back so mic is never left raw.
       syncBrowserMicDsp(ledger.mic.currentStream(), false)
     }
   }
@@ -257,7 +212,6 @@ export function useMealPlannerVoice({
         try {
           await sendRealtimeEvent({ type: "input-audio-append", audio })
         } catch {
-          // Session closed or closing; transport errors are reported via `onError`.
         }
       },
       onLevel: (level) => ledger.mic.setInputLevel(level),
@@ -290,11 +244,7 @@ export function useMealPlannerVoice({
     model,
     api: sessionApi,
     sessionConfig,
-    // The SDK keeps every server event, audio chunks included, and re-renders on each one;
-    // the planner reads none of them, so keeping one stops it holding seconds of audio.
     maxEvents: 1,
-    // The SDK pauses playback once this much audio is queued (default 2s). A slow AI Gateway
-    // can deliver several seconds at once after a stall; barge-in still clears the queue at once.
     maxPlaybackBufferSeconds: MAX_PLAYBACK_BUFFER_SECONDS,
     onEvent: handleEvent,
     onError: (cause) => setError(voiceErrorText(cause.message)),
@@ -332,7 +282,6 @@ export function useMealPlannerVoice({
       if (event.speaker === "user") {
         ledger.utterances.addFragment({ text: event.delta, startMs: event.startMs, endMs: event.endMs })
         setHeard(true)
-        // Speaking something substantive while the call is ending means the user is not done.
         if (farewell.shouldCancel(event.delta)) keepTalking()
       } else {
         farewell.spoke(event.startMs, event.endMs)
@@ -441,7 +390,6 @@ export function useMealPlannerVoice({
     }
   }, [ledger, capture, connectRealtime, sendRealtimeEvent])
 
-  // The farewell is the reply of the turn that asked to hang up: hang up once it has played.
   const endRef = useRef(end)
   const playingRef = useRef(false)
   useEffect(() => {
@@ -456,15 +404,12 @@ export function useMealPlannerVoice({
     return () => clearInterval(timer)
   }, [ending, farewell])
 
-  /** The user wants to keep talking: the call stays open. */
   function keepTalking() {
     farewell.reset()
     setEnding(false)
   }
 
-  // A forgotten call ends on its own.
   const connected = realtime.status === "connected"
-  // Adjusting state while rendering: React re-renders right away, before painting.
   if (connected && !wasConnected) setWasConnected(true)
   const lastSentRecipeKey = useRef<string | null>(null)
   const lastWeekContextRef = useRef<string | null>(null)
@@ -508,7 +453,6 @@ export function useMealPlannerVoice({
     return () => clearTimeout(timer)
   }, [connected, usedSeconds, closeRealtime])
 
-  // The microphone and any running turn belong to the call, so they stop when it ends on its own.
   const ended = (wasConnected && realtime.status === "disconnected") || realtime.status === "error"
   useEffect(() => {
     if (!ended) return
@@ -520,7 +464,6 @@ export function useMealPlannerVoice({
   const speaking = useHeldTrue(connected && !muted && realtime.isPlaying, SPEAKING_HOLD_MS)
   let orbState: VoiceOrbState = "idle"
   if (realtime.status === "error" || error) orbState = "error"
-  // Waiting for the microphone or the session counts as connecting, not as ended.
   else if (realtime.status === "connecting" || !wasConnected) orbState = "connecting"
   else if (connected && muted) orbState = "muted"
   else if (connected && speaking) orbState = "speaking"

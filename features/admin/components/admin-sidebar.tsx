@@ -41,11 +41,6 @@ import {
 } from "@/features/admin/data/nav-items"
 import { useAdminWorkQueue } from "@/features/admin/overview/work-queue-provider"
 
-/**
- * Admin navigation: brand on top, the main tools, labelled sections, then
- * appearance and the account at the bottom. Slides
- * fully away when collapsed and becomes a sheet on phones.
- */
 export function AdminSidebar() {
   return (
     <Sidebar collapsible="offcanvas">

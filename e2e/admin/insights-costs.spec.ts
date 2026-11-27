@@ -36,7 +36,6 @@ test.describe("admin insights", () => {
   test("rejects a range longer than 90 days", async ({ page }) => {
     await page.goto("/admin/insights")
     await page.waitForLoadState("networkidle")
-    // Retry until React has hydrated: an early submit would reload the page natively.
     await expect(async () => {
       await page.getByLabel("Từ ngày").fill("2026-01-01")
       await page.getByLabel("Đến ngày").fill("2026-12-31")

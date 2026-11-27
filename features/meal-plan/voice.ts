@@ -14,29 +14,15 @@ import {
 import { send } from "@/features/shared/lib/api-client"
 import { PUBLIC_ENV } from "@/lib/env"
 
-// Mirrors vedora-api's `/meal-plan/voice/*` routes: the meal planner voice agent.
-// Contract: vedora-api/docs/docs-for-FE/meal-plan-voice.md
-
-/**
- * Same-origin setup route that `experimental_useRealtime` POSTs to. The hook sends no
- * Authorization header, so the route reads the session cookie and asks the API for a token.
- */
 export const VOICE_SESSION_ROUTE = "/api/meal-planner/voice/session"
 
-/** Setup route URL with optional `threadId` so the API can warm the sticky prompt cache. */
 export function voiceSessionRoute(threadId?: string) {
   if (!threadId) return VOICE_SESSION_ROUTE
   return `${VOICE_SESSION_ROUTE}?threadId=${encodeURIComponent(threadId)}`
 }
 
-/**
- * Status the session route answers with when the API refuses a session because the
- * user's AI allowance is used up (`429 AI_QUOTA_EXCEEDED`): `experimental_useRealtime`
- * reports only the status, and a plain 429 also means "too fast".
- */
 export const VOICE_QUOTA_STATUS = 402
 
-/** What to tell the user when `experimental_useRealtime` fails; setup failures carry only a status. */
 export function voiceErrorText(message: string) {
   const setup = /^Failed to fetch realtime setup: (\d+)$/.exec(message)
   if (!setup) return message
@@ -50,24 +36,12 @@ export function voiceErrorText(message: string) {
   return "Chưa kết nối được trợ lý giọng nói. Hãy thử lại sau ít phút."
 }
 
-/** Must match the API's VOICE_REALTIME_MODEL: the token and its URL are bound to it. */
 export const VOICE_MODEL_ID = "openai/gpt-live-1.1"
 
-/**
- * The call ends on its own after this long, so a forgotten tab does not keep a paid session
- * open. Set by NEXT_PUBLIC_VOICE_MAX_SECONDS (lib/env.ts), 15 minutes by default.
- */
 export const VOICE_MAX_SECONDS = PUBLIC_ENV.voiceMaxSeconds
 
-/** One append to GPT-Live carries at most 500 tokens; Vietnamese text stays well under this. */
 const MAX_APPEND_CHARACTERS = 1200
 
-/**
- * Live session instructions, following OpenAI's GPT-Live template with fixed
- * `Backchannel policy`, `Interruption policy`, and `Delegation policy` headers,
- * written in English with an explicit spoken-Vietnamese rule.
- * https://developers.openai.com/api/docs/guides/live-prompting
- */
 const VOICE_INSTRUCTIONS = `You are Vedora, a warm, composed, and capable kitchen companion for Vietnamese plant-based cooking.
 - Speak ONLY in natural, conversational Vietnamese as in a real phone call, addressing yourself as "mình" and the user as "bạn".
 - Keep sentences short, breathable, and varied in phrasing so someone cooking hands-free can follow effortlessly without robotic repetition, English filler words, or hesitant hedging.
@@ -100,11 +74,6 @@ Do not delegate when:
 - The user only wants an ingredient amount or cooking step read from the recipe already open in your context, without moving the screen.
 - The user's core intent is genuinely incomplete even with full app state and requires one crisp clarifying question first.`
 
-/**
- * Startup greeting as a `developer` message in `session.input`, as the GPT-Live guide
- * recommends: the language, what to say, then pause and listen. With a name, the
- * greeting uses it the way Vietnamese speakers would.
- */
 function voiceGreeting(fullName: string | undefined) {
   const name = fullName?.trim()
   const address = name
@@ -113,7 +82,6 @@ function voiceGreeting(fullName: string | undefined) {
   return `Give a brief, warm Vietnamese hello${address} in one short sentence so they know Vedora is listening, then pause.`
 }
 
-/** The session settings. Build it once per call: a new object would replace the hook's session. */
 export function voiceSessionConfig(fullName: string | undefined): Partial<Experimental_RealtimeSessionConfig> {
   return {
     instructions: VOICE_INSTRUCTIONS,
@@ -132,7 +100,6 @@ export function voiceSessionConfig(fullName: string | undefined): Partial<Experi
   }
 }
 
-/** Silent page context for GPT-Live (`thinking` channel), sent when the session starts. */
 export function voicePageContext(weekStart: string, today: string) {
   return `Người dùng đang ở trang Lên thực đơn của Vedora, xem tuần bắt đầu ${weekStart}. Hôm nay là ${today}.`
 }
@@ -145,7 +112,6 @@ export type VoiceOpenRecipe = {
   steps: string[]
 }
 
-/** Compact recipe summary for GPT-Live's silent `thinking` channel while the user cooks. */
 export function voiceRecipeContext(recipe: VoiceOpenRecipe): string {
   const ingredients = recipe.ingredients
     .map((item) => {
@@ -163,7 +129,6 @@ export function voiceRecipeContext(recipe: VoiceOpenRecipe): string {
 
 export const VOICE_RECIPE_CLOSED_CONTEXT = "Người dùng vừa đóng bảng công thức, quay lại xem lịch thực đơn."
 
-/** Trims a result to what one GPT-Live append can carry. */
 export function appendableText(text: string) {
   if (text.length <= MAX_APPEND_CHARACTERS) return text
   return text.slice(0, MAX_APPEND_CHARACTERS)
@@ -184,15 +149,12 @@ export type VoiceTurnRequest = {
   screen?: VoiceScreen
 }
 
-/** Parts of a recipe sheet the voice agent can scroll to; `top` is the start. */
 export const RECIPE_SECTIONS = ["top", "ingredients", "steps"] as const
 export type RecipeSection = (typeof RECIPE_SECTIONS)[number]
 
-/** Relative scroll directions supported by `setScreen` on any active view. */
 export const SCREEN_SCROLL_DIRECTIONS = ["up", "down", "top", "bottom"] as const
 export type ScreenScrollDirection = (typeof SCREEN_SCROLL_DIRECTIONS)[number]
 
-/** Live scroll position of the active panel or calendar, sent so the agent knows where the user is. */
 export type VoiceScrollState = {
   percent: number
   atTop: boolean
@@ -202,7 +164,6 @@ export type VoiceScrollState = {
 const SCROLL_EDGE_TOLERANCE_PX = 4
 const SCROLL_VIEWPORT_FRACTION = 0.7
 
-/** Reads the live scroll position of a scrollable container. */
 export function readScrollState(element: HTMLElement | null): VoiceScrollState | undefined {
   if (!element) return undefined
   const maxScroll = element.scrollHeight - element.clientHeight
@@ -217,7 +178,6 @@ export function readScrollState(element: HTMLElement | null): VoiceScrollState |
   }
 }
 
-/** Smoothly scrolls a container by one viewport step (~70%) or to its start/end. */
 export function scrollContainer(element: HTMLElement | null, direction: ScreenScrollDirection) {
   if (!element) return
   const reduceMotion =
@@ -235,14 +195,11 @@ export function scrollContainer(element: HTMLElement | null, direction: ScreenSc
   element.scrollBy({ top: direction === "down" ? delta : -delta, behavior })
 }
 
-/** Panels the voice agent can close; `all` is whatever is open. */
 export type VoiceScreenPanel = "recipe" | "eatingLog" | "bodyMetrics" | "shoppingList" | "all"
 
-/** Tabs inside the `bodyMetrics` nutrition & BMI companion sheet. */
 export const BODY_METRICS_TABS = ["weekly", "bmi", "dietary"] as const
 export type BodyMetricsTab = (typeof BODY_METRICS_TABS)[number]
 
-/** What the planner page shows while the user speaks, sent with each turn (`screen`). */
 export type VoiceScreen = {
   weekStart: string
   day?: Weekday
@@ -261,7 +218,6 @@ export type VoiceScreen = {
   scrollState?: VoiceScrollState
 }
 
-/** The part of the existing planner UI the voice agent points at and opens. */
 export type VoiceFocus =
   | { kind: "recipe"; recipeId: string; title: string; section: RecipeSection | null; step?: number | null }
   | { kind: "eatingLog"; date: string | null }
@@ -276,13 +232,10 @@ export type VoiceFocus =
       uncheckItems?: string[] | null
       clearChecked?: boolean
     }
-  /** `day: null` shows the week without picking a day. */
   | { kind: "planDay"; weekStart: string; day: Weekday | null }
 
-/** How long the screen keeps glowing after the agent last opened something. */
 export const VOICE_GLOW_MS = 1800
 
-/** What to open, close, or scroll on the planner page in response to a `data-screen` event. */
 export type VoiceScreenCommand = {
   focus: VoiceFocus | null
   close: VoiceScreenPanel | null
@@ -334,11 +287,6 @@ const voiceScreenDataSchema = z.object({
 
 const voiceTextDataSchema = z.object({ text: z.string().min(1) })
 
-/**
- * Runs one spoken turn and yields typed events from the API's UI message stream:
- * transient `data-*` commands (`data-state`, `data-screen`, `data-progress`,
- * `data-summary`, `data-end-call`), text deltas, and `ready` on `finish`.
- */
 export async function* streamVoiceTurn(
   token: string,
   request: VoiceTurnRequest,

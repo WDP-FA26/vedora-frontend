@@ -18,10 +18,6 @@ import { PROFESSIONAL_LABEL } from "@/features/verification/schemas"
 import { VerifiedBadge } from "@/features/shared/components/verified-badge"
 import { MEAL_PLANNER_PATH } from "@/features/meal-plan/meal-plan"
 
-/**
- * Like X.com: the rail scrolls with the feed until its bottom reaches the
- * viewport bottom, then sticks there. A shorter rail simply sticks to the top.
- */
 function useStickyTop() {
   const ref = useRef<HTMLElement>(null)
   const [top, setTop] = useState(0)
@@ -53,7 +49,6 @@ export function RightRail() {
       style={{ top }}
       className="sticky hidden w-[21.875rem] shrink-0 flex-col gap-4 self-start py-3 pl-6 *:shrink-0 lg:flex xl:pl-8"
     >
-      {/* The search page has its own box. */}
       {pathname !== "/home/search" && <PostSearchForm />}
 
       <AiPanel />
@@ -92,11 +87,6 @@ function AiPanel() {
   )
 }
 
-/**
- * Plan perks come from the billing catalog, so they match /billing. Members on
- * a paid plan see their own plan instead of an upgrade pitch. Hidden until the
- * catalog loads (and for guests, who can't open /billing anyway).
- */
 function UpgradePanel() {
   const { data: catalog } = useCatalog()
   const { data: billing } = useBilling()
@@ -172,7 +162,6 @@ const reasonLabel: Record<FollowSuggestion["reason"], (count: number) => string>
   ACTIVE: () => "Mới đăng bài gần đây",
 }
 
-/** Real suggestions from the API; hidden for guests and while there is nobody to suggest. */
 function WhoToFollow() {
   const { suggestions, follow, dismiss } = useSuggestions(3)
   if (suggestions.length === 0) return null

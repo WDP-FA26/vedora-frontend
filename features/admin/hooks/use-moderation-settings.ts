@@ -18,7 +18,6 @@ export function useModerationSettings() {
   return { settings: data ?? null, error, isLoading }
 }
 
-/** Saves, resets and tries drafts of the policy, keeping the cached copy current. */
 export function useModerationSettingsActions() {
   const { accessToken } = useAuth()
   const { mutate } = useSWRConfig()

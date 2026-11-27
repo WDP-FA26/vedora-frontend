@@ -1,14 +1,9 @@
 import { API_URL } from "@/features/auth/lib/api"
 
-/**
- * SWR keys for the author's own post analytics. Keys are `[url, accessToken]`
- * tuples fetched with the fetchers in `hooks/use-post-analytics.ts`.
- */
 export const ANALYTICS_KEY = `${API_URL}/analytics/posts`
 
 export const ANALYTICS_PATH = "/home/analytics"
 
-/** Range presets the page offers, in days ending today (Bangkok). */
 export const RANGE_PRESETS = [7, 30, 90] as const
 export type RangePreset = (typeof RANGE_PRESETS)[number]
 export const DEFAULT_RANGE_PRESET: RangePreset = 30

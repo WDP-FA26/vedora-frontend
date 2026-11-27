@@ -14,7 +14,6 @@ import { uploadToCloudinary } from "@/features/posts/lib/cloudinary-upload"
 
 const IMAGE_INPUT_ID = "recipe-image"
 
-/** Lets an admin pick a dish photo, sends it to Cloudinary and reports its public URL. */
 export function RecipeImageField({
   value,
   onChange,
@@ -60,7 +59,6 @@ export function RecipeImageField({
     <Field data-invalid={Boolean(error)}>
       <FieldLabel htmlFor={IMAGE_INPUT_ID}>Ảnh món (không bắt buộc)</FieldLabel>
       {value ? (
-        // Cloudinary serves the file as is, so the Next image optimizer is not used.
         // eslint-disable-next-line @next/next/no-img-element
         <img
           src={value}

@@ -33,7 +33,6 @@ const UNSAFE_ELEMENTS = ["img", "a"]
 
 type ToolPart = ToolUIPart | DynamicToolUIPart
 
-/** The message without its editor tools, which show as cards instead of trace lines. */
 function serverSteps(message: AssistantMessage): AssistantMessage {
   return {
     ...message,
@@ -41,7 +40,6 @@ function serverSteps(message: AssistantMessage): AssistantMessage {
   }
 }
 
-/** How the author's decision on an editor tool went, once it has an output. */
 function outcome(part: ToolPart) {
   if (part.state === "output-error") return "Không áp dụng được"
   if (part.state !== "output-available") return null
@@ -74,7 +72,6 @@ function DecisionButtons({
   )
 }
 
-/** One change the agent proposed: where it stands and, while pending, its buttons. */
 function EditCard({ part, assistant }: { part: ToolPart; assistant: WritingAssistant }) {
   const tool = getToolName(part) as EditorTool
   const done = outcome(part)
@@ -187,13 +184,6 @@ function messageText(message: AssistantMessage) {
   return message.parts.flatMap((part) => (part.type === "text" ? [part.text] : [])).join("\n\n")
 }
 
-/**
- * The writing assistant beside the editor, talking to vedora-api's blog
- * agent. Its edits appear in the post as suggestions (struck-out red text
- * with green replacements) that the author accepts or discards, from the post
- * or from the chat; titles and images are approved here. Lives inside the
- * `LexicalComposer` to reach the editor.
- */
 export function WritingAgentPanel({
   title,
   blogId,

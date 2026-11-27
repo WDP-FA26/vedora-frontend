@@ -4,17 +4,11 @@ import { useEffect, useState } from "react"
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext"
 import { $getSelection, $isParagraphNode, $isRangeSelection, $isRootNode } from "lexical"
 
-/**
- * "Nhập / để chọn lệnh…" on the line the caret is in, while that line is a
- * completely blank paragraph. Positioned over the paragraph's own box, so it
- * needs a positioned parent around the editor's content area.
- */
 export function EmptyLineHintPlugin() {
   const [editor] = useLexicalComposerContext()
   const [focused, setFocused] = useState(false)
   const [box, setBox] = useState<{ top: number; left: number } | null>(null)
 
-  // Update listeners run once the DOM is reconciled, so the paragraph exists.
   useEffect(
     () =>
       editor.registerUpdateListener(({ editorState }) => {
@@ -28,7 +22,6 @@ export function EmptyLineHintPlugin() {
         const element = key ? editor.getElementByKey(key) : null
         const top = element?.offsetTop
         const left = element?.offsetLeft
-        // Same spot: keep the old object so React skips the render.
         setBox((previous) =>
           top === undefined || left === undefined
             ? null

@@ -45,7 +45,6 @@ export function useWorkspace(id: string) {
   return { workspace: data ?? null, error, isLoading }
 }
 
-/** Writes a page returned by a mutation into its detail entry and the "mine" list. */
 function useStoreWorkspace() {
   const { accessToken } = useAuth()
   const { mutate } = useSWRConfig()
@@ -57,14 +56,9 @@ function useStoreWorkspace() {
   }
 }
 
-/**
- * Uploads the proof images, then applies (or, with `resubmitId`, sends a
- * rejected page back for review) with their ids.
- */
 export function useSubmitWorkspace(resubmitId: string | null) {
   const { accessToken } = useAuth()
   const store = useStoreWorkspace()
-  // Uploaded files keep their id, so a retry after a failure sends only the rest.
   const uploaded = useRef(new WeakMap<File, string>())
 
   return async ({ proofs, ...application }: WorkspaceFormValues) => {
@@ -119,7 +113,6 @@ export function useWorkspaceMembers(id: string) {
   }
 }
 
-/** Public: approved restaurants, sorted nearest-first when location is set or A–Z otherwise. */
 export function useRestaurants(userLocation?: LngLat | null) {
   const { data, error, isLoading } = useSWR(
     restaurantsKey(userLocation),

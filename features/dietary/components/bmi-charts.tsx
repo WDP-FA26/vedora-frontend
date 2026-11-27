@@ -70,9 +70,6 @@ function bmiPercentPosition(bmi: number): number {
   return Math.min(98, Math.max(2, ((bmi - min) / (max - min)) * 100))
 }
 
-/**
- * Chart 1: Asian WPRO BMI spectrum bar.
- */
 export function AsianBmiSpectrumBar({
   profile,
   compact = false,
@@ -114,7 +111,6 @@ export function AsianBmiSpectrumBar({
         <p className="text-xs leading-5 text-muted-foreground">{meta.description}</p>
       </div>
 
-      {/* 4 Asian BMI zones: [14..18.5], [18.5..23.0], [23.0..25.0], [25.0..30] over span 16 */}
       <div className="space-y-1.5 pt-1">
         <div className="relative h-3 w-full overflow-visible rounded-full bg-muted">
           <div className="flex h-full w-full overflow-hidden rounded-full">
@@ -254,10 +250,6 @@ function WeightTrendTooltip({
   )
 }
 
-/**
- * Chart 2: Weight & Asian BMI trend chart with 7-day moving average line so
- * normal day-to-day water/meal fluctuations never feel stressful.
- */
 export function WeightBmiTrendChart({ profile }: { profile: NutritionProfile }) {
   const [mode, setMode] = useState<TrendMode>("weight")
   const [rangeDays, setRangeDays] = useState<RangeDays>(30)
@@ -431,7 +423,6 @@ function localTodayIso(): string {
   return `${year}-${month}-${day}`
 }
 
-/** Weight check-in with date picker so users can log today or fix a previous day's entry. */
 export function WeightQuickCheckIn({
   profile,
   onSaved,
@@ -597,7 +588,6 @@ export function WeightQuickCheckIn({
   )
 }
 
-/** Form for editing core body measurements (height, weight, birth year, sex, activity) and menu goal. */
 export function NutritionProfileForm({
   profile,
   onSaved,

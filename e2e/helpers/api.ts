@@ -10,14 +10,6 @@ const CORS = {
 
 type Mock = { status?: number; body?: unknown }
 
-/**
- * Overrides one *browser-side* API call (SWR fetchers, client mutations).
- * `path` is relative to the API root, e.g. `/posts/feed` (query strings are
- * ignored when matching). Server-side calls are handled by the mock API in
- * e2e/mock-api/server.mjs and cannot be intercepted from here.
- *
- * Returns the list of requests seen so a spec can assert on them.
- */
 export async function mockApi(
   page: Page,
   path: string,

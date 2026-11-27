@@ -62,7 +62,6 @@ const CLAIM_TOASTS: Record<ClaimAction, string> = {
   release: "Đã trả hồ sơ về hàng chờ",
 }
 
-/** "Người phụ trách" row: who holds the ticket and the claim/take-over/release action. */
 function AssigneeCell({
   ticket,
   viewerId,
@@ -189,7 +188,6 @@ export function AdminSupportDetailView({ id }: { id: string }) {
   const isAppeal = ticket.category === "CONTENT_APPEAL" && ticket.appeal !== null
   const viewerId = user?.id ?? null
   const claimedByOther = ticket.assignee !== null && ticket.assignee.id !== viewerId
-  // A closed ticket, or one another admin holds, only takes internal notes from this admin.
   const internalOnly = !active || claimedByOther
   const sendInternal = isInternal || internalOnly
   const trimmedReply = replyBody.trim()
@@ -254,7 +252,6 @@ export function AdminSupportDetailView({ id }: { id: string }) {
 
   const threadAndActions = (
     <div className="flex flex-col gap-6">
-      {/* Correspondence log */}
       <section aria-labelledby="admin-thread-title">
         <div className="mb-2 flex items-baseline justify-between gap-2">
           <h2 id="admin-thread-title" className="text-sm font-medium text-foreground">
@@ -267,7 +264,6 @@ export function AdminSupportDetailView({ id }: { id: string }) {
         <TicketThread messages={ticket.messages} viewerRole="ADMIN" />
       </section>
 
-      {/* Reply / Internal note form */}
       <section aria-labelledby="admin-reply-title">
         <h2
           id="admin-reply-title"
@@ -332,7 +328,6 @@ export function AdminSupportDetailView({ id }: { id: string }) {
         </form>
       </section>
 
-      {/* Final decision section */}
       {active && (
         <section aria-labelledby="admin-decision-title">
           <h2
@@ -435,7 +430,6 @@ export function AdminSupportDetailView({ id }: { id: string }) {
 
   return (
     <article className="min-w-0 pb-24">
-      {/* Sticky subheader */}
       <header className="flex flex-wrap items-center justify-between gap-3 border-b border-border bg-background px-4 py-3 sm:px-6">
         <div className="flex flex-wrap items-center gap-2.5">
           <Link
@@ -463,7 +457,6 @@ export function AdminSupportDetailView({ id }: { id: string }) {
         </Link>
       </header>
 
-      {/* Top formal metadata table */}
       <section aria-label="Thông tin tổng quan hồ sơ" className="border-b border-border px-4 py-4 sm:px-6">
         <table className="w-full border-collapse text-sm">
           <tbody className="divide-y divide-border">
@@ -532,7 +525,6 @@ export function AdminSupportDetailView({ id }: { id: string }) {
         </table>
       </section>
 
-      {/* Main workspace: 2-column split for CONTENT_APPEAL, clean single dossier for general support */}
       {isAppeal ? (
         <div className="grid grid-cols-1 gap-6 px-4 pt-5 sm:px-6 lg:grid-cols-12">
           <section

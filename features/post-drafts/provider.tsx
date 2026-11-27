@@ -146,9 +146,6 @@ function DraftStatus({ manager }: { manager: PostDraftManager }) {
   const failed = drafts.some(
     (draft) => draft.error || draft.files.some((file) => file.state === "failed")
   )
-  // Drafts at rest stay quiet (they are listed under Bản nháp); speak up only
-  // while files are saved or uploaded, or when something needs attention.
-  // Text saves finish in milliseconds, so they never show "Đang lưu" either.
   const busy = state.savingFiles > 0 || Boolean(uploading) || queued || failed
   if (
     (!busy || pathname.startsWith(POST_DRAFTS_PATH)) &&

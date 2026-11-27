@@ -24,11 +24,8 @@ type NavItem = {
   label: string
   icon: LucideIcon
   isNew?: boolean
-  /** Left nav only; the phone bar has no room for it. */
   desktopOnly?: boolean
-  /** Shown to admins only. */
   adminOnly?: boolean
-  /** Hidden while acting as a restaurant page (account-level settings). */
   personalOnly?: boolean
 }
 

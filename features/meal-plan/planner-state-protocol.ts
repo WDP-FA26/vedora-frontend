@@ -11,16 +11,6 @@ import {
 import { isMealLogKey } from "@/features/meal-plan/meal-log"
 import { isMealPlanKey } from "@/features/meal-plan/meal-plan"
 
-/**
- * Unified server-driven state synchronization protocol shared by both Text Chat
- * (`POST /meal-plan/chat`) and Voice (`POST /meal-plan/voice/turns`).
- *
- * - Direct `patch` payloads (`nutrition`, `dietary`) update SWR caches in 0ms
- *   with a monotonic freshness guard so stale snapshots never overwrite newer state.
- * - Domain invalidations (`plan`, `shoppingList`, `mealLog`, `nutrition`, `dietary`)
- *   are coalesced over a 100ms window so back-to-back tool calls in one turn issue
- *   a single clean revalidation instead of overlapping GETs.
- */
 export const plannerStateDomainSchema = z.enum([
   "plan",
   "shoppingList",
@@ -123,7 +113,6 @@ export function applyPlannerState(mutate: ScopedMutator, event: PlannerStateEven
         if (!current) return nextNutrition
         const currentStamp = latestUpdatedAt(current)
         const nextStamp = latestUpdatedAt(nextNutrition)
-        // Guard against out-of-order patches when a newer history entry is already cached.
         if (currentStamp && nextStamp && nextStamp < currentStamp) return current
         return nextNutrition
       },
@@ -154,7 +143,6 @@ export function applyPlannerState(mutate: ScopedMutator, event: PlannerStateEven
   scheduleInvalidation(mutate, domainsToInvalidate)
 }
 
-/** Reconciles every planner domain immediately (used on stream abort, stop, or network drop). */
 export function invalidateAllPlannerState(mutate: ScopedMutator) {
   if (flushTimer !== null) {
     clearTimeout(flushTimer)

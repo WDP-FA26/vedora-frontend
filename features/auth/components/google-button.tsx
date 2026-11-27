@@ -1,7 +1,6 @@
 import { buttonVariants } from "@/components/ui/button"
 import { cn } from "cn"
 
-/** Full-page navigation (not `<Link>`): the Route Handler redirects off-site to Google. */
 export function GoogleButton({ next, className }: { next?: string; className?: string }) {
   const href = next ? `/auth/google?next=${encodeURIComponent(next)}` : "/auth/google"
 

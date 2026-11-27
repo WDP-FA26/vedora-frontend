@@ -2,16 +2,13 @@ import type { ModerationChoice, ModerationPolicyDraft, ModerationSettings } from
 
 export const KEY_PATTERN = /^[a-z][a-z0-9_]{1,31}$/
 export const MAX_CHOICES = 16
-/** Built in on the API: always part of the policy, only its texts can change. */
 export const MANIPULATION_KEY = "manipulation"
 
-/** The editable part of saved settings, which is what the API takes back. */
 export function policyOf(settings: ModerationSettings): ModerationPolicyDraft {
   const { instructions, allowDescription, choices } = settings
   return { instructions, allowDescription, choices }
 }
 
-/** "Thông tin sai lệch" -> "thong_tin_sai_lech": a code the model and stored verdicts can use. */
 export function slugify(name: string) {
   const words = name
     .normalize("NFD")
@@ -20,7 +17,6 @@ export function slugify(name: string) {
     .toLowerCase()
     .split(/[^a-z0-9]+/)
     .filter(Boolean)
-  // Keep whole words up to the API's 32-character limit, leaving room for a "_2" suffix.
   let slug = ""
   for (const word of words) {
     const next = slug ? `${slug}_${word}` : word
@@ -31,7 +27,6 @@ export function slugify(name: string) {
   return /^[a-z]/.test(slug) ? slug : `c_${slug}`
 }
 
-/** `base`, or `base_2`, `base_3`… when a category already uses it. */
 export function uniqueKey(base: string, taken: ReadonlySet<string>) {
   const root = base.length >= 2 ? base : `${base}_x`
   if (!taken.has(root) && root !== "allow") return root
@@ -41,7 +36,6 @@ export function uniqueKey(base: string, taken: ReadonlySet<string>) {
   }
 }
 
-/** Why a category cannot be saved yet, in plain Vietnamese. */
 export function criterionProblems(choice: Pick<ModerationChoice, "label" | "description" | "reasonText">) {
   const problems: string[] = []
   const label = choice.label.trim().length
@@ -53,7 +47,6 @@ export function criterionProblems(choice: Pick<ModerationChoice, "label" | "desc
   return problems
 }
 
-/** The draft with every text trimmed, which is what gets saved and compared. */
 export function normalizeDraft(draft: ModerationPolicyDraft): ModerationPolicyDraft {
   return {
     instructions: draft.instructions.trim(),
@@ -67,12 +60,10 @@ export function normalizeDraft(draft: ModerationPolicyDraft): ModerationPolicyDr
   }
 }
 
-/** Whether saving would change anything: whitespace and untouched edits do not count. */
 export function isDirty(draft: ModerationPolicyDraft, saved: ModerationPolicyDraft) {
   return JSON.stringify(normalizeDraft(draft)) !== JSON.stringify(normalizeDraft(saved))
 }
 
-/** Why the draft cannot be saved yet, in plain Vietnamese. */
 export function draftProblems(draft: ModerationPolicyDraft) {
   const problems: string[] = []
   const instructions = draft.instructions.trim().length

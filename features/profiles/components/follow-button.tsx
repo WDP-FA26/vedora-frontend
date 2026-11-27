@@ -7,7 +7,6 @@ import { useAuth } from "@/features/auth/hooks/use-auth"
 import { useFollow } from "@/features/profiles/hooks/use-follow"
 import { profilePath } from "@/features/profiles/profiles-cache"
 
-/** Follow toggle. Guests are sent to sign in, then back to `redirectTo` (or this profile). */
 export function FollowButton({
   id,
   initialIsFollowing,

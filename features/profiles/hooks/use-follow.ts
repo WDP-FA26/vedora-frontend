@@ -18,7 +18,6 @@ import {
 } from "@/features/profiles/profiles-cache"
 import type { ApiProfile, Relationship } from "@/features/profiles/schemas"
 
-/** Whether the signed-in user follows profile `id`, and a toggle for it. Idle when signed out. */
 export function useFollow(id: string, initialIsFollowing?: boolean) {
   const { accessToken, user } = useAuth()
   const { mutate } = useSWRConfig()
@@ -29,7 +28,6 @@ export function useFollow(id: string, initialIsFollowing?: boolean) {
     revalidateOnMount: !hasInitial,
   })
 
-  /** Shifts a cached count at once, then refetches the profile to sync with the API. */
   function shift(key: string, field: "followerCount" | "followingCount", by: number) {
     return mutate(
       [key, accessToken],
@@ -48,7 +46,6 @@ export function useFollow(id: string, initialIsFollowing?: boolean) {
 
     setIsPending(true)
     try {
-      // Shows the new state at once; rolls back if the API call fails.
       await mutate(
         [relationshipKey(id), accessToken],
         async () => {
@@ -64,7 +61,6 @@ export function useFollow(id: string, initialIsFollowing?: boolean) {
         user && shift(profileKey(user.id), "followingCount", by),
       ])
     } catch {
-      // Rolled back above; the button returning to its old label is the feedback.
     } finally {
       setIsPending(false)
     }

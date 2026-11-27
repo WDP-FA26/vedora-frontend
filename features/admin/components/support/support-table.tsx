@@ -123,7 +123,6 @@ export function AdminSupportTable() {
 
   return (
     <section aria-label="Quản lý hồ sơ hỗ trợ và kháng cáo" className="min-w-0">
-      {/* Row 1: Underline status tab strip with counts */}
       <nav
         aria-label="Lọc theo trạng thái"
         className="flex items-center gap-1 overflow-x-auto border-b border-border px-4"
@@ -154,7 +153,6 @@ export function AdminSupportTable() {
         })}
       </nav>
 
-      {/* Row 2: Category filter + Search + Appeal trigger filter */}
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border bg-muted/20 px-4 py-2.5">
         <div role="group" aria-label="Lọc theo danh mục" className="flex flex-wrap items-center gap-1.5 text-xs">
           <span className="mr-1 text-muted-foreground">Danh mục:</span>

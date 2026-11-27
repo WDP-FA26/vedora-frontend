@@ -45,9 +45,7 @@ function visibleDrafts(state: DraftState["state"]) {
 
 type DraftsTab = "video" | "blog"
 
-/** Unpublished video posts (kept by the draft manager) and blogs, one tab each. */
 export function PostDraftsView() {
-  // Read from the URL (not state) so Back from a blog editor lands on the same tab.
   const tab: DraftsTab = useSearchParams().get("tab") === "blog" ? "blog" : "video"
   const draftState = useDraftState()
   const videoCount = draftState.state.loaded ? visibleDrafts(draftState.state).length : null

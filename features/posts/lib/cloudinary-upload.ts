@@ -1,19 +1,12 @@
 import type { VideoUploadTarget } from "@/features/posts/schemas"
 
-/** Cloudinary refused the file, e.g. because it's too large for the plan. */
 export class CloudinaryUploadError extends Error {}
 
 export type UploadTask = {
-  /** Resolves once Cloudinary has the whole file. */
   done: Promise<void>
   abort: () => void
 }
 
-/**
- * Sends `file` straight to Cloudinary with the API's signed fields. Files
- * above `chunkSize` go in chunks that share an `X-Unique-Upload-Id`, so a
- * large upload isn't one long request. XHR rather than fetch, for progress.
- */
 export function uploadToCloudinary(
   { url, fields, chunkSize }: VideoUploadTarget["upload"],
   file: File,
@@ -51,7 +44,6 @@ export function uploadToCloudinary(
         try {
           message = (JSON.parse(xhr.responseText) as { error?: { message?: string } }).error?.message ?? message
         } catch {
-          // Not JSON; keep the status.
         }
         reject(new CloudinaryUploadError(message))
       }

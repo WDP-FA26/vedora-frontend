@@ -32,7 +32,6 @@ function isProfileTab(value: unknown): value is ProfileTab {
   return value === "posts" || value === "menu" || value === "reviews"
 }
 
-/** A profile's header and posts. Public; the owner also gets the edit button. */
 export function ProfileView({
   id,
   initialTab = "posts",

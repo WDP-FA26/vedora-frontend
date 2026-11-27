@@ -15,10 +15,6 @@ export const bodyBenefits = [
   },
 ] as const
 
-/**
- * Poore & Nemecek (2018), Science 360(6392): moving from current diets to one
- * without animal products, global food-system reductions.
- */
 export const planetStats = [
   { value: 76, label: "diện tích đất dành cho sản xuất thực phẩm" },
   { value: 49, label: "khí nhà kính phát thải từ thực phẩm" },

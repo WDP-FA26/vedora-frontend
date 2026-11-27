@@ -142,10 +142,6 @@ function WeeklyCalorieTooltip({
   )
 }
 
-/**
- * Chart 3: 7-day calorie distribution BarChart vs daily target reference line,
- * distinguishing full 3-meal days from partial days so eating-out schedules don't look broken.
- */
 function WeeklyCalorieBarChart({
   plan,
   nutrition,
@@ -268,16 +264,11 @@ export type NutritionCompanionBarHandle = {
   showDietary: () => void
   hideBodyMetrics: () => void
   scrollBodyMetrics: (direction: ScreenScrollDirection) => void
-  /** Whether the nutrition & BMI sheet is open, for the voice agent's view of the page. */
   isBodyMetricsOpen: () => boolean
   bodyMetricsTab: () => BodyMetricsTab
   bodyMetricsScrollState: () => VoiceScrollState | undefined
 }
 
-/**
- * Compact companion banner above the calendar grid plus a rich side sheet housing
- * all 3 charts (Weekly Calories, Asian BMI Spectrum, Weight/BMI Trend) and check-in tools.
- */
 export function NutritionCompanionBar({
   plan,
   nutrition,
@@ -297,7 +288,6 @@ export function NutritionCompanionBar({
   onDietarySaved?: (next: DietaryMemory) => Promise<void> | void
   onAskAssistant?: (prompt: string) => void
   trailing?: ReactNode
-  /** Lets the voice agent open and close the BMI panel. */
   handle?: Ref<NutritionCompanionBarHandle>
 }) {
   const [sheetOpen, setSheetOpen] = useState(false)

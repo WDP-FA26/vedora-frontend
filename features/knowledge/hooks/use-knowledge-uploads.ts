@@ -50,7 +50,6 @@ export function useKnowledgeUploads() {
     entry.abort.abort()
     if (discard && entry.documentId) {
       deleteDocument(entry.documentId).catch(() => {
-        // Uploads that never complete are also failed by the API's cron.
       })
     }
     sync()
@@ -66,7 +65,6 @@ export function useKnowledgeUploads() {
       const target = await requestKnowledgeUpload(token, file)
       entry.documentId = target.document.id
       void upsert(target.document)
-      // Cancelled while the token was being issued.
       if (entry.abort.signal.aborted) {
         await deleteDocument(target.document.id)
         return

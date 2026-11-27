@@ -3,10 +3,6 @@ import { z } from "zod"
 import { newUsernameSchema } from "@/features/auth/schemas"
 import { presignedUploadSchema } from "@/features/shared/lib/storage-upload"
 
-// Mirrors vedora-api's `/profiles` responses, `UpdateProfileDto` and the
-// `username` of `UpdateUserDto`.
-// Responses are parsed with these, so the types below are checked at runtime.
-
 export const MAX_FULL_NAME_LENGTH = 100
 export const MAX_BIO_LENGTH = 500
 export const MAX_USERNAME_LENGTH = 30
@@ -37,10 +33,7 @@ export const restaurantProfileSchema = z.object({
 })
 
 export const apiProfileSchema = apiProfileSummarySchema.extend({
-  /** `PAGE` for a restaurant page. */
-  // Defaults keep profiles working against an API deployed before pages existed.
   accountType: z.enum(["PERSONAL", "PAGE"]).default("PERSONAL"),
-  /** Where a restaurant page is; `null` for a person. */
   restaurant: restaurantProfileSchema.nullable().default(null),
   createdAt: z.string(),
   postCount: z.number(),

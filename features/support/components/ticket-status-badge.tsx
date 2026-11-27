@@ -39,11 +39,6 @@ function describeStatus(
   return { label: SUPPORT_STATUS_LABELS[status], tone: STATUS_TONES[status] }
 }
 
-/**
- * Flat formal status indicator for a support ticket or content appeal.
- * When a `CONTENT_APPEAL` is resolved, reflects its specific outcome
- * (`Đã chấp thuận` / `Đã từ chối`) so reviewers and authors see the verdict at a glance.
- */
 export function TicketStatusBadge({
   status,
   appealOutcome,
@@ -51,7 +46,6 @@ export function TicketStatusBadge({
 }: {
   status: SupportTicketStatus
   appealOutcome?: AppealOutcome | null
-  /** The ticket author reads `WAITING_USER` as a request addressed to them. */
   viewer?: "USER" | "ADMIN"
 }) {
   const { label, tone } = describeStatus(status, appealOutcome ?? null, viewer)
@@ -68,7 +62,6 @@ export function TicketStatusBadge({
   )
 }
 
-/** Subtle category indicator matching Vedora's muted metadata styling. */
 export function TicketCategoryTag({ category }: { category: SupportTicketCategory }) {
   return (
     <span className="inline-flex items-center rounded-sm border border-border bg-muted/40 px-2 py-0.5 text-xs whitespace-nowrap text-muted-foreground">

@@ -1,8 +1,5 @@
 import { z } from "zod"
 
-// Mirrors the vedora-api DTOs (LoginDto / RegisterDto). The forms validate
-// with these in the browser and the Server Actions parse them again.
-
 const username = z
   .string()
   .trim()
@@ -23,7 +20,6 @@ const newPassword = z
 
 const sixDigitCode = z.string().regex(/^\d{6}$/, "Nhập đủ 6 chữ số")
 
-/** A username being chosen (register, rename); login accepts whatever exists. */
 export const newUsernameSchema = username.regex(
   /^[a-z0-9._-]+$/,
   "Chỉ dùng chữ thường, số, dấu chấm, gạch dưới hoặc gạch ngang"
@@ -53,10 +49,6 @@ export const registerSchema = z
     message: "Họ và tên tối đa 100 ký tự",
   })
 
-/**
- * vedora-api stores a single `fullName`. Vietnamese order: family name first,
- * so "Nguyễn" + "Văn An" becomes "Nguyễn Văn An".
- */
 export function toFullName({ lastName, firstName }: { lastName: string; firstName: string }) {
   return `${lastName.trim()} ${firstName.trim()}`
 }
@@ -84,5 +76,4 @@ export type VerifyEmailValues = z.infer<typeof verifyEmailSchema>
 export type ForgotPasswordValues = z.infer<typeof forgotPasswordSchema>
 export type ResetPasswordValues = z.infer<typeof resetPasswordSchema>
 
-/** Server Action errors, keyed by field, or `root` for the whole form. */
 export type FormErrors<Values> = Partial<Record<keyof Values | "root", string>>

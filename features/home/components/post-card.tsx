@@ -51,9 +51,7 @@ import { usePostView } from "@/features/posts/hooks/use-post-view"
 import { commentsPath, postPath } from "@/features/posts/posts-cache"
 
 export function PostCard({ post }: { post: Post }) {
-  // Fixture authors have no id, and so no profile to open.
   const profileHref = post.author.id ? `/profile/${post.author.id}` : null
-  // Likewise, only API posts have a page of their own.
   const postHref = post.author.id ? postPath(post.id) : null
   const viewRef = usePostView<HTMLElement>(post.author.id ? post.id : null)
   const [expanded, setExpanded] = useState(false)
@@ -180,10 +178,6 @@ function VideoMedia({ post }: { post: VideoPost }) {
   )
 }
 
-/**
- * A blog in a list: its summary only. The post page loads the article, and
- * the excerpt is plain text, never rendered as Markdown.
- */
 function BlogCard({ post }: { post: BlogPost }) {
   const [coverFailed, setCoverFailed] = useState(false)
   const { blog } = post
@@ -194,8 +188,6 @@ function BlogCard({ post }: { post: BlogPost }) {
       className="mt-3 block overflow-hidden rounded-2xl border border-border transition-colors outline-none hover:bg-muted/40 focus-visible:ring-3 focus-visible:ring-ring/30"
     >
       {blog.coverImageUrl && !coverFailed && (
-        // The article's first image, from blog storage or another site, so
-        // the Next image optimizer is not used. A broken link hides itself.
         // eslint-disable-next-line @next/next/no-img-element
         <img
           src={blog.coverImageUrl}
@@ -228,7 +220,6 @@ function BlogCard({ post }: { post: BlogPost }) {
   )
 }
 
-/** Static legacy content has no destination URL, so this is not a link. */
 function ArticleCard({ post }: { post: ArticlePost }) {
   return (
     <div className="mt-4 overflow-hidden rounded-2xl border border-border">
@@ -284,11 +275,9 @@ export function PostMenu({ post, locked = false }: { post: Post; locked?: boolea
   const [editingPost, setEditingPost] = useState(false)
   const [copied, setCopied] = useState(false)
   const reportable = Boolean(user && post.author.id !== user.id)
-  // Authors edit and delete their own blogs; they delete their other posts from here too.
   const ownBlog = post.kind === "blog" && Boolean(user) && post.author.id === user?.id ? post : null
   const ownPost = Boolean(user) && post.kind !== "blog" && post.author.id === user?.id
 
-  // Illustrative cards have no permalink or server-side menu actions.
   if (!post.author.id) return null
 
   return (
@@ -477,8 +466,6 @@ async function copyPostLink(id: string) {
     await navigator.clipboard.writeText(url)
     return true
   } catch {
-    // Clipboard access may be unavailable in some browsers. Let the user
-    // copy the real URL manually instead of reporting a false success.
     window.prompt("Sao chép liên kết bài viết:", url)
     return false
   }
@@ -520,10 +507,8 @@ function ActionButton({
   count?: number
   icon: React.ComponentType<React.SVGProps<SVGSVGElement>>
   active?: boolean
-  /** Exposes `active` as a pressed state to assistive tech. */
   toggle?: boolean
   onClick?: () => void
-  /** Renders a link to `href` instead of a button. */
   href?: string
   activeIconClassName?: string
 }) {

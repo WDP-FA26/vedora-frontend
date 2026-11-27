@@ -14,18 +14,12 @@ import {
 import { commentsKey } from "@/features/posts/posts-cache"
 import type { CommentPage } from "@/features/posts/schemas"
 
-/**
- * The comments on post `postId`, newest first and loaded a page at a time.
- * Works signed out; writes need a token. Writes edit the loaded pages in place
- * instead of refetching them, so the pages already shown keep their cursors.
- */
 export function useComments(postId: string, parentId?: string, enabled = true) {
   const { accessToken } = useAuth()
   const { countComment, refreshCommentCount } = usePostInteractions()
   const { data, error, isLoading, isValidating, size, setSize, mutate } = useSWRInfinite(
     (_index: number, previous: CommentPage | null) => {
       if (!enabled) return null
-      // The last page has no cursor.
       if (previous && !previous.nextCursor) return null
       const cursor = previous?.nextCursor
       const url = parentId ? `${commentsKey(postId)}/${parentId}/replies` : commentsKey(postId)
@@ -67,8 +61,6 @@ export function useComments(postId: string, parentId?: string, enabled = true) {
     if (!accessToken) return
     const removed = comments.find((item) => item.id === commentId)
     await deleteComment(accessToken, postId, commentId)
-    // The next page is fetched after its cursor, which must still exist on the
-    // API. A page that loses its only comment has no cursor to hand on: refetch.
     const emptied = (data ?? []).some(
       (page) => page.nextCursor === commentId && page.items.length === 1
     )
@@ -85,12 +77,10 @@ export function useComments(postId: string, parentId?: string, enabled = true) {
       )
     }
     void countComment(postId, -(1 + (removed?.replyCount ?? 0)))
-    // Other members may have replied since this page loaded. Reconcile cascade totals.
     void refreshCommentCount(postId).catch(() => undefined)
   }
 
   const pages = data ?? []
-  // A comment added here can come back in a later page too; show it once.
   const comments = [
     ...new Map(
       pages.flatMap((page) => page.items).map((comment) => [comment.id, comment] as const)

@@ -92,7 +92,6 @@ function buildSnapshotText(values: RecipeFormValues, catalog: readonly Ingredien
   return parts.join("\n")
 }
 
-/** Asks AI to revise the form's recipe; the request travels apart from the recipe text. */
 function formRevision(snapshot: string, instruction: string): RecipeDraftSource {
   return {
     currentRecipe: snapshot.slice(0, MAX_TEXT_LENGTH),
@@ -114,11 +113,6 @@ function failureMessage(error: unknown): string {
   return "AI chưa xử lý được. Thử lại nhé."
 }
 
-/**
- * Floating bottom-right AI assistant bubble & panel for recipe admins.
- * Extracts recipes from linked posts/videos/captions, searches the web for calories
- * with clickable sources, and lets the admin chat interactively to refine fields.
- */
 export function RecipeAiFill({
   handle,
   postId,

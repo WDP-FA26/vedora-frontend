@@ -19,7 +19,6 @@ export function ForgotPasswordForm() {
   const { isSubmitting, errors } = form.formState
 
   async function onSubmit(values: ForgotPasswordValues) {
-    // Resolves only on failure; on success the action redirects.
     const serverErrors = await requestPasswordReset(values)
     for (const [name, message] of Object.entries(serverErrors)) {
       form.setError(name as keyof typeof serverErrors, { message })

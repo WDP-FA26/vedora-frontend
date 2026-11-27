@@ -1,21 +1,15 @@
 import type { AdminPost, AdminReport } from "@/features/admin/schemas"
 
-/** Why a post is in the moderation queue. */
 export type QueueKind = "held" | "blocked" | "report"
 
 export type QueueRow = {
-  /** Unique across kinds: a post can be both held and reported. */
   id: string
   kind: QueueKind
   postId: string
-  /** The text a moderator reads first: the post, or a blog's title. */
   excerpt: string
   author: { fullName: string; username: string }
-  /** The model's risk level, 0 (none) to 3 (high); null if never rated. */
   riskLevel: number | null
-  /** The category the post most likely breaks. */
   category: string | null
-  /** For `held` and `blocked`: what the automated check decided. For `report`: the reporter's reason. */
   report: AdminReport | null
   reportCount?: number
   pendingReportCount?: number
@@ -27,7 +21,6 @@ function excerptOf(post: { body: string | null; blog: { title: string } | null }
   return text.trim() || "(Bài chỉ có video)"
 }
 
-/** The automated check's risk level and category for a post, if it was rated. */
 function moderationOf(post: AdminPost | undefined) {
   return {
     riskLevel: post?.moderation?.riskLevel ?? null,
@@ -36,7 +29,6 @@ function moderationOf(post: AdminPost | undefined) {
   }
 }
 
-/** Posts the check held or blocked, plus every pending user report, newest first. */
 export function buildQueue(posts: AdminPost[], reports: AdminReport[]): QueueRow[] {
   const postById = new Map(posts.map((post) => [post.id, post]))
   const rows: QueueRow[] = []

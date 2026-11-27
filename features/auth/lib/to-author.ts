@@ -5,11 +5,9 @@ import { PROFESSIONAL_LABEL } from "@/features/verification/schemas"
 
 const TONES: PlaceholderTone[] = ["basil", "sage", "grain", "beet", "tomato"]
 
-/** Adapts an API user (or post author) to the `Author` shape the avatar and nav components use. */
 export function toAuthor(
   user: Pick<CurrentUser, "id" | "username" | "fullName"> & {
     avatarUrl?: string | null
-    /** Verified professional; shows the verified badge where the name is rendered. */
     isProfessional?: boolean
   }
 ): Author {
@@ -18,7 +16,6 @@ export function toAuthor(
     words.length > 1
       ? `${words[0][0]}${words[words.length - 1][0]}`
       : user.fullName.slice(0, 2)
-  // Stable per user, so the avatar colour doesn't change between visits.
   const hash = [...user.id].reduce((sum, char) => sum + char.charCodeAt(0), 0)
 
   return {

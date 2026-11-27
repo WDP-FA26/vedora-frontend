@@ -210,7 +210,6 @@ describe("FarewellTracker", () => {
 
     tracker.spoke(10_000, 11_000)
     tracker.spoke(11_000, 12_000)
-    // Two seconds of audio from when it started arriving, plus the pause after speech.
     advance(2599)
     expect(tracker.done(false)).toBe(false)
     advance(1)
@@ -248,15 +247,12 @@ describe("FarewellTracker", () => {
   it("ignores late trailing fragments and brief goodbye replies when deciding whether to cancel", () => {
     const tracker = new FarewellTracker()
     tracker.sent()
-    // Within grace period: trailing fragment of user's own end-call command
     advance(FAREWELL_CANCEL_GRACE_MS - 100)
     expect(tracker.shouldCancel("đi nhé")).toBe(false)
-    // Past grace period: brief goodbye acknowledgements still do not cancel
     advance(200)
     expect(tracker.shouldCancel("Ok")).toBe(false)
     expect(tracker.shouldCancel("tạm biệt!")).toBe(false)
     expect(tracker.shouldCancel("cảm ơn nhé.")).toBe(false)
-    // Substantive new speech cancels the hang-up
     expect(tracker.shouldCancel("à khoan đổi bữa tối thứ sáu")).toBe(true)
   })
 
@@ -274,28 +270,21 @@ describe("VoiceNoiseGate", () => {
     const gate = new VoiceNoiseGate({ autoSensitivity: false, thresholdDb: -40 })
     expect(gate.processDb(-55, 0)).toBe(false)
     expect(gate.processDb(-41, 20)).toBe(false)
-    // Crosses open threshold
     expect(gate.processDb(-35, 40)).toBe(true)
-    // Stays open within hysteresis band (-46..-40 dB)
     expect(gate.processDb(-44, 60)).toBe(true)
-    // Drops below close threshold (-46 dB): stays open during hold window
     expect(gate.processDb(-60, 60 + GATE_HOLD_MS - 10)).toBe(true)
-    // Closes once hold expires
     expect(gate.processDb(-60, 60 + GATE_HOLD_MS)).toBe(false)
   })
 
   it("adapts threshold automatically above steady ambient room noise", () => {
     const gate = new VoiceNoiseGate({ autoSensitivity: true, thresholdDb: -45 })
-    // Feed steady -45 dB fan noise
     let t = 0
     for (let i = 0; i < 250; i += 1) {
       t += 20
       gate.processDb(-45, t)
     }
-    // Effective threshold should have adapted above the -45 dB room noise
     expect(gate.effectiveThresholdDb()).toBeGreaterThan(-45)
     expect(gate.processDb(-45, t + 1000)).toBe(false)
-    // Actual speech well above the adapted threshold opens the gate
     expect(gate.processDb(-20, t + 1020)).toBe(true)
   })
 })

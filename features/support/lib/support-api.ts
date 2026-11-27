@@ -33,7 +33,6 @@ export type CreateSupportTicketPayload =
       attachmentIds?: string[]
     }
 
-/** A message needs text, images, or both; empty fields are left out of the request. */
 export type SupportMessagePayload = { body?: string; attachmentIds?: string[] }
 
 export function fetchMySupportTickets([url, token]: readonly [string, string]) {

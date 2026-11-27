@@ -32,22 +32,16 @@ function errorMessage(error: unknown) {
 const isFavoritesKey = (key: unknown) =>
   Array.isArray(key) && typeof key[0] === "string" && key[0].startsWith(FAVORITES_KEY)
 
-/**
- * Whether the signed-in user saved `recipe`, and a toggle for it. The state
- * changes only once the API answers; a failed request leaves it as it was.
- */
 export function useRecipeFavorite(recipe: { id: string; isFavorite: boolean }) {
   const { user, accessToken } = useAuth()
   const { mutate } = useSWRConfig()
   const router = useRouter()
   const pathname = usePathname()
 
-  // Client-only: the entry only ever holds what `toggle` wrote, per account.
   const overridesKey = user ? ([FAVORITE_OVERRIDES_KEY, user.id] as const) : null
   const overrides = useLocalSWRState<Overrides>(overridesKey, NO_OVERRIDES)
 
   const [pending, setPending] = useState(false)
-  // Guards double clicks that land before `pending` re-renders.
   const inFlight = useRef(false)
 
   const saved = overrides[recipe.id] ?? recipe.isFavorite
@@ -72,7 +66,6 @@ export function useRecipeFavorite(recipe: { id: string; isFavorite: boolean }) {
     } catch (error) {
       if (error instanceof ApiError) {
         if (error.code === "FAVORITE_CONFLICT") void mutate(isFavoritesKey)
-        // Lets the proxy rotate the token pair; the next try uses the new one.
         if (error.status === 401) router.refresh()
       }
       toast.add({
@@ -88,7 +81,6 @@ export function useRecipeFavorite(recipe: { id: string; isFavorite: boolean }) {
   return { saved, pending, toggle }
 }
 
-/** One page of the signed-in user's saved recipes, newest saved first. */
 export function useFavoriteRecipes(page: number) {
   const { data, error, isLoading, mutate } = useAuthedSWR(favoritesKey(page), fetchFavoritePage, {
     keepPreviousData: true,

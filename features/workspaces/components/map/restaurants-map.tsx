@@ -27,7 +27,6 @@ export type CameraCenterTarget = LngLat & {
   seq: number
 }
 
-/** Map showing all approved vegetarian restaurants without refetching on pan or zoom. */
 export default function RestaurantsMap({
   restaurants,
   selectedId,
@@ -118,7 +117,6 @@ export default function RestaurantsMap({
             anchor="bottom"
             style={isSelected ? { zIndex: 10 } : undefined}
             onClick={(event) => {
-              // Keep the map's own click from closing the popup straight away.
               event.originalEvent.stopPropagation()
               onSelect(restaurant)
             }}

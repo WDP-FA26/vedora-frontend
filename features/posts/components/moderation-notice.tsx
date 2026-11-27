@@ -24,10 +24,6 @@ function formatRemovalReason(reason: string | null | undefined): string | null {
   return reason
 }
 
-/**
- * Tells the author where an unpublished or removed post stands, and provides
- * the entry point to open or view an appeal ticket.
- */
 export function ModerationNotice({ post }: { post: ApiPost }) {
   if (post.status === "PROCESSING") return <CheckingNotice id={post.id} blog={post.type === "BLOG"} />
 
@@ -91,7 +87,6 @@ function AppealableNotice({
   subject: string
   appeal: PostAppealSummary | null
   message: string
-  /** Details under the message, such as the parts that broke the policy. */
   children?: React.ReactNode
 }) {
   const [open, setOpen] = useState(false)
@@ -162,7 +157,6 @@ function AppealableNotice({
   )
 }
 
-/** Polls until the check finishes, so the notice turns into the result by itself. */
 function CheckingNotice({ id, blog }: { id: string; blog: boolean }) {
   useProcessingPost(id)
   return (

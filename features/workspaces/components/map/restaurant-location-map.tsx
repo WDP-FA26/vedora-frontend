@@ -6,7 +6,6 @@ import { BaseMap } from "./base-map"
 import { Pin } from "./pin"
 import type { LngLat } from "@/features/workspaces/schemas"
 
-/** A small read-only map of one restaurant. */
 export default function RestaurantLocationMap({ point }: { point: LngLat }) {
   return (
     <BaseMap

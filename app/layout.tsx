@@ -23,7 +23,6 @@ const beVietnam = Be_Vietnam_Pro({
   weight: ["500", "600", "700", "800"],
 });
 
-// Figtree ships no Vietnamese glyphs, so it is only for Latin text and numerals.
 const figtree = Figtree({
   variable: "--font-display",
   subsets: ["latin"],
@@ -39,7 +38,6 @@ const description =
   "Mạng xã hội cho người nấu ăn chay và các đầu bếp thuần thực vật đã xác minh, nơi chia sẻ công thức, video và blog.";
 
 export const metadata: Metadata = {
-  // Resolves the relative URLs of every page's canonical and Open Graph links.
   metadataBase: new URL(SITE_URL),
   title,
   description,

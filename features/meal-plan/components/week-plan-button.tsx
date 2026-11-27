@@ -21,7 +21,6 @@ import {
   MEAL_PLANNER_PATH,
 } from "@/features/meal-plan/meal-plan"
 
-/** Header button that shows the saved plan of the current week in a side sheet, from any page. */
 export function WeekPlanButton() {
   const [open, setOpen] = useState(false)
   const plan = useAuthedSWR(open ? mealPlanKey() : null, fetchMealPlan)

@@ -14,7 +14,6 @@ import {
 } from "@/components/ui/progress"
 import type { KnowledgeUpload } from "@/features/knowledge/hooks/use-knowledge-uploads"
 
-/** The uploads in flight, each with its progress and a way to cancel. */
 export function KnowledgeUploadList({
   uploads,
   onCancel,

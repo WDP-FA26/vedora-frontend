@@ -1,4 +1,3 @@
-/** No credentials, payloads or URLs are included in browser mutation notifications. */
 export const API_MUTATION_SETTLED = "vedora:api-mutation-settled"
 
 export function notifyApiMutation(method: string | undefined) {

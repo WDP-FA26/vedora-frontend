@@ -1,10 +1,5 @@
 import { makeAccessToken, makeRefreshToken, users } from "./fixtures/data.mjs"
 
-/**
- * `next dev` compiles each route on its first request, which can take many
- * seconds and makes the first specs to touch a route flaky. Request every
- * route the suite uses once, sequentially, before any spec starts.
- */
 const GUEST_ROUTES = [
   "/",
   "/login",
@@ -54,7 +49,6 @@ async function warm(baseURL: string, path: string, cookie?: string) {
   try {
     await fetch(new URL(path, baseURL), { headers: cookie ? { cookie } : {}, redirect: "manual" })
   } catch {
-    // Warming is best effort; a failure shows up in the specs themselves.
   }
 }
 

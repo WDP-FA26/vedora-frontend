@@ -76,7 +76,6 @@ export function StatusBadge({ status }: { status: KnowledgeDocument["status"] })
   )
 }
 
-/** Deletes a document; provided by the page so the columns can stay static. */
 export const DeleteKnowledgeDocumentContext = createContext<
   (id: string) => void
 >(() => {})
@@ -195,7 +194,6 @@ export const knowledgeColumns = helper.columns([
       <DataTableColumnHeader column={column} title="Tải lên lúc" />
     ),
     cell: ({ getValue }) => formatPostDateLong(getValue()),
-    // ISO timestamps order correctly as text.
     sortFn: "text",
     enableGlobalFilter: false,
     meta: { label: "Tải lên lúc", className: "hidden lg:table-cell" },

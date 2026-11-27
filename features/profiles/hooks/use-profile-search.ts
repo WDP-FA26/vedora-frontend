@@ -7,7 +7,6 @@ import { fetchProfileSearchPage } from "@/features/profiles/lib/profiles-api"
 import { searchProfilesKey } from "@/features/profiles/profiles-cache"
 import type { ProfileSearchPage } from "@/features/profiles/schemas"
 
-/** Active verified profiles matching `q` via BM25, best match first, a page at a time. */
 export function useProfileSearch(q: string, limit = 20) {
   const { accessToken } = useAuth()
   const { data, error, isLoading, isValidating, size, setSize } = useSWRInfinite(

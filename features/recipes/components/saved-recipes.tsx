@@ -15,17 +15,12 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { RecipeCard, RecipeDialog } from "@/features/recipes/components/recipe-card"
 import { useFavoriteRecipes } from "@/features/recipes/hooks/use-recipe-favorite"
 
-/**
- * The recipes the signed-in user saved, newest saved first, a page at a time.
- * A recipe unsaved here leaves the list once it reloads.
- */
 export function SavedRecipes() {
   const [page, setPage] = useState(1)
   const { data, error, isLoading, retry } = useFavoriteRecipes(page)
   const [openId, setOpenId] = useState<string | null>(null)
 
   const totalPages = data?.meta.totalPages ?? 0
-  // Unsaving the last recipe of the last page leaves it empty: step back.
   const pastEnd = data !== null && data.meta.page === page && data.items.length === 0 && page > 1
   if (pastEnd) setPage(Math.max(1, totalPages))
 

@@ -25,7 +25,6 @@ import { VerificationForm } from "@/features/verification/components/verificatio
 import { useMyVerification } from "@/features/verification/hooks/use-my-verification"
 import { PROFESSIONAL_LABEL } from "@/features/verification/schemas"
 
-/** Where a user asks to be verified as a professional, and follows the request. */
 export function VerificationView() {
   const { user } = useAuth()
   const { verification, error, isLoading, mutate } = useMyVerification()

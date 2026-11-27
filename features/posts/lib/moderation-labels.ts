@@ -1,4 +1,3 @@
-/** Why the content check blocked a post, worded for the author. */
 const REASON_LABELS: Record<string, string> = {
   sexual: "nội dung nhạy cảm",
   violence: "bạo lực hoặc đe dọa",
@@ -12,11 +11,6 @@ const REASON_LABELS: Record<string, string> = {
   manipulation: "nội dung tìm cách can thiệp vào hệ thống kiểm duyệt",
 }
 
-/**
- * The sentence that tells an author a post was blocked and why. `reasonText`
- * is the wording the API resolved from the current policy; the built-in
- * wording covers categories it no longer knows.
- */
 export function rejectionMessage(
   reason: string | null | undefined,
   subject = "Bài viết",

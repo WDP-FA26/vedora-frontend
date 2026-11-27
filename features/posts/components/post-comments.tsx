@@ -65,10 +65,8 @@ import { ApiError } from "@/features/shared/lib/api-client"
 import { formatCount } from "@/features/shared/lib/format"
 import { RelativeTime } from "@/features/shared/components/relative-time"
 
-/** Saves within this long of creation are the create itself, not an edit. */
 const EDIT_GRACE_MS = 1000
 
-/** The words of a rejected comment that broke the policy, and why. */
 function rejectedParts(error: unknown): ModerationFinding[] {
   if (!(error instanceof ApiError) || error.code !== "CONTENT_REJECTED") return []
   const details = contentRejectedDetailsSchema.safeParse(error.details ?? {})
@@ -91,11 +89,6 @@ function writeError(error: unknown) {
   return "Không lưu được. Thử lại nhé."
 }
 
-/**
- * The comments under a published post: a composer for signed-in visitors, then
- * the thread, newest first. Authors edit and delete their own comments; the
- * post's author and admins may delete any of them.
- */
 export function PostComments({
   postId,
   postAuthorId,
@@ -587,7 +580,6 @@ function CommentItem({
           )}
           <AlertDialogFooter>
             <AlertDialogCancel disabled={deleting}>Giữ lại</AlertDialogCancel>
-            {/* Stays open until the API answers, so a failure can be shown. */}
             <AlertDialogAction
               variant="destructive"
               disabled={deleting}
@@ -603,7 +595,6 @@ function CommentItem({
   )
 }
 
-/** Writes a new comment, or edits one in place when given `defaultBody`. */
 function CommentForm({
   label,
   submitLabel,
@@ -660,7 +651,6 @@ function CommentForm({
               aria-invalid={fieldState.invalid}
               placeholder="Chia sẻ suy nghĩ của bạn…"
               onKeyDown={(event) => {
-                // Ctrl/⌘ + Enter sends, like most comment boxes.
                 if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) {
                   event.preventDefault()
                   void form.handleSubmit(submit)()
@@ -701,7 +691,6 @@ function CommentForm({
   )
 }
 
-/** Vedora AI uses the shared AI mark, matching the Meal Planner assistant. */
 function SystemAvatar() {
   return <LogoMark className="size-8 self-start" />
 }

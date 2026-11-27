@@ -7,12 +7,6 @@ import { BLOG_TRANSFORMERS } from "@/features/blogs/editor/transformers"
 
 let scratch: LexicalEditor | null = null
 
-/**
- * The Markdown that gets saved: the post as it stands, without anything the
- * assistant has only proposed. With no pending suggestions that is a plain
- * export; otherwise the state is copied into a headless editor and every
- * suggestion discarded there, so the live document is never touched.
- */
 export function markdownOf(state: EditorState): string {
   if (!state.read(() => $pendingGroups().size > 0)) {
     return state.read(() => $convertToMarkdownString(BLOG_TRANSFORMERS))

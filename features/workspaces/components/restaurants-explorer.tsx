@@ -53,7 +53,6 @@ function countSummary(
   return `${count} nhà hàng · ${sortLabel}`
 }
 
-/** A full-height map of approved vegetarian restaurants with clickable cards in the right column. */
 export function RestaurantsExplorer() {
   const [userLocation, setUserLocation] = useState<LngLat | null>(null)
   const [sortByNearest, setSortByNearest] = useState(false)

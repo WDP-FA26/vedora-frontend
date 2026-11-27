@@ -50,7 +50,6 @@ const STATE_TEXT: Record<VoiceOrbState, { label: string; hint: string }> = {
   error: { label: "Mất kết nối", hint: "Không giữ được cuộc trò chuyện." },
 }
 
-/** What the assistant can do, shown under the orb until the user speaks. */
 const FEATURES: { icon: LucideIcon; text: string }[] = [
   { icon: CalendarRangeIcon, text: "Lên và đổi món trong thực đơn tuần" },
   { icon: BookOpenIcon, text: "Mở công thức, đọc nguyên liệu và từng bước" },
@@ -74,10 +73,6 @@ const AI_DENOISE_STATUS_TEXT: Record<VoiceAiDenoiseStatus, string | null> = {
   error: "Không tải được mô hình, dùng lọc cơ bản",
 }
 
-/**
- * Discord-style input sensitivity & noise gate popover: toggle DeepFilterNet3 AI denoising,
- * automatic ambient noise tracking, or drag a manual dB threshold while watching a live level bar.
- */
 function MicSensitivityPopover({
   settings,
   aiDenoiseStatus,
@@ -216,10 +211,6 @@ function MicSensitivityPopover({
   )
 }
 
-/**
- * Remaining time in the call, synced from AI Gateway usage snapshots: rounded to
- * minutes until under a minute remains, then ticking down by the second while live.
- */
 function VoiceCountdown({ usage, live }: { usage: VoiceUsageAnchor | null; live: boolean }) {
   const [now, setNow] = useState<number | null>(null)
   const baseRemaining =
@@ -246,11 +237,6 @@ function VoiceCountdown({ usage, live }: { usage: VoiceUsageAnchor | null; live:
   return <>Trò chuyện bằng giọng nói · còn {Math.round(secondsLeft / MINUTE_SECONDS)} phút</>
 }
 
-/**
- * The assistant column during a voice call: the orb in the middle, a few things to
- * try until the user speaks, and the call controls. The agent works on the calendar beside it.
- *Owns `useMealPlannerVoice` so realtime updates never re-render `MealPlannerView`.
- */
 export function VoicePanel({
   weekStart,
   today,
@@ -273,7 +259,6 @@ export function VoicePanel({
   onClose: () => void
   getScreen: () => VoiceScreen | null
   openRecipe?: VoiceOpenRecipe | null
-  /** Shows a compact floating bar above sheets on mobile while hands are busy. */
   showFloatingBar?: boolean
   onExpandMobile?: () => void
   leading?: ReactNode
@@ -310,7 +295,6 @@ export function VoicePanel({
       </header>
 
       <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-5 overflow-y-auto px-6 py-8">
-        {/* The orb draws in --chatcn-fg; setting it here tints it with the brand colour without restyling it. */}
         <div className="[--chatcn-fg:var(--primary)]">
           <VoiceOrb
             size={176}

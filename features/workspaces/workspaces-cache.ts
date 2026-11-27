@@ -1,25 +1,20 @@
 import { API_URL } from "@/features/auth/lib/api"
 import type { LngLat, RestaurantReviewSort } from "@/features/workspaces/schemas"
 
-/** SWR keys for restaurant pages: `[url, accessToken]` tuples, except the public map. */
 const WORKSPACES_KEY = `${API_URL}/workspaces`
 
-/** Pages you own or manage; also where a new application is posted. */
 export const MY_WORKSPACES_KEY = `${WORKSPACES_KEY}/mine`
 
 export const WORKSPACE_PROOF_UPLOADS_KEY = `${WORKSPACES_KEY}/proofs/uploads`
 
 export const WORKSPACES_URL = WORKSPACES_KEY
 
-/** One page you manage, with its members. */
 export function workspaceKey(id: string) {
   return `${WORKSPACES_KEY}/${id}`
 }
 
-/** Every application, for admins. */
 export const ADMIN_WORKSPACES_KEY = `${API_URL}/admin/workspaces`
 
-/** One application with signed proof image URLs, for admins. */
 export function adminWorkspaceKey(id: string) {
   return `${ADMIN_WORKSPACES_KEY}/${id}`
 }
@@ -28,7 +23,6 @@ export function adminTaxCodeKey(id: string) {
   return `${adminWorkspaceKey(id)}/tax-code`
 }
 
-/** Public: approved restaurants, sorted nearest-first when location is set or A–Z otherwise. */
 export function restaurantsKey(userLocation?: LngLat | null) {
   if (!userLocation) return `${API_URL}/restaurants`
   const params = new URLSearchParams({

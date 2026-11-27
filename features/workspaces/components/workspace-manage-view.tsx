@@ -70,7 +70,6 @@ function memberErrorMessage(error: unknown) {
   return "Không thực hiện được. Thử lại nhé."
 }
 
-/** One page you manage: its review status, switching into it, its address and its members. */
 export function WorkspaceManageView({ id }: { id: string }) {
   const { workspace, error, isLoading } = useWorkspace(id)
 
@@ -221,7 +220,6 @@ function DetailsForm({ workspace }: { workspace: WorkspaceDetail }) {
   })
   const { isSubmitting, isDirty, errors } = form.formState
   const address = useWatch({ control: form.control, name: "address" }) ?? ""
-  // The API refuses to move an approved page; only the phone and website change.
   const locked = workspace.status === "APPROVED"
 
   async function onSubmit(values: RestaurantDetailsFormValues) {
@@ -371,7 +369,6 @@ function Members({ workspace }: { workspace: WorkspaceDetail }) {
       <ul className="divide-y divide-border rounded-2xl border border-border">
         {workspace.members.map((member) => {
           const isSelf = member.userId === personId
-          // Leaving while acting as this page would end the only session left.
           const leavingOwnPageSession = isSelf && user?.id === workspace.pageUserId
           const canRemove = member.role !== "OWNER" && (isOwner || isSelf) && !leavingOwnPageSession
           return (

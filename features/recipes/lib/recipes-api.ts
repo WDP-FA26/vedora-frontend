@@ -36,13 +36,11 @@ import {
 } from "@/features/recipes/schemas"
 import { send, sendJson } from "@/features/shared/lib/api-client"
 
-/** The API's `MAX_PAGE_LIMIT`. */
 const PAGE_LIMIT = 50
 
 type Key = readonly [string, string]
 type PageSchema<T> = z.ZodType<{ items: T[]; meta: { hasNextPage: boolean } }>
 
-/** The admin tables sort, filter and page in the browser, so they need every row. */
 async function fetchAll<T>(schema: PageSchema<T>, [url, token]: Key) {
   const rows: T[] = []
   for (let page = 1; ; page++) {
@@ -75,7 +73,6 @@ export function fetchConflicts([url, token, ids]: readonly [string, string, stri
   })
 }
 
-/** `POST` to the collection, or `PUT` to the row when `id` is given. */
 function save<S extends z.ZodType>(
   schema: S,
   collection: string,
@@ -118,7 +115,6 @@ export const saveRecipeCategory = (
   body: RecipeCategoryInput
 ) => save(recipeCategorySchema, RECIPE_CATEGORIES_KEY, token, id, body)
 
-/** `ids` is every category, first to last; the API renumbers them. */
 export async function reorderRecipeCategories(token: string, ids: string[]) {
   await send(`${RECIPE_CATEGORIES_KEY}/order`, token, {
     method: "PUT",
@@ -140,7 +136,6 @@ export type RecipeInput = {
   title: string
   description?: string
   imageUrl?: string
-  /** `null` clears the tag; the API replaces the whole recipe. */
   tag: RecipeTag | null
   servings: number
   prepMinutes?: number
@@ -153,19 +148,12 @@ export type RecipeInput = {
 export const saveRecipe = (token: string, id: string | undefined, body: RecipeInput) =>
   save(recipeDetailSchema, RECIPES_KEY, token, id, body)
 
-/**
- * What AI reads a recipe draft from: a post's caption and transcripts (only
- * `mediaId`'s transcript when given), pasted text, or the recipe on the form.
- * `instruction` is the admin's own request and the only part AI follows as
- * instructions, so never fold it into `text` or `currentRecipe`.
- */
 export type RecipeDraftSource = (
   | { postId: string; mediaId?: string }
   | { text: string }
   | { currentRecipe: string }
 ) & { instruction?: string }
 
-/** Asks AI to read `source` into a recipe draft; nothing is saved. */
 export function requestRecipeDraft(token: string, source: RecipeDraftSource) {
   return sendJson(recipeDraftSchema, `${RECIPES_KEY}/drafts`, token, {
     method: "POST",
@@ -179,10 +167,6 @@ export async function deleteRow(collection: string, token: string, id: string) {
 
 const FEED_PAGE_LIMIT = 12
 
-/**
- * The public list is readable signed out; the token is sent only when there is one.
- * `tag` keeps only recipes of that dish type (a category's `baseTag`).
- */
 export function fetchPublicRecipePage([url, page, tag, token]: readonly [
   string,
   number,
@@ -194,7 +178,6 @@ export function fetchPublicRecipePage([url, page, tag, token]: readonly [
   return sendJson(publicRecipePageSchema, `${url}?${params}`, token)
 }
 
-/** Every category that is not hidden, in the admin's order; readable signed out. */
 export async function fetchPublicRecipeCategories([url]: readonly [string]) {
   const rows: RecipeCategory[] = []
   for (let page = 1; ; page++) {
@@ -208,7 +191,6 @@ export async function fetchPublicRecipeCategories([url]: readonly [string]) {
   }
 }
 
-/** One page of catalog recipes whose title, description or ingredients contain `q`. */
 export function fetchRecipeSearchPage([url, q, page, limit, token]: readonly [
   string,
   string,
@@ -228,12 +210,10 @@ export function fetchRatingSummary([url]: readonly [string, undefined]) {
   return sendJson(ratingSummarySchema, url, undefined)
 }
 
-/** The user id rides in the key only so each account gets its own cache entry. */
 export function fetchMyRating([url, token]: readonly [string, string, string]) {
   return sendJson(myRatingSchema, url, token)
 }
 
-/** Sets the caller's score (1–5), or removes it when `value` is null. */
 export function setRecipeRating(token: string, recipeId: string, value: number | null) {
   return sendJson(myRatingSchema, myRatingKey(recipeId), token, {
     method: value === null ? "DELETE" : "PUT",
@@ -245,7 +225,6 @@ export function fetchFavoritePage([url, token]: readonly [string, string]) {
   return sendJson(favoriteRecipePageSchema, url, token)
 }
 
-/** Saves the recipe (`PUT`) or removes it (`DELETE`); both are idempotent. */
 export function setRecipeFavorite(token: string, recipeId: string, saved: boolean) {
   return sendJson(favoriteStateSchema, favoriteKey(recipeId), token, {
     method: saved ? "PUT" : "DELETE",

@@ -67,17 +67,12 @@ const emptyCopy = {
 
 export function Feed() {
   const [activeTab, setActiveTab] = useState<FeedTab>("for-you")
-  // A tab renders on its first visit and then stays mounted, hidden. Remounting
-  // its cards on every switch rebuilt each video player, which leaks inside the
-  // Cloudinary player and made switching tabs slower until a reload.
   const [visited, setVisited] = useState<FeedTab[]>(["for-you"])
   const latest = useFeedPosts()
   const ranked = useForYouPosts()
   const following = useFollowingPosts()
   const { accessToken } = useAuth()
   const { mutate } = useSWRConfig()
-  // The list endpoint may include the author's processing posts. Only
-  // published content belongs in the public Explore timeline.
   const published = (posts: ApiPost[]) =>
     posts.filter((post) => post.status === "PUBLISHED")
   const forYou = published(ranked.posts).map(toFeedPost)
@@ -86,7 +81,6 @@ export function Feed() {
     .filter((post) => post.type === "BLOG")
     .map(toFeedPost)
 
-  // One entry per tab that loads from the API; the recipes tab renders its own feed.
   const sources: Partial<Record<FeedTab, { posts: Post[]; isLoading: boolean; error: unknown; key: string }>> = {
     "for-you": { posts: forYou, isLoading: ranked.isLoading, error: ranked.error, key: FOR_YOU_KEY },
     following: { posts: followingPosts, isLoading: following.isLoading, error: following.error, key: FOLLOWING_KEY },
@@ -146,7 +140,6 @@ export function Feed() {
   )
 }
 
-/** A hidden tab stays mounted, so stop any video in it from playing on unseen. */
 function PausesWhenHidden({ isActive, children }: { isActive: boolean; children: React.ReactNode }) {
   const ref = useRef<HTMLDivElement>(null)
 

@@ -1,9 +1,3 @@
-/**
- * Microphone capture for the realtime voice agent, loaded by `VoiceAudioCapture`
- * (`features/meal-plan/voice-capture.ts`). Runs on the audio thread: resamples to
- * `targetSampleRate`, encodes Float32 samples to Int16 PCM, packs chunk RMS level into
- * the trailing Int16 slot, and recycles transferred Int16Array packets via a pool.
- */
 const MAX_POOL_SIZE = 8
 const INITIAL_POOL_SIZE = 4
 

@@ -3,7 +3,6 @@ import type { DateRange } from "../post-analytics-cache"
 const DAY_MS = 86_400_000
 const TIME_ZONE = "Asia/Bangkok"
 
-/** Today as `YYYY-MM-DD` in Bangkok, the API's analytics time zone. */
 function bangkokToday(now: Date): string {
   return new Intl.DateTimeFormat("en-CA", {
     timeZone: TIME_ZONE,
@@ -13,7 +12,6 @@ function bangkokToday(now: Date): string {
   }).format(now)
 }
 
-/** The last `days` calendar days, today included. */
 export function lastDays(days: number, now = new Date()): DateRange {
   const to = bangkokToday(now)
   const from = new Date(Date.parse(`${to}T00:00:00Z`) - (days - 1) * DAY_MS)
@@ -22,12 +20,10 @@ export function lastDays(days: number, now = new Date()): DateRange {
   return { from, to }
 }
 
-/** `2026-10-03` → `03/10`. */
 export function shortDate(day: string): string {
   return `${day.slice(8, 10)}/${day.slice(5, 7)}`
 }
 
-/** `2026-10-03` → `03/10/2026`. */
 export function longDate(day: string): string {
   return `${shortDate(day)}/${day.slice(0, 4)}`
 }

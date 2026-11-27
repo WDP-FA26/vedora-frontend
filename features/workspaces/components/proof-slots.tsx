@@ -17,11 +17,6 @@ import { MAX_PROOF_MB, type WorkspaceProofInput } from "@/features/workspaces/sc
 
 const ACCEPT = PROOF_CONTENT_TYPES.join(",")
 
-/**
- * One upload slot per document kind, like the separate "CCCD mặt trước /
- * Ảnh mặt tiền…" boxes of merchant onboarding forms. Required slots depend
- * on the legal form. A slot accepts up to `PROOF_KIND_VIEWS[kind].max` images.
- */
 export function ProofSlots({
   entityType,
   proofs,
@@ -34,7 +29,6 @@ export function ProofSlots({
   onChange: (proofs: WorkspaceProofInput[]) => void
 }) {
   const required = new Set(requiredProofKinds(entityType))
-  // A business licence slot means nothing to an individual seller.
   const kinds = PROOF_KINDS.filter(
     (kind) => kind !== "BUSINESS_LICENSE" || entityType !== "INDIVIDUAL"
   )
@@ -132,7 +126,6 @@ function ProofSlot({
               disabled={disabled}
               onChange={(event) => {
                 pick(event.currentTarget.files)
-                // The same file can be picked again after it was removed.
                 event.currentTarget.value = ""
               }}
             />

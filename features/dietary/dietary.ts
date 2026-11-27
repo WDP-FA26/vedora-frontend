@@ -3,11 +3,8 @@ import { z } from "zod"
 import { API_URL } from "@/features/auth/lib/api"
 import { sendJson } from "@/features/shared/lib/api-client"
 
-// Mirrors vedora-api's `/dietary` routes: dietary preferences, Asian BMI profile, and weight tracking.
-
 export const DIETARY_PATH = "/home/dietary"
 
-/** SWR keys are `[url, accessToken]`. */
 export const MY_DIETARY_KEY = `${API_URL}/dietary/me`
 export const MY_NUTRITION_KEY = `${API_URL}/dietary/nutrition`
 
@@ -139,7 +136,6 @@ export const NUTRITION_PILLAR_META: Record<
   },
 }
 
-/** What the meal planner remembers about the user, one natural-language line each. */
 const dietaryMemorySchema = z.object({
   allergies: z.array(z.string()),
   preferences: z.array(z.string()),
@@ -186,7 +182,6 @@ export type NutritionProfile = z.infer<typeof nutritionProfileSchema>
 export const MAX_MEMORY_ITEMS = 30
 export const MAX_MEMORY_ITEM_LENGTH = 200
 
-/** One line per fact: trimmed, without blanks or repeats. */
 export function memoryLines(text: string): string[] {
   const lines: string[] = []
   for (const raw of text.split("\n")) {
@@ -204,11 +199,9 @@ const memoryText = z
     `Mỗi dòng tối đa ${MAX_MEMORY_ITEM_LENGTH} ký tự.`
   )
 
-/** The two memory sections as the form edits them: one line per fact. */
 export const dietaryFormSchema = z.object({ allergies: memoryText, preferences: memoryText })
 export type DietaryFormValues = z.infer<typeof dietaryFormSchema>
 
-/** A section left out keeps its saved lines. */
 export type SaveDietaryInput = { allergies?: string[]; preferences?: string[] }
 
 export type SaveNutritionInput = {

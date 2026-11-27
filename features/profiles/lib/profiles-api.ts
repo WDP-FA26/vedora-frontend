@@ -38,7 +38,6 @@ export function updateMyProfile(token: string, input: { fullName?: string; bio?:
   })
 }
 
-/** Usernames belong to the account, so they change through `/users`, not `/profiles`. */
 export async function updateMyUsername(token: string, id: string, username: string) {
   await send(`${API_URL}/users/${id}`, token, {
     method: "PATCH",

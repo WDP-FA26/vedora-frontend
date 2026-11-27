@@ -42,7 +42,6 @@ import type {
 } from "@/features/recipes/schemas"
 import type { RecipeTag } from "@/features/recipes/tags"
 
-// TanStack Table rebuilds its row models whenever `data` changes identity.
 const NO_INGREDIENTS: Ingredient[] = []
 const NO_GROUPS: IngredientGroup[] = []
 const NO_CATEGORIES: RecipeCategory[] = []
@@ -96,7 +95,6 @@ export function useRecipe(id: string | null) {
   return { recipe: data ?? null, error }
 }
 
-/** The pairs among these ingredients that a rule forbids, kept while the set changes. */
 export function useConflicts(ingredientIds: string[]) {
   const { accessToken } = useAuth()
   const ids = uniqueNonEmpty(ingredientIds).sort()
@@ -110,10 +108,6 @@ export function useConflicts(ingredientIds: string[]) {
   return ids.length > 1 ? (data ?? NO_CONFLICTS) : NO_CONFLICTS
 }
 
-/**
- * Refetches every recipe catalog list and detail. An edit to one shows up in
- * the others (a renamed ingredient in rules, a new rule as recipe conflicts).
- */
 export function useRefreshRecipeCatalog() {
   const { mutate } = useSWRConfig()
   return () =>
@@ -124,7 +118,6 @@ export function useRefreshRecipeCatalog() {
     )
 }
 
-/** The public recipe feed, one page at a time; `tag` keeps one dish type. */
 export function usePublicRecipes(tag: RecipeTag | null = null) {
   const { accessToken } = useAuth()
   const { data, error, isLoading, isValidating, size, setSize, mutate } = useSWRInfinite(
@@ -143,7 +136,6 @@ export function usePublicRecipes(tag: RecipeTag | null = null) {
   }
 }
 
-/** Catalog recipes matching `q` (title, description, ingredients); nothing is fetched while `q` is empty. */
 export function useRecipeSearch(q: string, limit = 12) {
   const { accessToken } = useAuth()
   const { data, error, isLoading, isValidating, size, setSize } = useSWRInfinite(
@@ -164,7 +156,6 @@ export function useRecipeSearch(q: string, limit = 12) {
   }
 }
 
-/** The categories members filter the recipe feed by, in the admin's order. */
 export function usePublicRecipeCategories() {
   const { data, error, isLoading } = useSWR(
     [PUBLIC_RECIPE_CATEGORIES_KEY] as const,

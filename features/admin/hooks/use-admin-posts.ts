@@ -21,7 +21,6 @@ import { useAuth } from "@/features/auth/hooks/use-auth"
 import { useAuthedSWR } from "@/features/auth/hooks/use-authed-swr"
 import { POSTS_KEY } from "@/features/posts/posts-cache"
 
-// TanStack Table rebuilds its row models whenever `data` changes identity.
 const NO_POSTS: AdminPost[] = []
 
 export function useAdminPosts() {
@@ -29,13 +28,11 @@ export function useAdminPosts() {
   return { posts: data ?? NO_POSTS, error, isLoading }
 }
 
-/** One post with its videos' caption tracks. */
 export function useAdminPost(id: string | null) {
   const { data, error } = useAuthedSWR(id ? adminPostKey(id) : null, fetchAdminPost)
   return { post: data ?? null, error }
 }
 
-/** The cues of one caption track; a track's file never changes. */
 export function useTranscript(url: string | null) {
   const { data, error, isLoading } = useSWR(url, fetchTranscript, {
     revalidateIfStale: false,
@@ -43,7 +40,6 @@ export function useTranscript(url: string | null) {
   return { cues: data ?? null, error, isLoading }
 }
 
-/** Soft-deletes a post, refreshes admin lists/reports/appeals and public feeds. */
 export function useDeleteAdminPost() {
   const { accessToken } = useAuth()
   const { mutate } = useSWRConfig()
@@ -61,7 +57,6 @@ export function useDeleteAdminPost() {
   }
 }
 
-/** Restores a soft-deleted post, updates admin caches and refreshes public feeds. */
 export function useRestoreAdminPost() {
   const { accessToken } = useAuth()
   const { mutate } = useSWRConfig()
@@ -81,7 +76,6 @@ export function useRestoreAdminPost() {
   }
 }
 
-/** Settles a held or rejected post, then updates the admin list and detail and refreshes the feeds. */
 export function useModerateAdminPost() {
   const { accessToken } = useAuth()
   const { mutate } = useSWRConfig()

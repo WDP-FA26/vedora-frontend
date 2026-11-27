@@ -22,12 +22,8 @@ import {
   WARNING_CODES,
 } from "@/features/workspaces/onboarding"
 
-// Mirrors vedora-api's `/workspaces` DTOs (docs-for-FE/workspaces.md).
-// The per-image size limit is shared with the verified-chef badge.
-
 export { MAX_PROOF_MB, MAX_REVIEW_NOTE_LENGTH, MAX_STATEMENT_LENGTH }
 
-/** The API's `MAX_WORKSPACE_PROOFS`. */
 export const MAX_PROOFS = 10
 export const MAX_LEGAL_NAME_LENGTH = 200
 export const MAX_PERSON_NAME_LENGTH = 100
@@ -60,7 +56,6 @@ const restaurantLocationSchema = z.object({
   website: z.string().nullable(),
 })
 
-/** The 3-step form's restaurant fields; null on applications made before it. */
 const restaurantProfileSchema = restaurantLocationSchema.extend({
   provinceCode: z.string().nullable(),
   wardCode: z.string().nullable(),
@@ -94,7 +89,6 @@ export const workspaceSchema = restaurantProfileSchema.extend({
   createdAt: z.string(),
   proofCount: z.number(),
   role: z.enum(MEMBER_ROLES),
-  /** The owner only; managers get null. */
   legal: workspaceLegalSchema.nullable(),
 })
 
@@ -156,7 +150,6 @@ export const adminWorkspacePageSchema = z.object({
   meta: z.object({ hasNextPage: z.boolean() }),
 })
 
-/** The tax department's public record of a company tax code (`GET /admin/workspaces/:id/tax-code`). */
 export const taxCodeLookupSchema = z.object({
   status: z.enum(["FOUND", "NOT_FOUND", "NOT_APPLICABLE", "UNAVAILABLE"]),
   taxCode: z.string().nullable(),
@@ -326,7 +319,6 @@ export const restaurantReviewMutationResponseSchema = z.object({
   summary: restaurantReviewSummarySchema,
 })
 
-/** Blank optional text is sent as null. */
 const optionalText = (max: number, message: string) =>
   z
     .string()
@@ -407,7 +399,6 @@ const legalFormSchema = z
         message: TAX_CODE_ERRORS[legal.entityType],
       })
     } else if (legal.taxCode.length === 12 && !isWellFormedCitizenId(legal.taxCode)) {
-      // A 12-digit tax code is a citizen ID, as the API checks.
       context.addIssue({ code: "custom", path: ["taxCode"], message: CITIZEN_ID_ERROR })
     }
     if (legal.entityType !== "INDIVIDUAL" && legal.legalName === "") {
@@ -419,10 +410,8 @@ const legalFormSchema = z
     }
   })
 
-/** The 3-step application. Steps validate their own fields before moving on. */
 export const workspaceFormSchema = z
   .object({
-    // Step 1: the restaurant
     name: z
       .string()
       .trim()
@@ -458,9 +447,7 @@ export const workspaceFormSchema = z
         })
       )
       .max(MAX_OTHER_PLATFORM_URLS, `Tối đa ${MAX_OTHER_PLATFORM_URLS} link`),
-    // Step 2: legal details
     legal: legalFormSchema,
-    // Step 3: documents and commitments
     statement: optionalText(MAX_STATEMENT_LENGTH, `Tối đa ${MAX_STATEMENT_LENGTH} ký tự`),
     proofs: z.array(proofSchema).max(MAX_PROOFS, `Tối đa ${MAX_PROOFS} ảnh`),
     confirmsAccuracy: z.literal(true, {
@@ -482,8 +469,6 @@ export const workspaceFormSchema = z
         })
       }
     },
-    // Report missing documents alongside other errors (an unticked commitment,
-    // say), as long as the two fields this check reads are themselves valid.
     {
       when: ({ issues }) =>
         !issues.some(({ path }) => path?.[0] === "proofs" || path?.[0] === "legal"),

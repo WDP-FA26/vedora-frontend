@@ -34,7 +34,6 @@ import {
 } from "@/features/posts/schemas"
 import { VideoGuideComposer } from "./video-guide-composer"
 
-/** What leaving the composer would throw away. */
 export type ComposerDraft = { hasText: boolean; mediaCount: number; id?: string }
 
 export const EMPTY_DRAFT: ComposerDraft = { hasText: false, mediaCount: 0 }
@@ -140,7 +139,6 @@ function ShortPostComposer({
           message: "Hệ thống chưa xử lý được bài viết. Nội dung vẫn được giữ để bạn thử lại.",
         })
       } else {
-        // Only a published post belongs in the public feed.
         if (post.status === "PUBLISHED") {
           void upsertFeedPost(post).catch(() => undefined)
         }

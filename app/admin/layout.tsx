@@ -9,7 +9,6 @@ import { redirect } from "next/navigation"
 import { getAccessToken, requireAuth } from "@/features/auth/server/session"
 import { AdminWorkQueueProvider } from "@/features/admin/overview/work-queue-provider"
 
-/** Written by `SidebarProvider` whenever the sidebar is expanded or collapsed. */
 const SIDEBAR_COOKIE = "sidebar_state"
 
 export default async function AdminLayout({ children }: LayoutProps<"/admin">) {
@@ -18,7 +17,6 @@ export default async function AdminLayout({ children }: LayoutProps<"/admin">) {
     getAccessToken(),
     cookies(),
   ])
-  // The proxy already sends signed-out visitors to /login; this covers members.
   if (user.role !== "ADMIN") redirect("/home")
   const sidebarOpen = cookieStore.get(SIDEBAR_COOKIE)?.value !== "false"
 

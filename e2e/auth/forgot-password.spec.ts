@@ -49,7 +49,6 @@ test.describe("reset password", () => {
     await page.getByRole("button", { name: "Gửi mã đặt lại" }).click()
     await expect(page).toHaveURL(/\/reset-password$/)
 
-    // Mismatched passwords never reach the API.
     await page.getByLabel("Mã đặt lại").fill("123456")
     await page.getByLabel("Mật khẩu mới", { exact: true }).fill("NewPassword123")
     await page.getByLabel("Nhập lại mật khẩu mới").fill("Different123")

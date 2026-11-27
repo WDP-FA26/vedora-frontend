@@ -220,7 +220,6 @@ test.describe("payment page", () => {
   })
 
   test("a pending payment flips to confirmed once the status poll sees it", async ({ page }) => {
-    // The live stream is only a keep-alive in the mock, so the page falls back to polling.
     let paid = false
     await mockApi(page, `/payment-intents/${PAYMENT_IDS.pending}`, () => ({
       body: payment(paid ? "SUCCEEDED" : "PENDING", PAYMENT_IDS.pending),

@@ -17,7 +17,6 @@ import {
   isAdminNavActive,
 } from "@/features/admin/data/nav-items"
 
-/** Where you are in the admin area. */
 export function AdminHeader() {
   const pathname = usePathname()
   const { state, isMobile } = useSidebar()

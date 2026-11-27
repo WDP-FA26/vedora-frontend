@@ -27,7 +27,6 @@ export const CATEGORY_LABELS: Record<string, string> = {
   manipulation: "Chèo lái AI",
 }
 
-/** Verdicts that are not a policy category: the check itself could not rate the post. */
 const SYSTEM_VERDICTS = new Set(["provider_blocked", "moderation_failed"])
 
 function verdictText(verdict: string, labelOf: (key: string) => string) {
@@ -36,10 +35,6 @@ function verdictText(verdict: string, labelOf: (key: string) => string) {
   return `Nhóm vi phạm: ${labelOf(verdict)}.`
 }
 
-/**
- * What the automated check decided and why, with the admin's call on a post
- * that is held for review or was rejected.
- */
 export function ModerationPanel({ post }: { post: AdminPostDetail }) {
   const moderate = useModerateAdminPost()
   const labelOf = useCategoryLabel()
@@ -55,7 +50,6 @@ export function ModerationPanel({ post }: { post: AdminPostDetail }) {
     )
   }
 
-  // The API only takes a decision on a held or rejected post.
   const decidable = post.status === "PENDING_REVIEW" || post.status === "REJECTED"
 
   async function decide(decision: "APPROVE" | "REJECT") {

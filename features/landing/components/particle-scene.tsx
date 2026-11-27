@@ -12,19 +12,16 @@ import {
 } from "@/features/landing/lib/shapes"
 import type { Soundscape } from "@/features/landing/lib/soundscape"
 
-/** Where the cloud sits for each story stage, in fractions of the viewport. */
 type Stage = { x: number; y: number; scale: number; opacity: number }
 
 const DESKTOP_STAGES: Stage[] = [
-  { x: 0.42, y: 0, scale: 1, opacity: 1 }, // leaf, beside the hero copy
-  { x: 0.44, y: 0, scale: 1, opacity: 1 }, // heart, beside chapter 01
-  { x: -0.44, y: 0, scale: 1.05, opacity: 1 }, // globe, beside chapter 02
-  { x: 0.05, y: 0, scale: 1.3, opacity: 0.3 }, // cards, behind the carousel
-  { x: 0, y: 0.4, scale: 0.72, opacity: 1 }, // sprout, clear above the CTA
+  { x: 0.42, y: 0, scale: 1, opacity: 1 },
+  { x: 0.44, y: 0, scale: 1, opacity: 1 },
+  { x: -0.44, y: 0, scale: 1.05, opacity: 1 },
+  { x: 0.05, y: 0, scale: 1.3, opacity: 0.3 },
+  { x: 0, y: 0.4, scale: 0.72, opacity: 1 },
 ]
 
-// On phones the cloud can't sit beside the copy, so it only takes the stage in
-// the hero and the closing, and stays a faint backdrop behind the chapters.
 const MOBILE_STAGES: Stage[] = [
   { x: 0, y: 0.5, scale: 0.54, opacity: 1 },
   { x: 0, y: 0.3, scale: 0.6, opacity: 0.14 },
@@ -33,11 +30,6 @@ const MOBILE_STAGES: Stage[] = [
   { x: 0, y: 0.4, scale: 0.55, opacity: 1 },
 ]
 
-/**
- * Per-stage colors: brand greens throughout, with an accent share that tells
- * the chapter (tomato flecks in the heart, ocean in the globe, soil in the
- * sprout).
- */
 type Palette = { a: string; b: string; accent: string; ratio: number }
 
 const PALETTES: Record<"light" | "dark", Palette[]> = {
@@ -57,8 +49,7 @@ const PALETTES: Record<"light" | "dark", Palette[]> = {
   ],
 }
 
-// Ashima 3D simplex noise (MIT), used for the flow field between shapes.
-const noise = /* glsl */ `
+const noise =  `
   vec3 mod289(vec3 x) { return x - floor(x * (1.0 / 289.0)) * 289.0; }
   vec4 mod289(vec4 x) { return x - floor(x * (1.0 / 289.0)) * 289.0; }
   vec4 permute(vec4 x) { return mod289(((x * 34.0) + 1.0) * x); }
@@ -116,7 +107,7 @@ const noise = /* glsl */ `
   }
 `
 
-const vertexShader = /* glsl */ `
+const vertexShader =  `
   attribute vec3 aP1;
   attribute vec3 aP2;
   attribute vec3 aP3;
@@ -200,7 +191,7 @@ const vertexShader = /* glsl */ `
   }
 `
 
-const fragmentShader = /* glsl */ `
+const fragmentShader =  `
   uniform vec3 uColorA;
   uniform vec3 uColorB;
   uniform vec3 uAccent;
@@ -224,15 +215,11 @@ const fragmentShader = /* glsl */ `
 
 const smoothstep = (t: number) => t * t * (3 - 2 * t)
 
-// The sprout's soil sits at y = -1.7 and its leaves reach about 1.9 above it.
 const SPROUT_SOIL = -1.7
 const SPROUT_HEIGHT = 3.6
-// Space kept clear between the soil and the closing copy, and under the
-// header, as fractions of the viewport height.
 const SPROUT_GAP = 0.08
 const SPROUT_CEILING = 0.12
 
-/** Index and eased fraction between the two stages around `progress`. */
 function between(progress: number, count: number) {
   const clamped = Math.min(Math.max(progress, 0), count - 1)
   const i = Math.min(Math.floor(clamped), count - 2)
@@ -251,20 +238,13 @@ function lerpStage(stages: Stage[], progress: number): Stage {
   }
 }
 
-/**
- * Full-screen particle cloud that morphs leaf → heart → globe → feed cards →
- * sprout. `progress` (0–4) is written by the page's ScrollTriggers; the scene
- * eases toward it every frame.
- */
 export function ParticleScene({
   progress,
   anchor,
   sound,
 }: {
   progress: RefObject<number>
-  /** The closing copy: the sprout is planted just above it, fit to the room left. */
   anchor?: RefObject<HTMLElement | null>
-  /** Driven from this render loop so audio stays in step with the visuals. */
   sound?: RefObject<Soundscape | null>
 }) {
   const containerRef = useRef<HTMLDivElement>(null)
@@ -277,11 +257,10 @@ export function ParticleScene({
     try {
       renderer = new THREE.WebGLRenderer({ antialias: false, alpha: true })
     } catch {
-      return // No WebGL: the story still reads without the scene.
+      return
     }
 
     const isSmall = () => window.innerWidth < 768
-    // Phones get fewer, lower-resolution particles to spare the GPU and battery.
     const count = isSmall() ? 3500 : 9000
     const pixelRatio = Math.min(window.devicePixelRatio, isSmall() ? 1.5 : 2)
     const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)")
@@ -303,7 +282,6 @@ export function ParticleScene({
     const rands = new Float32Array(count)
     for (let i = 0; i < count; i++) rands[i] = Math.random()
     geometry.setAttribute("aRand", new THREE.BufferAttribute(rands, 1))
-    // Particles drift off their shapes, so never cull by the leaf's bounds.
     geometry.boundingSphere = new THREE.Sphere(new THREE.Vector3(), 100)
 
     const material = new THREE.ShaderMaterial({
@@ -332,7 +310,6 @@ export function ParticleScene({
     group.add(new THREE.Points(geometry, material))
     scene.add(group)
 
-    // Glow additively on dark surfaces, blend normally on light ones.
     let palettes = PALETTES.light
     const applyTheme = () => {
       const dark = document.documentElement.classList.contains("dark")
@@ -365,7 +342,6 @@ export function ParticleScene({
     let size = ""
     const resize = () => {
       const { clientWidth: w, clientHeight: h } = container
-      // Mobile browsers fire resize as the toolbar hides; skip no-op resizes.
       if (`${w}x${h}` === size) return
       size = `${w}x${h}`
       renderer.setSize(w, h, false)
@@ -410,10 +386,8 @@ export function ParticleScene({
       const motion = reduceMotion.matches ? 0 : 1
       const u = material.uniforms
 
-      // Ease toward the scroll position so scrubbing never feels jumpy.
       current += (progress.current - current) * (1 - Math.exp(-dt * 5))
 
-      // Fast scrolling stirs the cloud; it settles once scrolling stops.
       const scrollY = window.scrollY
       const speed = dt > 0 ? Math.abs(scrollY - lastScroll) / dt : 0
       lastScroll = scrollY
@@ -425,8 +399,6 @@ export function ParticleScene({
       let opacity = stage.opacity
       let scale = stage.scale * Math.max(fit, 0.6)
 
-      // Plant the sprout relative to the closing copy rather than the viewport,
-      // so the gap holds on any screen height.
       const landing = smoothstep(Math.min(Math.max(current - 3, 0), 1))
       if (landing > 0 && anchor?.current) {
         const h = container.clientHeight
@@ -437,7 +409,6 @@ export function ParticleScene({
         const planted = Math.max(Math.min(scale, fits), 0.3)
         y += (soil - SPROUT_SOIL * planted - y) * landing
         scale += (planted - scale) * landing
-        // Too little room to show it whole: fade it rather than crowd the header.
         opacity *= 1 - landing * (1 - Math.min(Math.max(fits / 0.3, 0), 1))
       }
       group.position.set(stage.x * halfW, y, 0)
@@ -448,7 +419,6 @@ export function ParticleScene({
       group.rotation.x += (pointer.y * 0.18 - group.rotation.x) * (1 - Math.exp(-dt * 3))
       group.updateMatrixWorld()
 
-      // Cursor position on the cloud's plane, in the cloud's own space.
       ndc.set(pointer.x, -pointer.y)
       raycaster.setFromCamera(ndc, camera)
       if (raycaster.ray.intersectPlane(plane, hit)) {

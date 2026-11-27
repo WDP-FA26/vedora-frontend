@@ -84,7 +84,6 @@ const VIEWS: DataTableView[] = [
 
 const getPostId = (post: AdminPost) => post.id
 
-/** Every post on Vedora whatever its status; its text, videos and transcripts open in a sheet. */
 export function PostsTable() {
   const { posts, error, isLoading } = useAdminPosts()
   const [openId, setOpenId] = useState<string | null>(null)

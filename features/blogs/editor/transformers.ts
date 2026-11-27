@@ -9,14 +9,12 @@ import type { ElementNode, LexicalNode } from "lexical"
 import { $createMediaNode, $isMediaNode, MediaNode } from "@/features/blogs/editor/media-node"
 import { isAllowedBlogMediaUrl } from "@/features/blogs/lib/media-upload"
 
-/** Puts `node` where the shortcut line was; typing it keeps a paragraph after it. */
 function placeBlock(parent: ElementNode, node: LexicalNode, isImport: boolean) {
   if (isImport || parent.getNextSibling() !== null) parent.replace(node)
   else parent.insertBefore(node)
   node.selectNext()
 }
 
-/** `![caption](https://…)` alone on a line: only media hosted in Vedora's storage or Cloudinary blog videos. */
 export const MEDIA: ElementTransformer = {
   dependencies: [MediaNode],
   export: (node) => {

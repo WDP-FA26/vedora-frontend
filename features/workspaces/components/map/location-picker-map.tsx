@@ -17,11 +17,6 @@ function samePoint(a: LngLat | null, b: LngLat | null) {
   return a.longitude === b.longitude && a.latitude === b.latitude
 }
 
-/**
- * Click or drag to place the restaurant's pin. When `value` changes from
- * outside (an address picked in search), the camera flies there; pins placed
- * on the map leave the camera where it is.
- */
 export default function LocationPickerMap({
   value,
   onChange,

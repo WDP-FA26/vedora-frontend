@@ -7,7 +7,6 @@ export const MAPBOX_TOKEN = PUBLIC_ENV.mapboxToken
 export const MAP_STYLE = "mapbox://styles/mapbox/streets-v12"
 export const MAP_STYLE_DARK = "mapbox://styles/mapbox/dark-v11"
 
-/** Quận 1, TP.HCM: where a map starts until the visitor's own location is known. */
 export const DEFAULT_CENTER: LngLat = { longitude: 106.7009, latitude: 10.7769 }
 
 const GEOCODE_URL = "https://api.mapbox.com/search/geocode/v6"
@@ -45,7 +44,6 @@ function toSuggestions(body: unknown): AddressSuggestion[] {
   return suggestions
 }
 
-/** Addresses matching `query`, favouring Vietnam and places near `near`. */
 export async function searchAddresses(
   token: string,
   query: string,
@@ -66,7 +64,6 @@ export async function searchAddresses(
   return toSuggestions(await response.json())
 }
 
-/** The address at a pinned point, or `null` when Mapbox knows none. */
 export async function addressAt(
   token: string,
   point: LngLat,
@@ -85,7 +82,6 @@ export async function addressAt(
   return first?.label ?? null
 }
 
-/** Google Maps directions link ending at `point`. */
 export function googleMapsDirectionsUrl(point: LngLat): string {
   return `https://www.google.com/maps/dir/?api=1&destination=${point.latitude},${point.longitude}`
 }

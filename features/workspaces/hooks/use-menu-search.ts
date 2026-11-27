@@ -6,7 +6,6 @@ import { fetchMenuSearchPage } from "@/features/workspaces/lib/workspaces-api"
 import type { RestaurantMenuSearchPage } from "@/features/workspaces/schemas"
 import { searchRestaurantMenuKey } from "@/features/workspaces/workspaces-cache"
 
-/** Available dishes from approved restaurants matching `q`, ranked by hybrid search. */
 export function useMenuSearch(q: string, limit = 15) {
   const { data, error, isLoading, isValidating, size, setSize } = useSWRInfinite(
     (_index: number, previous: RestaurantMenuSearchPage | null) => {

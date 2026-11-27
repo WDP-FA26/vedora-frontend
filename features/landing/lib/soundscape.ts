@@ -1,33 +1,19 @@
-/**
- * Generative soundtrack for the landing story, synthesized with Web Audio so
- * there are no audio files to load. The particle scene calls `update` every
- * frame with the same progress, scroll velocity, and clock it renders with,
- * so the sound stays locked to what's on screen.
- */
-
-// One open voicing per story stage: leaf, heart, globe, cards, sprout.
 const CHORDS = [
-  [146.83, 220.0, 293.66, 369.99], // D3 A3 D4 F#4
-  [130.81, 196.0, 261.63, 329.63], // C3 G3 C4 E4
-  [110.0, 164.81, 246.94, 329.63], // A2 E3 B3 E4
-  [123.47, 185.0, 246.94, 293.66], // B2 F#3 B3 D4
-  [146.83, 220.0, 329.63, 440.0], // D3 A3 E4 A4
+  [146.83, 220.0, 293.66, 369.99],
+  [130.81, 196.0, 261.63, 329.63],
+  [110.0, 164.81, 246.94, 329.63],
+  [123.47, 185.0, 246.94, 293.66],
+  [146.83, 220.0, 329.63, 440.0],
 ]
 
-/** Overall heartbeat loudness. */
 const HEART_LEVEL = 1
 
-// Pentatonic bell for each stage the cloud settles into.
 const CHIMES = [587.33, 659.25, 739.99, 880.0, 987.77]
 
 type SoundFrame = {
-  /** Story position, 0–4. */
   progress: number
-  /** Scroll speed, 0–1. */
   velocity: number
-  /** Scene clock in seconds. */
   time: number
-  /** 0 when the user prefers reduced motion (the heart doesn't beat). */
   motion: number
 }
 
@@ -76,8 +62,6 @@ export class Soundscape {
     if (!ctx || !this.enabled) return
     const now = ctx.currentTime
 
-    // Change stage only once progress is clearly past the midpoint, so
-    // hovering on a boundary doesn't ring the chime over and over.
     if (this.stage === -1) {
       this.stage = Math.round(progress)
       this.retune(this.stage, 0.01)
@@ -90,7 +74,6 @@ export class Soundscape {
     this.windGain.gain.setTargetAtTime(velocity * 0.14, now, 0.12)
     this.windFilter.frequency.setTargetAtTime(380 + velocity * 1800, now, 0.12)
 
-    // Same "lub-dub" timing as the heart in the particle shader.
     const phase = (time * 0.85) % 1
     const near = Math.max(0, 1 - Math.abs(progress - 1) * 1.1) * motion
     if (near > 0.05) {
@@ -116,7 +99,6 @@ export class Soundscape {
     this.master.gain.value = 0
     this.master.connect(compressor)
 
-    // A soft feedback echo that gives the chimes some air.
     const delay = ctx.createDelay(1)
     delay.delayTime.value = 0.32
     const feedback = ctx.createGain()
@@ -132,8 +114,6 @@ export class Soundscape {
     feedback.connect(delay)
     damp.connect(this.master)
 
-    // Pad: two slightly detuned oscillators per note through a breathing
-    // lowpass filter.
     const padFilter = ctx.createBiquadFilter()
     padFilter.type = "lowpass"
     padFilter.frequency.value = 850
@@ -171,7 +151,6 @@ export class Soundscape {
       }
     }
 
-    // Wind: looped noise through a band-pass that opens with scroll speed.
     this.noise = ctx.createBuffer(1, ctx.sampleRate * 2, ctx.sampleRate)
     const samples = this.noise.getChannelData(0)
     for (let i = 0; i < samples.length; i++) samples[i] = Math.random() * 2 - 1
@@ -190,9 +169,6 @@ export class Soundscape {
     wind.start()
     this.sources.push(wind)
 
-    // Heartbeat bus. Saturation adds warm harmonics so the beat carries on
-    // laptop and phone speakers, which play little below ~200 Hz; the lowpass
-    // keeps it muffled, as if heard through a chest.
     this.heartBus = ctx.createGain()
     const drive = 3
     const curve = new Float32Array(1024)
@@ -217,7 +193,6 @@ export class Soundscape {
     document.addEventListener("visibilitychange", this.onVisibility)
   }
 
-  /** Glide the pad to the stage's chord. */
   private retune(stage: number, glide: number) {
     const ctx = this.ctx!
     const chord = CHORDS[Math.min(Math.max(stage, 0), CHORDS.length - 1)]
@@ -231,7 +206,6 @@ export class Soundscape {
     const now = ctx.currentTime
     const root = CHIMES[Math.min(Math.max(stage, 0), CHIMES.length - 1)]
 
-    // Fundamental plus an inharmonic partial reads as a bell.
     for (const [ratio, level] of [
       [1, 0.07],
       [2.76, 0.02],
@@ -250,11 +224,6 @@ export class Soundscape {
     }
   }
 
-  /**
-   * One heart sound: a soft-edged thud rather than a drum hit. The body sits
-   * around 100 Hz so small speakers can play it, with a sub an octave down
-   * for headphones. "Lub" is longer and lower; "dub" shorter and higher.
-   */
   private heartSound(strength: number, kind: "lub" | "dub") {
     const ctx = this.ctx!
     const now = ctx.currentTime
@@ -263,8 +232,6 @@ export class Soundscape {
     const level = (lub ? 0.8 : 0.62) * strength
     const length = lub ? 0.2 : 0.14
 
-    // A sine that sags only slightly in pitch, with a rounded attack so
-    // there's no click.
     const tone = (frequency: number, gainLevel: number, attack: number, tau: number) => {
       const osc = ctx.createOscillator()
       osc.frequency.setValueAtTime(frequency * 1.12, now)
@@ -278,10 +245,9 @@ export class Soundscape {
       osc.start(now)
       osc.stop(now + length + 0.4)
     }
-    tone(pitch, level, 0.015, length / 4) // body
-    tone(pitch / 2, level * 0.7, 0.02, length / 3.5) // sub
+    tone(pitch, level, 0.015, length / 4)
+    tone(pitch / 2, level * 0.7, 0.02, length / 3.5)
 
-    // Noise through a low band-pass gives the thud its flesh.
     const thud = ctx.createBufferSource()
     thud.buffer = this.noise
     const thudFilter = ctx.createBiquadFilter()

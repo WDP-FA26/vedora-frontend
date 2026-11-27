@@ -1,12 +1,5 @@
-// Generated from https://provinces.open-api.vn/api/v2/?depth=2 on 2026-11-27:
-// Vietnam's 34 provinces and 3,321 wards, communes and special zones after the
-// merger of 1 July 2025. Codes are the official ones, zero-padded. Do not edit by hand.
-
-// Loaded with `import()` when the application form opens, to keep it out of other pages.
-
 import type { VnProvinceCode } from "@/features/workspaces/vn-provinces"
 
-/** Each province's wards, communes and special zones as `[code, name]`. */
 export const VN_WARDS: Record<VnProvinceCode, readonly (readonly [string, string])[]> = {
   "01": [
     ["00004", "Phường Ba Đình"],

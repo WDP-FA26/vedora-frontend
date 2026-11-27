@@ -30,7 +30,6 @@ import { useRefreshRecipeCatalog } from "@/features/recipes/hooks/use-recipe-cat
 import { deleteRow } from "@/features/recipes/lib/recipes-api"
 import { ApiError } from "@/features/shared/lib/api-client"
 
-/** The skeleton and error states every catalog table shares. */
 export function TableStatus({
   isLoading,
   error,
@@ -39,7 +38,6 @@ export function TableStatus({
 }: {
   isLoading: boolean
   error: unknown
-  /** Finishes "Không tải được …", e.g. "danh sách nguyên liệu". */
   subject: string
   children: ReactNode
 }) {
@@ -69,13 +67,11 @@ export function TableStatus({
   return children
 }
 
-/** What a row can do, by row id; provided by the table so the columns can stay static. */
 export const RowActionsContext = createContext<{
   onEdit: (id: string) => void
   onDelete: (id: string) => void
 }>({ onEdit: () => {}, onDelete: () => {} })
 
-/** A row's name as the way into its edit form. */
 export function EditButton({ id, children }: { id: string; children: ReactNode }) {
   const { onEdit } = use(RowActionsContext)
   return (
@@ -96,7 +92,6 @@ export function RowActions({
 }: {
   id: string
   name: string
-  /** Set while the row cannot be deleted; shown as the button's tooltip. */
   deleteBlockedReason?: string
 }) {
   const { onEdit, onDelete } = use(RowActionsContext)
@@ -124,7 +119,6 @@ export function RowActions({
   )
 }
 
-/** Confirms, deletes `row` from `collection` and refreshes the catalog. */
 export function DeleteRowDialog({
   collection,
   row,
@@ -137,7 +131,6 @@ export function DeleteRowDialog({
   row: { id: string } | null
   title: string
   description: string
-  /** Shown when the API refuses because other records still use the row. */
   inUseMessage?: string
   onClose: () => void
 }) {
@@ -198,7 +191,6 @@ export function DeleteRowDialog({
   )
 }
 
-/** Dialog frame for the catalog forms: title, the form, then cancel and save. */
 export function FormDialog({
   open,
   onClose,

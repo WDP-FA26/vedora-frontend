@@ -25,10 +25,6 @@ function placeOf(finding: ModerationFinding): string | null {
   return label
 }
 
-/**
- * The parts of rejected content that broke the policy: where each one is, the
- * offending words, and why, so the author knows what to change.
- */
 export function ModerationFindings({ findings }: { findings: readonly ModerationFinding[] }) {
   if (findings.length === 0) return null
   return (

@@ -28,31 +28,19 @@ export const notificationSchema = z.object({
     "SUPPORT_TICKET_EXPIRED",
     "SUPPORT_TICKET_REMINDER",
   ]),
-  /** Null for notifications from Vedora itself, such as moderation. */
   actor: z
     .object({
       id: z.string(),
       username: z.string(),
       fullName: z.string(),
       avatarUrl: z.string().nullable().optional(),
-      /** Verified professional (badge only). Absent on API versions from before it. */
       isProfessional: z.boolean().default(false),
     })
     .nullable(),
-  /** Null for `FOLLOW`. */
   postId: z.string().nullable(),
   postType: z.enum(["POST", "BLOG"]).nullable().optional(),
-  /**
-   * Moderation: why the post was blocked, e.g. `violence`. Report outcomes and
-   * `POST_REMOVED`: the report reason, e.g. `SPAM`.
-   */
   reason: z.string().nullable().optional(),
-  /** `reason` worded for the author, from the current policy. */
   reasonText: z.string().nullable().optional(),
-  /**
-   * Moderation: the admin's note. `POST_REMOVED` and `REPORTED_POST_REMOVED`:
-   * the removed post's title or opening words, since the post is gone.
-   */
   note: z.string().nullable().optional(),
   commentId: z.string().nullable().optional(),
   ticketId: z.string().nullable().optional(),

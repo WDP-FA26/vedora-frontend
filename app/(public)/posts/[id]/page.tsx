@@ -10,7 +10,6 @@ import { fetchPost } from "@/features/posts/lib/posts-api"
 import { blogJsonLd, FALLBACK_POST_TITLE, postMetadata } from "@/features/posts/lib/post-metadata"
 import { postKey } from "@/features/posts/posts-cache"
 
-// A failed load gives null: the page then loads it in the browser and shows the error there.
 const loadPost = cache((id: string, token: string | undefined) =>
   fetchPost([postKey(id), token]).catch(() => null)
 )
@@ -18,7 +17,6 @@ const loadBlog = cache((id: string, token: string | undefined) =>
   fetchBlog([blogKey(id), token]).catch(() => null)
 )
 
-/** Read as a guest: only a published post names the page; anything else keeps the generic title. */
 export async function generateMetadata({
   params,
 }: {
@@ -29,10 +27,6 @@ export async function generateMetadata({
   return post ? postMetadata(post) : { title: FALLBACK_POST_TITLE }
 }
 
-/**
- * The post, and a blog's full article, load on the server as the visitor sees
- * them, so the first HTML already holds the text that crawlers read.
- */
 export default async function PostPage({
   params,
 }: {
@@ -44,7 +38,6 @@ export default async function PostPage({
   const article = post?.blog ? await loadBlog(id, token) : null
   const jsonLd = post && blogJsonLd(post, article)
 
-  // Same keys as `usePost` and `BlogArticle`, so SWR starts from this data.
   const fallback: Record<string, unknown> = {}
   if (post) fallback[unstable_serialize([postKey(id), token])] = post
   if (article) fallback[unstable_serialize([blogKey(id), token])] = article
@@ -54,7 +47,6 @@ export default async function PostPage({
       {jsonLd && (
         <script
           type="application/ld+json"
-          // `<` is escaped so text in the blog cannot close the script tag.
           dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd).replace(/</g, "\\u003c") }}
         />
       )}

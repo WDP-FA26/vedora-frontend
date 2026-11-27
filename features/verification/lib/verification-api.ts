@@ -14,7 +14,6 @@ import {
   verificationRequestKey,
 } from "@/features/verification/verification-cache"
 
-/** The API's `MAX_PAGE_LIMIT`. */
 const PAGE_LIMIT = 50
 
 export function fetchMyVerification([url, token]: readonly [string, string]) {
@@ -38,10 +37,6 @@ export function submitVerification(
   })
 }
 
-/**
- * Every request, newest first. The admin table sorts, filters and paginates
- * in the browser, so it needs the whole list.
- */
 export async function fetchAllVerificationRequests([url, token]: readonly [
   string,
   string,

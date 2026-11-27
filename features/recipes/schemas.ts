@@ -4,9 +4,6 @@ import { signedUploadSchema } from "@/features/posts/schemas"
 import { recipeTagSchema } from "@/features/recipes/tags"
 import { uniqueNonEmpty } from "@/features/shared/lib/unique"
 
-// Mirrors vedora-api's `/admin/ingredients`, `/admin/ingredient-groups`,
-// `/admin/incompatibility-rules` and `/admin/recipes` (admin only).
-
 const namedRefSchema = z.object({ id: z.string(), name: z.string() })
 
 const page = <S extends z.ZodType>(item: S) =>
@@ -26,7 +23,6 @@ export const ingredientGroupSchema = z.object({
   id: z.string(),
   name: z.string(),
   description: z.string().nullable(),
-  /** Offered to users as a food category they can avoid. */
   dietary: z.boolean(),
   ingredients: z.array(namedRefSchema),
   createdAt: z.string(),
@@ -48,7 +44,6 @@ export const RECIPE_CATEGORY_ICONS = [
 export const recipeCategoryIconSchema = z.enum(RECIPE_CATEGORY_ICONS)
 export type RecipeCategoryIcon = z.infer<typeof recipeCategoryIconSchema>
 
-/** An admin-managed dish category; `baseTag` is the fixed kind the meal planner uses. */
 export const recipeCategorySchema = z.object({
   id: z.string(),
   name: z.string(),
@@ -87,17 +82,11 @@ export const recipeConflictsSchema = z.array(recipeConflictSchema)
 export const MAX_RECIPE_IMAGE_MB = 10
 export const RECIPE_IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp"] as const
 
-/** Response of `POST /admin/recipes/image-uploads`. */
 export const recipeImageUploadSchema = z.object({
   upload: signedUploadSchema,
-  /** Public Cloudinary URL once uploaded. */
   url: z.url(),
 })
 
-/**
- * Hosts the CSP in `next.config.ts` lets dish photos load from. New photos are
- * uploaded to Cloudinary; the other hosts only keep older hot-linked recipes valid.
- */
 export const DISH_IMAGE_HOSTS = [
   "res.cloudinary.com",
   "upload.wikimedia.org",
@@ -118,7 +107,6 @@ export const recipeSchema = z.object({
   id: z.string(),
   title: z.string(),
   imageUrl: z.string().nullable(),
-  /** Null until an admin classifies the recipe; the UI then shows a default icon. */
   tag: recipeTagSchema.nullable(),
   servings: z.number(),
   prepMinutes: z.number().nullable(),
@@ -151,11 +139,6 @@ export const recipeDetailSchema = recipeSchema.extend({
   ),
 })
 
-/**
- * Response of `POST /admin/recipes/drafts`: a recipe AI read from a post or a
- * pasted caption, already within the form's limits. Each ingredient is matched to
- * the catalog, or carries a prefill for a new catalog ingredient.
- */
 export const recipeDraftSchema = z.object({
   recipe: z
     .object({
@@ -177,7 +160,6 @@ export const recipeDraftSchema = z.object({
         .optional(),
       ingredients: z.array(
         z.object({
-          /** As the caption names it. */
           name: z.string(),
           quantity: z.number().nullable(),
           unit: z.string().nullable(),
@@ -195,21 +177,14 @@ export const recipeDraftSchema = z.object({
       steps: z.array(z.string()),
     })
     .nullable(),
-  /** Videos still waiting for a transcript; what they say is missing. */
   untranscribedVideos: z.number(),
-  /**
-   * `DONE`: kcal checked on the web; `SKIPPED`: no check was needed;
-   * `FAILED`: the check failed, so the kcal is only AI's rough estimate.
-   */
   calorieResearch: z.enum(["DONE", "SKIPPED", "FAILED"]),
 })
 
-/** The public catalog adds whether the caller saved the recipe; guests get false. */
 export const publicRecipeSchema = recipeSchema.extend({ isFavorite: z.boolean() })
 export const publicRecipePageSchema = page(publicRecipeSchema)
 export const publicRecipeDetailSchema = recipeDetailSchema.extend({ isFavorite: z.boolean() })
 
-/** A saved recipe, newest saved first. */
 export const favoriteRecipeSchema = publicRecipeSchema.extend({ savedAt: z.string() })
 export const favoriteRecipePageSchema = z.object({
   items: z.array(favoriteRecipeSchema),
@@ -218,14 +193,12 @@ export const favoriteRecipePageSchema = z.object({
 
 export const favoriteStateSchema = z.object({ recipeId: z.string(), isFavorite: z.boolean() })
 
-/** `averageRating` is null, not 0, while no one has rated the recipe. */
 export const ratingSummarySchema = z.object({
   recipeId: z.string(),
   ratingCount: z.number(),
   averageRating: z.number().nullable(),
 })
 
-/** The summary plus the caller's own score, null when they have not rated. */
 export const myRatingSchema = ratingSummarySchema.extend({
   myRating: z.number().nullable(),
 })
@@ -250,8 +223,6 @@ export type IngredientSuggestion = NonNullable<
   DraftRecipe["ingredients"][number]["suggestion"]
 >
 
-// Forms. Limits match the API DTOs.
-
 const MAX_NAME = 100
 const MAX_TEXT = 500
 export const MAX_ALIASES = 20
@@ -262,7 +233,6 @@ const name = z
   .min(1, "Nhập tên.")
   .max(MAX_NAME, `Tên dài tối đa ${MAX_NAME} ký tự.`)
 
-/** "đậu phụ, tofu" → ["đậu phụ", "tofu"], without blanks or repeats. */
 export function parseAliases(text: string) {
   return uniqueNonEmpty(text.split(",").map((alias) => alias.trim()))
 }
@@ -298,7 +268,6 @@ export const recipeCategoryFormSchema = z.object({
 })
 export type RecipeCategoryFormValues = z.infer<typeof recipeCategoryFormSchema>
 
-/** A rule side in a form: `INGREDIENT:<id>` or `GROUP:<id>`. */
 export function ruleSideKey(side: Pick<RuleSide, "kind" | "id">) {
   return `${side.kind}:${side.id}`
 }
@@ -354,7 +323,6 @@ export const recipeFormSchema = z.object({
     .refine((text) => text === "" || isDishImageUrl(text), {
       message: "Ảnh món phải được tải lên từ máy.",
     }),
-  /** "" means no tag. */
   tag: z.union([recipeTagSchema, z.literal("")]),
   servings: wholeNumber(100, "Nhập số khẩu phần từ 1 đến 100.").refine(
     (text) => Number(text) >= 1,
@@ -377,7 +345,6 @@ export const recipeFormSchema = z.object({
           ),
         unit: z.string().trim().max(30, "Tối đa 30 ký tự."),
         note: z.string().trim().max(200, "Tối đa 200 ký tự."),
-        /** The name AI read from the caption, "" for rows typed by hand. Not sent. */
         draftName: z.string(),
       })
     )

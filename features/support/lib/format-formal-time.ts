@@ -1,6 +1,5 @@
 import { ApiError } from "@/features/shared/lib/api-client"
 
-/** Formats an ISO timestamp as a compact formal string `HH:mm DD/MM/YYYY`. */
 export function formatFormalTimestamp(iso: string): string {
   const date = new Date(iso)
   if (Number.isNaN(date.getTime())) return iso
@@ -13,7 +12,6 @@ export function formatFormalTimestamp(iso: string): string {
   return `${hours}:${minutes} ${day}/${month}/${year}`
 }
 
-/** Keyed by the `code` the API throws in `vedora-api/src/support/`. */
 const SUPPORT_ERROR_MESSAGES: Record<string, string> = {
   APPEAL_IN_PROGRESS: "Nội dung đang có hồ sơ kháng cáo chưa đóng nên tạm khóa chỉnh sửa và xoá.",
   APPEAL_WINDOW_EXPIRED: "Đã quá thời hạn 14 ngày để gửi kháng cáo cho nội dung này.",

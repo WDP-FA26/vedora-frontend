@@ -3,7 +3,6 @@ import { ArrowLeftIcon } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 
-/** Sticky title bar of the page-management screens. */
 export function PageHeader({
   title,
   backHref,

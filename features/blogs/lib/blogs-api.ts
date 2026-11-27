@@ -8,12 +8,10 @@ import {
 } from "@/features/blogs/schemas"
 import { send, sendJson } from "@/features/shared/lib/api-client"
 
-/** SWR fetcher for `[blogKey(id), accessToken]`: the full article, drafts only for their author. */
 export function fetchBlog([url, token]: readonly [string, string | undefined]) {
   return sendJson(apiBlogSchema, url, token)
 }
 
-/** SWR fetcher for `[MY_BLOGS_KEY, accessToken]`. */
 export function fetchBlogPage([url, token]: readonly [string, string | undefined]) {
   return sendJson(blogPageSchema, url, token)
 }
@@ -22,7 +20,6 @@ export type BlogInput = {
   title?: string
   content?: string
   status?: BlogStatus
-  /** `null` clears the cover (PATCH only). */
   coverImageUrl?: string | null
 }
 
@@ -34,7 +31,6 @@ export function updateBlog(token: string, id: string, input: BlogInput) {
   return sendJson(apiBlogSchema, blogKey(id), token, { method: "PATCH", body: JSON.stringify(input) })
 }
 
-/** Deletes the caller's own blog, with its comments, likes and recipe links. */
 export async function deleteBlog(token: string, id: string) {
   await send(blogKey(id), token, { method: "DELETE" })
 }

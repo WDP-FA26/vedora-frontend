@@ -22,7 +22,6 @@ import { messagingEventSchema } from "../schemas"
 
 class FatalStreamError extends Error {}
 
-/** One authenticated stream per home layout, shared by the inbox and open chat. */
 export function useMessagingStream() {
   const { accessToken } = useAuth()
   const { mutate } = useSWRConfig()
@@ -139,7 +138,6 @@ export function useMessagingStream() {
               event.event === "message.created",
             )
         } catch {
-          /* Invalid frames do not establish message state. */
         }
       },
       onclose() {

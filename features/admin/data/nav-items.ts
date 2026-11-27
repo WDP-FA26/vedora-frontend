@@ -27,7 +27,6 @@ export type AdminNavSection = {
   items: AdminNavItem[];
 };
 
-/** Where `/admin` lands. */
 export const ADMIN_HOME = "/admin/overview";
 
 export const adminNavItems: AdminNavItem[] = [

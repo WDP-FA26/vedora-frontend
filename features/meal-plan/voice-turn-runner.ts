@@ -9,12 +9,7 @@ import {
 import type { FarewellTracker, TurnQueue } from "@/features/meal-plan/voice-call"
 import { ApiError } from "@/features/shared/lib/api-client"
 
-/** Saved changes are said aloud only once a turn has run this long; quick turns just answer. */
 export const PROGRESS_AFTER_MS = 6000
-/**
- * A saved change is said aloud only when the reply has not followed it within this long, so
- * GPT-Live does not say the change and then the reply that repeats it.
- */
 export const PROGRESS_SPEAK_DELAY_MS = 2000
 
 export function voiceTurnFailureText(error: unknown) {
@@ -50,11 +45,6 @@ export type RunVoiceTurnOptions = {
   streamTurn?: (token: string, request: VoiceTurnRequest, signal: AbortSignal) => AsyncGenerator<VoiceTurnEvent>
 }
 
-/**
- * Executes a single delegated voice turn: streams `POST /meal-plan/voice/turns`,
- * mirrors `data-state` and `data-screen` live, relays progress to GPT-Live, and
- * delivers the final spoken reply as soon as `ready` arrives.
- */
 export async function runVoiceTurn({
   delegationId,
   message,
@@ -94,7 +84,6 @@ export async function runVoiceTurn({
     if (replied) return Promise.resolve()
     replied = true
     clearTimeout(spokenProgress)
-    // Marked before the farewell is sent: GPT-Live can acknowledge it before `append` resolves.
     if (ended) farewell.sent()
     const spoken = reply.trim() || summary || "Đã xong."
     const sent = append(delegationId, "commentary", spoken)
@@ -149,8 +138,6 @@ export async function runVoiceTurn({
       await deliverReply()
     }
   } catch (cause) {
-    // A cancelled turn was superseded or the call ended; the next turn speaks. The API may
-    // still have saved changes the stream never showed, so reload what it could touch.
     if (controller.signal.aborted || isAbort(cause)) onAbortInvalidate()
     else await append(delegationId, "commentary", voiceTurnFailureText(cause))
   } finally {

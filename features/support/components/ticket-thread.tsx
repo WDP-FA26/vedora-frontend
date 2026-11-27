@@ -30,7 +30,6 @@ function isDecisionKind(kind: SupportMessageKind): boolean {
   )
 }
 
-/** Entries the scheduler writes, not a person. */
 function isSystemKind(kind: SupportMessageKind): boolean {
   return kind === "EXPIRED" || kind === "REMINDER"
 }
@@ -61,7 +60,6 @@ function personLabel(message: SupportMessage, viewerRole: "USER" | "ADMIN"): str
   return sender.fullName
 }
 
-/** Admin identities stay private to the author: they see "Ban quản trị Vedora". */
 function senderNameOf(message: SupportMessage, viewerRole: "USER" | "ADMIN"): string {
   if (isSystemKind(message.kind)) return "Hệ thống Vedora"
   const hiddenAdmin = viewerRole === "USER" || message.sender === null
@@ -109,10 +107,6 @@ function MessageAttachments({ attachments }: { attachments: SupportAttachment[] 
   )
 }
 
-/**
- * Chronological flat correspondence log inspired by formal submission consoles
- * (no nested cards; numbered entries separated by hairline rules).
- */
 export function TicketThread({
   messages,
   viewerRole,

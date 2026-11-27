@@ -7,11 +7,6 @@ export const metadata: Metadata = {
   title: "Viết blog · Vedora",
 }
 
-/**
- * A new blog. Once saved it stays on this route as `?id=` (see
- * `newBlogDraftPath`), so a refresh or reload loads it here instead of
- * remounting the editor on `/blogs/[id]/edit`.
- */
 export default async function NewBlogPage({
   searchParams,
 }: {

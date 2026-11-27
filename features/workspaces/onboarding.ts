@@ -1,5 +1,3 @@
-// Mirrors vedora-api's restaurant page application (docs-for-FE/workspaces.md).
-
 import {
   VN_PROVINCE_CODES,
   VN_PROVINCES,
@@ -10,12 +8,10 @@ export { VN_PROVINCE_CODES, VN_PROVINCES, type VnProvinceCode }
 
 const VIETNAMESE = new Intl.Collator("vi")
 
-/** "Tỉnh An Giang" sorts as "An Giang", so cities and provinces mix A→Z. */
 function sortName(name: string) {
   return name.replace(/^(Thành phố|Tỉnh) /, "")
 }
 
-/** Province codes sorted by name, for the dropdown. */
 export const VN_PROVINCES_BY_NAME = [...VN_PROVINCE_CODES].sort((a, b) =>
   VIETNAMESE.compare(sortName(VN_PROVINCES[a]), sortName(VN_PROVINCES[b]))
 )
@@ -24,7 +20,6 @@ export function isVnProvinceCode(code: string): code is VnProvinceCode {
   return Object.hasOwn(VN_PROVINCES, code)
 }
 
-/** The province's name, or null for a code the list does not know. */
 export function provinceName(code: string): string | null {
   if (!isVnProvinceCode(code)) return null
   return VN_PROVINCES[code]
@@ -88,7 +83,6 @@ export const LEGAL_ENTITY_VIEWS: Record<LegalEntityType, LegalEntityView> = {
   },
 }
 
-/** The tax code each legal form uses; spaces and dots are removed first, as the API does. */
 export function isTaxCodeFor(entityType: LegalEntityType, taxCode: string): boolean {
   const company = /^\d{10}(-\d{3})?$/
   const citizenId = /^\d{12}$/
@@ -136,7 +130,6 @@ export const PROOF_KIND_VIEWS: Record<ProofKind, ProofKindView> = {
   OTHER: { label: "Giấy tờ khác", hint: "Không bắt buộc.", max: 2 },
 }
 
-/** Every application needs these, plus a business licence unless the applicant is an individual. */
 export function requiredProofKinds(entityType: LegalEntityType): ProofKind[] {
   const base: ProofKind[] = ["ID_FRONT", "ID_BACK", "STOREFRONT"]
   if (entityType === "INDIVIDUAL") return base
@@ -190,7 +183,6 @@ export const REVIEW_CHECKLIST_LABELS: Record<ReviewChecklistItem, string> = {
   phoneConfirmed: "Đã gọi số điện thoại và được xác nhận",
 }
 
-/** Public tax code lookup the admin opens in a new tab. */
 export function taxCodeLookupUrl(taxCode: string) {
   return `https://masothue.com/Search/?q=${encodeURIComponent(taxCode)}&type=auto`
 }

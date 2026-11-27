@@ -29,7 +29,6 @@ export function VerificationStatusBadge({ status }: { status: VerificationStatus
   return <Badge variant={variant}>{label}</Badge>
 }
 
-/** Opens a request for review; provided by the page so the columns can stay static. */
 export const ReviewRequestContext = createContext<(id: string) => void>(() => {})
 
 function ReviewButton({ request }: { request: AdminVerificationRequest }) {
@@ -99,7 +98,6 @@ export const requestColumns = helper.columns([
       <DataTableColumnHeader column={column} title="Gửi lúc" />
     ),
     cell: ({ getValue }) => formatPostDateLong(getValue()),
-    // ISO timestamps order correctly as text.
     sortFn: "text",
     enableGlobalFilter: false,
     meta: { label: "Gửi lúc", className: "hidden md:table-cell" },

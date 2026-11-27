@@ -14,7 +14,6 @@ import { fetchBlogPage } from "@/features/blogs/lib/blogs-api"
 import { RelativeTime } from "@/features/shared/components/relative-time"
 import type { ApiPost } from "@/features/posts/schemas"
 
-/** The author's blogs, drafts first in the order the API returns them (newest created). */
 const STATUS_BADGES: Record<ApiPost["status"], { label: string; variant: "default" | "secondary" | "destructive" }> = {
   DRAFT: { label: "Nháp", variant: "secondary" },
   PROCESSING: { label: "Đang kiểm duyệt", variant: "secondary" },
@@ -40,7 +39,6 @@ export function MyBlogsView() {
   )
 }
 
-/** The signed-in author's blogs with their status; shared by the blogs page and the profile tab. */
 export function MyBlogsList() {
   return (
     <BlogList
@@ -50,7 +48,6 @@ export function MyBlogsList() {
   )
 }
 
-/** The signed-in author's unpublished blogs; shown on the drafts page. */
 export function MyBlogDraftsList() {
   return (
     <BlogList

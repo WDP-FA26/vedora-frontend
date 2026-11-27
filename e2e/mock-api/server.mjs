@@ -1,15 +1,3 @@
-// A tiny stand-in for vedora-api, started by Playwright's `webServer`.
-//
-// Server Components, Server Actions and proxy.ts call the API from the Next.js
-// server, where `page.route` cannot see the request. Pointing
-// NEXT_PUBLIC_API_URL at this process lets both the server and the browser
-// talk to the same fake backend. Specs can still override individual browser
-// calls with `page.route` (see e2e/helpers/api.ts).
-//
-// Behaviour is driven by the data a request carries, so tests need no shared
-// mutable state: the bearer token names the user (`sub`), and special
-// usernames in the login/register bodies trigger the failure modes.
-
 import http from "node:http"
 
 import { handleExtra } from "./extra-routes.mjs"
@@ -81,7 +69,6 @@ async function handle(req, res, url, body) {
   const me = userFromToken(req)
   const q = url.searchParams
 
-  // --- auth ---------------------------------------------------------------
   if (path === "/auth/login" && method === "POST") {
     const { username, password } = body
     if (username === "captcha") return error(res, 403, "CAPTCHA_FAILED", "Captcha failed")
@@ -130,7 +117,6 @@ async function handle(req, res, url, body) {
     return send(res, 200, publicUser(me))
   }
 
-  // --- posts --------------------------------------------------------------
   if (path === "/posts/views" && method === "POST") return send(res, 204)
   if (path === "/posts/drafts" && method === "GET") return send(res, 200, { items: [] })
   if (path === "/posts/feed") return send(res, 200, pageOf(posts.filter((p) => p.type === "POST")))
@@ -174,7 +160,6 @@ async function handle(req, res, url, body) {
     }
   }
 
-  // --- blogs --------------------------------------------------------------
   if ((path === "/blogs/mine" || path === "/blogs") && method === "GET") return send(res, 200, pageOf([]))
   if (path === "/blogs/ai/quota") return send(res, 200, { limit: 20, used: 0, remaining: 20 })
   if (path === "/blogs" && method === "POST") {
@@ -193,7 +178,6 @@ async function handle(req, res, url, body) {
     return send(res, 200, found)
   }
 
-  // --- profiles -----------------------------------------------------------
   if (path === "/profiles/me") {
     if (!me) return error(res, 401, "UNAUTHORIZED", "Unauthorized")
     return send(res, 200, profiles[me.id])
@@ -209,7 +193,6 @@ async function handle(req, res, url, body) {
     return send(res, 200, pageOf([]))
   }
 
-  // --- streams, notifications, messaging ----------------------------------
   if (path.endsWith("/sse") || path.endsWith("/events")) {
     res.writeHead(200, {
       "Content-Type": "text/event-stream",
@@ -217,7 +200,7 @@ async function handle(req, res, url, body) {
       Connection: "keep-alive",
     })
     res.write(": connected\n\n")
-    return // left open on purpose; closed with the client
+    return
   }
   if (path === "/notifications/unread-count") {
     return send(res, 200, { unreadCount: notifications.filter((n) => !n.readAt).length })
@@ -226,7 +209,6 @@ async function handle(req, res, url, body) {
   if (/^\/notifications\/[^/]+\/read$/.test(path) && method === "POST") return send(res, 204)
   if (path === "/notifications") return send(res, 200, pageOf(notifications))
 
-  // --- admin --------------------------------------------------------------
   if (path === "/users" && method === "GET") {
     if (!me) return error(res, 401, "UNAUTHORIZED", "Unauthorized")
     if (me.role !== "ADMIN") return error(res, 403, "FORBIDDEN", "Forbidden")

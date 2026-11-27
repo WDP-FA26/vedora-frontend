@@ -14,7 +14,6 @@ import {
 
 import type { RecipeCategoryIcon } from "@/features/recipes/schemas"
 
-// Mirrors vedora-api's `RecipeCategoryIcon`.
 export const RECIPE_CATEGORY_ICON_VIEWS: Record<
   RecipeCategoryIcon,
   { label: string; icon: LucideIcon }

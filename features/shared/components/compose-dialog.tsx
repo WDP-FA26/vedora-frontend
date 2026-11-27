@@ -31,7 +31,6 @@ import { POST_DRAFTS_PATH } from "@/features/post-drafts/schemas"
 
 type ComposeMode = "choose" | "video" | "post"
 
-/** Every entry point shares one dialog and the existing post uploader. */
 export function ComposeDialog({
   trigger,
   mediaTrigger,

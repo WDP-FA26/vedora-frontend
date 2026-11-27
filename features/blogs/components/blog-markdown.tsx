@@ -7,9 +7,6 @@ import { cn } from "cn"
 import { BlogGallery, type GalleryImage } from "@/features/blogs/components/blog-gallery"
 import { isAllowedBlogMediaUrl } from "@/features/blogs/lib/media-upload"
 
-// Blog content is the author's Markdown source. Raw HTML in it is dropped,
-// not rendered: `skipHtml` removes it, and the `raw` plugin that would parse
-// it is left out. Sanitize and harden still run on what Markdown produces.
 const rehypePlugins = [
   ...Object.entries(defaultRehypePlugins)
     .filter(([name]) => name !== "raw")
@@ -20,10 +17,6 @@ const rehypePlugins = [
 
 type HastNode = { type: string; tagName?: string; properties?: Record<string, unknown>; children?: HastNode[] }
 
-/**
- * Images load without a Referer: storage sits behind Cloudflare hotlink
- * protection, which rejects requests whose Referer is another site.
- */
 function rehypeNoReferrer() {
   const visit = (node: HastNode) => {
     if (node.type === "element" && node.tagName === "img") {
@@ -34,10 +27,6 @@ function rehypeNoReferrer() {
   return visit
 }
 
-/**
- * The blog's title is the page's only h1. The editor writes h2 and h3, but
- * Markdown typed or pasted as `# ` would add another, so it becomes an h2.
- */
 function rehypeDemoteH1() {
   const visit = (node: HastNode) => {
     if (node.type === "element" && node.tagName === "h1") node.tagName = "h2"
@@ -48,11 +37,6 @@ function rehypeDemoteH1() {
 
 const LINK_PROTOCOLS = ["https:", "http:", "mailto:"]
 
-/**
- * Links may use http(s) or mailto, images http(s): storage serves plain http
- * outside production. Anything else, such as `javascript:` or `data:`, is
- * dropped. Relative links stay on this site.
- */
 export const safeUrl: UrlTransform = (url, key) => {
   const value = url.trim()
   if (key === "src") return safeImageSrc(value)
@@ -68,19 +52,12 @@ function safeImageSrc(url: string) {
   return isAllowedBlogMediaUrl(url) ? url : null
 }
 
-/** `![alt](url)` alone on a line, as the editor writes images. */
 const IMAGE_LINE = /^\s*!\[([^\]]*)\]\((\S+?)\)\s*$/
 const FENCE = /^\s*(```|~~~)/
-// Videos are written as image Markdown too (same rule as the editor's isVideoUrl).
 const isVideo = (url: string) => /\/video\/upload\//.test(url) || /\.(mp4|webm|mov)(\?|#|$)/i.test(url)
 
 type Segment = { kind: "markdown"; text: string } | { kind: "gallery"; images: GalleryImage[] }
 
-/**
- * Splits the article where two or more images follow each other (blank lines
- * between them allowed), so those render as one gallery. Code blocks and
- * single images stay in the Markdown.
- */
 function segment(content: string): Segment[] {
   const segments: Segment[] = []
   let text: string[] = []
@@ -124,7 +101,6 @@ function Markdown({ text }: { text: string }) {
   )
 }
 
-/** A blog's Markdown, rendered as an article; runs of images become galleries. */
 export function BlogMarkdown({ content, className }: { content: string; className?: string }) {
   return (
     <div className={cn("text-[1.0625rem] leading-relaxed break-words", className)}>

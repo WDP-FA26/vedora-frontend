@@ -95,14 +95,12 @@ function BillingContent({ userId, token }: { userId: string; token?: string }) {
     try {
       key ??= sessionStorage.getItem(storageKey) ?? undefined
     } catch {
-      /* Retry persistence is optional. */
     }
     key ??= crypto.randomUUID()
     keys.current[planCode] = key
     try {
       sessionStorage.setItem(storageKey, key)
     } catch {
-      /* The server also protects pending intents. */
     }
     try {
       const payment = await sendJson(paymentSchema, `${API_URL}/billing/payment-intents`, token, {
@@ -115,7 +113,6 @@ function BillingContent({ userId, token }: { userId: string; token?: string }) {
       try {
         sessionStorage.removeItem(storageKey)
       } catch {
-        /* No persistence available. */
       }
       delete keys.current[planCode]
       setSelected(null)

@@ -38,14 +38,12 @@ const TAB_CLASS = "inline-flex items-center gap-2 border-b-2 border-transparent 
 
 type ProfileTab = "posts" | "reposts" | "videos" | "blogs"
 
-/** Videos and blogs are the owner's workspace; posts and reposts are public. */
 function visibleTab(tab: ProfileTab, isOwn: boolean): ProfileTab {
   if (isOwn) return tab
   if (tab === "videos" || tab === "blogs") return "posts"
   return tab
 }
 
-/** The published posts of profile `id`, under the profile header. */
 export function ProfilePosts({ id, count }: { id: string; count: number }) {
   const { user } = useAuth()
   const isOwn = user?.id === id

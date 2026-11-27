@@ -7,9 +7,6 @@ import { API_URL } from "@/features/auth/lib/api"
 import { sendJson } from "@/features/shared/lib/api-client"
 import { PUBLIC_ENV } from "@/lib/env"
 
-// The nutrition chat is open to guests: a Turnstile check buys a guest session
-// from vedora-api, kept in this browser until it expires.
-
 export const TURNSTILE_SITE_KEY = PUBLIC_ENV.turnstileSiteKey
 
 const STORAGE_KEY = "vedora-guest-session"
@@ -44,12 +41,10 @@ function write(value: z.infer<typeof storedSchema> | null) {
     if (value) localStorage.setItem(STORAGE_KEY, JSON.stringify(value))
     else localStorage.removeItem(STORAGE_KEY)
   } catch {
-    // private mode: the session lasts until the page is closed
   }
   listeners.forEach((listener) => listener())
 }
 
-/** The guest token, or null until the Turnstile check has passed. */
 export function useGuestToken() {
   return useSyncExternalStore(subscribe, read, () => null)
 }

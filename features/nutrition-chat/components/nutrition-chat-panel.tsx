@@ -45,13 +45,10 @@ import {
   type ChatMessageValues,
 } from "@/features/nutrition-chat/schemas"
 
-// replies can carry injected content: an image would load (and leak data to) any
-// URL without a click, and a link could phish; links keep their text
 const UNSAFE_ELEMENTS = ["img", "a"]
 
 const ASSISTANT_NAME = "Trợ lý Vedora"
 
-/** Name above, plain text below, like a support-agent transcript. */
 function AssistantMessage({ children }: { children: ReactNode }) {
   return (
     <Message>
@@ -70,7 +67,6 @@ function AssistantMessage({ children }: { children: ReactNode }) {
   )
 }
 
-/** Body of the pet's chat popover: header, conversation and composer. */
 export function NutritionChatPanel({
   onClose,
   chat,
@@ -93,7 +89,6 @@ export function NutritionChatPanel({
   })
 
   return (
-    // Let wheel/touch events scroll the transcript natively instead of driving landing-page Lenis.
     <div data-lenis-prevent className="flex h-full min-h-0 flex-col gap-4">
       <header className="-mx-2.5 flex items-center gap-2 border-b border-border px-2.5 pb-2.5">
         <PopoverTitle className="min-w-0 flex-1">Hỏi nhanh dinh dưỡng</PopoverTitle>
@@ -121,7 +116,6 @@ export function NutritionChatPanel({
               {messages.map((message) => {
                 const text = messageText(message)
                 const pending = message.id === pendingId
-                // the reply's first chunk can be empty; the spinner covers it
                 if (!text && !pending && !hasTrace(message)) return null
                 return (
                 <MessageScrollerItem
@@ -212,11 +206,6 @@ export function NutritionChatPanel({
                   </BubbleGroup>
                 </MessageScrollerItem>
               )}
-              {/*
-                Keeps the last line clear of the viewport's bottom fade, which is
-                permanent where scroll-driven animations are unsupported (Firefox).
-                With the content's gap-6 this adds up to 2.5rem.
-              */}
               <div aria-hidden className="h-4 shrink-0" />
             </MessageScrollerContent>
           </MessageScrollerViewport>

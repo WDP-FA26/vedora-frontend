@@ -77,7 +77,6 @@ test.describe("knowledge review page (admin)", () => {
 
     await page.getByRole("textbox", { name: "Văn bản trang 1" }).fill("Trang một đã sửa.")
     await expect(page.getByRole("button", { name: "Lưu chỉnh sửa (1 trang)" })).toBeEnabled()
-    // Unsaved edits must be saved before approving.
     await expect(approve).toBeDisabled()
     await page.getByRole("button", { name: "Lưu chỉnh sửa (1 trang)" }).click()
     await expect.poll(() => patches.length).toBe(1)

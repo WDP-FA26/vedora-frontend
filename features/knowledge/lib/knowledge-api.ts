@@ -55,7 +55,6 @@ export async function updateKnowledgePage(
 
 type ReviewAction = "approve" | "reject" | "reopen"
 
-/** `note` is sent for approve and reject only. */
 export function reviewKnowledgeDocument(
   token: string,
   id: string,

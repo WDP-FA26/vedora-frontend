@@ -42,7 +42,6 @@ test.describe("sidebar avatar", () => {
   })
 
   test("shows the photo from /auth/me", async ({ page, context }) => {
-    // 1x1 transparent PNG, so the avatar image actually loads.
     const png = Buffer.from(
       "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=",
       "base64"

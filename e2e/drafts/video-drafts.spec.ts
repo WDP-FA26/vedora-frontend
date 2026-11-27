@@ -5,7 +5,6 @@ import { users } from "../fixtures/data.mjs"
 import type { ApiMedia, ApiPost } from "../../features/posts/schemas"
 import type { PostDraft } from "../../features/post-drafts/schemas"
 
-/** Stateful provider/API stand-in shared by all tabs of one isolated browser context. */
 async function draftApi(context: BrowserContext) {
   await context.route(/^https:\/\//, (route) => route.abort())
   const cors = {
@@ -32,7 +31,6 @@ async function draftApi(context: BrowserContext) {
     if (route.request().method() === "OPTIONS") return route.fulfill({ status: 204, headers: cors })
     const mediaId = new URL(route.request().url()).pathname.split("/").at(-1)!
     uploads.push({ route, mediaId, bytes: route.request().postDataBuffer()! })
-    // Tests release these requests explicitly, so navigation/reload happens mid-upload.
   })
   await context.route(
     /http:\/\/localhost:4010\/api\/v1\/posts\/drafts(?:\/.*)?$/,

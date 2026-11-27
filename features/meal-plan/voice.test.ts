@@ -89,7 +89,6 @@ describe("readScrollState", () => {
   })
 })
 
-/** A UI message stream response, as `POST /meal-plan/voice/turns` sends it. */
 function sse(chunks: unknown[], status = 200) {
   const body = chunks.map((chunk) => `data: ${JSON.stringify(chunk)}\n\n`).join("") + "data: [DONE]\n\n"
   return new Response(body, { status, headers: { "Content-Type": "text/event-stream" } })

@@ -21,9 +21,7 @@ export type Snapshot = {
   drafts: LocalPostDraft[]
   loaded: boolean
   storageError: string | null
-  /** Local writes in flight; guards leaving the page. */
   saving: number
-  /** Writes that store video files, which take long enough to show. */
   savingFiles: number
   progress: Record<string, number>
   previews: Record<string, string>
@@ -58,7 +56,6 @@ function errorText(error: unknown) {
   return "Chưa đồng bộ được nháp. Nội dung và tệp đã lưu trên máy vẫn được giữ để thử lại."
 }
 
-/** Owns files and requests independently of editors/routes. IndexedDB is the durable source on this device. */
 export class PostDraftManager {
   private snapshot: Snapshot = EMPTY
   private listeners = new Set<() => void>()
@@ -335,7 +332,6 @@ export class PostDraftManager {
     if (!this.active || !this.token || !this.snapshot.loaded || this.snapshot.storageError) return
     this.timer = setTimeout(() => {
       if (!this.active) return
-      // One uploading draft at a time; small metadata/status requests use the same durable queue.
       const draft = this.snapshot.drafts.find(
         (item) => this.candidate(item) && !this.jobs.has(item.id)
       )
@@ -681,7 +677,6 @@ export class PostDraftManager {
         })
       }
     } catch {
-      /* Local files and text remain usable offline; individual jobs show sync failures. */
     }
   }
 }

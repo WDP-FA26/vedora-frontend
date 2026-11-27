@@ -16,10 +16,6 @@ import { PostCard } from "@/features/home/components/post-card"
 import { toFeedPost } from "@/features/posts/lib/to-feed-post"
 import { useRepostPage } from "@/features/profiles/hooks/use-repost-page"
 
-/**
- * The public "Đăng lại" tab of profile `id`: posts it reposted, newest repost
- * first, one page per "Xem thêm".
- */
 export function ProfileReposts({ id }: { id: string }) {
   const [cursors, setCursors] = useState<string[]>([])
 
@@ -79,7 +75,6 @@ function RepostPage({
     )
   }
 
-  // A page can be empty while later ones are not: reposts of hidden posts are skipped.
   if (isFirst && posts.length === 0 && !nextCursor) {
     return (
       <Empty>

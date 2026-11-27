@@ -5,15 +5,12 @@ import { attachDeepFilterNode, DEEPFILTER_SAMPLE_RATE } from "@/features/meal-pl
 const CAPTURE_SAMPLE_RATE = 24_000
 const CAPTURE_WORKLET_URL = "/realtime-capture-worklet.js?v=2"
 const CAPTURE_WORKLET_NAME = "vedora-realtime-capture"
-/** The worklet posts 20 ms of input at a time, so speech and barge-in reach the server sooner. */
 const CAPTURE_WORKLET_CHUNK_SECONDS = 0.02
-/** Cap in-flight audio frames at ~800 ms; drop overflow chunks rather than failing the call on spikes. */
 const CAPTURE_MAX_PENDING_CHUNKS = Math.max(8, Math.ceil(0.8 / CAPTURE_WORKLET_CHUNK_SECONDS))
 const CAPTURE_FALLBACK_CHUNK_SAMPLES = 1024
 
 export const MIC_THRESHOLD_MIN_DB = -70
 export const MIC_THRESHOLD_MAX_DB = -10
-/** Default manual threshold at 40% of the [-70, -10] dB sensitivity range. */
 export const DEFAULT_MIC_THRESHOLD_DB = -46
 const NOISE_FLOOR_INITIAL_DB = -58
 const NOISE_FLOOR_MIN_DB = -75
@@ -79,7 +76,6 @@ export function saveVoiceMicSettings(settings: VoiceMicSettings): void {
   try {
     window.localStorage.setItem(MIC_SETTINGS_STORAGE_KEY, JSON.stringify(settings))
   } catch {
-    // Ignore storage quota / privacy-mode errors.
   }
 }
 
@@ -95,11 +91,6 @@ export function pcm16RmsDb(samples: Int16Array): number {
   return Math.max(MIN_DB, 20 * Math.log10(rms))
 }
 
-/**
- * Discord-style input sensitivity noise gate with automatic ambient noise floor tracking,
- * hysteresis, and hangover hold so soft word endings are preserved while steady room/fan
- * noise is replaced with clean digital silence before reaching GPT-Live.
- */
 export class VoiceNoiseGate {
   private auto: boolean
   private manualThresholdDb: number
@@ -134,8 +125,6 @@ export class VoiceNoiseGate {
     const clampedDb = clamp(levelDb, MIN_DB, 0)
     this.lastLevelDb = clampedDb
 
-    // Track ambient noise floor asymmetrically: fall quickly in silence, rise slowly on steady room noise
-    // (capped below typical speech levels so loud speech bursts never drag the floor up).
     if (clampedDb < this.noiseFloorDb) {
       this.noiseFloorDb += (clampedDb - this.noiseFloorDb) * 0.08
     } else if (clampedDb <= NOISE_FLOOR_MAX_DB) {
@@ -227,13 +216,6 @@ export type VoiceCaptureCallbacks = {
   onError?: (error: Error) => void
 }
 
-/**
- * App-owned microphone capture for `experimental_useRealtime` (`capture: false`).
- * Runs `public/realtime-capture-worklet.js` on the audio thread (with `ScriptProcessorNode`
- * fallback), optionally inserts a 48 kHz DeepFilterNet3 denoiser ahead of capture,
- * reports input RMS level directly without globals, and drops overflow frames
- * under backpressure.
- */
 export class VoiceAudioCapture {
   private context: AudioContext | null = null
   private source: MediaStreamAudioSourceNode | null = null
@@ -379,7 +361,6 @@ export class VoiceAudioCapture {
               try {
                 source.disconnect(this.deepFilter.node)
               } catch {
-                // Already disconnected.
               }
               this.deepFilter.dispose()
               this.deepFilter = null
@@ -387,7 +368,6 @@ export class VoiceAudioCapture {
             try {
               source.connect(node)
             } catch {
-              // Already connected.
             }
             callbacks.onAiDenoiseStatus?.(status)
           }
@@ -405,7 +385,6 @@ export class VoiceAudioCapture {
               try {
                 source.disconnect(node)
               } catch {
-                // Ignore if already disconnected.
               }
               source.connect(handle.node)
               handle.node.connect(node)

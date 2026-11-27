@@ -98,7 +98,6 @@ const WEEK_PATTERN = /^\d{4}-\d{2}-\d{2}$/
 type Tab = "chat" | "calendar"
 type AskContext = { title: string; day: Weekday; section: MealSection }
 
-/** Returns the Monday (YYYY-MM-DD) of the week containing `isoDate`. */
 function mondayOfDate(isoDate: string): string | null {
   if (!WEEK_PATTERN.test(isoDate)) return null
   const [year, month, day] = isoDate.split("-").map(Number)
@@ -108,7 +107,6 @@ function mondayOfDate(isoDate: string): string | null {
   return date.toISOString().slice(0, 10)
 }
 
-/** What went wrong saving a calendar edit, in words the user can act on. */
 function calendarErrorMessage(error: unknown) {
   if (!(error instanceof ApiError)) return "Không lưu được thay đổi. Hãy thử lại."
   const problems = z.array(problemSchema).safeParse(error.details?.problems)
@@ -121,10 +119,6 @@ function calendarErrorMessage(error: unknown) {
   return "Không lưu được thay đổi. Hãy thử lại."
 }
 
-/**
- * One saved week at a time (the `week` URL param, else this week). The assistant
- * saves its changes to any plannable week as it goes, and the calendar follows.
- */
 export function MealPlannerView() {
   const { user, accessToken } = useAuth()
   const { mutate: swrMutate } = useSWRConfig()
@@ -147,9 +141,7 @@ export function MealPlannerView() {
   const shoppingList = useRef<ShoppingListHandle>(null)
   const voiceRecipeSheet = useRef<RecipeSheetHandle>(null)
   const calendarScrollRef = useRef<HTMLDivElement>(null)
-  /** A day the voice agent showed in another week; the calendar picks it when that week mounts. */
   const [voiceDay, setVoiceDay] = useState<{ weekStart: string; day: Weekday } | null>(null)
-  /** A panel command targeting another week; applied once that week finishes loading. */
   const pendingVoiceCommandRef = useRef<{
     targetWeek: string
     command: VoiceScreenCommand
@@ -160,7 +152,6 @@ export function MealPlannerView() {
   const [calendarRecipe, setCalendarRecipe] = useState<VoiceOpenRecipe | null>(null)
   const [voiceSheetRecipe, setVoiceSheetRecipe] = useState<VoiceOpenRecipe | null>(null)
   const openRecipe = voiceDishOpen ? voiceSheetRecipe : calendarRecipe
-  /** When the voice agent last changed or opened something; the screen glows a little after it. */
   const [lastVoiceFocusAt, setLastVoiceFocusAt] = useState<number | null>(null)
   const [voiceOpen, setVoiceOpen] = useState(false)
   const [askContext, setAskContext] = useState<AskContext | null>(null)
@@ -185,7 +176,6 @@ export function MealPlannerView() {
     return () => clearTimeout(timer)
   }, [lastVoiceFocusAt])
 
-  // A `week` in the URL the API refuses (not a Monday, too far ahead) is dropped, back to this week.
   const weekRefused =
     plan.error instanceof ApiError && (plan.error.status === 400 || plan.error.status === 409)
   useEffect(() => {
@@ -200,7 +190,6 @@ export function MealPlannerView() {
     return () => cancelAnimationFrame(frame)
   }, [weekStart])
 
-  /** Puts the week in the URL without a server round trip; the current week needs no param. */
   function writeWeek(next: string | undefined) {
     const params = new URLSearchParams(searchParams.toString())
     if (next) params.set(WEEK_PARAM, next)
@@ -209,7 +198,6 @@ export function MealPlannerView() {
     window.history.pushState(null, "", query ? `?${query}` : window.location.pathname)
   }
 
-  /** The chat keeps its own week for each change, so switching weeks loses nothing. */
   function showWeek(next: string) {
     if (next !== weekStart) {
       writeWeek(next === plan.data?.currentWeekStart ? undefined : next)
@@ -217,10 +205,6 @@ export function MealPlannerView() {
     setTab("calendar")
   }
 
-  /**
-   * What the page shows now, for the voice agent: the week and day on the calendar and the
-   * panel over it. Read when a turn starts, so it matches what the user saw as they spoke.
-   */
   function voiceScreen(): VoiceScreen | null {
     if (!weekStart) return null
     const board = calendar.current?.screen()
@@ -283,7 +267,6 @@ export function MealPlannerView() {
     return { ...screen, scrollState: board?.mobileScrollState ?? desktopScroll }
   }
 
-  /** Closes panels the voice agent opened (or the user did), all but `keep`. */
   function closeVoicePanels(panel: VoiceScreenPanel, keep?: VoiceScreenPanel) {
     const closes = (name: VoiceScreenPanel) => name !== keep && (panel === "all" || panel === name)
     if (closes("recipe")) {
@@ -295,12 +278,6 @@ export function MealPlannerView() {
     if (closes("shoppingList")) shoppingList.current?.close()
   }
 
-  /**
-   * Lights the screen glow for anything the voice agent changed, opened or closed, then
-   * does it in the planner's own UI: the dish on the calendar (or its recipe sheet when it
-   * is not planned), the food diary, the BMI panel, or the day it showed or changed.
-   * Opening one panel closes the others, so the agent never stacks sheets.
-   */
   function showVoiceScreen({ focus, close, scroll }: VoiceScreenCommand) {
     setLastVoiceFocusAt(Date.now())
     if (close) closeVoicePanels(close)
@@ -374,7 +351,6 @@ export function MealPlannerView() {
         }
         return
       }
-      // Another week remounts the calendar, so the day goes in as its initial pick.
       if (focus.day) setVoiceDay({ weekStart: focus.weekStart, day: focus.day })
       showWeek(focus.weekStart)
       return
@@ -764,7 +740,6 @@ export function MealPlannerView() {
                 today={plan.data?.today}
                 threadId={chat.threadId}
                 onScreen={showVoiceScreen}
-                // Voice turns are saved in the chat's thread; reloading it shows them in the chat.
                 onTurnEnd={(threadId) => void chat.selectThread(threadId)}
                 onClose={() => setVoiceOpen(false)}
                 getScreen={voiceScreen}
@@ -916,7 +891,6 @@ export function MealPlannerView() {
   )
 }
 
-/** Days of the saved week with at least one dish; the shopping list skips the others. */
 function plannedDays(plan: MealPlan): Weekday[] {
   const days: Weekday[] = []
   for (const { day, sections } of plan.days) {

@@ -5,7 +5,6 @@ interface Segment {
   marked: boolean
 }
 
-/** Splits `text` (NFC) into plain and marked runs; overlapping ranges merge. */
 function segmentsOf(text: string, ranges: { start: number; end: number }[]): Segment[] {
   const sorted = [...ranges].sort((left, right) => left.start - right.start)
   const segments: Segment[] = []
@@ -22,7 +21,6 @@ function segmentsOf(text: string, ranges: { start: number; end: number }[]): Seg
   return segments
 }
 
-/** The post body with the explainer's quotes marked, as plain text. */
 export function HighlightedText({
   text,
   items,

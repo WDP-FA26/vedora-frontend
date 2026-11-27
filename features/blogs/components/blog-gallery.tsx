@@ -14,21 +14,14 @@ import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog"
 
 export type GalleryImage = { src: string; alt: string }
 
-/** Tiles shown in the grid; the rest are counted on the last one. */
 const MAX_TILES = 4
 
-// Grid per number of images: two side by side, one big beside two small,
-// then a 2×2 grid.
 const GRID: Record<number, string> = {
   2: "aspect-[2/1] grid-cols-2",
   3: "aspect-[4/3] grid-cols-2 grid-rows-2 [&>*:first-child]:row-span-2",
   4: "aspect-[4/3] grid-cols-2 grid-rows-2",
 }
 
-/**
- * Images the author put one after another, as one grid instead of a long
- * column. Any image opens a full-screen viewer that swipes through them all.
- */
 export function BlogGallery({ images }: { images: GalleryImage[] }) {
   const [openAt, setOpenAt] = useState<number | null>(null)
   const tiles = images.slice(0, MAX_TILES)
@@ -50,7 +43,6 @@ export function BlogGallery({ images }: { images: GalleryImage[] }) {
             aria-label={`Xem ảnh ${index + 1} trên ${images.length}${image.alt ? `: ${image.alt}` : ""}`}
             className="relative min-h-0 overflow-hidden bg-muted outline-none focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:ring-inset"
           >
-            {/* Blog images come from storage or other sites, so the Next image optimizer is not used. */}
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src={image.src}

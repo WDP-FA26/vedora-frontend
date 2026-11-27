@@ -14,7 +14,6 @@ const SCORES = [1, 2, 3, 4, 5]
 const formatAverage = (value: number) =>
   value.toLocaleString("vi-VN", { minimumFractionDigits: 1, maximumFractionDigits: 1 })
 
-/** Five stars filled up to `value`, partly filling the star it ends in. */
 function StarMeter({ value }: { value: number }) {
   return (
     <span aria-hidden className="inline-flex">
@@ -33,7 +32,6 @@ function StarMeter({ value }: { value: number }) {
   )
 }
 
-/** The rating summary of a recipe, and stars the signed-in user scores it with. */
 export function RecipeRating({ recipeId }: { recipeId: string }) {
   const {
     summary,

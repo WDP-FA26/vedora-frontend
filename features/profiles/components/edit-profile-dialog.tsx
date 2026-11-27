@@ -95,7 +95,6 @@ export function EditProfileDialog({
   const pendingProfileSyncRef = useRef(false)
   const hasAppliedChangesRef = useRef(false)
   const images = useProfileImage()
-  // Lives here so edits survive a trip through the crop step.
   const form = useForm<ProfileFormValues>({
     resolver: zodResolver(profileFormSchema),
     defaultValues: { username: profile.username, fullName: profile.fullName, bio: profile.bio ?? "" },
@@ -104,7 +103,6 @@ export function EditProfileDialog({
   const hasUnsavedChanges = form.formState.isDirty ||
     stagedImages.AVATAR !== null || stagedImages.COVER !== null
 
-  // Created on pick and revoked on close, not in an effect, so Strict Mode can't revoke it early.
   function startCrop(kind: ImageKind, file: File) {
     images.clearError()
     if (!IMAGE_CONTENT_TYPES.includes(file.type)) {
@@ -265,7 +263,6 @@ function ProfileEditForm({
         hasAppliedChangesRef.current = true
       }
       stage = "details"
-      // The profile PATCH also returns the current username after its account update.
       if (textChanged || pendingProfileSyncRef.current) {
         const updatedProfile = await updateMyProfile(accessToken, profileValues)
         savedSomething = true

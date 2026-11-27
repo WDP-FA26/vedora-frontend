@@ -104,7 +104,6 @@ const SUGGESTIONS = [
   "Gợi ý vài món chay ngoài quán thanh đạm, giàu đạm thực vật",
 ] as const
 
-/** Lets the page send a written request as if the user had typed it, keeping retry working. */
 export type PlannerChatHandle = { ask: (text: string) => void }
 
 export type MealAskContext = { title: string; day: Weekday; section: MealSection }
@@ -143,9 +142,7 @@ export function PlannerChat({
   handle,
 }: {
   handle?: Ref<PlannerChatHandle>
-  /** Shown before the logo, e.g. a back button. */
   leading?: ReactNode
-  /** Shown at the end of the header, e.g. a collapse button. */
   trailing?: ReactNode
   chat: MealPlannerChat
   savedAvoided?: string[]
@@ -153,17 +150,11 @@ export function PlannerChat({
   profileError?: boolean
   askContext?: MealAskContext | null
   clearAskContext?: () => void
-  /** Shows a week the assistant changed on the calendar. */
   onOpenWeek?: (weekStart: string) => void
-  /** Starts a live voice conversation from the chat composer. */
   onStartVoice?: () => void
-  /** Opens the eating diary pre-filled with a recommended restaurant dish. */
   onLogRestaurantDish?: (dish: PlannerRestaurantDish) => void
-  /** Opens the inline dietary profile tab without leaving the planner. */
   onEditDietary?: () => void
-  /** Opens the eating diary on a specific date. */
   onOpenMealLog?: (date?: string) => void
-  /** Opens the inline BMI panel. */
   onOpenBodyMetrics?: () => void
   voiceDisabled?: boolean
 }) {
@@ -171,10 +162,8 @@ export function PlannerChat({
   const [input, setInput] = useState("")
   const [inputError, setInputError] = useState("")
   const [historyOpen, setHistoryOpen] = useState(false)
-  /** The user message the rewind dialog asks about. */
   const [rewindTarget, setRewindTarget] = useState<string | null>(null)
   const [rewindNotice, setRewindNotice] = useState<string | null>(null)
-  /** A message typed while the assistant was still working; it goes out when the turn ends. */
   const [queued, setQueued] = useState<{ payload: string; original: string } | null>(null)
   const end = useRef<HTMLDivElement>(null)
   const textarea = useRef<HTMLTextAreaElement>(null)
@@ -203,7 +192,6 @@ export function PlannerChat({
     }
   }, [busy, error, messages, input, clearAskContext])
 
-  // Sends the queued message once the turn ends; the timer keeps a re-render from sending it twice.
   useEffect(() => {
     if (busy || error || !queued) return
     const timer = setTimeout(() => {
@@ -238,7 +226,6 @@ export function PlannerChat({
 
   function submit(event?: FormEvent<HTMLFormElement>) {
     event?.preventDefault()
-    // The assistant plans one week, so it waits until the week on screen has loaded.
     if (!chat.weekStart) return
     const text = input.trim()
     if (!text) {
@@ -252,15 +239,12 @@ export function PlannerChat({
     const context = askContext
       ? `Về món ${askContext.title} ở ${DAY_LABELS[askContext.day]}, bữa ${SECTION_LABELS[askContext.section].toLowerCase()}: `
       : ""
-    // The API reads the saved dietary profile itself on every turn, so the
-    // question goes out as typed instead of carrying the profile along.
     const payload = `${context}${text}`
     if (payload.length > MAX_PLANNER_MESSAGE_LENGTH) {
       setInputError(`Tin nhắn tối đa ${MAX_PLANNER_MESSAGE_LENGTH} ký tự. Hãy rút ngắn nội dung.`)
       return
     }
     if (busy) {
-      // Like Claude Code: keep typing while the assistant works; this goes out next.
       setQueued({ payload, original: text })
       setInput("")
       setInputError("")
@@ -630,7 +614,6 @@ export function PlannerChat({
   )
 }
 
-/** What a rewind put back, in one sentence. */
 function rewindSummary(weeks: { weekStart: string; restored: Weekday[]; skipped: Weekday[]; droppedDishes: number }[]) {
   let restored = 0
   let dropped = 0
@@ -677,7 +660,6 @@ function UserMessage({ text, canRewind, rewinding, onRewind }: {
   )
 }
 
-/** Asks before the assistant may search the web, and says why web answers need checking. */
 function WebSearchConsent({ reason, disabled, onAnswer }: {
   reason: string
   disabled: boolean
@@ -707,14 +689,12 @@ function WebSearchConsent({ reason, disabled, onAnswer }: {
   )
 }
 
-/** What the assistant saved to one week in this message, before and after. */
 function leftOutLabel(problem: MealPlanProblem) {
   const day = DAY_LABELS[problem.day]
   if (problem.code === "UNKNOWN_RECIPE") return `${day}: món không còn trong kho`
   return `${day}: ${problem.recipes.join(", ")} (có ${problem.ingredients.join(", ")} bạn không ăn)`
 }
 
-/** The assistant changed the "Dị ứng" or "Sở thích" lines in the dietary profile. */
 function ProfileNoteCard({
   update,
   onEditDietary,
@@ -812,9 +792,7 @@ function BodyMetricsCard({
 
 function PlanChangeCard({ change, currentWeek, onShowWeek }: {
   change: PlanChangeEntry
-  /** The week on screen. */
   currentWeek: string | undefined
-  /** Shows the change's week on the calendar. */
   onShowWeek?: (weekStart: string) => void
 }) {
   const titles = (recipes: { title: string }[]) => recipes.map(({ title }) => title).join(", ")
@@ -872,7 +850,6 @@ function PlanChangeCard({ change, currentWeek, onShowWeek }: {
   )
 }
 
-/** The assistant's question, with its options as buttons; only the newest one can still be answered. */
 function QuestionCard({ question, open, disabled, onAnswer }: {
   question: UserQuestion
   open: boolean
@@ -889,7 +866,6 @@ function QuestionCard({ question, open, disabled, onAnswer }: {
 
   function isChosen(option: string) {
     if (question.answer === undefined) return picked.includes(option)
-    // A single answer is the option itself, which may contain ", " too.
     if (!question.multiple) return question.answer === option
     return question.answer.split(", ").includes(option)
   }

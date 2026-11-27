@@ -9,7 +9,6 @@ function formatDuration(seconds: number | null) {
 }
 
 const postStatus: Record<ApiPost["status"], MediaPost["status"]> = {
-  // Drafts are blogs, which never take this path.
   DRAFT: "processing",
   PROCESSING: "processing",
   PUBLISHED: "published",
@@ -26,7 +25,6 @@ const mediaStatus: Record<ApiMedia["status"], CloudinaryVideo["status"]> = {
   FAILED: "failed",
 }
 
-/** Adapts an API post to the feed's `Post` shape that `PostCard` renders. */
 export function toFeedPost(post: ApiPost): Post {
   const base = {
     id: post.id,

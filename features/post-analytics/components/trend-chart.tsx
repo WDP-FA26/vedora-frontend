@@ -7,13 +7,11 @@ import { longDate, shortDate } from "../lib/date-range"
 import { formatCompact, METRIC_META, numberFormat, type SummaryMetric } from "../lib/metrics"
 import type { AnalyticsDay } from "../schemas"
 
-/** Day i of the current period next to day i of the previous one. */
 type TrendRow = {
   date: string
   previousDate: string
   current: number | null
   previous: number | null
-  /** A value with no value on either side: a line cannot show it, so it gets a dot. */
   isolated: boolean
 }
 
@@ -90,11 +88,6 @@ function LegendKey({ className, children }: { className: string; children: React
   )
 }
 
-/**
- * The selected metric per day as a line with a soft wash, and the previous
- * period of the same length as a quiet gray line for comparison. Days without
- * data (views before tracking started) leave a gap instead of dropping to 0.
- */
 export function TrendChart({
   days,
   previousDays,
@@ -166,7 +159,6 @@ export function TrendChart({
   )
 }
 
-/** The same numbers as a table, for screen readers and exact values. */
 export function TrendTable({ days, previousDays, metric }: { days: AnalyticsDay[]; previousDays: AnalyticsDay[]; metric: SummaryMetric }) {
   const { label } = METRIC_META[metric]
   const rows = toRows(days, previousDays, metric)

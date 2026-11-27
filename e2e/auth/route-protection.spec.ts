@@ -77,7 +77,6 @@ test.describe("signed-in users", () => {
 
 test.describe("expired access token", () => {
   test("the proxy rotates it with the refresh token instead of signing out", async ({ page, context }) => {
-    // Expired access token + valid refresh token: proxy.ts calls POST /auth/refresh.
     const base = { domain: "localhost", path: "/", httpOnly: true, sameSite: "Lax" as const }
     await context.addCookies([
       { ...base, name: "vedora_at", value: makeAccessToken(users.member.id, { expiresInSec: -60 }) },

@@ -63,7 +63,6 @@ test.describe("messages", () => {
       "Chào bạn, công thức phở chay của bạn rất hay.",
     )
     await expect(log).toContainText("Hẹn bạn cuối tuần nhé!")
-    // The member's own message was read by the peer (peerReadSequence 1).
     await expect(log).toContainText("Đã xem")
   })
 

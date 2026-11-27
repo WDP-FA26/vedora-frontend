@@ -37,7 +37,6 @@ export function SharePostMenu({ postId }: { postId: string }) {
   const [open, setOpen] = useState(false)
   const [busy, setBusy] = useState(false)
   const [copied, setCopied] = useState(false)
-  // Failed/uncertain attempts survive closing the dialog, so retrying cannot duplicate a message.
   const attempts = useRef(new Map<string, string>())
 
   async function copyLink() {
@@ -150,7 +149,6 @@ function ShareRecipients({
     const id = attempts.current.get(attemptKey) ?? crypto.randomUUID()
     attempts.current.set(attemptKey, id)
     try {
-      // Use the stable user target even if a first request creates a new conversation.
       const result = await sharePostInMessage(accessToken, { userId: selected.peer.id }, postId, id)
       attempts.current.delete(attemptKey)
       setSent({ name: selected.peer.fullName, conversationId: result.conversationId })

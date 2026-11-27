@@ -95,7 +95,6 @@ const columns = helper.columns([
 
 const getId = (row: IngredientGroup) => row.id
 
-/** Groups of ingredients that share incompatibility rules. */
 export function GroupsTable() {
   const { groups, error, isLoading } = useIngredientGroups()
   const [editing, setEditing] = useState<IngredientGroup | "new" | null>(null)

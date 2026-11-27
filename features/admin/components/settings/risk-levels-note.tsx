@@ -7,7 +7,6 @@ const LEVELS = [
   { level: 3, outcome: "Bị chặn khi model chỉ ra được bằng chứng trong bài." },
 ] as const
 
-/** How the model's risk level turns into what happens to a post; fixed on the API, not a setting. */
 export function RiskLevelsNote() {
   return (
     <section aria-labelledby="risk-levels-title" className="flex flex-col gap-3">

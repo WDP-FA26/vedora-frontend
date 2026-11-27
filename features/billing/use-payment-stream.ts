@@ -9,7 +9,6 @@ import { API_URL } from "@/features/auth/lib/api"
 
 class FatalStreamError extends Error {}
 
-/** SSE is an invalidation hint. Only GET may establish the payment state. */
 export function usePaymentStream(id: string, enabled: boolean) {
   const { accessToken } = useAuth()
   const { mutate } = useSWRConfig()
@@ -36,7 +35,6 @@ export function usePaymentStream(id: string, enabled: boolean) {
     const fallback = setInterval(() => {
       if (!live && !controller.signal.aborted) void mutate(paymentKey).catch(() => undefined)
     }, 4000)
-    // A half-open connection may never call onerror. Fall back and reconnect.
     const watchdog = setInterval(() => {
       if (Date.now() - lastFrame <= 35_000 || controller.signal.aborted) return
       health(false)
@@ -52,7 +50,7 @@ export function usePaymentStream(id: string, enabled: boolean) {
         lastFrame = Date.now()
         if (response.ok && response.headers.get("content-type")?.startsWith(EventStreamContentType)) {
           health(false)
-          reconcile() // Covers payment committed before subscription was ready.
+          reconcile()
           return
         }
         if (response.status === 401) router.refresh()
@@ -75,7 +73,7 @@ export function usePaymentStream(id: string, enabled: boolean) {
           if (!data || typeof data !== "object") return
           if (event.event === "ping" && "connected" in data && typeof data.connected === "boolean") health(data.connected)
           if (event.event === "payment.changed" && "intentId" in data && data.intentId === id) reconcile()
-        } catch { /* Ignore invalid frames; fallback GET remains authoritative. */ }
+        } catch {  }
       },
       onclose() { health(false); throw new Error("Payment stream closed") },
       onerror(error: unknown) {

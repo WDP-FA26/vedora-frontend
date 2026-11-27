@@ -31,10 +31,8 @@ export function PostStatusBadge({ status }: { status: AdminPost["status"] }) {
   return <Badge variant={variant}>{label}</Badge>
 }
 
-/** Value of the `kind` column, which the "Có video" view filters on. */
 export const VIDEO_POST = "video"
 
-/** Opens a post's detail sheet; provided by the page so the columns can stay static. */
 export const OpenPostContext = createContext<(id: string) => void>(() => {})
 
 function OpenButton({ post }: { post: AdminPost }) {
@@ -140,7 +138,6 @@ export const postColumns = helper.columns([
       <DataTableColumnHeader column={column} title="Tạo lúc" />
     ),
     cell: ({ getValue }) => formatPostDateLong(getValue()),
-    // ISO timestamps order correctly as text.
     sortFn: "text",
     enableGlobalFilter: false,
     meta: { label: "Tạo lúc", className: "hidden md:table-cell" },

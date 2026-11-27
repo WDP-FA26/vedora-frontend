@@ -21,7 +21,6 @@ const copy: Record<ProfileListKind, { title: string; empty: string }> = {
   following: { title: "Đang theo dõi", empty: "Hồ sơ này chưa theo dõi ai." },
 }
 
-/** The followers or following of profile `id`, with a "load more" button. */
 export function ProfileList({ id, kind }: { id: string; kind: ProfileListKind }) {
   const { profiles, hasMore, loadMore, error, isLoading, isLoadingMore } = useProfileList(
     id,

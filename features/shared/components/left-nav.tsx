@@ -36,10 +36,6 @@ import { useSwitchAccount } from "@/features/workspaces/hooks/use-switch-account
 import { WORKSPACES_PATH } from "@/features/workspaces/workspaces-cache"
 import { UnreadMessagesBadge } from "@/features/messaging/components/unread-messages-badge"
 
-/**
- * Desktop and tablet navigation. Icon-only below `xl`, full labels above,
- * mirroring X's collapsing left column.
- */
 export function LeftNav() {
   return (
     <header className="sticky top-0 hidden h-dvh w-[4.5rem] shrink-0 flex-col items-center px-2 py-3 sm:flex xl:w-[14rem] xl:items-stretch xl:px-4">
@@ -74,7 +70,6 @@ export function NavLinks({
   onNavigate,
 }: {
   className?: string
-  /** Always show labels, regardless of breakpoint (mobile sheet). */
   expanded?: boolean
   onNavigate?: () => void
 }) {
@@ -197,7 +192,6 @@ function AccountMenu() {
   )
 }
 
-/** Your pages to act as, and the way back to your own account in a page session. */
 function SwitchAccountGroup({
   currentId,
   actorUsername,

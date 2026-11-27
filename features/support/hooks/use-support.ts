@@ -152,7 +152,6 @@ export function useReplyAdminSupportTicket() {
 
 const UPLOAD_TIMEOUT_MS = 60_000
 
-/** Uploads images to the private support bucket and returns their attachment ids. */
 export function useUploadSupportImages() {
   const { accessToken } = useAuth()
 
@@ -170,7 +169,6 @@ export function useUploadSupportImages() {
   }
 }
 
-/** Claims (or with "takeover", forcibly takes) a ticket, or releases it back to the queue. */
 export function useAdminSupportClaim() {
   const { accessToken } = useAuth()
   const { mutate } = useSWRConfig()

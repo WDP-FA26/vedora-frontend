@@ -15,18 +15,12 @@ import type { ApiPost, PostPage } from "@/features/posts/schemas"
 
 type PostPatch = (post: ApiPost) => Partial<ApiPost>
 
-// Comment pages live under `/posts/:id/comments` but hold comments, not posts.
 const isPostsKey = (key: unknown) =>
   Array.isArray(key) &&
   typeof key[0] === "string" &&
   key[0].startsWith(POSTS_KEY) &&
   !key[0].includes("/comments")
 
-/**
- * Likes, reposts and saved posts for the signed-in user. A post can sit in several caches
- * at once (feed, profile, its own page), so changes are written to all of
- * them: first optimistically, then with the counts the API returns.
- */
 export function usePostInteractions() {
   const { accessToken } = useAuth()
   const { mutate } = useSWRConfig()
@@ -45,7 +39,6 @@ export function usePostInteractions() {
     )
   }
 
-  /** Runs `request` around an optimistic `change`, undone with `revert` if it fails. */
   async function toggle(
     id: string,
     change: PostPatch,
@@ -97,7 +90,6 @@ export function usePostInteractions() {
       const post = await fetchPost([postKey(id), accessToken])
       await patch(id, () => ({ commentCount: post.commentCount }))
     },
-    /** Keeps `commentCount` in step once a comment is added (+1) or deleted (-1). */
     countComment: (id: string, delta: number) =>
       patch(id, (post) => ({
         commentCount: Math.max(0, post.commentCount + delta),

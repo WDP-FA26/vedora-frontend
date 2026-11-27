@@ -16,14 +16,12 @@ import {
 } from "@/features/profiles/profiles-cache"
 import type { FollowSuggestionList } from "@/features/profiles/schemas"
 
-/** "Who to follow" for the signed-in user. Idle for guests. */
 export function useSuggestions(limit: number) {
   const { accessToken, user } = useAuth()
   const { mutate } = useSWRConfig()
   const key = accessToken ? ([suggestionsKey(limit), accessToken] as const) : null
   const { data, isLoading } = useSWR(key, fetchSuggestions)
 
-  /** Drops `id` from the list at once; the API call rolls it back on failure. */
   function remove(id: string, request: (token: string) => Promise<void>) {
     if (!key || !accessToken) return Promise.resolve()
     return mutate(
@@ -46,9 +44,8 @@ export function useSuggestions(limit: number) {
     try {
       await remove(id, (token) => followProfile(token, id))
     } catch {
-      return // Rolled back: the person is back in the list.
+      return
     }
-    // Keep the profile page and counts in step with the new follow.
     await Promise.all([
       mutate([relationshipKey(id), accessToken]),
       mutate([profileKey(id), accessToken]),
@@ -61,7 +58,6 @@ export function useSuggestions(limit: number) {
     try {
       await remove(id, (token) => dismissSuggestion(token, id))
     } catch {
-      // Rolled back: the person is back in the list.
     }
   }
 

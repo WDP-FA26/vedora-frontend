@@ -2,12 +2,7 @@ import { z } from "zod"
 
 import { presignedUploadSchema } from "@/features/shared/lib/storage-upload"
 
-// Mirrors vedora-api's `/knowledge/documents` responses. Responses are parsed
-// with these, so the types below are checked at runtime.
-
-/** Mirrors the API's `MAX_KNOWLEDGE_FILE_MB` default; the API enforces it. */
 export const MAX_KNOWLEDGE_FILE_MB = 50
-/** A hint for the file picker; the API decides which types it accepts. */
 export const KNOWLEDGE_ACCEPT = { "application/pdf": [".pdf"] }
 
 const knowledgeDocumentSchema = z.object({

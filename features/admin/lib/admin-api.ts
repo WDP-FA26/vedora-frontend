@@ -21,14 +21,8 @@ import {
 } from "@/features/admin/schemas"
 import { send, sendJson } from "@/features/shared/lib/api-client"
 
-/** The API's `MAX_PAGE_LIMIT`. */
 const PAGE_LIMIT = 50
 
-/**
- * Every user matching `url`'s `q`/`status` (see `adminUsersKey`), newest
- * first. The API filters; the table sorts and paginates in the browser, so it
- * needs every matching row.
- */
 export async function fetchAllUsers([url, token]: readonly [string, string]) {
   const users: AdminUser[] = []
   for (let page = 1; ; page++) {
@@ -41,7 +35,6 @@ export async function fetchAllUsers([url, token]: readonly [string, string]) {
   }
 }
 
-/** Every post, newest first; the table needs the whole list, like `fetchAllUsers`. */
 export async function fetchAllPosts([url, token]: readonly [string, string]) {
   const posts: AdminPost[] = []
   for (let page = 1; ; page++) {
@@ -59,7 +52,6 @@ export function fetchAdminPost([url, token]: readonly [string, string]) {
   return sendJson(adminPostDetailSchema, url, token)
 }
 
-/** Approves or rejects a post held for review, or overturns a rejection (PENDING_REVIEW / REJECTED only). */
 export function moderateAdminPost(
   token: string,
   id: string,
@@ -81,7 +73,6 @@ export async function deleteAdminPost(token: string, id: string, reason?: string
   )
 }
 
-/** Restores a soft-deleted post and closes any active appeal on it. */
 export function restoreAdminPost(token: string, id: string, note?: string) {
   const trimmed = note?.trim()
   return sendJson(adminPostDetailSchema, `${adminPostKey(id)}/restore`, token, {
@@ -90,14 +81,12 @@ export function restoreAdminPost(token: string, id: string, note?: string) {
   })
 }
 
-/** A caption track's cues, read from its public WebVTT file on Cloudinary. */
 export async function fetchTranscript(url: string) {
   const response = await fetch(url)
   if (!response.ok) throw new Error(`Transcript request failed: ${response.status}`)
   return parseVtt(await response.text())
 }
 
-/** Every report, newest first; the table needs the whole list, like `fetchAllUsers`. */
 export async function fetchAllReports([url, token]: readonly [string, string]) {
   const reports: AdminReport[] = []
   for (let page = 1; ; page++) {
@@ -110,17 +99,14 @@ export async function fetchAllReports([url, token]: readonly [string, string]) {
   }
 }
 
-/** What every role or status change carries, recorded in the API's audit log. */
 type AccountOperation = {
   reason: string
-  /** The target's `accountVersion` when the admin read it. */
   expectedVersion: number
 }
 
 export type AccountStatusChange = AccountOperation & { status: "ACTIVE" | "SUSPENDED" }
 export type AccountRoleChange = AccountOperation & { role: AdminUser["role"] }
 
-/** Suspends or reactivates an account; the API refuses a stale version. Returns the account. */
 export function updateUserStatus(token: string, id: string, change: AccountStatusChange) {
   return sendJson(adminUserSchema, `${ADMIN_USERS_KEY}/${id}/status`, token, {
     method: "PATCH",
@@ -128,7 +114,6 @@ export function updateUserStatus(token: string, id: string, change: AccountStatu
   })
 }
 
-/** Grants or removes admin rights; the API refuses a stale version. Returns the account. */
 export function updateUserRole(token: string, id: string, change: AccountRoleChange) {
   return sendJson(adminUserSchema, `${ADMIN_USERS_KEY}/${id}/role`, token, {
     method: "PATCH",
@@ -147,7 +132,6 @@ export function fetchModerationSettings([url, token]: readonly [string, string])
   return sendJson(moderationSettingsSchema, url, token)
 }
 
-/** Replaces the policy; `version` is the one that was loaded, so a stale save answers 409. */
 export function saveModerationSettings(
   token: string,
   draft: ModerationPolicyDraft,
@@ -165,7 +149,6 @@ export function resetModerationSettings(token: string) {
   })
 }
 
-/** Tries a text against a draft policy without saving it. */
 export function testModeration(token: string, text: string, draft: ModerationPolicyDraft) {
   return sendJson(moderationTestResultSchema, `${MODERATION_SETTINGS_KEY}/test`, token, {
     method: "POST",

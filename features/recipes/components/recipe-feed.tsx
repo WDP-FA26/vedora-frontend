@@ -34,11 +34,6 @@ import {
 import type { RecipeCategory } from "@/features/recipes/schemas"
 import type { RecipeTag } from "@/features/recipes/tags"
 
-/**
- * The "Công thức" tab: the public recipe catalog, filtered by a category dropdown,
- * with the full recipe in a dialog. A category shows the recipes whose `tag`
- * is its `baseTag`.
- */
 export function RecipeFeed() {
   const { categories } = usePublicRecipeCategories()
   const [selected, setSelected] = useState<RecipeCategory | null>(null)
@@ -61,7 +56,6 @@ export function RecipeFeed() {
   )
 }
 
-/** Each dish type's name as the admin calls it: the first category using it as `baseTag`. */
 function categoryLabels(categories: RecipeCategory[]) {
   const labels = new Map<RecipeTag, string>()
   for (const category of categories) {
@@ -72,7 +66,6 @@ function categoryLabels(categories: RecipeCategory[]) {
 
 const ALL_CATEGORIES = "all"
 
-/** A dropdown naming the category in view; picking one filters the feed. */
 function CategoryPicker({
   categories,
   selected,
@@ -199,7 +192,6 @@ function RecipeList({
   )
 }
 
-/** Calls `onVisible` whenever it scrolls into view, so the next page loads ahead of the reader. */
 function LoadMoreSentinel({ loading, onVisible }: { loading: boolean; onVisible: () => void }) {
   const ref = useRef<HTMLDivElement>(null)
 

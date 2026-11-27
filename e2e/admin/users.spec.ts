@@ -81,7 +81,6 @@ test.describe("admin users (member)", () => {
     await signInAs(context, "member")
   })
 
-  // app/admin/layout.tsx checks the role, so every admin page sends members home.
   for (const path of [
     "/admin",
     "/admin/users",

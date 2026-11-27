@@ -6,7 +6,6 @@ import { Button } from "@/components/ui/button"
 import { MANIPULATION_KEY, MAX_CHOICES } from "@/features/admin/components/settings/policy-validation"
 import type { ModerationChoice } from "@/features/admin/schemas"
 
-/** What the check looks for: one line per criterion, with the built-in "Không vi phạm" last. */
 export function CriteriaList({
   choices,
   allowDescription,

@@ -113,7 +113,6 @@ export function displayDays(plan: MealPlan | undefined, draft: MealPlanProposal 
   }))
 }
 
-/** One saved week, with optional proposals and a separately staged draft. */
 export function Timetable({
   plan,
   failed,
@@ -133,7 +132,6 @@ export function Timetable({
 }: TimetableProps) {
   const [selectedDay, setSelectedDay] = useState<Weekday | null>(null)
   const [opened, setOpened] = useState<OpenedRecipe | null>(null)
-  // Today and the dates come from the server so that the browser clock and time zone cannot disagree with it.
   const today = plan ? todayOf(plan) : undefined
   const weekDates = plan ? plan.days.map(({ date }) => dayOfMonth(date)) : []
   const days = displayDays(plan, suggestion ?? draft)
@@ -433,7 +431,6 @@ function MealCard({
 
 export function RecipeDialogContent({ opened, onAsk }: { opened: OpenedRecipe; onAsk?: () => void }) {
   const { recipe, day, section } = opened
-  // Focus the dialog itself: focusing its first button would scroll past the photo.
   const popup = useRef<HTMLDivElement>(null)
   const minutes = recipeTime(recipe)
   const details = [

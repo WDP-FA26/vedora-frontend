@@ -7,16 +7,13 @@ import { Spinner } from "@/components/ui/spinner"
 import { weekRangeLabel, type MealPlan } from "@/features/meal-plan/meal-plan"
 
 type WeekNavProps = {
-  /** The week on screen; undefined while it loads. */
   plan: MealPlan | undefined
-  /** The server has not answered for the week that was just picked. */
   loading: boolean
   onPrevious: () => void
   onNext: () => void
   onToday: () => void
 }
 
-/** Moves between weeks within the range the server allows; never decides that range itself. */
 export function WeekNav({ plan, loading, onPrevious, onNext, onToday }: WeekNavProps) {
   const isCurrent = plan !== undefined && plan.weekStart === plan.currentWeekStart
   const canGoBack = plan !== undefined && plan.weekStart > plan.minWeekStart

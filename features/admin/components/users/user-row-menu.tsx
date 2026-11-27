@@ -49,29 +49,24 @@ import { useAuth } from "@/features/auth/hooks/use-auth"
 import { profilePath } from "@/features/profiles/profiles-cache"
 import { ApiError } from "@/features/shared/lib/api-client"
 
-/** The API's limit on `reason`. */
 const MAX_REASON_LENGTH = 500
 
-/** A change an admin confirms with a reason. */
 type AccountAction =
   | { kind: "status"; status: AccountStatusChange["status"] }
   | { kind: "role"; role: AccountRoleChange["role"] }
 
-/** The status an admin can move the account to, or null when no change applies. */
 function nextStatus(status: AdminUser["status"]): AccountStatusChange["status"] | null {
   if (status === "ACTIVE") return "SUSPENDED"
   if (status === "SUSPENDED") return "ACTIVE"
   return null
 }
 
-/** False once the account already is where the action would take it, or can't go there. */
 function stillApplies(action: AccountAction, user: AdminUser) {
   return action.kind === "status"
     ? nextStatus(user.status) === action.status
     : user.role !== action.role
 }
 
-/** Refusals the admin can't fix by retrying; shown in the dialog. */
 const REFUSALS: Record<string, string> = {
   LAST_ACTIVE_ADMIN:
     "Phải còn ít nhất một quản trị viên đang hoạt động. Hãy cấp quyền quản trị cho tài khoản khác trước.",
@@ -112,7 +107,6 @@ function copyFor(action: AccountAction, isSelf: boolean) {
       }
 }
 
-/** Row actions for one account: profile, email, suspend or reactivate, and admin rights. */
 export function UserRowMenu({ user }: { user: AdminUser }) {
   const { accessToken, user: me } = useAuth()
   const router = useRouter()
@@ -120,18 +114,15 @@ export function UserRowMenu({ user }: { user: AdminUser }) {
   const [action, setAction] = useState<AccountAction | null>(null)
   const [reason, setReason] = useState("")
   const [saving, setSaving] = useState(false)
-  /** Set when the API refused a stale version and the row was read again. */
   const [reloaded, setReloaded] = useState(false)
   const [refusal, setRefusal] = useState<string | null>(null)
 
   const email = visibleUserEmail(user)
   const isSelf = me?.id === user.id
   const next = nextStatus(user.status)
-  // Once the row reloads with the change already made, there is nothing left to confirm.
   const pending = action && stillApplies(action, user) ? action : null
   const copy = pending ? copyFor(pending, isSelf) : null
 
-  /** Reads every loaded user list again; resolves with the fresh copy of this account. */
   async function reloadUsers() {
     const lists = await mutate<AdminUser[]>(
       (key) => Array.isArray(key) && String(key[0]).startsWith(ADMIN_USERS_KEY)
@@ -161,13 +152,11 @@ export function UserRowMenu({ user }: { user: AdminUser }) {
       toast.add({ title: copy.done, description: `@${user.username}` })
       setAction(null)
       void reloadUsers()
-      // Demoting yourself takes the admin pages away: let the server re-check.
       if (isSelf && action.kind === "role") router.refresh()
     } catch (error) {
       if (!(error instanceof ApiError)) {
         setRefusal("Không kết nối được máy chủ. Thử lại sau nhé.")
       } else if (error.code === "ACCOUNT_VERSION_CONFLICT") {
-        // Never resend the old version: read the account again and ask again.
         const fresh = await reloadUsers()
         if (fresh && !stillApplies(action, fresh)) {
           setAction(null)
@@ -185,7 +174,6 @@ export function UserRowMenu({ user }: { user: AdminUser }) {
         toast.add({ title: "Tài khoản không còn tồn tại", description: `@${user.username}` })
         void reloadUsers()
       } else if (error.status === 401 || error.status === 403) {
-        // Signed out, suspended or no longer an admin: the server decides where to go.
         setAction(null)
         router.refresh()
       } else {

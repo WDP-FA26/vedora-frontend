@@ -20,10 +20,6 @@ import { BLOGS_KEY } from "@/features/blogs/blogs-cache"
 import { deleteBlog } from "@/features/blogs/lib/blogs-api"
 import { POSTS_KEY, postPath } from "@/features/posts/posts-cache"
 
-/**
- * Asks before deleting one of the author's own blogs, then drops it from every
- * cached feed and list. On the blog's own page, goes back to the feed.
- */
 export function DeleteBlogDialog({
   blogId,
   title,

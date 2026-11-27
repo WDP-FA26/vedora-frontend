@@ -4,7 +4,6 @@ import { useEffect, useState } from "react"
 
 type Deadline = { expiresAt: string; serverTime: string; receivedAt: number }
 
-/** Uses server time and elapsed monotonic time, independent of the device clock. */
 export function usePaymentCountdown(payment?: Deadline) {
   const [tick, setTick] = useState<{ sample: string; seconds: number } | null>(null)
   const expiresAt = payment?.expiresAt
