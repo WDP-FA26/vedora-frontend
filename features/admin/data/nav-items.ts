@@ -7,6 +7,7 @@ import {
   LayoutDashboardIcon,
   LifeBuoyIcon,
   SettingsIcon,
+  CreditCardIcon,
   ScrollTextIcon,
   StoreIcon,
   ShieldAlertIcon,
@@ -64,6 +65,7 @@ export const adminNavSections: AdminNavSection[] = [
       { href: "/admin/system-logs", label: "Nhật ký hệ thống", icon: ScrollTextIcon },
       { href: "/admin/ai-costs", label: "Chi phí AI", icon: ChartColumnIcon },
       { href: "/admin/payments", label: "Thanh toán", icon: ChartColumnIcon },
+      { href: "/admin/subscription-plans", label: "Gói đăng ký", icon: CreditCardIcon },
       {
         href: "/admin/settings",
         label: "Cài đặt kiểm duyệt",

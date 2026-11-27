@@ -190,6 +190,7 @@ function BillingContent({ userId, token }: { userId: string; token?: string }) {
             <Allowance title="AI văn bản dùng chung" value={usage.text} />
             <Allowance title="Tạo và chỉnh ảnh AI" value={usage.images} />
           </div>
+          {!free && <p className="mt-4 text-xs text-muted-foreground">Hạn mức gói đang dùng được giữ theo đơn đã thanh toán. Các quyền lợi trong bảng gói bên dưới áp dụng cho lần mua mới.</p>}
         </CardContent>
       </Card>
       {pendingPayment && (
@@ -269,6 +270,7 @@ function BillingContent({ userId, token }: { userId: string; token?: string }) {
                   {[
                     `${plan.textLimit} lượt AI văn bản/chu kỳ`,
                     `${plan.imageLimit} lượt tạo hoặc chỉnh ảnh/chu kỳ`,
+                    ...(plan.code === "PRO" ? ["Thoại AI hai chiều, không trừ lượt AI chữ"] : []),
                     "AI dinh dưỡng, thực đơn và viết blog",
                     "Đầy đủ tính năng của gói Miễn phí",
                   ].map((text) => (
