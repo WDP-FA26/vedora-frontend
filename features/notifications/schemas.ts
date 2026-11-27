@@ -30,6 +30,8 @@ export const notificationSchema = z.object({
     "SUPPORT_TICKET_REMINDER",
     "WORKSPACE_APPROVED",
     "WORKSPACE_REJECTED",
+    "WORKSPACE_MANAGER_ADDED",
+    "WORKSPACE_MANAGER_REMOVED",
   ]),
   actor: z
     .object({

@@ -33,6 +33,10 @@ function workspaceRejectReasonLabel(reason: string | null | undefined) {
     : null
 }
 
+function pageName(note: string | null | undefined) {
+  return note ? ` “${note}”` : ""
+}
+
 function quoted(note: string | null | undefined) {
   return note ? ` “${note}”` : ""
 }
@@ -164,6 +168,16 @@ export function describeNotification(notification: ApiNotification) {
         text: `Đơn mở trang nhà hàng của bạn chưa được duyệt${reason ? ` (${reason})` : ""}. Bạn có thể chỉnh sửa và gửi lại đơn.`,
       }
     }
+    case "WORKSPACE_MANAGER_ADDED":
+      return {
+        from: actor?.fullName ?? "Vedora",
+        text: `đã thêm bạn làm người quản lý trang${pageName(notification.note)}. Bạn có thể chuyển sang trang để đăng bài, quản lý thực đơn và trả lời tin nhắn.`,
+      }
+    case "WORKSPACE_MANAGER_REMOVED":
+      return {
+        from: actor?.fullName ?? "Vedora",
+        text: `đã gỡ bạn khỏi danh sách người quản lý trang${pageName(notification.note)}.`,
+      }
     default:
       return { from: actor?.fullName ?? "Vedora", text: "" }
   }
