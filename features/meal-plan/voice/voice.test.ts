@@ -407,6 +407,21 @@ describe("updated requests while a turn runs", () => {
     }
   }
 
+  it("sends a revision under its own request id so it never reuses the delegation's", async () => {
+    const requestIds: (string | undefined)[] = []
+    const streamTurn = async function* (_token: string, request: { requestId?: string }) {
+      requestIds.push(request.requestId)
+      yield { type: "ready" } as const
+    }
+
+    await runVoiceTurn(turnOptions({ streamTurn }))
+    await runVoiceTurn(turnOptions({ message: "biệt", revision: true, streamTurn }))
+
+    expect(requestIds[0]).toBe("del_1")
+    expect(requestIds[1]).not.toBe("del_1")
+    expect(requestIds[1]?.startsWith("del_1:")).toBe(true)
+  })
+
   it("keeps a result out of commentary and revises when the user spoke after delegating", async () => {
     const appended: Appended[] = []
     const onRevise = vi.fn()

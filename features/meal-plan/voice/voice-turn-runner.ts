@@ -141,7 +141,7 @@ export async function runVoiceTurn({
   try {
     const turn = streamTurn(
       accessToken,
-      { weekStart, message, threadId, requestId: delegationId, screen },
+      { weekStart, message, threadId, requestId: revision ? `${delegationId}:${crypto.randomUUID()}` : delegationId, screen },
       controller.signal
     )
     for await (const event of turn) {
